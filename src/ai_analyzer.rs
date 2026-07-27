@@ -48,8 +48,8 @@ pub async fn analyze_with_llm(
         "ollama" => ollama_analyze(model, endpoint, code_snippets).await,
         "openai" => openai_analyze(model, api_key, endpoint, code_snippets, true).await,
         "9router" | "custom" => {
-            // Generic OpenAI-compatible provider (no API key required)
-            openai_analyze(model, &None, endpoint, code_snippets, false).await
+            // Generic OpenAI-compatible provider (API key optional)
+            openai_analyze(model, api_key, endpoint, code_snippets, false).await
         }
         _ => Err(anyhow::anyhow!(
             "Unknown LLM provider: {}. Use 'ollama', 'openai', '9router', or 'custom'.",
