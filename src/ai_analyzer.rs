@@ -231,36 +231,52 @@ fn parse_ai_response(text: &str) -> anyhow::Result<AiAnalysis> {
         text
     };
 
-    // Truncate to first complete JSON object (handle trailing text from some providers)
-    let json_str = if let Some(end) = json_str.rfind('}') {
-        &json_str[..=end]
+    // Parse response as embedded JSON string inside message content
+    // First, try to parse the outer chat completion response
+    let analysis: AiAnalysis = if let Ok(val) = serde_json::from_str::<Value>(json_str) {
+        // Check if this is a chat completion wrapper with content field
+        let content_str = val["choices"][0]["message"]["content"].as_str();
+        if let Some(inner) = content_str {
+            // Try to parse the inner content as our JSON
+            match serde_json::from_str::<Value>(inner) {
+                Ok(inner_val) => {
+                    AiAnalysis {
+                        is_malicious: inner_val["is_malicious"].as_bool().unwrap_or(false),
+                        risk_score: inner_val["risk_score"].as_u64().unwrap_or(0) as u8,
+                        malware_type: inner_val["malware_type"].as_str().unwrap_or("None").to_string(),
+                        threat_summary: inner_val["threat_summary"].as_str().unwrap_or("No threat summary provided").to_string(),
+                        suspicious_lines: inner_val["suspicious_lines"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default(),
+                        recommendation: inner_val["recommendation"].as_str().unwrap_or("Safe").to_string(),
+                    }
+                }
+                Err(_) => {
+                    // Inner content isn't JSON — return raw fields
+                    AiAnalysis {
+                        is_malicious: false,
+                        risk_score: 0,
+                        malware_type: "None".to_string(),
+                        threat_summary: inner.to_string(),
+                        suspicious_lines: vec![],
+                        recommendation: "Safe".to_string(),
+                    }
+                }
+            }
+        } else {
+            // Direct JSON (no chat completion wrapper)
+            AiAnalysis {
+                is_malicious: val["is_malicious"].as_bool().unwrap_or(false),
+                risk_score: val["risk_score"].as_u64().unwrap_or(0) as u8,
+                malware_type: val["malware_type"].as_str().unwrap_or("None").to_string(),
+                threat_summary: val["threat_summary"].as_str().unwrap_or("No threat summary provided").to_string(),
+                suspicious_lines: val["suspicious_lines"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default(),
+                recommendation: val["recommendation"].as_str().unwrap_or("Safe").to_string(),
+            }
+        }
     } else {
-        json_str
+        return Err(anyhow::anyhow!("Failed to parse AI response: {}", json_str));
     };
 
-    let analysis: Value = serde_json::from_str(json_str)
-        .map_err(|e| anyhow::anyhow!("Failed to parse AI JSON response: {}\nRaw: {}", e, json_str))?;
-
-    Ok(AiAnalysis {
-        is_malicious: analysis["is_malicious"].as_bool().unwrap_or(false),
-        risk_score: analysis["risk_score"].as_u64().unwrap_or(0) as u8,
-        malware_type: analysis["malware_type"]
-            .as_str()
-            .unwrap_or("None")
-            .to_string(),
-        threat_summary: analysis["threat_summary"]
-            .as_str()
-            .unwrap_or("No threat summary provided")
-            .to_string(),
-        suspicious_lines: analysis["suspicious_lines"]
-            .as_array()
-            .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
-            .unwrap_or_default(),
-        recommendation: analysis["recommendation"]
-            .as_str()
-            .unwrap_or("Safe")
-            .to_string(),
-    })
+    Ok(analysis)
 }
 
 #[cfg(test)]
