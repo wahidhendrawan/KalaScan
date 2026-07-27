@@ -1,4 +1,3 @@
-version: "3"
 services:
   kalascan:
     build: .
@@ -6,22 +5,5 @@ services:
     ports:
       - "3000:3000"
     restart: unless-stopped
-    # Optional: mount local git cache to speed repeated clones
-    # volumes:
-    #   - ./git-cache:/root/.git-cache
-    # Pass Ollama host if running alongside
-    # extra_hosts:
-    #   - "host.docker.internal:host-gateway"
-
-  # Optional: run Ollama alongside for local AI analysis
-  # ollama:
-  #   image: ollama/ollama:latest
-  #   container_name: ollama
-  #   ports:
-  #     - "11434:11434"
-  #   volumes:
-  #     - ollama-data:/root/.ollama
-  #   restart: unless-stopped
-
-# volumes:
-#   ollama-data:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

@@ -1,5 +1,6 @@
 use crate::AiAnalysis;
 use serde_json::Value;
+use std::sync::OnceLock;
 use tracing::info;
 
 const SYSTEM_PROMPT: &str = r#"Kamu adalah spesialis Malware Analysis dan Application Security Audit.
@@ -19,6 +20,21 @@ Output HARUS berupa JSON valid dengan format:
   "suspicious_lines": ["Daftar baris kode/fungsi berbahaya"],
   "recommendation": "Safe" | "High Risk" | "Do Not Execute"
 }"#;
+
+/// Detect if running inside a Docker container.
+fn in_docker() -> bool {
+    static DOCKER: OnceLock<bool> = OnceLock::new();
+    *DOCKER.get_or_init(|| std::path::Path::new("/.dockerenv").exists())
+}
+
+/// Replace localhost with host.docker.internal when in a Docker container.
+fn resolve_host(url: &str) -> String {
+    if in_docker() && url.contains("://localhost:") {
+        url.replace("://localhost:", "://host.docker.internal:")
+    } else {
+        url.to_string()
+    }
+}
 
 /// Analyze suspicious code snippets using an LLM (Ollama or OpenAI-compatible API).
 pub async fn analyze_with_llm(
@@ -49,9 +65,11 @@ async fn ollama_analyze(
     endpoint: &Option<String>,
     code_snippets: &str,
 ) -> anyhow::Result<AiAnalysis> {
-    let base_url = endpoint
-        .as_deref()
-        .unwrap_or("http://localhost:11434/api/generate");
+    let base_url = resolve_host(
+        endpoint
+            .as_deref()
+            .unwrap_or("http://localhost:11434/api/generate"),
+    );
 
     let user_prompt = format!(
         "Analisis potongan kode berikut dari hasil pemindaian statis (RegEx). Indikator yang terdeteksi telah ditandai.\n\nKODE:\n{}",
@@ -110,13 +128,13 @@ async fn openai_analyze(
     code_snippets: &str,
     require_key: bool,
 ) -> anyhow::Result<AiAnalysis> {
-    let base_url = match (endpoint.as_deref(), require_key) {
+    let base_url = resolve_host(&match (endpoint.as_deref(), require_key) {
         // 9Router local proxy default
         (None, false) => "http://localhost:20128/v1/chat/completions",
         // OpenAI default
         (None, true) => "https://api.openai.com/v1/chat/completions",
         (Some(ep), _) => ep,
-    };
+    }.to_string());
 
     if require_key && api_key.is_none() {
         return Err(anyhow::anyhow!("OpenAI API key is required for this provider"));
