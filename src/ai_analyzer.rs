@@ -167,30 +167,48 @@ async fn openai_analyze(
     if !key.is_empty() {
         req = req.header("Authorization", format!("Bearer {}", key));
     }
-    let resp = req.json(&body)
+    // Remove response_format if the provider doesn't support it (e.g. 9Router via many backends)
+    let body_no_json_mode = serde_json::json!({
+        "model": model,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt}
+        ],
+        "temperature": 0.1,
+        "max_tokens": 1024
+    });
+    let final_body = if require_key { &body } else { &body_no_json_mode };
+
+    let resp = req.json(final_body)
         .send()
         .await
         .map_err(|e| anyhow::anyhow!("OpenAI API connection failed: {}", e))?;
 
     let status = resp.status();
-    let raw: Value = resp.json().await?;
+    let response_text = match resp.text().await {
+        Ok(t) => t,
+        Err(e) => return Err(anyhow::anyhow!("Failed to read response body: {}", e)),
+    };
 
     if !status.is_success() {
-        let err_str = raw.to_string();
-        let error_msg = raw["error"]["message"]
-            .as_str()
-            .unwrap_or(&err_str);
-        return Err(anyhow::anyhow!(
-            "OpenAI API error {}: {}",
-            status.as_u16(),
-            error_msg
-        ));
+        // Try to parse JSON error
+        if let Ok(val) = serde_json::from_str::<Value>(&response_text) {
+            let error_msg = val["error"]["message"].as_str().unwrap_or(&response_text);
+            return Err(anyhow::anyhow!("OpenAI API error {}: {}", status.as_u16(), error_msg));
+        }
+        return Err(anyhow::anyhow!("OpenAI API error {}: {}", status.as_u16(), response_text));
     }
 
-    let content = raw["choices"][0]["message"]["content"]
-        .as_str()
-        .unwrap_or(&raw.to_string())
-        .to_string();
+    // Try to parse JSON from response
+    let content = if let Ok(val) = serde_json::from_str::<Value>(&response_text) {
+        val["choices"][0]["message"]["content"]
+            .as_str()
+            .unwrap_or(&response_text)
+            .to_string()
+    } else {
+        // Fallback: use raw text
+        response_text.trim().to_string()
+    };
 
     parse_ai_response(&content)
 }
