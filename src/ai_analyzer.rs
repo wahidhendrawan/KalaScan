@@ -163,10 +163,11 @@ async fn openai_analyze(
 
     info!("Calling OpenAI API at {} with model {}", base_url, model);
 
-    let resp = client
-        .post(base_url)
-        .header("Authorization", format!("Bearer {}", key))
-        .json(&body)
+    let mut req = client.post(base_url);
+    if !key.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", key));
+    }
+    let resp = req.json(&body)
         .send()
         .await
         .map_err(|e| anyhow::anyhow!("OpenAI API connection failed: {}", e))?;
