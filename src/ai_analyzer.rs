@@ -231,6 +231,13 @@ fn parse_ai_response(text: &str) -> anyhow::Result<AiAnalysis> {
         text
     };
 
+    // Truncate to first complete JSON object (handle trailing text from some providers)
+    let json_str = if let Some(end) = json_str.rfind('}') {
+        &json_str[..=end]
+    } else {
+        json_str
+    };
+
     let analysis: Value = serde_json::from_str(json_str)
         .map_err(|e| anyhow::anyhow!("Failed to parse AI JSON response: {}\nRaw: {}", e, json_str))?;
 
