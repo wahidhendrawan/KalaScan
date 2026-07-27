@@ -70,9 +70,12 @@
                     <div>
                         <label class="block text-sm font-medium text-kalagray-500 mb-2" for="llm-provider">LLM Provider</label>
                         <select id="llm-provider" name="llm_provider"
-                            class="w-full px-4 py-3 bg-kalagray-900 border border-kalagray-600 rounded-lg text-gray-100 focus:outline-none focus:border-kalablue-400 transition">
+                            class="w-full px-4 py-3 bg-kalagray-900 border border-kalagray-600 rounded-lg text-gray-100 focus:outline-none focus:border-kalablue-400 transition"
+                            onchange="toggleProvider()">
                             <option value="ollama">Ollama (Local)</option>
-                            <option value="openai">OpenAI / Compatible</option>
+                            <option value="openai">OpenAI</option>
+                            <option value="9router">9Router (Local Proxy)</option>
+                            <option value="custom">Custom (OpenAI-Compatible)</option>
                         </select>
                     </div>
                     <div>
@@ -90,7 +93,7 @@
                         <input
                             type="password" id="llm-key" name="llm_api_key"
                             class="w-full px-4 py-3 bg-kalagray-900 border border-kalagray-600 rounded-lg text-gray-100 placeholder-kalagray-500 focus:outline-none focus:border-kalablue-400 transition"
-                            placeholder="sk-... (optional for Ollama)"
+                            placeholder="sk-... (not needed for Ollama/9Router)"
                         />
                     </div>
                     <div>
@@ -98,7 +101,7 @@
                         <input
                             type="text" id="llm-endpoint" name="llm_endpoint"
                             class="w-full px-4 py-3 bg-kalagray-900 border border-kalagray-600 rounded-lg text-gray-100 placeholder-kalagray-500 focus:outline-none focus:border-kalablue-400 transition"
-                            placeholder="http://localhost:11434/api/generate"
+                            placeholder="Auto-detected from provider"
                         />
                     </div>
                 </div>
@@ -192,6 +195,40 @@
         const scanBtn = document.getElementById('scan-btn');
 
         const API_BASE = '';
+
+        // Auto-set endpoint & model when provider changes
+        function toggleProvider() {
+            const provider = document.getElementById('llm-provider').value;
+            const endpoint = document.getElementById('llm-endpoint');
+            const model = document.getElementById('llm-model');
+            const key = document.getElementById('llm-key');
+
+            switch (provider) {
+                case '9router':
+                    endpoint.placeholder = 'http://localhost:20128/v1/chat/completions';
+                    endpoint.value = '';
+                    key.placeholder = 'Not needed for 9Router';
+                    if (model.value === 'llama3') model.value = 'gpt-4o';
+                    break;
+                case 'ollama':
+                    endpoint.placeholder = 'http://localhost:11434/api/generate';
+                    endpoint.value = '';
+                    key.placeholder = 'Not needed for Ollama';
+                    model.value = 'llama3';
+                    break;
+                case 'openai':
+                    endpoint.placeholder = 'https://api.openai.com/v1/chat/completions';
+                    endpoint.value = '';
+                    key.placeholder = 'sk-...';
+                    model.value = 'gpt-4o';
+                    break;
+                case 'custom':
+                    endpoint.placeholder = 'http://localhost:20128/v1/chat/completions';
+                    endpoint.value = '';
+                    key.placeholder = 'Optional';
+                    break;
+            }
+        }
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();

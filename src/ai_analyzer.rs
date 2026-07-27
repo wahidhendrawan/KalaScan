@@ -30,9 +30,17 @@ pub async fn analyze_with_llm(
 ) -> anyhow::Result<AiAnalysis> {
     match provider.to_lowercase().as_str() {
         "ollama" => ollama_analyze(model, endpoint, code_snippets).await,
-        "openai" => openai_analyze(model, api_key, endpoint, code_snippets).await,
-        _ => Err(anyhow::anyhow!("Unknown LLM provider: {}. Use 'ollama' or 'openai'.", provider)),
+        "openai" => openai_analyze(model, api_key, endpoint, code_snippets, true).await,
+        "9router" | "custom" => {
+            // Generic OpenAI-compatible provider (no API key required)
+            openai_analyze(model, &None, endpoint, code_snippets, false).await
+        }
+        _ => Err(anyhow::anyhow!(
+            "Unknown LLM provider: {}. Use 'ollama', 'openai', '9router', or 'custom'.",
+            provider
+        )),
     }
+
 }
 
 /// Analyze with local Ollama instance
@@ -93,20 +101,27 @@ async fn ollama_analyze(
     parse_ai_response(&response_text)
 }
 
-/// Analyze with OpenAI-compatible API
+/// Analyze with OpenAI-compatible API.
+/// If `require_key` is false, the API key is optional (for local proxies like 9Router).
 async fn openai_analyze(
     model: &str,
     api_key: &Option<String>,
     endpoint: &Option<String>,
     code_snippets: &str,
+    require_key: bool,
 ) -> anyhow::Result<AiAnalysis> {
-    let key = api_key
-        .as_deref()
-        .ok_or_else(|| anyhow::anyhow!("OpenAI API key is required"))?;
+    let base_url = match (endpoint.as_deref(), require_key) {
+        // 9Router local proxy default
+        (None, false) => "http://localhost:20128/v1/chat/completions",
+        // OpenAI default
+        (None, true) => "https://api.openai.com/v1/chat/completions",
+        (Some(ep), _) => ep,
+    };
 
-    let base_url = endpoint
-        .as_deref()
-        .unwrap_or("https://api.openai.com/v1/chat/completions");
+    if require_key && api_key.is_none() {
+        return Err(anyhow::anyhow!("OpenAI API key is required for this provider"));
+    }
+    let key = api_key.as_deref().unwrap_or("");
 
     let user_prompt = format!(
         "Analisis potongan kode berikut dari hasil pemindaian statis (RegEx):\n\nKODE:\n{}",
