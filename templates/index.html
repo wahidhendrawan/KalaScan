@@ -206,31 +206,66 @@
             switch (provider) {
                 case '9router':
                     endpoint.placeholder = 'http://localhost:20128/v1/chat/completions';
-                    endpoint.value = '';
+                    if (!endpoint.value) endpoint.value = 'http://localhost:20128/v1/chat/completions';
                     key.placeholder = 'Not needed for 9Router';
                     if (model.value === 'llama3') model.value = 'gpt-4o';
                     break;
                 case 'ollama':
                     endpoint.placeholder = 'http://localhost:11434/api/generate';
-                    endpoint.value = '';
+                    if (!endpoint.value) endpoint.value = 'http://localhost:11434/api/generate';
                     key.placeholder = 'Not needed for Ollama';
                     model.value = 'llama3';
                     break;
                 case 'openai':
                     endpoint.placeholder = 'https://api.openai.com/v1/chat/completions';
-                    endpoint.value = '';
+                    if (!endpoint.value) endpoint.value = 'https://api.openai.com/v1/chat/completions';
                     key.placeholder = 'sk-...';
                     model.value = 'gpt-4o';
                     break;
                 case 'custom':
                     endpoint.placeholder = 'http://localhost:20128/v1/chat/completions';
-                    endpoint.value = '';
                     key.placeholder = 'Optional';
                     break;
             }
         }
 
-        form.addEventListener('submit', async (e) => {
+        // Save LLM settings to localStorage on every change
+        function saveSettings() {
+            const settings = {
+                llm_provider: document.getElementById('llm-provider').value,
+                llm_model: document.getElementById('llm-model').value,
+                llm_endpoint: document.getElementById('llm-endpoint').value,
+                llm_api_key: document.getElementById('llm-key').value,
+                ai_analysis_enabled: document.getElementById('ai-enabled').checked,
+            };
+            localStorage.setItem('kalascan_settings', JSON.stringify(settings));
+        }
+
+        // Load LLM settings from localStorage
+        function loadSettings() {
+            const raw = localStorage.getItem('kalascan_settings');
+            if (!raw) return;
+            try {
+                const s = JSON.parse(raw);
+                const p = document.getElementById('llm-provider');
+                if (s.llm_provider) { p.value = s.llm_provider; }
+                toggleProvider(); // set placeholders
+                if (s.llm_model) document.getElementById('llm-model').value = s.llm_model;
+                if (s.llm_endpoint) document.getElementById('llm-endpoint').value = s.llm_endpoint;
+                if (s.llm_api_key) document.getElementById('llm-key').value = s.llm_api_key;
+                if (s.ai_analysis_enabled !== undefined) document.getElementById('ai-enabled').checked = s.ai_analysis_enabled;
+            } catch (_) {}
+        }
+
+        // Wire all setting inputs to auto-save
+        ['llm-provider', 'llm-model', 'llm-endpoint', 'llm-key', 'ai-enabled'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('change', saveSettings);
+            if (el && el.type !== 'checkbox') el.addEventListener('input', saveSettings);
+        });
+
+        // Load saved settings on page load
+        loadSettings();
             e.preventDefault();
 
             const formData = new FormData(form);
