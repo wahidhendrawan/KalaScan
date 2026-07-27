@@ -5,40 +5,346 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Scan Results — KalaScan</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%233fb950' d='M8 0l8 3v5c0 4.5-3.5 8.7-8 10C3.5 16.7 0 12.5 0 8V3l8-3z'/%3E%3Cpath fill='%2358a6ff' d='M6.5 10.5l-3-3 1.4-1.4 1.6 1.6 4.6-4.6 1.4 1.4-6 6z'/%3E%3C/svg%3E">
     <script>
         tailwind.config = {
             darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        kalagray: { 900: '#0d1117', 800: '#161b22', 700: '#21262d', 600: '#30363d', 500: '#8b949e' },
-                        kalagreen: { 400: '#3fb950', 500: '#2ea043' },
-                        kalared: { 400: '#f85149', 500: '#da3633' },
-                        kalaorange: { 400: '#d2991d', 500: '#b08800' },
-                        kalablue: { 400: '#58a6ff', 500: '#1f6feb' },
-                    }
+            theme: { extend: {
+                colors: {
+                    kblue: { 400: '#58a6ff', 500: '#1f6feb' },
+                    kgreen: { 400: '#3fb950', 500: '#2ea043' },
+                    kred: { 400: '#f85149', 500: '#da3633' },
+                    kamber: { 400: '#d2991d', 500: '#b08800' },
                 }
-            }
-        }
+            }}
+        };
     </script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
+        .gradient-text { background: linear-gradient(135deg, #58a6ff, #3fb950); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .gauge-ring { transition: stroke-dashoffset 0.8s ease; }
+        .match-row { transition: background 0.12s ease; }
+        .match-table-wrap::-webkit-scrollbar { width: 4px; height: 6px; }
+        .match-table-wrap::-webkit-scrollbar-thumb { background: #30363d; border-radius: 2px; }
+        .match-table-wrap::-webkit-scrollbar-track { background: transparent; }
+        th.sortable { cursor: pointer; user-select: none; }
+        th.sortable:hover { color: #e6edf3; }
+        th.sortable::after { content: ''; margin-left: 4px; display: inline-block; opacity: 0.3; }
+        th.sortable.asc::after { content: '\25B2'; opacity: 1; }
+        th.sortable.desc::after { content: '\25BC'; opacity: 1; }
+        @keyframes fadeIn { 0% { opacity:0; transform:translateY(6px); } 100% { opacity:1; transform:translateY(0); } }
+        .fade-in { animation: fadeIn 0.35s ease-out forwards; }
+        @keyframes fillGauge { 0% { stroke-dashoffset: 283; } }
+        .gauge-fill { animation: fillGauge 0.9s ease-out forwards; }
+    </style>
 </head>
-<body class="bg-kalagray-900 text-gray-200 min-h-screen">
-    <header class="border-b border-kalagray-700 bg-kalagray-800">
-        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center gap-4">
-            <a href="/" class="text-kalablue-400 hover:underline text-sm">&larr; Back</a>
-            <h1 class="text-xl font-bold">KalaScan</h1>
-            <span class="text-kalagray-500 text-sm">Result: {{result_id}}</span>
+<body class="bg-gray-950 text-gray-200 min-h-screen flex flex-col">
+    <!-- Tera data bridge -->
+    <script id="tera-result" type="application/json">{{ result_json | safe }}</script>
+
+    <!-- Navbar -->
+    <header class="border-b border-gray-800 bg-gray-900/90 backdrop-blur-sm sticky top-0 z-50">
+        <div class="flex items-center justify-between px-4 py-2 max-w-7xl mx-auto w-full">
+            <div class="flex items-center gap-3">
+                <a href="/" class="text-gray-500 hover:text-white text-sm p-1 transition" title="Back to Dashboard">&larr;</a>
+                <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-green-500 rounded-lg flex items-center justify-center font-bold text-sm text-white shrink-0">K</div>
+                <div>
+                    <h1 class="text-base font-bold gradient-text leading-tight">KalaScan</h1>
+                    <span class="text-[10px] text-gray-500 leading-tight">Scan Result</span>
+                </div>
+            </div>
+            <div id="result-actions" class="flex items-center gap-2">
+                <button onclick="downloadReport('md')" class="px-3 py-1.5 text-[11px] bg-gray-800 border border-gray-700 rounded-md text-gray-400 hover:text-gray-200 hover:border-gray-600 transition flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                    .md
+                </button>
+                <button onclick="downloadReport('html')" class="px-3 py-1.5 text-[11px] bg-gray-800 border border-gray-700 rounded-md text-gray-400 hover:text-gray-200 hover:border-gray-600 transition flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                    .html
+                </button>
+            </div>
         </div>
     </header>
-    <main class="max-w-7xl mx-auto px-6 py-8">
+
+    <main class="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 max-w-5xl mx-auto w-full fade-in">
         {% if has_result %}
-        <pre class="bg-kalagray-800 rounded-xl border border-kalagray-700 p-6 text-sm overflow-x-auto text-kalagray-300">{{result_json}}</pre>
+        <script id="tera-scans" type="application/json">null</script>
+
+        <!-- Scan identity + status badge -->
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+            <div class="min-w-0 flex-1">
+                <h2 class="text-lg font-bold text-gray-100 truncate" title="{{ result.repo_url }}">{{ result.repo_url }}</h2>
+                <p class="text-xs text-gray-500 font-mono mt-0.5">{{ result.timestamp }}</p>
+                <p class="text-[10px] text-gray-600 mt-0.5">ID: {{ result.id }}</p>
+            </div>
+            <span id="status-badge" class="shrink-0 px-4 py-1.5 rounded-full text-xs font-bold border"></span>
+        </div>
+
+        <!-- Risk gauge + stat cards row -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <!-- Risk gauge -->
+            <div class="md:col-span-1 bg-gray-900 rounded-xl border border-gray-800 p-5 flex flex-col items-center justify-center">
+                <div class="relative w-28 h-28 mb-2">
+                    <svg class="w-28 h-28 -rotate-90" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="45" fill="none" stroke="#21262d" stroke-width="8"/>
+                        <circle id="gauge-arc" cx="50" cy="50" r="45" fill="none" stroke-width="8" stroke-linecap="round"
+                            stroke-dasharray="283" stroke-dashoffset="283" class="gauge-ring gauge-fill"/>
+                    </svg>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <span id="gauge-score" class="text-2xl font-bold">0</span>
+                        <span class="text-[10px] text-gray-500 -mt-0.5">/ 100</span>
+                    </div>
+                </div>
+                <span id="gauge-label" class="text-[11px] font-semibold uppercase tracking-widest"></span>
+            </div>
+
+            <!-- Stat cards -->
+            <div class="md:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-9 h-9 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+                        </div>
+                        <span class="text-[11px] text-gray-500 font-medium">Files Scanned</span>
+                    </div>
+                    <span id="stat-files" class="text-2xl font-bold text-gray-100">0</span>
+                    <span class="text-[10px] text-gray-600 ml-1">/ {{ result.total_files }}</span>
+                </div>
+                <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-9 h-9 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M12 3l9.66 16.5H2.34L12 3z"/></svg>
+                        </div>
+                        <span class="text-[11px] text-gray-500 font-medium">Threat Matches</span>
+                    </div>
+                    <span id="stat-matches" class="text-2xl font-bold text-gray-100">0</span>
+                </div>
+                <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                        </div>
+                        <span class="text-[11px] text-gray-500 font-medium">Risk Level</span>
+                    </div>
+                    <span id="stat-risk" class="text-2xl font-bold">--</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Analysis card -->
+        <div id="ai-card" class="hidden bg-gray-900 rounded-xl border border-gray-800 p-6 mb-6">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 text-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"/></svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-100">AI Deep Analysis</h3>
+                    <p class="text-[10px] text-gray-500">LLM-generated threat assessment</p>
+                </div>
+            </div>
+            <div id="ai-body" class="space-y-3 text-sm leading-relaxed text-gray-300"></div>
+        </div>
+
+        <!-- Rule matches table -->
+        <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-800 flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-gray-100">Rule Matches</h3>
+                <span id="match-count" class="text-[11px] text-gray-500 bg-gray-800 px-2.5 py-1 rounded-md"></span>
+            </div>
+            <div class="match-table-wrap overflow-x-auto">
+                <table class="w-full text-xs text-left" id="match-table">
+                    <thead class="border-b border-gray-800 text-gray-500 uppercase text-[10px] bg-gray-900/50">
+                        <tr>
+                            <th class="sortable py-3 px-5 font-medium" data-col="file">File</th>
+                            <th class="sortable py-3 px-3 font-medium" data-col="line">Line</th>
+                            <th class="sortable py-3 px-3 font-medium" data-col="pattern">Pattern</th>
+                            <th class="sortable py-3 px-3 font-medium" data-col="severity">Severity</th>
+                            <th class="py-3 px-3 font-medium">Context</th>
+                        </tr>
+                    </thead>
+                    <tbody id="match-body" class="divide-y divide-gray-800/50"></tbody>
+                </table>
+            </div>
+            <div id="match-empty" class="hidden py-14 text-center">
+                <svg class="w-10 h-10 mx-auto mb-3 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <p class="text-xs text-gray-600">No threats detected</p>
+                <p class="text-[10px] text-gray-700 mt-1">Clean repository</p>
+            </div>
+        </div>
+
+        <!-- Footer link -->
+        <div class="mt-6 text-center">
+            <a href="/" class="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-400 transition">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                Back to Dashboard
+            </a>
+        </div>
+
         {% else %}
-        <div class="text-center py-20">
-            <p class="text-kalagray-500 text-xl">&#x1F50D; Result not found</p>
-            <a href="/" class="text-kalablue-400 hover:underline mt-4 inline-block">Scan a repo</a>
+        <div class="flex flex-col items-center justify-center py-24 text-center">
+            <svg class="w-16 h-16 mb-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"/></svg>
+            <p class="text-lg text-gray-500">Result Not Found</p>
+            <p class="text-sm text-gray-600 mt-2">The scan result you're looking for doesn't exist or has been deleted.</p>
+            <a href="/" class="mt-6 px-5 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-blue-400 hover:text-blue-300 hover:border-blue-500/50 transition">
+                Start a New Scan
+            </a>
         </div>
         {% endif %}
     </main>
+
+    <script>
+    {% if has_result %}
+    /* ── Parse Tera JSON bridge ── */
+    const result = (function() {
+        try {
+            return JSON.parse(document.getElementById('tera-result').textContent);
+        } catch(_) { return null; }
+    })();
+
+    if (!result) {
+        document.body.innerHTML = '<div class="p-8 text-center text-red-400">Failed to parse result data</div>';
+    } else {
+        const rid = result.id;
+        const API = '';
+
+        /* ── Render result ── */
+
+        // Gauge
+        const score = result.risk_score;
+        const gaugeArc = document.getElementById('gauge-arc');
+        const gaugeScore = document.getElementById('gauge-score');
+        const gaugeLabel = document.getElementById('gauge-label');
+        const circumference = 283;
+        const offset = circumference - (score / 100) * circumference;
+        gaugeArc.style.strokeDashoffset = offset;
+
+        let gaugeColor, gaugeLabelText;
+        if (score >= 70) { gaugeColor = '#f85149'; gaugeLabelText = 'HIGH RISK'; }
+        else if (score >= 30) { gaugeColor = '#d2991d'; gaugeLabelText = 'WARNING'; }
+        else if (score > 0) { gaugeColor = '#58a6ff'; gaugeLabelText = 'LOW RISK'; }
+        else { gaugeColor = '#3fb950'; gaugeLabelText = 'SAFE'; }
+        gaugeArc.setAttribute('stroke', gaugeColor);
+        gaugeLabel.textContent = gaugeLabelText;
+        gaugeLabel.style.color = gaugeColor;
+
+        // Animate score number
+        let cur = 0;
+        const target = score;
+        const step = Math.max(1, Math.floor(target / 40));
+        const iv = setInterval(function() {
+            cur = Math.min(cur + step, target);
+            gaugeScore.textContent = cur;
+            if (cur >= target) clearInterval(iv);
+        }, 16);
+
+        // Stat cards
+        document.getElementById('stat-files').textContent = result.scanned_files;
+        document.getElementById('stat-matches').textContent = result.total_matches;
+
+        const riskEl = document.getElementById('stat-risk');
+        riskEl.textContent = gaugeLabelText;
+        riskEl.className = 'text-2xl font-bold ' + (score >= 70 ? 'text-red-400' : score >= 30 ? 'text-amber-400' : score > 0 ? 'text-blue-400' : 'text-green-400');
+
+        // Badge
+        const badge = document.getElementById('status-badge');
+        badge.className = 'shrink-0 px-4 py-1.5 rounded-full text-xs font-bold border ' + (
+            score >= 70 ? 'bg-red-500/10 border-red-500/30 text-red-400' :
+            score >= 30 ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' :
+            score > 0  ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' :
+                         'bg-green-500/10 border-green-500/30 text-green-400'
+        );
+        badge.textContent = gaugeLabelText;
+
+        // Match count badge
+        document.getElementById('match-count').textContent = result.total_matches + ' match' + (result.total_matches !== 1 ? 'es' : '');
+
+        /* ── AI Analysis ── */
+        const aiCard = document.getElementById('ai-card');
+        const aiBody = document.getElementById('ai-body');
+        if (result.ai_analysis && result.ai_analysis.threat_summary) {
+            aiCard.classList.remove('hidden');
+            const ai = result.ai_analysis;
+            let html = '<div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs mb-4">' +
+                '<div class="bg-gray-950 rounded-lg px-4 py-2.5 border border-gray-800"><span class="text-gray-500 block mb-0.5">Type</span><span class="font-semibold text-gray-200">' + escHtml(ai.malware_type || 'Unknown') + '</span></div>' +
+                '<div class="bg-gray-950 rounded-lg px-4 py-2.5 border border-gray-800"><span class="text-gray-500 block mb-0.5">AI Risk Score</span><span class="font-semibold ' + (ai.risk_score >= 60 ? 'text-red-400' : ai.risk_score >= 30 ? 'text-amber-400' : 'text-green-400') + '">' + ai.risk_score + '/100</span></div>' +
+                '<div class="bg-gray-950 rounded-lg px-4 py-2.5 border border-gray-800"><span class="text-gray-500 block mb-0.5">Recommendation</span><span class="font-semibold ' + (ai.recommendation && ai.recommendation.toLowerCase().includes('immediate') ? 'text-red-400' : 'text-amber-400') + '">' + escHtml(ai.recommendation || 'Review') + '</span></div>' +
+                '</div>' +
+                '<div class="bg-gray-950 rounded-lg p-4 border border-gray-800"><span class="text-gray-500 text-xs block mb-1.5">Threat Summary</span><p class="text-xs text-gray-300 leading-relaxed">' + escHtml(ai.threat_summary) + '</p></div>';
+
+            if (ai.suspicious_lines && ai.suspicious_lines.length > 0) {
+                html += '<div class="mt-3"><span class="text-gray-500 text-[10px] block mb-1">Suspicious Code Snippets</span>' +
+                    '<pre class="text-xs text-red-400/80 bg-gray-950 p-3 rounded-lg border border-gray-800 max-h-40 overflow-y-auto leading-relaxed">' +
+                    ai.suspicious_lines.map(function(l) { return escHtml(l); }).join('\n') +
+                    '</pre></div>';
+            }
+            aiBody.innerHTML = html;
+        }
+
+        /* ── Match table ── */
+        function renderMatches(data) {
+            const tbody = document.getElementById('match-body');
+            const empty = document.getElementById('match-empty');
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '';
+                empty.classList.remove('hidden');
+                return;
+            }
+            empty.classList.add('hidden');
+            tbody.innerHTML = data.map(function(m) {
+                var sc = m.severity === 'critical' ? 'text-red-400' : m.severity === 'high' ? 'text-amber-400' : m.severity === 'medium' ? 'text-yellow-500' : 'text-gray-500';
+                var ctx = (m.context || '').split('\n')[0].substring(0, 80);
+                return '<tr class="match-row hover:bg-gray-800/30">' +
+                    '<td class="py-2.5 px-5 font-mono text-blue-400 max-w-[240px] truncate" title="' + escAttr(m.file_path) + '">' + escHtml(m.file_path) + '</td>' +
+                    '<td class="py-2.5 px-3 text-gray-400 font-mono">' + m.line_number + '</td>' +
+                    '<td class="py-2.5 px-3"><span class="bg-gray-800 px-2 py-0.5 rounded text-[10px] font-mono text-gray-300">' + escHtml(m.matched_pattern) + '</span></td>' +
+                    '<td class="py-2.5 px-3 font-semibold uppercase text-[10px] ' + sc + '">' + m.severity + '</td>' +
+                    '<td class="py-2.5 px-3 text-gray-600 text-[10px] max-w-[200px] truncate" title="' + escAttr(ctx) + '">' + escHtml(ctx) + '</td>' +
+                    '</tr>';
+            }).join('');
+        }
+
+        renderMatches(result.rule_matches);
+
+        /* ── Sorting ── */
+        var sortDir = {};
+        document.querySelectorAll('.sortable').forEach(function(th) {
+            th.addEventListener('click', function() {
+                var col = th.dataset.col;
+                var dir = sortDir[col] === 'asc' ? 'desc' : 'asc';
+                sortDir = {};
+                sortDir[col] = dir;
+                document.querySelectorAll('.sortable').forEach(function(h) { h.classList.remove('asc','desc'); });
+                th.classList.add(dir);
+
+                var matches = (result.rule_matches || []).slice();
+                matches.sort(function(a, b) {
+                    var va, vb;
+                    if (col === 'file') { va = a.file_path.toLowerCase(); vb = b.file_path.toLowerCase(); }
+                    else if (col === 'line') { va = a.line_number; vb = b.line_number; }
+                    else if (col === 'pattern') { va = a.matched_pattern.toLowerCase(); vb = b.matched_pattern.toLowerCase(); }
+                    else if (col === 'severity') {
+                        var rank = {critical:0, high:1, medium:2, low:3};
+                        va = rank[a.severity] || 99; vb = rank[b.severity] || 99;
+                    }
+                    if (typeof va === 'string') return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+                    return dir === 'asc' ? va - vb : vb - va;
+                });
+                renderMatches(matches);
+            });
+        });
+
+        /* ── Helpers ── */
+        function escHtml(s) { return String(s).replace(/[&<>'"]/g, function(c) {
+            return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]; });
+        }
+        function escAttr(s) { return String(s).replace(/"/g,'&quot;').replace(/&/g,'&amp;'); }
+
+        /* ── Download ── */
+        function downloadReport(format) {
+            window.open(API + '/api/report/' + encodeURIComponent(rid) + '/' + format, '_blank');
+        }
+    }
+    {% endif %}
+    </script>
 </body>
 </html>
