@@ -208,9 +208,8 @@
                 case '9router':
                     endpoint.value = 'http://localhost:20128/v1/chat/completions';
                     endpoint.placeholder = endpoint.value;
-                    key.placeholder = 'Not needed for 9Router';
-                    key.value = '';
-                    if (model.value === 'llama3') model.value = 'gpt-4o';
+                    key.placeholder = 'API key from 9Router dashboard';
+                    model.value = 'deepseek';
                     break;
                 case 'ollama':
                     endpoint.value = 'http://localhost:11434/api/generate';
