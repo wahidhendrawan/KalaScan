@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Scan Results — KalaScan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        kalagray: { 900: '#0d1117', 800: '#161b22', 700: '#21262d', 600: '#30363d', 500: '#8b949e' },
+                        kalagreen: { 400: '#3fb950', 500: '#2ea043' },
+                        kalared: { 400: '#f85149', 500: '#da3633' },
+                        kalaorange: { 400: '#d2991d', 500: '#b08800' },
+                        kalablue: { 400: '#58a6ff', 500: '#1f6feb' },
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-kalagray-900 text-gray-200 min-h-screen">
+    <header class="border-b border-kalagray-700 bg-kalagray-800">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center gap-4">
+            <a href="/" class="text-kalablue-400 hover:underline text-sm">&larr; Back</a>
+            <h1 class="text-xl font-bold">KalaScan</h1>
+            <span class="text-kalagray-500 text-sm">Result: {{result_id}}</span>
+        </div>
+    </header>
+    <main class="max-w-7xl mx-auto px-6 py-8">
+        {% if has_result %}
+        <pre class="bg-kalagray-800 rounded-xl border border-kalagray-700 p-6 text-sm overflow-x-auto text-kalagray-300">{{result_json}}</pre>
+        {% else %}
+        <div class="text-center py-20">
+            <p class="text-kalagray-500 text-xl">&#x1F50D; Result not found</p>
+            <a href="/" class="text-kalablue-400 hover:underline mt-4 inline-block">Scan a repo</a>
+        </div>
+        {% endif %}
+    </main>
+</body>
+</html>

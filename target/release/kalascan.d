@@ -1,0 +1,1 @@
+/Users/wahidhendrawan/Documents/github/KalaScan/target/release/kalascan: /Users/wahidhendrawan/Documents/github/KalaScan/src/ai_analyzer.rs /Users/wahidhendrawan/Documents/github/KalaScan/src/main.rs /Users/wahidhendrawan/Documents/github/KalaScan/src/scanner.rs

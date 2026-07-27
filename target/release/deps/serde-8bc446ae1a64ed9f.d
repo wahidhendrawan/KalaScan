@@ -1,0 +1,14 @@
+/Users/wahidhendrawan/Documents/github/KalaScan/target/release/deps/serde-8bc446ae1a64ed9f.d: /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/lib.rs /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/integer128.rs /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/mod.rs /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/de.rs /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/ser.rs /Users/wahidhendrawan/Documents/github/KalaScan/target/release/build/serde-cf983305d3e1b233/out/private.rs
+
+/Users/wahidhendrawan/Documents/github/KalaScan/target/release/deps/libserde-8bc446ae1a64ed9f.rlib: /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/lib.rs /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/integer128.rs /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/mod.rs /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/de.rs /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/ser.rs /Users/wahidhendrawan/Documents/github/KalaScan/target/release/build/serde-cf983305d3e1b233/out/private.rs
+
+/Users/wahidhendrawan/Documents/github/KalaScan/target/release/deps/libserde-8bc446ae1a64ed9f.rmeta: /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/lib.rs /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/integer128.rs /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/mod.rs /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/de.rs /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/ser.rs /Users/wahidhendrawan/Documents/github/KalaScan/target/release/build/serde-cf983305d3e1b233/out/private.rs
+
+/Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/lib.rs:
+/Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/integer128.rs:
+/Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/mod.rs:
+/Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/de.rs:
+/Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/ser.rs:
+/Users/wahidhendrawan/Documents/github/KalaScan/target/release/build/serde-cf983305d3e1b233/out/private.rs:
+
+# env-dep:OUT_DIR=/Users/wahidhendrawan/Documents/github/KalaScan/target/release/build/serde-cf983305d3e1b233/out

@@ -1,0 +1,11 @@
+/Users/wahidhendrawan/Documents/github/KalaScan/target/release/deps/xz2-d5b7dd8a82a20181.d: /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xz2-0.1.7/src/lib.rs /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xz2-0.1.7/src/stream.rs /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xz2-0.1.7/src/bufread.rs /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xz2-0.1.7/src/read.rs /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xz2-0.1.7/src/write.rs
+
+/Users/wahidhendrawan/Documents/github/KalaScan/target/release/deps/libxz2-d5b7dd8a82a20181.rlib: /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xz2-0.1.7/src/lib.rs /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xz2-0.1.7/src/stream.rs /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xz2-0.1.7/src/bufread.rs /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xz2-0.1.7/src/read.rs /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xz2-0.1.7/src/write.rs
+
+/Users/wahidhendrawan/Documents/github/KalaScan/target/release/deps/libxz2-d5b7dd8a82a20181.rmeta: /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xz2-0.1.7/src/lib.rs /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xz2-0.1.7/src/stream.rs /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xz2-0.1.7/src/bufread.rs /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xz2-0.1.7/src/read.rs /Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xz2-0.1.7/src/write.rs
+
+/Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xz2-0.1.7/src/lib.rs:
+/Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xz2-0.1.7/src/stream.rs:
+/Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xz2-0.1.7/src/bufread.rs:
+/Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xz2-0.1.7/src/read.rs:
+/Users/wahidhendrawan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xz2-0.1.7/src/write.rs:
