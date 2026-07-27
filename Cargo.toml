@@ -1,8 +1,8 @@
 [package]
 name = "kalascan"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
-description = "Local Git Repository Security & Malware Scanner — detects malware indicators using static RegEx rules and AI deep analysis."
+description = "Local Git Repository Security & Malware Scanner — detects malware indicators using static RegEx rules, git history scanning, and AI deep analysis."
 authors = ["Wahid Hendrawan"]
 license = "GPL-3.0"
 repository = "https://github.com/wahidhendrawan/KalaScan"
