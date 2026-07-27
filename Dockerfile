@@ -26,7 +26,7 @@ RUN touch src/main.rs src/scanner.rs src/ai_analyzer.rs && \
 FROM debian:bookworm-slim
 
 RUN apt-get update -qq && \
-    apt-get install -y -qq --no-install-recommends ca-certificates git && \
+    apt-get install -y -qq --no-install-recommends ca-certificates git curl && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/target/release/kalascan /usr/local/bin/kalascan

@@ -92,8 +92,9 @@ async fn main() -> anyhow::Result<()> {
         .layer(CorsLayer::permissive())
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await?;
-    info!("Web UI: http://127.0.0.1:3000");
+    let addr = std::env::var("KALASCAN_ADDR").unwrap_or_else(|_| "0.0.0.0:3000".to_string());
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    info!("Web UI: http://{}", addr);
     axum::serve(listener, app).await?;
 
     Ok(())
