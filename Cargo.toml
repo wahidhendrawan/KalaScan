@@ -4,7 +4,7 @@ version = "1.0.0"
 edition = "2021"
 description = "Local Git Repository Security & Malware Scanner — detects malware indicators using static RegEx rules and AI deep analysis."
 authors = ["Wahid Hendrawan"]
-license = "MIT"
+license = "GPL-3.0"
 repository = "https://github.com/wahidhendrawan/KalaScan"
 
 [dependencies]
