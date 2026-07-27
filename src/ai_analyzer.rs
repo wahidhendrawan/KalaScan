@@ -47,12 +47,20 @@ pub async fn analyze_with_llm(
     match provider.to_lowercase().as_str() {
         "ollama" => ollama_analyze(model, endpoint, code_snippets).await,
         "openai" => openai_analyze(model, api_key, endpoint, code_snippets, true).await,
+        "deepseek" => openai_analyze(
+            model,
+            api_key,
+            &Some("https://api.deepseek.com/v1/chat/completions".to_string()),
+            code_snippets,
+            true,
+        )
+        .await,
         "9router" | "custom" => {
             // Generic OpenAI-compatible provider (API key optional)
             openai_analyze(model, api_key, endpoint, code_snippets, false).await
         }
         _ => Err(anyhow::anyhow!(
-            "Unknown LLM provider: {}. Use 'ollama', 'openai', '9router', or 'custom'.",
+            "Unknown LLM provider: {}. Use 'ollama', 'openai', 'deepseek', '9router', or 'custom'.",
             provider
         )),
     }
@@ -231,24 +239,21 @@ fn parse_ai_response(text: &str) -> anyhow::Result<AiAnalysis> {
         clean
     };
 
-    // Try to extract JSON from the response (LLM may include markdown code blocks)
-    let json_str = if let Some(start) = text.find("```json") {
-        let content = &text[start + 7..];
-        if let Some(end) = content.find("```") {
-            &content[..end]
+    // Try to extract JSON from the SSE-cleaned response (LLM may include markdown code blocks)
+    let json_str: String = if let Some(start) = clean.find("```json") {
+        let after = &clean[start + 7..];
+        if let Some(end) = after.find("```") {
+            after[..end].to_string()
         } else {
-            content
+            after.to_string()
         }
-    } else if let Some(start) = text.find('{') {
-        &text[start..]
+    } else if let Some(start) = clean.find('{') {
+        clean[start..].to_string()
     } else {
-        text
+        clean.to_string()
     };
 
-    // Use the text that was extracted from markdown blocks (json_str), or fall back
-    // to the SSE-cleaned full response text.
-    let final_json = json_str.to_string();
-    let analysis: AiAnalysis = if let Ok(val) = serde_json::from_str::<Value>(&final_json) {
+    let analysis: AiAnalysis = if let Ok(val) = serde_json::from_str::<Value>(&json_str) {
         // Check if this is a chat completion wrapper with content field
         let content_str = val["choices"][0]["message"]["content"].as_str();
         if let Some(inner) = content_str {

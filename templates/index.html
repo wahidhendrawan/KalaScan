@@ -75,6 +75,7 @@
                             onchange="toggleProvider()">
                             <option value="ollama">Ollama (Local)</option>
                             <option value="openai">OpenAI</option>
+                            <option value="deepseek">DeepSeek</option>
                             <option value="9router">9Router (Local Proxy)</option>
                             <option value="custom">Custom (OpenAI-Compatible)</option>
                         </select>
@@ -222,6 +223,12 @@
                     endpoint.value = 'https://api.openai.com/v1/chat/completions';
                     endpoint.placeholder = endpoint.value;
                     model.value = 'gpt-4o';
+                    break;
+                case 'deepseek':
+                    endpoint.value = 'https://api.deepseek.com/v1/chat/completions';
+                    endpoint.placeholder = endpoint.value;
+                    key.placeholder = 'DeepSeek API key';
+                    model.value = 'deepseek-chat';
                     break;
                 case 'custom':
                     endpoint.value = '';
