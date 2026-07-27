@@ -217,6 +217,20 @@ async fn openai_analyze(
 fn parse_ai_response(text: &str) -> anyhow::Result<AiAnalysis> {
     info!("Raw AI response (first 300 chars): {}", &text[..text.len().min(300)]);
 
+    // Strip SSE trailing markers like "data: [DONE]" appended by some proxies
+    let clean = text
+        .trim()
+        .strip_suffix("data: [DONE]")
+        .map(|s| s.trim())
+        .unwrap_or(text.trim())
+        .to_string();
+    // If text ends with literal '}data: [DONE]', strip after the last '}'
+    let clean = if let Some(end) = clean.rfind("data: [DONE]") {
+        clean[..end].trim().to_string()
+    } else {
+        clean
+    };
+
     // Try to extract JSON from the response (LLM may include markdown code blocks)
     let json_str = if let Some(start) = text.find("```json") {
         let content = &text[start + 7..];
@@ -231,9 +245,10 @@ fn parse_ai_response(text: &str) -> anyhow::Result<AiAnalysis> {
         text
     };
 
-    // Parse response as embedded JSON string inside message content
-    // First, try to parse the outer chat completion response
-    let analysis: AiAnalysis = if let Ok(val) = serde_json::from_str::<Value>(json_str) {
+    // Use the text that was extracted from markdown blocks (json_str), or fall back
+    // to the SSE-cleaned full response text.
+    let final_json = json_str.to_string();
+    let analysis: AiAnalysis = if let Ok(val) = serde_json::from_str::<Value>(&final_json) {
         // Check if this is a chat completion wrapper with content field
         let content_str = val["choices"][0]["message"]["content"].as_str();
         if let Some(inner) = content_str {
