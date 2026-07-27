@@ -1,11 +1,14 @@
 mod ai_analyzer;
+mod db;
+mod export;
+mod git_history;
 mod scanner;
 
 use axum::{
-    extract::State,
+    extract::{Path, State},
     http::StatusCode,
     response::{Html, IntoResponse, Json},
-    routing::{get, post},
+    routing::{delete, get, post},
     Router,
 };
 use serde::{Deserialize, Serialize};
@@ -24,10 +27,10 @@ struct AppState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScanRequest {
     pub repo_url: String,
-    pub llm_provider: String,          // "ollama" | "openai"
-    pub llm_model: String,             // e.g. "llama3" | "gpt-4"
-    pub llm_api_key: Option<String>,   // for OpenAI
-    pub llm_endpoint: Option<String>,  // custom endpoint
+    pub llm_provider: String,
+    pub llm_model: String,
+    pub llm_api_key: Option<String>,
+    pub llm_endpoint: Option<String>,
     pub ai_analysis_enabled: bool,
 }
 
@@ -72,6 +75,11 @@ async fn main() -> anyhow::Result<()> {
 
     info!("KalaScan v1.0.0 starting...");
 
+    // Initialize DB
+    if let Err(e) = db::init_db() {
+        error!("Failed to init DB (running without persistence): {}", e);
+    }
+
     let tera = Tera::new("templates/**/*.html")
         .map_err(|e| {
             error!("Failed to load templates: {}", e);
@@ -88,6 +96,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/scan", post(start_scan))
         .route("/api/scan", post(api_scan))
         .route("/api/results/{id}", get(get_result))
+        .route("/api/history", get(history))
+        .route("/api/report/{id}/{format}", get(report))
+        .route("/api/scan/{id}", delete(delete_scan))
         .route("/results/{id}", get(results_page))
         .layer(CorsLayer::permissive())
         .with_state(state);
@@ -101,7 +112,10 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn root(State(state): State<AppState>) -> Result<Html<String>, (StatusCode, String)> {
-    let ctx = tera::Context::new();
+    let mut ctx = tera::Context::new();
+    // Load scans from DB for initial render
+    let scan_list = db::list_scans(100).unwrap_or_default();
+    ctx.insert("scans", &scan_list);
     match state.tera.render("index.html", &ctx) {
         Ok(html) => Ok(Html(html)),
         Err(e) => {
@@ -114,9 +128,16 @@ async fn root(State(state): State<AppState>) -> Result<Html<String>, (StatusCode
     }
 }
 
-async fn start_scan(State(state): State<AppState>, Json(req): Json<ScanRequest>) -> impl IntoResponse {
+async fn start_scan(
+    State(state): State<AppState>,
+    Json(req): Json<ScanRequest>,
+) -> impl IntoResponse {
     match run_scan(req, &state).await {
         Ok(result) => {
+            // Persist to DB
+            if let Err(e) = db::save_scan(&result) {
+                error!("Failed to save scan to DB: {}", e);
+            }
             let mut scans = state.scans.lock().await;
             let id = result.id.clone();
             scans.push(result);
@@ -141,14 +162,22 @@ async fn start_scan(State(state): State<AppState>, Json(req): Json<ScanRequest>)
     }
 }
 
-async fn api_scan(State(state): State<AppState>, Json(req): Json<ScanRequest>) -> impl IntoResponse {
+async fn api_scan(
+    State(state): State<AppState>,
+    Json(req): Json<ScanRequest>,
+) -> impl IntoResponse {
     let result = run_scan(req, &state).await;
     match result {
-        Ok(r) => Json(serde_json::json!({
-            "success": true,
-            "result": r
-        }))
-        .into_response(),
+        Ok(r) => {
+            if let Err(e) = db::save_scan(&r) {
+                error!("Failed to save scan to DB: {}", e);
+            }
+            Json(serde_json::json!({
+                "success": true,
+                "result": r
+            }))
+            .into_response()
+        }
         Err(e) => {
             (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
                 "success": false,
@@ -161,33 +190,145 @@ async fn api_scan(State(state): State<AppState>, Json(req): Json<ScanRequest>) -
 
 async fn get_result(
     State(state): State<AppState>,
-    axum::extract::Path(id): axum::extract::Path<String>,
+    Path(id): Path<String>,
 ) -> impl IntoResponse {
+    // Try in-memory first, then DB
     let scans = state.scans.lock().await;
     if let Some(result) = scans.iter().find(|r| r.id == id) {
-        Json(serde_json::json!({
+        return Json(serde_json::json!({
             "success": true,
             "result": result
         }))
-        .into_response()
-    } else {
-        (
+        .into_response();
+    }
+    drop(scans);
+
+    // Fallback to DB
+    match db::get_scan(&id) {
+        Ok(Some(result)) => Json(serde_json::json!({
+            "success": true,
+            "result": result
+        }))
+        .into_response(),
+        Ok(None) | Err(_) => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({
                 "success": false,
                 "error": "Result not found"
             })),
         )
-            .into_response()
+            .into_response(),
+    }
+}
+
+async fn history() -> impl IntoResponse {
+    match db::list_scans(100) {
+        Ok(scan_list) => Json(serde_json::json!({
+            "success": true,
+            "scans": scan_list
+        }))
+        .into_response(),
+        Err(e) => {
+            error!("Failed to list scans: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": "Failed to list scans"
+                })),
+            )
+                .into_response()
+        }
+    }
+}
+
+async fn report(Path((id, format)): Path<(String, String)>) -> impl IntoResponse {
+    match db::get_scan(&id) {
+        Ok(Some(result)) => match format.as_str() {
+            "md" => {
+                let content = export::export_markdown(&result);
+                (
+                    StatusCode::OK,
+                    [("content-type", "text/markdown; charset=utf-8")],
+                    content,
+                )
+                    .into_response()
+            }
+            "html" => {
+                let content = export::export_html(&result);
+                (
+                    StatusCode::OK,
+                    [("content-type", "text/html; charset=utf-8")],
+                    content,
+                )
+                    .into_response()
+            }
+            _ => (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": "Invalid format. Use 'md' or 'html'"
+                })),
+            )
+                .into_response(),
+        },
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "success": false,
+                "error": "Scan not found"
+            })),
+        )
+            .into_response(),
+        Err(e) => {
+            error!("Failed to get scan for report: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": "Failed to generate report"
+                })),
+            )
+                .into_response()
+        }
+    }
+}
+
+async fn delete_scan(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    // Remove from in-memory
+    {
+        let mut scans = state.scans.lock().await;
+        scans.retain(|r| r.id != id);
+    }
+
+    // Remove from DB
+    match db::delete_scan(&id) {
+        Ok(_) => Json(serde_json::json!({ "success": true })).into_response(),
+        Err(e) => {
+            error!("Failed to delete scan {}: {}", id, e);
+            (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": e.to_string()
+                })),
+            )
+                .into_response()
+        }
     }
 }
 
 async fn results_page(
     State(state): State<AppState>,
-    axum::extract::Path(id): axum::extract::Path<String>,
+    Path(id): Path<String>,
 ) -> impl IntoResponse {
-    let scans = state.scans.lock().await;
-    let result = scans.iter().find(|r| r.id == id).cloned();
+    let result = {
+        let scans = state.scans.lock().await;
+        scans.iter().find(|r| r.id == id).cloned()
+    };
 
     let mut ctx = tera::Context::new();
     match result {
@@ -204,7 +345,7 @@ async fn results_page(
 
     let id_str = id.clone();
     ctx.insert("result_id", &id_str);
-    drop(scans);
+    drop(state.scans);
 
     match state.tera.render("result.html", &ctx) {
         Ok(html) => Html(html).into_response(),
@@ -228,7 +369,6 @@ async fn run_scan(req: ScanRequest, _state: &AppState) -> anyhow::Result<ScanRes
 
     info!("Cloning {} to {:?}", req.repo_url, repo_path);
 
-    // Clone via git
     let clone_output = tokio::process::Command::new("git")
         .arg("clone")
         .arg("--depth")
@@ -263,10 +403,14 @@ async fn run_scan(req: ScanRequest, _state: &AppState) -> anyhow::Result<ScanRes
     let ai_result = if req.ai_analysis_enabled && !rule_matches.is_empty() {
         info!("Running AI deep analysis...");
 
-        // Collect suspicious code snippets for AI
         let context_snippets: Vec<String> = rule_matches
             .iter()
-            .map(|m| format!("File: {}\nLine {}: {}\nContext: {}", m.file_path, m.line_number, m.matched_pattern, m.context))
+            .map(|m| {
+                format!(
+                    "File: {}\nLine {}: {}\nContext: {}",
+                    m.file_path, m.line_number, m.matched_pattern, m.context
+                )
+            })
             .collect();
 
         let combined_prompt = context_snippets.join("\n\n---\n\n");
@@ -291,7 +435,6 @@ async fn run_scan(req: ScanRequest, _state: &AppState) -> anyhow::Result<ScanRes
         None
     };
 
-    // Calculate risk score
     let risk_score = calculate_risk_score(&rule_matches, &ai_result);
 
     let result = ScanResult {
@@ -316,7 +459,6 @@ async fn run_scan(req: ScanRequest, _state: &AppState) -> anyhow::Result<ScanRes
 fn calculate_risk_score(matches: &[RuleMatch], ai: &Option<AiAnalysis>) -> u8 {
     let mut score = 0u16;
 
-    // Cada match contributes
     for m in matches {
         score += match m.severity.as_str() {
             "critical" => 15,
@@ -326,14 +468,12 @@ fn calculate_risk_score(matches: &[RuleMatch], ai: &Option<AiAnalysis>) -> u8 {
         };
     }
 
-    // Cap at 100 from rules alone
     if score > 60 {
         score = 60;
     }
 
-    // AI risk boost (if available)
     if let Some(ai) = ai {
-        let ai_score = ai.risk_score as u16 / 2; // AI contributes up to 50
+        let ai_score = ai.risk_score as u16 / 2;
         score += ai_score;
     }
 

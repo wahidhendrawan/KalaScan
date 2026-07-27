@@ -20,7 +20,7 @@ pub struct Rule {
 }
 
 impl Rule {
-    fn applies_to(&self, ext: &str, filename: &str) -> bool {
+    pub fn applies_to(&self, ext: &str, filename: &str) -> bool {
         if self.category == "obfuscation" {
             return true;
         }
@@ -36,7 +36,7 @@ impl Rule {
 
 /// Build static analysis rules.
 /// Uses `boxed_regex` via `Regex::new().unwrap()` at startup — compiled once.
-fn build_rules() -> Vec<Rule> {
+pub fn build_rules() -> Vec<Rule> {
     vec![
         // ============================================================
         // EXFILTRATION ENDPOINTS
@@ -361,7 +361,7 @@ fn build_rules() -> Vec<Rule> {
     ]
 }
 
-fn is_critical_file(filename: &str) -> bool {
+pub fn is_critical_file(filename: &str) -> bool {
     let lower = filename.to_lowercase();
     if CRITICAL_FILENAMES.contains(&lower.as_str()) {
         return true;
@@ -369,7 +369,7 @@ fn is_critical_file(filename: &str) -> bool {
     CRITICAL_EXTENSIONS.iter().any(|ext| lower.ends_with(ext))
 }
 
-fn get_extension(filename: &str) -> &str {
+pub fn get_extension(filename: &str) -> &str {
     let lower = filename.to_lowercase();
     for ext in CRITICAL_EXTENSIONS {
         if lower.ends_with(ext) {
