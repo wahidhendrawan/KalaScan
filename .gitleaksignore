@@ -1,0 +1,3 @@
+# False positives / test mock credentials in scanner source
+46bad50b7dbaea1edd9c00038627de84c0cb4def:src/export.rs:generic-api-key:387
+147dce32f2203319a57ec3a35e18a91f3bd97d6e:src/scanner.rs:aws-access-token:498
