@@ -112,15 +112,28 @@
                     <div class="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 text-sm">&#x1F50D;</div>
                     <div>
                         <h2 class="text-base font-semibold text-gray-100">New Scan</h2>
-                        <p class="text-[11px] text-gray-500">Analyze a Git repository for threats, secrets &amp; malware</p>
+                        <p class="text-[11px] text-gray-500">Analyze a Git repository or VS Code extension for threats, secrets &amp; malware</p>
                     </div>
                 </div>
                 <form id="scan-form" class="space-y-4">
                     <div>
-                        <label class="block text-xs font-medium text-gray-500 mb-1.5" for="repo-url">Repository URL</label>
-                        <input type="url" id="repo-url" name="repo_url" required
+                        <div class="flex items-center justify-between mb-1.5">
+                            <label class="block text-xs font-medium text-gray-500" for="repo-url">Repository or VS Code Extension</label>
+                            <span class="text-[10px] text-blue-400 font-medium">Supports Git, Marketplace URLs, publisher.ext &amp; .vsix</span>
+                        </div>
+                        <input type="text" id="repo-url" name="repo_url"
                             class="w-full px-4 py-2.5 bg-gray-950 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition text-sm"
-                            placeholder="https://github.com/user/repo.git or .../archive/main.zip" />
+                            placeholder="e.g. https://github.com/user/repo, marketplace URL, publisher.extension, or leave empty if uploading file below" />
+                    </div>
+                    <div>
+                        <div class="relative flex items-center justify-center p-3 border-2 border-dashed border-gray-800 hover:border-blue-500/60 rounded-lg bg-gray-950/60 cursor-pointer transition text-center group" id="drop-zone" onclick="document.getElementById('vsix-file').click()">
+                            <input type="file" id="vsix-file" name="file" accept=".vsix,.zip" class="hidden" onchange="handleFileSelect(this)" />
+                            <div class="flex items-center gap-2 text-xs text-gray-400 group-hover:text-blue-300">
+                                <span class="text-base">📦</span>
+                                <span id="file-label">Or upload <strong>.vsix</strong> / <strong>.zip</strong> extension file directly</span>
+                                <button type="button" id="clear-file-btn" class="hidden text-xs text-red-400 hover:text-red-300 ml-2" onclick="event.stopPropagation(); clearFileSelect();">&#x2715; Clear</button>
+                            </div>
+                        </div>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
@@ -364,18 +377,35 @@
             } catch(_) {}
         }
 
+        function handleFileSelect(input) {
+            if (input.files && input.files[0]) {
+                const file = input.files[0];
+                document.getElementById('file-label').innerHTML = `Selected: <strong>${file.name}</strong> (${(file.size / 1024).toFixed(1)} KB)`;
+                document.getElementById('clear-file-btn').classList.remove('hidden');
+                document.getElementById('repo-url').required = false;
+                document.getElementById('repo-url').placeholder = "Scanning uploaded file: " + file.name;
+            }
+        }
+
+        function clearFileSelect() {
+            const input = document.getElementById('vsix-file');
+            input.value = "";
+            document.getElementById('file-label').innerHTML = "Or upload <strong>.vsix</strong> / <strong>.zip</strong> extension file directly";
+            document.getElementById('clear-file-btn').classList.add('hidden');
+            document.getElementById('repo-url').placeholder = "e.g. https://github.com/user/repo, marketplace URL, publisher.extension, or leave empty if uploading file below";
+        }
+
         /* ── Scan form ── */
         document.getElementById('scan-form').addEventListener('submit', async function(e) {
             e.preventDefault();
-            const fd = new FormData(this);
-            const data = {
-                repo_url: fd.get('repo_url'),
-                llm_provider: fd.get('llm_provider'),
-                llm_model: fd.get('llm_model'),
-                llm_api_key: fd.get('llm_api_key') || null,
-                llm_endpoint: fd.get('llm_endpoint') || null,
-                ai_analysis_enabled: document.getElementById('ai-enabled').checked,
-            };
+            const fileInput = document.getElementById('vsix-file');
+            const hasFile = fileInput.files && fileInput.files.length > 0;
+            const repoUrl = document.getElementById('repo-url').value.trim();
+
+            if (!hasFile && !repoUrl) {
+                alert("Please enter a Repository/Marketplace URL or upload a .vsix extension file.");
+                return;
+            }
 
             // Show progress
             document.getElementById('result-card').classList.add('hidden');
@@ -386,7 +416,8 @@
             const pp = document.getElementById('progress-pct');
             const ph = document.getElementById('progress-phase');
             pb.style.width = '0%'; pp.textContent = '0%';
-            pt.textContent = 'Cloning repository...'; ph.textContent = 'Cloning';
+            pt.textContent = hasFile ? 'Uploading & unpacking extension...' : 'Fetching source files...'; 
+            ph.textContent = hasFile ? 'Unpacking' : 'Fetching';
             const btn = document.getElementById('scan-btn');
             btn.disabled = true; btn.innerHTML = '&#x23F3; Scanning...';
 
@@ -397,17 +428,46 @@
                     if (progress > 85) progress = 85;
                     pb.style.width = progress + '%';
                     pp.textContent = Math.round(progress) + '%';
-                    if (progress > 60) { pt.textContent = 'Scanning files with Regex rules...'; ph.textContent = 'Regex Scan'; }
+                    if (progress > 50) { pt.textContent = 'Scanning files with Regex & VS Code rules...'; ph.textContent = 'Scanning'; }
                     if (progress > 80) { pt.textContent = 'Running AI deep analysis...'; ph.textContent = 'AI Analysis'; }
                 }
-            }, 1200);
+            }, 1000);
 
             try {
-                const resp = await fetch(API + '/scan', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data),
-                });
+                let resp;
+                if (hasFile) {
+                    const uploadFd = new FormData();
+                    uploadFd.append('file', fileInput.files[0]);
+                    uploadFd.append('llm_provider', document.getElementById('llm-provider').value);
+                    uploadFd.append('llm_model', document.getElementById('llm-model').value);
+                    if (document.getElementById('llm-key').value) {
+                        uploadFd.append('llm_api_key', document.getElementById('llm-key').value);
+                    }
+                    if (document.getElementById('llm-endpoint').value) {
+                        uploadFd.append('llm_endpoint', document.getElementById('llm-endpoint').value);
+                    }
+                    uploadFd.append('ai_analysis_enabled', document.getElementById('ai-enabled').checked ? 'true' : 'false');
+
+                    resp = await fetch(API + '/api/scan/upload', {
+                        method: 'POST',
+                        body: uploadFd,
+                    });
+                } else {
+                    const data = {
+                        repo_url: repoUrl,
+                        llm_provider: document.getElementById('llm-provider').value,
+                        llm_model: document.getElementById('llm-model').value,
+                        llm_api_key: document.getElementById('llm-key').value || null,
+                        llm_endpoint: document.getElementById('llm-endpoint').value || null,
+                        ai_analysis_enabled: document.getElementById('ai-enabled').checked,
+                    };
+                    resp = await fetch(API + '/scan', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data),
+                    });
+                }
+
                 clearInterval(pi);
                 const json = await resp.json();
                 if (!resp.ok || !json.success) throw new Error(json.error || 'Scan failed');
