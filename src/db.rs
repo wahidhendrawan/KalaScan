@@ -48,7 +48,9 @@ fn ensure_schema(conn: &Connection) -> Result<()> {
             rule_matches_json TEXT,
             triage_json TEXT,
             deobfuscation_json TEXT,
-            emulation_json TEXT
+            emulation_json TEXT,
+            ttp_json TEXT,
+            sandbox_json TEXT
         )",
         [],
     )
@@ -73,6 +75,16 @@ fn ensure_schema(conn: &Connection) -> Result<()> {
             [],
         )
         .context("Failed to add emulation_json column")?;
+    }
+
+    if !column_exists(conn, "scan_history", "ttp_json")? {
+        conn.execute("ALTER TABLE scan_history ADD COLUMN ttp_json TEXT", [])
+            .context("Failed to add ttp_json column")?;
+    }
+
+    if !column_exists(conn, "scan_history", "sandbox_json")? {
+        conn.execute("ALTER TABLE scan_history ADD COLUMN sandbox_json TEXT", [])
+            .context("Failed to add sandbox_json column")?;
     }
 
     Ok(())
@@ -117,10 +129,16 @@ pub fn save_scan(result: &ScanResult) -> Result<()> {
         .as_ref()
         .map(serde_json::to_string)
         .transpose()?;
+    let ttp_json = result.ttp.as_ref().map(serde_json::to_string).transpose()?;
+    let sandbox_json = result
+        .sandbox
+        .as_ref()
+        .map(serde_json::to_string)
+        .transpose()?;
 
     conn.execute(
-        "INSERT INTO scan_history (id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, ai_analysis_json, rule_matches_json, triage_json, deobfuscation_json, emulation_json)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+        "INSERT INTO scan_history (id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, ai_analysis_json, rule_matches_json, triage_json, deobfuscation_json, emulation_json, ttp_json, sandbox_json)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
         rusqlite::params![
             result.id,
             result.repo_url,
@@ -135,6 +153,8 @@ pub fn save_scan(result: &ScanResult) -> Result<()> {
             triage_json,
             deobfuscation_json,
             emulation_json,
+            ttp_json,
+            sandbox_json,
         ],
     )
     .context("Failed to insert scan result")?;
@@ -147,7 +167,7 @@ pub fn get_scan(id: &str) -> Result<Option<ScanResult>> {
     ensure_schema(&conn)?;
     let mut stmt = conn
         .prepare(
-            "SELECT id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, ai_analysis_json, rule_matches_json, triage_json, deobfuscation_json, emulation_json
+            "SELECT id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, ai_analysis_json, rule_matches_json, triage_json, deobfuscation_json, emulation_json, ttp_json, sandbox_json
              FROM scan_history WHERE id = ?1",
         )
         .context("Failed to prepare get_scan statement")?;
@@ -161,6 +181,8 @@ pub fn get_scan(id: &str) -> Result<Option<ScanResult>> {
             let triage_json: Option<String> = row.get(10)?;
             let deobfuscation_json: Option<String> = row.get(11)?;
             let emulation_json: Option<String> = row.get(12)?;
+            let ttp_json: Option<String> = row.get(13)?;
+            let sandbox_json: Option<String> = row.get(14)?;
 
             let ai_analysis = match ai_json {
                 Some(s) if !s.is_empty() => serde_json::from_str(&s).ok(),
@@ -180,6 +202,14 @@ pub fn get_scan(id: &str) -> Result<Option<ScanResult>> {
                 Some(s) if !s.is_empty() => serde_json::from_str(&s).ok(),
                 _ => None,
             };
+            let ttp = match ttp_json {
+                Some(s) if !s.is_empty() => serde_json::from_str(&s).ok(),
+                _ => None,
+            };
+            let sandbox = match sandbox_json {
+                Some(s) if !s.is_empty() => serde_json::from_str(&s).ok(),
+                _ => None,
+            };
 
             Ok(Some(ScanResult {
                 id: row.get(0)?,
@@ -195,6 +225,8 @@ pub fn get_scan(id: &str) -> Result<Option<ScanResult>> {
                 triage,
                 deobfuscation,
                 emulation,
+                ttp,
+                sandbox,
             }))
         }
         None => Ok(None),

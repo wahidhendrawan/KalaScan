@@ -8,8 +8,10 @@ mod emulate;
 mod entropy;
 mod export;
 mod git_history;
+mod sandbox;
 mod scanner;
 mod triage;
+mod ttp;
 mod vsix;
 mod yara_engine;
 
@@ -55,6 +57,10 @@ pub struct ScanRequest {
     pub deobfuscate: bool,
     #[serde(default)]
     pub emulate: bool,
+    #[serde(default)]
+    pub sandbox: bool,
+    #[serde(default)]
+    pub sandbox_image: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -93,6 +99,10 @@ pub struct ScanResult {
     pub deobfuscation: Option<deobfuscate::DeobfuscationReport>,
     #[serde(default)]
     pub emulation: Option<emulate::EmulationReport>,
+    #[serde(default)]
+    pub ttp: Option<ttp::TtpReport>,
+    #[serde(default)]
+    pub sandbox: Option<sandbox::SandboxReport>,
     pub status: String,
 }
 
@@ -122,6 +132,8 @@ async fn main() -> anyhow::Result<()> {
             deep_triage,
             deobfuscate,
             emulate,
+            sandbox,
+            sandbox_image,
         }) => {
             let req = ScanRequest {
                 repo_url: target,
@@ -136,6 +148,8 @@ async fn main() -> anyhow::Result<()> {
                 deep_triage,
                 deobfuscate,
                 emulate,
+                sandbox,
+                sandbox_image: Some(sandbox_image),
             };
             run_cli_scan(req, format, fail_on_risk, output).await?;
         }
@@ -154,7 +168,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn start_web_server(addr: &str) -> anyhow::Result<()> {
-    info!("KalaScan v1.4.0 starting Web UI on http://{}", addr);
+    info!("KalaScan v1.5.0 starting Web UI on http://{}", addr);
 
     // Initialize DB
     if let Err(e) = db::init_db() {
@@ -447,6 +461,8 @@ async fn api_scan_upload(
     let mut deep_triage = false;
     let mut deobfuscate = false;
     let mut emulate = false;
+    let mut sandbox = false;
+    let mut sandbox_image: Option<String> = None;
 
     while let Ok(Some(field)) = multipart.next_field().await {
         let name = field.name().unwrap_or_default().to_string();
@@ -496,6 +512,16 @@ async fn api_scan_upload(
         } else if name == "emulate" {
             if let Ok(val) = field.text().await {
                 emulate = val == "true" || val == "1" || val == "on";
+            }
+        } else if name == "sandbox" {
+            if let Ok(val) = field.text().await {
+                sandbox = val == "true" || val == "1" || val == "on";
+            }
+        } else if name == "sandbox_image" {
+            if let Ok(val) = field.text().await {
+                if !val.trim().is_empty() {
+                    sandbox_image = Some(val);
+                }
             }
         }
     }
@@ -565,6 +591,24 @@ async fn api_scan_upload(
         None
     };
 
+    let sandbox_report = if sandbox {
+        let config = sandbox::SandboxConfig {
+            image: sandbox_image.unwrap_or_else(|| "kalascan-sandbox:latest".to_string()),
+            ..Default::default()
+        };
+        Some(sandbox::analyze_triage(&scan_dir, &triage_report, &config).await)
+    } else {
+        None
+    };
+
+    let ttp_report = ttp::build(
+        &rule_matches,
+        Some(&triage_report),
+        deobfuscation_report.as_ref(),
+        emulation_report.as_ref(),
+        sandbox_report.as_ref(),
+    );
+
     let ai_result = if ai_analysis_enabled && !rule_matches.is_empty() {
         let context_snippets: Vec<String> = rule_matches
             .iter()
@@ -596,6 +640,8 @@ async fn api_scan_upload(
         Some(&triage_report),
         deobfuscation_report.as_ref(),
         emulation_report.as_ref(),
+        sandbox_report.as_ref(),
+        Some(&ttp_report),
     );
 
     let result = ScanResult {
@@ -611,6 +657,8 @@ async fn api_scan_upload(
         triage: Some(triage_report),
         deobfuscation: deobfuscation_report,
         emulation: emulation_report,
+        ttp: Some(ttp_report),
+        sandbox: sandbox_report,
         status: "completed".to_string(),
     };
 
@@ -728,6 +776,28 @@ async fn execute_scan(req: ScanRequest) -> anyhow::Result<ScanResult> {
         None
     };
 
+    let sandbox_report = if req.sandbox {
+        info!("Running Docker-isolated sandbox execution...");
+        let config = sandbox::SandboxConfig {
+            image: req
+                .sandbox_image
+                .clone()
+                .unwrap_or_else(|| "kalascan-sandbox:latest".to_string()),
+            ..Default::default()
+        };
+        Some(sandbox::analyze_triage(&scan_dir, &triage_report, &config).await)
+    } else {
+        None
+    };
+
+    let ttp_report = ttp::build(
+        &rule_matches,
+        Some(&triage_report),
+        deobfuscation_report.as_ref(),
+        emulation_report.as_ref(),
+        sandbox_report.as_ref(),
+    );
+
     // Phase 3: AI analysis
     let ai_result = if req.ai_analysis_enabled && !rule_matches.is_empty() {
         info!("Running AI deep analysis...");
@@ -770,6 +840,8 @@ async fn execute_scan(req: ScanRequest) -> anyhow::Result<ScanResult> {
         Some(&triage_report),
         deobfuscation_report.as_ref(),
         emulation_report.as_ref(),
+        sandbox_report.as_ref(),
+        Some(&ttp_report),
     );
 
     let result = ScanResult {
@@ -785,6 +857,8 @@ async fn execute_scan(req: ScanRequest) -> anyhow::Result<ScanResult> {
         triage: Some(triage_report),
         deobfuscation: deobfuscation_report,
         emulation: emulation_report,
+        ttp: Some(ttp_report),
+        sandbox: sandbox_report,
         status: "completed".to_string(),
     };
 
@@ -994,6 +1068,90 @@ fn format_cli_text(result: &ScanResult) -> String {
         }
     }
 
+    if let Some(sandbox) = &result.sandbox {
+        out.push_str("\n------------------------------------------------------------\n");
+        out.push_str("DOCKER SANDBOX:\n");
+        out.push_str(&format!(
+            "Available:      {}\n",
+            if sandbox.available { "yes" } else { "no" }
+        ));
+        out.push_str(&format!("Image:          {}\n", sandbox.image));
+        out.push_str(&format!("Files Analyzed: {}\n", sandbox.files_analyzed));
+        out.push_str(&format!("Executions:     {}\n", sandbox.executions.len()));
+        for execution in &sandbox.executions {
+            out.push_str(&format!(
+                "\n{} [{}] exit {:?} in {}ms ({} syscalls)\n",
+                execution.file_path,
+                execution.architecture,
+                execution.exit_code,
+                execution.duration_ms,
+                execution.syscalls
+            ));
+            if execution.timed_out {
+                out.push_str("  Timed out: yes\n");
+            }
+            if !execution.processes.is_empty() {
+                out.push_str(&format!(
+                    "  Processes: {}\n",
+                    execution.processes.join(", ")
+                ));
+            }
+            if !execution.network_attempts.is_empty() {
+                out.push_str(&format!(
+                    "  Network Attempts: {}\n",
+                    execution.network_attempts.join(" | ")
+                ));
+            }
+            if !execution.file_accesses.is_empty() {
+                out.push_str(&format!(
+                    "  Sensitive Files: {}\n",
+                    execution.file_accesses.join(" | ")
+                ));
+            }
+            if !execution.indicators.is_empty() {
+                out.push_str(&format!(
+                    "  Indicators: {}\n",
+                    execution.indicators.join("; ")
+                ));
+            }
+        }
+        for note in &sandbox.notes {
+            out.push_str(&format!("  Note: {}\n", note));
+        }
+    }
+
+    if let Some(ttp) = &result.ttp {
+        out.push_str("\n------------------------------------------------------------\n");
+        out.push_str("TTP / ATT&CK COVERAGE:\n");
+        out.push_str(&format!(
+            "Techniques:     {}\nTactics:        {}\nCoverage:       {}%\n",
+            ttp.techniques.len(),
+            ttp.tactics.len(),
+            ttp.coverage_score
+        ));
+        for technique in &ttp.techniques {
+            out.push_str(&format!(
+                "\n[{}] {} {} [{}] ({} observations)\n",
+                technique.severity.to_uppercase(),
+                technique.id,
+                technique.name,
+                technique.tactic,
+                technique.observations
+            ));
+            out.push_str(&format!("  Sources: {}\n", technique.sources.join(", ")));
+        }
+        if !ttp.tactics.is_empty() {
+            out.push_str("\nKill Chain:\n");
+            for tactic in &ttp.tactics {
+                out.push_str(&format!(
+                    "  {}: {}\n",
+                    tactic.tactic,
+                    tactic.techniques.join(", ")
+                ));
+            }
+        }
+    }
+
     out.push_str("============================================================\n");
     out
 }
@@ -1004,6 +1162,8 @@ fn calculate_risk_score(
     triage: Option<&triage::TriageReport>,
     deobfuscation: Option<&deobfuscate::DeobfuscationReport>,
     emulation: Option<&emulate::EmulationReport>,
+    sandbox: Option<&sandbox::SandboxReport>,
+    ttp: Option<&ttp::TtpReport>,
 ) -> u8 {
     let mut score = 0u16;
 
@@ -1035,6 +1195,14 @@ fn calculate_risk_score(
 
     if let Some(emulation) = emulation {
         score += emulate::risk_contribution(emulation) as u16;
+    }
+
+    if let Some(sandbox) = sandbox {
+        score += sandbox::risk_contribution(sandbox) as u16;
+    }
+
+    if let Some(ttp) = ttp {
+        score += ttp::risk_contribution(ttp) as u16;
     }
 
     if score > 100 {

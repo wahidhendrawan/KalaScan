@@ -203,6 +203,13 @@
                             </label>
                             <span class="text-xs text-gray-400">Safe Static Emulation</span>
                         </div>
+                        <div class="flex items-center gap-3">
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="sandbox-enabled" name="sandbox" class="sr-only peer" />
+                                <div class="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-red-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                            </label>
+                            <span class="text-xs text-gray-400">Docker Sandbox (opt-in)</span>
+                        </div>
                     </div>
                     <button type="submit" id="scan-btn"
                         class="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-green-600 text-white text-sm font-semibold rounded-lg hover:from-blue-500 hover:to-green-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-green-600/10">
@@ -281,6 +288,20 @@
                             <div id="emulation-content"></div>
                         </div>
                     </div>
+                    <!-- Docker sandbox -->
+                    <div id="sandbox-section" class="hidden">
+                        <div class="bg-gray-950 rounded-xl border border-gray-800 p-5">
+                            <h3 class="text-sm font-semibold text-red-400 mb-3">&#x1F433; Docker Sandbox</h3>
+                            <div id="sandbox-content"></div>
+                        </div>
+                    </div>
+                    <!-- TTP coverage -->
+                    <div id="ttp-section" class="hidden">
+                        <div class="bg-gray-950 rounded-xl border border-gray-800 p-5">
+                            <h3 class="text-sm font-semibold text-purple-400 mb-3">&#x1F3AF; TTP / ATT&amp;CK Coverage</h3>
+                            <div id="ttp-content"></div>
+                        </div>
+                    </div>
                     <!-- Match table -->
                     <div class="overflow-x-auto">
                         <table class="w-full text-xs text-left">
@@ -302,7 +323,7 @@
 
     <!-- Footer -->
     <footer class="border-t border-gray-800 bg-gray-900/30 py-3 text-center text-[10px] text-gray-600">
-        KalaScan v1.4.0 &middot; Rust + Axum &middot; <span class="text-red-500/60">&#x26A0;</span> Never execute untrusted code
+        KalaScan v1.5.0 &middot; Rust + Axum &middot; <span class="text-red-500/60">&#x26A0;</span> Never execute untrusted code
     </footer>
 
     <script>
@@ -362,6 +383,7 @@
                 deep_triage_enabled: document.getElementById('deep-triage-enabled').checked,
                 deobfuscate_enabled: document.getElementById('deobfuscate-enabled').checked,
                 emulate_enabled: document.getElementById('emulate-enabled').checked,
+                sandbox_enabled: document.getElementById('sandbox-enabled').checked,
             }));
         }
 
@@ -378,10 +400,11 @@
                 if (s.deep_triage_enabled !== undefined) document.getElementById('deep-triage-enabled').checked = s.deep_triage_enabled;
                 if (s.deobfuscate_enabled !== undefined) document.getElementById('deobfuscate-enabled').checked = s.deobfuscate_enabled;
                 if (s.emulate_enabled !== undefined) document.getElementById('emulate-enabled').checked = s.emulate_enabled;
+                if (s.sandbox_enabled !== undefined) document.getElementById('sandbox-enabled').checked = s.sandbox_enabled;
             } catch(_) {}
         }
 
-        ['llm-provider','llm-model','llm-endpoint','llm-key','ai-enabled','deep-triage-enabled','deobfuscate-enabled','emulate-enabled'].forEach(id => {
+        ['llm-provider','llm-model','llm-endpoint','llm-key','ai-enabled','deep-triage-enabled','deobfuscate-enabled','emulate-enabled','sandbox-enabled'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.addEventListener('change', saveSettings);
             if (el && el.type !== 'checkbox') el.addEventListener('input', saveSettings);
@@ -508,6 +531,7 @@
                     uploadFd.append('deep_triage', document.getElementById('deep-triage-enabled').checked ? 'true' : 'false');
                     uploadFd.append('deobfuscate', document.getElementById('deobfuscate-enabled').checked ? 'true' : 'false');
                     uploadFd.append('emulate', document.getElementById('emulate-enabled').checked ? 'true' : 'false');
+                    uploadFd.append('sandbox', document.getElementById('sandbox-enabled').checked ? 'true' : 'false');
 
                     resp = await fetch(API + '/api/scan/upload', {
                         method: 'POST',
@@ -525,6 +549,7 @@
                         deep_triage: document.getElementById('deep-triage-enabled').checked,
                         deobfuscate: document.getElementById('deobfuscate-enabled').checked,
                         emulate: document.getElementById('emulate-enabled').checked,
+                        sandbox: document.getElementById('sandbox-enabled').checked,
                     };
                     resp = await fetch(API + '/scan', {
                         method: 'POST',
@@ -616,6 +641,42 @@
                 html += `<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">Emulation traces</div><div class="overflow-x-auto"><table class="w-full text-left text-[10px]"><thead class="text-gray-500 uppercase"><tr><th class="py-1.5 pr-2">File</th><th class="py-1.5 pr-2">Arch</th><th class="py-1.5 pr-2 text-right">Instructions</th><th class="py-1.5 pr-2">Stopped</th><th class="py-1.5 pr-2">API calls / indicators</th><th class="py-1.5 pr-2">Recovered strings</th><th class="py-1.5">ATT&CK</th></tr></thead><tbody class="divide-y divide-gray-800/60">${traces.map(t => `<tr class="align-top"><td class="py-1.5 pr-2 font-mono text-blue-400">${escHtml(t.file_path)}<div class="text-gray-600">entry ${escHtml(t.entrypoint)}</div></td><td class="py-1.5 pr-2">${escHtml(t.architecture)}</td><td class="py-1.5 pr-2 text-right">${t.instructions || 0}</td><td class="py-1.5 pr-2">${escHtml(t.stopped_reason)}</td><td class="py-1.5 pr-2">${escHtml((t.api_calls || []).join(', ') || '-')}<div class="text-amber-300 mt-0.5">${escHtml((t.indicators || []).join('; ') || '')}</div></td><td class="py-1.5 pr-2 font-mono text-gray-300 break-all">${escHtml((t.recovered_strings || []).join(' | ') || '-')}</td><td class="py-1.5 text-purple-300">${(t.attack || []).map(x => escHtml(x.id)).join(', ') || '-'}</td></tr>`).join('')}</tbody></table></div></div>`;
             } else {
                 html += '<div class="mt-4 text-[10px] text-gray-600 italic">No emulation traces produced.</div>';
+            }
+            if (notes.length) {
+                html += `<div class="mt-4 text-[10px] text-gray-500"><ul class="list-disc list-inside space-y-0.5">${notes.map(n => `<li>${escHtml(n)}</li>`).join('')}</ul></div>`;
+            }
+            return html;
+        }
+
+        function renderSandbox(sb) {
+            const executions = sb.executions || [];
+            const notes = sb.notes || [];
+            const card = (label, value, color) => `<div class="bg-gray-900 rounded-lg p-3 border border-gray-800"><div class="text-xl font-bold ${color}">${value}</div><div class="text-[10px] text-gray-500 mt-0.5">${label}</div></div>`;
+            let html = `<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">${card('Files', sb.files_analyzed || 0, 'text-gray-100')}${card('Executions', executions.length, 'text-cyan-400')}${card('Available', sb.available ? 'yes' : 'no', sb.available ? 'text-green-400' : 'text-gray-500')}${card('Image', escHtml(sb.image || '-'), 'text-[10px] text-gray-300')}</div>`;
+            if (executions.length) {
+                html += `<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">Sandbox executions</div><div class="overflow-x-auto"><table class="w-full text-left text-[10px]"><thead class="text-gray-500 uppercase"><tr><th class="py-1.5 pr-2">File</th><th class="py-1.5 pr-2">Arch</th><th class="py-1.5 pr-2 text-right">Exit</th><th class="py-1.5 pr-2 text-right">ms</th><th class="py-1.5 pr-2 text-right">Syscalls</th><th class="py-1.5 pr-2">Processes</th><th class="py-1.5 pr-2">Network</th><th class="py-1.5 pr-2">Sensitive files</th><th class="py-1.5">Indicators</th></tr></thead><tbody class="divide-y divide-gray-800/60">${executions.map(x => `<tr class="align-top"><td class="py-1.5 pr-2 font-mono text-blue-400">${escHtml(x.file_path)}</td><td class="py-1.5 pr-2">${escHtml(x.architecture)}</td><td class="py-1.5 pr-2 text-right">${x.exit_code === null || x.exit_code === undefined ? '-' : x.exit_code}</td><td class="py-1.5 pr-2 text-right">${x.duration_ms || 0}</td><td class="py-1.5 pr-2 text-right">${x.syscalls || 0}</td><td class="py-1.5 pr-2">${escHtml((x.processes || []).join(', ') || '-')}</td><td class="py-1.5 pr-2 text-amber-300">${escHtml((x.network_attempts || []).join(' | ') || '-')}</td><td class="py-1.5 pr-2 font-mono text-gray-300 break-all">${escHtml((x.file_accesses || []).join(' | ') || '-')}</td><td class="py-1.5 text-amber-300">${escHtml((x.indicators || []).join('; ') || '-')}</td></tr>`).join('')}</tbody></table></div></div>`;
+            } else {
+                html += '<div class="mt-4 text-[10px] text-gray-600 italic">No sandbox executions produced.</div>';
+            }
+            if (notes.length) {
+                html += `<div class="mt-4 text-[10px] text-gray-500"><ul class="list-disc list-inside space-y-0.5">${notes.map(n => `<li>${escHtml(n)}</li>`).join('')}</ul></div>`;
+            }
+            return html;
+        }
+
+        function renderTtp(t) {
+            const techniques = t.techniques || [];
+            const tactics = t.tactics || [];
+            const notes = t.notes || [];
+            const card = (label, value, color) => `<div class="bg-gray-900 rounded-lg p-3 border border-gray-800"><div class="text-xl font-bold ${color}">${value}</div><div class="text-[10px] text-gray-500 mt-0.5">${label}</div></div>`;
+            let html = `<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">${card('Techniques', techniques.length, 'text-purple-400')}${card('Tactics', tactics.length, 'text-blue-400')}${card('Coverage', (t.coverage_score || 0) + '%', 'text-orange-400')}${card('Engine', escHtml(t.engine || '-'), 'text-[10px] text-gray-300')}</div>`;
+            if (tactics.length) {
+                html += `<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">Kill chain</div><div class="flex flex-wrap gap-1">${tactics.map(x => `<span class="bg-purple-500/10 border border-purple-500/30 text-purple-300 rounded px-2 py-1 text-[10px]"><strong>${escHtml(x.tactic)}</strong> ${(x.techniques || []).length}</span>`).join('')}</div></div>`;
+            }
+            if (techniques.length) {
+                html += `<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">Observed techniques</div><div class="overflow-x-auto"><table class="w-full text-left text-[10px]"><thead class="text-gray-500 uppercase"><tr><th class="py-1.5 pr-2">Severity</th><th class="py-1.5 pr-2">ID</th><th class="py-1.5 pr-2">Technique</th><th class="py-1.5 pr-2">Tactic</th><th class="py-1.5 pr-2 text-right">Obs</th><th class="py-1.5">Sources</th></tr></thead><tbody class="divide-y divide-gray-800/60">${techniques.map(x => `<tr class="align-top"><td class="py-1.5 pr-2 uppercase ${x.severity === 'critical' ? 'text-red-400' : x.severity === 'high' ? 'text-amber-400' : 'text-gray-400'}">${escHtml(x.severity)}</td><td class="py-1.5 pr-2 font-mono text-purple-300">${escHtml(x.id)}</td><td class="py-1.5 pr-2">${escHtml(x.name)}</td><td class="py-1.5 pr-2 text-gray-400">${escHtml(x.tactic)}</td><td class="py-1.5 pr-2 text-right">${x.observations || 0}</td><td class="py-1.5 text-gray-500">${escHtml((x.sources || []).join(', '))}</td></tr>`).join('')}</tbody></table></div></div>`;
+            } else {
+                html += '<div class="mt-4 text-[10px] text-gray-600 italic">No ATT&CK techniques observed.</div>';
             }
             if (notes.length) {
                 html += `<div class="mt-4 text-[10px] text-gray-500"><ul class="list-disc list-inside space-y-0.5">${notes.map(n => `<li>${escHtml(n)}</li>`).join('')}</ul></div>`;
@@ -715,6 +776,26 @@
                     emuContent.innerHTML = renderEmulation(r.emulation);
                 } else {
                     emuSec.classList.add('hidden');
+                }
+
+                // Docker sandbox
+                const sandboxSec = document.getElementById('sandbox-section');
+                const sandboxContent = document.getElementById('sandbox-content');
+                if (r.sandbox) {
+                    sandboxSec.classList.remove('hidden');
+                    sandboxContent.innerHTML = renderSandbox(r.sandbox);
+                } else {
+                    sandboxSec.classList.add('hidden');
+                }
+
+                // TTP coverage
+                const ttpSec = document.getElementById('ttp-section');
+                const ttpContent = document.getElementById('ttp-content');
+                if (r.ttp) {
+                    ttpSec.classList.remove('hidden');
+                    ttpContent.innerHTML = renderTtp(r.ttp);
+                } else {
+                    ttpSec.classList.add('hidden');
                 }
 
                 // Match table

