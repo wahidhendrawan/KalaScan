@@ -3,9 +3,10 @@ mod db;
 mod export;
 mod git_history;
 mod scanner;
+mod vsix;
 
 use axum::{
-    extract::{Path, State},
+    extract::{Multipart, Path, State},
     http::StatusCode,
     response::{Html, IntoResponse, Json},
     routing::{delete, get, post},
@@ -95,6 +96,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/", get(root))
         .route("/scan", post(start_scan))
         .route("/api/scan", post(api_scan))
+        .route("/api/scan/upload", post(api_scan_upload))
         .route("/api/results/{id}", get(get_result))
         .route("/api/history", get(history))
         .route("/api/report/{id}/{format}", get(report))
@@ -357,41 +359,194 @@ async fn results_page(
     }
 }
 
+async fn api_scan_upload(
+    State(state): State<AppState>,
+    mut multipart: Multipart,
+) -> impl IntoResponse {
+    let mut file_bytes: Option<Vec<u8>> = None;
+    let mut file_name: String = "uploaded.vsix".to_string();
+    let mut llm_provider = "ollama".to_string();
+    let mut llm_model = "llama3".to_string();
+    let mut llm_api_key: Option<String> = None;
+    let mut llm_endpoint: Option<String> = None;
+    let mut ai_analysis_enabled = false;
+
+    while let Ok(Some(field)) = multipart.next_field().await {
+        let name = field.name().unwrap_or_default().to_string();
+        if name == "file" {
+            if let Some(fname) = field.file_name() {
+                file_name = fname.to_string();
+            }
+            if let Ok(bytes) = field.bytes().await {
+                file_bytes = Some(bytes.to_vec());
+            }
+        } else if name == "llm_provider" {
+            if let Ok(val) = field.text().await {
+                llm_provider = val;
+            }
+        } else if name == "llm_model" {
+            if let Ok(val) = field.text().await {
+                llm_model = val;
+            }
+        } else if name == "llm_api_key" {
+            if let Ok(val) = field.text().await {
+                if !val.trim().is_empty() {
+                    llm_api_key = Some(val);
+                }
+            }
+        } else if name == "llm_endpoint" {
+            if let Ok(val) = field.text().await {
+                if !val.trim().is_empty() {
+                    llm_endpoint = Some(val);
+                }
+            }
+        } else if name == "ai_analysis_enabled" {
+            if let Ok(val) = field.text().await {
+                ai_analysis_enabled = val == "true" || val == "1" || val == "on";
+            }
+        }
+    }
+
+    let bytes = match file_bytes {
+        Some(b) => b,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": "No file uploaded"
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    let scan_id = uuid::Uuid::new_v4().to_string();
+    let timestamp = chrono::Utc::now().to_rfc3339();
+
+    let tmp_dir = match tempfile::tempdir() {
+        Ok(d) => d,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "success": false, "error": e.to_string() })),
+            )
+                .into_response();
+        }
+    };
+
+    let scan_dir = match vsix::extract_zip(std::io::Cursor::new(bytes), tmp_dir.path()) {
+        Ok(dir) => dir,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": format!("Failed to unpack extension archive: {}", e)
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    let (total_files, scanned_files, rule_matches) = scanner::scan_directory(&scan_dir);
+
+    let ai_result = if ai_analysis_enabled && !rule_matches.is_empty() {
+        let context_snippets: Vec<String> = rule_matches
+            .iter()
+            .map(|m| {
+                format!(
+                    "File: {}\nLine {}: {}\nContext: {}",
+                    m.file_path, m.line_number, m.matched_pattern, m.context
+                )
+            })
+            .collect();
+
+        let combined_prompt = context_snippets.join("\n\n---\n\n");
+        ai_analyzer::analyze_with_llm(
+            &llm_provider,
+            &llm_model,
+            &llm_api_key,
+            &llm_endpoint,
+            &combined_prompt,
+        )
+        .await
+        .ok()
+    } else {
+        None
+    };
+
+    let risk_score = calculate_risk_score(&rule_matches, &ai_result);
+
+    let result = ScanResult {
+        id: scan_id.clone(),
+        repo_url: format!("vsix://{}", file_name),
+        timestamp,
+        total_files,
+        scanned_files,
+        total_matches: rule_matches.len(),
+        risk_score,
+        ai_analysis: ai_result,
+        rule_matches,
+        status: "completed".to_string(),
+    };
+
+    if let Err(e) = db::save_scan(&result) {
+        error!("Failed to save scan to DB: {}", e);
+    }
+    {
+        let mut scans = state.scans.lock().await;
+        scans.push(result.clone());
+    }
+
+    Json(serde_json::json!({
+        "success": true,
+        "result_id": scan_id,
+        "result": result
+    }))
+    .into_response()
+}
+
 async fn run_scan(req: ScanRequest, _state: &AppState) -> anyhow::Result<ScanResult> {
     info!("Starting scan for: {}", req.repo_url);
 
     let scan_id = uuid::Uuid::new_v4().to_string();
     let timestamp = chrono::Utc::now().to_rfc3339();
 
-    // Phase 1: Clone repo ke temp directory
     let tmp_dir = tempfile::tempdir()?;
-    let repo_path = tmp_dir.path().join("repo");
+    let target_dir = tmp_dir.path().join("source");
+    std::fs::create_dir_all(&target_dir)?;
 
-    info!("Cloning {} to {:?}", req.repo_url, repo_path);
+    let scan_dir = if vsix::is_vsix_target(&req.repo_url) {
+        info!("Target detected as VS Code Extension / VSIX: {}", req.repo_url);
+        vsix::unpack_extension(&req.repo_url, &target_dir).await?
+    } else {
+        info!("Cloning {} to {:?}", req.repo_url, target_dir);
+        let clone_output = tokio::process::Command::new("git")
+            .arg("clone")
+            .arg("--depth")
+            .arg("1")
+            .arg(&req.repo_url)
+            .arg(&target_dir)
+            .output()
+            .await
+            .map_err(|e| anyhow::anyhow!("Git not found: {}. Install git: brew install git", e))?;
 
-    let clone_output = tokio::process::Command::new("git")
-        .arg("clone")
-        .arg("--depth")
-        .arg("1")
-        .arg(&req.repo_url)
-        .arg(&repo_path)
-        .output()
-        .await
-        .map_err(|e| anyhow::anyhow!("Git not found: {}. Install git: brew install git", e))?;
+        if !clone_output.status.success() {
+            let stderr = String::from_utf8_lossy(&clone_output.stderr);
+            return Err(anyhow::anyhow!(
+                "Git clone failed for {}: {}",
+                req.repo_url,
+                stderr
+            ));
+        }
+        target_dir
+    };
 
-    if !clone_output.status.success() {
-        let stderr = String::from_utf8_lossy(&clone_output.stderr);
-        return Err(anyhow::anyhow!(
-            "Git clone failed for {}: {}",
-            req.repo_url,
-            stderr
-        ));
-    }
-
-    info!("Clone successful. Running static scan...");
+    info!("Source ready at {:?}. Running static scan...", scan_dir);
 
     // Phase 2: Static rule check
-    let (total_files, scanned_files, rule_matches) = scanner::scan_directory(&repo_path);
+    let (total_files, scanned_files, rule_matches) = scanner::scan_directory(&scan_dir);
 
     info!(
         "Static scan complete: {} files scanned, {} matches found",

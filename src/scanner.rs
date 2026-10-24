@@ -5,7 +5,7 @@ use walkdir::WalkDir;
 
 /// Critical file extensions for scanning
 const CRITICAL_EXTENSIONS: &[&str] = &[
-    ".py", ".js", ".ts", ".sh", ".bat", ".ps1", ".vbs", ".php",
+    ".py", ".js", ".ts", ".mjs", ".cjs", ".sh", ".bat", ".ps1", ".vbs", ".php",
 ];
 
 /// Critical filenames (exact match)
@@ -358,6 +358,38 @@ pub fn build_rules() -> Vec<Rule> {
             description: "Script in hidden directory — suspicious",
             category: "supply_chain",
         },
+
+        // ============================================================
+        // VS CODE EXTENSION / IDE PLUGIN SECURITY
+        // ============================================================
+        Rule {
+            name: "VS Code Session/Token Stealing",
+            pattern: Regex::new(r"(?i)vscode\.authentication\.getSession\s*\(").unwrap(),
+            severity: "critical",
+            description: "Accessing VS Code authentication session — token theft indicator",
+            category: "exfiltration",
+        },
+        Rule {
+            name: "VS Code Clipboard Harvesting",
+            pattern: Regex::new(r"(?i)vscode\.env\.clipboard\.readText\s*\(").unwrap(),
+            severity: "high",
+            description: "Reading clipboard contents silently in extension",
+            category: "file_access",
+        },
+        Rule {
+            name: "VS Code Workspace File Reading",
+            pattern: Regex::new(r"(?i)vscode\.workspace\.fs\.readFile\s*\(").unwrap(),
+            severity: "medium",
+            description: "Reading workspace files via VS Code API",
+            category: "file_access",
+        },
+        Rule {
+            name: "VS Code Wildcard Activation",
+            pattern: Regex::new(r#"(?i)"activationEvents"\s*:\s*\[[^\]]*["'](?:\*|onStartupFinished)["']"#).unwrap(),
+            severity: "medium",
+            description: "Extension executes automatically on startup without user trigger",
+            category: "supply_chain",
+        },
     ]
 }
 
@@ -542,5 +574,21 @@ mod tests {
         let rules = build_rules();
         let rw = rules.iter().find(|r| r.name == "Shadow Copy Deletion").unwrap();
         assert!(rw.pattern.is_match("vssadmin delete shadows /all /quiet"));
+    }
+
+    #[test]
+    fn test_vscode_extension_rules() {
+        let rules = build_rules();
+        let auth = rules.iter().find(|r| r.name == "VS Code Session/Token Stealing").unwrap();
+        assert!(auth.pattern.is_match("const session = await vscode.authentication.getSession('github', ['repo']);"));
+
+        let clip = rules.iter().find(|r| r.name == "VS Code Clipboard Harvesting").unwrap();
+        assert!(clip.pattern.is_match("const text = await vscode.env.clipboard.readText();"));
+
+        let fs = rules.iter().find(|r| r.name == "VS Code Workspace File Reading").unwrap();
+        assert!(fs.pattern.is_match("const file = await vscode.workspace.fs.readFile(uri);"));
+
+        let act = rules.iter().find(|r| r.name == "VS Code Wildcard Activation").unwrap();
+        assert!(act.pattern.is_match(r#""activationEvents": [ "*", "onCommand:myExt.start" ]"#));
     }
 }
