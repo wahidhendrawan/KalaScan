@@ -1,59 +1,60 @@
 # 🛡️ KalaScan
 
-**Local Git Repository Security & Malware Scanner** — detects malicious code (Information Stealer, Ransomware, Backdoor, Obfuscation, Supply Chain Attack) in GitHub/GitLab repositories using high-speed Rust RegEx scanning and optional AI deep analysis.
+**Security & Malware Scanner for Git Repositories and IDE Extensions** (VS Code, Open VSX, JetBrains, Chrome CRX) — detects malicious code, token stealers, supply chain attacks, and known CVEs using high-speed Rust RegEx rules, YARA rules engine, Shannon entropy analysis, and optional AI deep audit.
 
 <p align="center">
-  <img src="https://img.shields.io/badge/rust-1.75+-orange?logo=rust" />
+  <img src="https://img.shields.io/badge/rust-1.95+-orange?logo=rust" />
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" />
-  <img src="https://img.shields.io/badge/tests-31%20passed-brightgreen" />
+  <img src="https://img.shields.io/badge/tests-47%20passed-brightgreen" />
   <img src="https://img.shields.io/badge/docker-ready-2496ED?logo=docker" />
 </p>
 
 ## Features
 
 ### Core Scanning
-- **40+ RegEx Rules** across 5 threat categories: exfiltration, sensitive data access, obfuscation, ransomware, supply chain
+- **50+ RegEx & YARA Rules** across threat categories: exfiltration, sensitive data access, obfuscation, ransomware, supply chain, and IDE malware
 - **Rust Speed** — compiled binary, multi-threaded WalkDir scanner, zero-copy regex matching
-- **Safe by Design** — clones repos read-only via `git clone --depth 1`, never executes any code, auto-cleanup with RAII temp dirs
+- **Safe by Design** — clones repos read-only via `git clone --depth 1`, never executes untrusted code, auto-cleanup with RAII temp dirs
 
-### VS Code Extension & Plugin Scanning
-- **Multi-Source Ingestion** — scan local `.vsix` / `.zip` packages via drag-and-drop file upload, or scan remote extensions directly by entering a Visual Studio Marketplace URL or extension ID (e.g. `publisher.extension-name`)
-- **Safe Unpacking** — automated extraction with zip-slip path traversal guards, targeting extension runtime payloads (`extension/`)
-- **IDE Malware Detection** — targeted static rules for session token theft, clipboard snooping, mass workspace file reading, and wildcard startup activations
+### Multi-Ecosystem Extension Scanning
+- **Multi-Source Ingestion** — scan local packages via drag-and-drop file upload (`.vsix`, `.zip`, `.jar`, `.crx`), or scan remote extensions directly by entering an ID or marketplace URL:
+  - **VS Code**: Visual Studio Marketplace URLs and `publisher.extension-name` identifiers
+  - **Open VSX**: Open-source registry URLs (`open-vsx.org/extension/<namespace>/<name>`)
+  - **JetBrains**: IntelliJ / PyCharm / WebStorm plugin archives (`.jar`, `.zip`)
+  - **Chrome / Browser**: Extension packages (`.crx`, `.zip`) with `manifest.json` permission checks
+- **Safe Unpacking** — automated extraction with zip-slip path traversal guards, targeting runtime payloads (`extension/`, `META-INF/`)
+- **IDE Malware Rules**:
+  - VS Code session token theft (`getSession`), clipboard harvesting (`clipboard.readText`), unauthorized workspace file access (`findFiles`), wildcard startup activations (`*`, `onStartupFinished`)
+  - JetBrains dynamic class loading (`URLClassLoader`, `DexClassLoader`), process execution (`ProcessBuilder`, `Runtime.getRuntime().exec`), reflection tampering (`Method.invoke`, `Field.setAccessible`), raw sockets
+  - Browser extension dangerous permissions (`<all_urls>`, `webRequestBlocking`, `debugger`, `nativeMessaging`), script injection (`chrome.tabs.executeScript`), keystroke loggers, cookie theft
+
+### YARA Rules Engine (`yara-x`)
+- Built-in pure-Rust YARA rule compilation for generic reverse shells, crypto drainers, and Discord webhook stealers
+- Support for loading custom user YARA rules from a directory via `--yara-dir <PATH>`
+
+### Entropy & Advanced Obfuscation Analysis
+- **Shannon Entropy Analysis**: Scans string literals for high-entropy blobs (> 5.2 entropy on tokens >= 60 chars) indicating encrypted ciphers or packed scripts
+- **Invisible Zero-Width Character Detection**: Uncovers hidden unicode steganography (`\u{200B}`, `\u{200C}`, `\u{200D}`, `\u{FEFF}`)
+- **Trojan Source Detection (CVE-2021-42574)**: Flags dangerous Bi-Directional override characters disguised as comments
+- **Homoglyph Spoofing Detection**: Catches Cyrillic lookalikes mixed into Latin code identifiers
+
+### Dependency CVE Audit (OSV API)
+- Automatically inspects project manifests: `package.json` (npm), `Cargo.lock` (Rust), and `requirements.txt` (Python)
+- Batch queries the official [OSV (Open Source Vulnerabilities)](https://osv.dev/) database for known security advisories
+
+### Standalone CLI Subcommands (CI/CD Gates)
+- Run headless scans in terminal or automated pipelines without starting the web server
+- Configurable quality gates via `--fail-on-risk <SCORE>` (exits with code 1 if risk threshold is exceeded)
+- Multiple export formats: `--format <text|json|md|html>` and `--output <FILE>`
 
 ### AI Deep Analysis
 - **Multi-Provider LLM Support**: Ollama (local), OpenAI, DeepSeek, 9Router (local proxy), or any OpenAI-compatible custom endpoint
-- LLM evaluates suspicious code with a structured malware analysis system prompt
-- Results returned as structured risk assessment JSON (risk score, malware type, threat summary, recommendations)
+- Structured malware analysis system prompt returning risk assessment JSON
 
 ### Git History Scanning
-- **Full Commit History Scan** — walks every commit via `git log` and scans historical file versions with the same RegEx rules
-- Detects secrets, malware, and suspicious patterns that were introduced and later removed
-- Results annotated with commit hash + file path
-
-### Scan History & Persistence
-- **SQLite Database** (`rusqlite` with bundled feature) — all scans saved with full results, timestamps, and risk scores
-- Browse scan history in the sidebar dashboard
-- Delete old scans with one click
-
-### Export Reports
-- **Markdown Report** — clean `.md` file with risk badge, summary table, AI analysis, match details
-- **HTML Report** — self-contained dark-themed HTML with inline Tailwind CSS, ready to share or archive
-
-### Web UI
-- Professional dark cybersecurity dashboard with scan history sidebar
-- Animated risk gauge, sortable match tables, progress indicators
-- Status badges (Safe / Warning / High Risk) with color coding
-- Download report buttons per scan (MD + HTML)
-- localStorage persistence for LLM provider settings
+- **Full Commit History Scan** — walks commits via `git log` and scans historical file versions with RegEx rules
 
 ## Quick Start
-
-### Prerequisites
-
-- [Rust](https://rustup.rs/) 1.75+
-- Git
-- (Optional) AI: [Ollama](https://ollama.ai/), OpenAI key, DeepSeek key, or [9Router](https://github.com/decolua/9router)
 
 ### Build & Run
 
@@ -61,69 +62,53 @@
 git clone https://github.com/wahidhendrawan/KalaScan.git
 cd KalaScan
 cargo build --release
-cargo run --release
 ```
 
+#### Run Web UI
+```bash
+./target/release/kalascan
+# Or with explicit serve command
+./target/release/kalascan serve --addr 127.0.0.1:3000
+```
 Open **http://127.0.0.1:3000**
 
-### Docker
-
+#### Run Headless CLI Scan
 ```bash
-# Build & run
-docker build -t kalascan .
-docker run -p 3000:3000 --add-host host.docker.internal:host-gateway kalascan
+# Scan a VS Code extension by identifier
+kalascan scan ms-python.python
 
-# From GitHub Container Registry
-docker pull ghcr.io/wahidhendrawan/kalascan:latest
-docker run -p 3000:3000 --add-host host.docker.internal:host-gateway ghcr.io/wahidhendrawan/kalascan:latest
+# Scan a Git repository and output JSON
+kalascan scan https://github.com/user/repo.git --format json
+
+# Scan the full commit history for secrets or malware that was later removed
+kalascan scan https://github.com/user/repo.git --git-history --format md -o history.md
+
+# Quality Gate for CI/CD: fail if risk score >= 70
+kalascan scan ./my-extension.vsix --fail-on-risk 70
+
+# Scan with custom YARA rules and save HTML report
+kalascan scan target/package.jar --yara-dir ./custom_rules/ --format html -o report.html
 ```
-
-### Docker Compose
-
-```bash
-docker compose up -d
-# KalaScan at http://127.0.0.1:3000
-```
-
-### LLM Providers
-
-| Provider | Endpoint (auto-configured) | API Key |
-|----------|---------------------------|---------|
-| **Ollama** | `http://localhost:11434/api/generate` | — |
-| **DeepSeek** | `https://api.deepseek.com/v1/chat/completions` | Required |
-| **OpenAI** | `https://api.openai.com/v1/chat/completions` | Required |
-| **9Router** | `http://localhost:20128/v1/chat/completions` | Required |
-| **Custom** | User-defined | Optional |
-
-Settings are auto-saved to browser localStorage.
-
-## Usage
-
-1. **Scan a Git Repository or VS Code Extension**:
-   - Enter a Git repository URL (e.g., `https://github.com/user/repo.git`)
-   - OR enter a VS Code Marketplace URL or Extension ID (e.g., `ms-python.python` or `https://marketplace.visualstudio.com/items?itemName=...`)
-   - OR drag & drop / upload a local `.vsix` or `.zip` extension package
-2. Select LLM provider and configure API key if needed (for optional deep AI malware audit)
-3. Click **Start Scan**
-4. View results: risk score gauge, matched patterns table, AI analysis card
-5. Download MD or HTML report
-6. Browse scan history in the sidebar
 
 ## Architecture
 
 ```
 KalaScan/
 ├── src/
-│   ├── main.rs            # Axum web server, routes, scan orchestrator
-│   ├── vsix.rs            # VSIX package extraction & marketplace downloader
-│   ├── scanner.rs         # 40+ RegEx rules, WalkDir scanner, file filter
+│   ├── main.rs            # Axum web server, scan orchestrator & CLI router
+│   ├── cli.rs             # Clap CLI subcommand argument parser
+│   ├── vsix.rs            # VSIX, Open VSX, JetBrains & CRX extraction
+│   ├── scanner.rs         # 50+ RegEx rules, WalkDir scanner, file filter
+│   ├── yara_engine.rs     # YARA rules engine (yara-x) & custom rule loader
+│   ├── entropy.rs         # Shannon entropy, Zero-Width, Trojan Source, Homoglyphs
+│   ├── cve.rs             # Manifest dependency extractor & OSV API client
 │   ├── ai_analyzer.rs     # Ollama / OpenAI / DeepSeek / 9Router integration
 │   ├── db.rs              # SQLite scan history persistence
 │   ├── git_history.rs     # Commit history scanner
 │   └── export.rs          # Markdown + HTML report generator
 ├── templates/
-│   ├── index.html         # Dashboard with history sidebar, scan form, results
-│   └── result.html        # Detail view with gauge, stats, download buttons
+│   ├── index.html         # Dashboard with drag-and-drop upload & scan form
+│   └── result.html        # Detail view with risk gauge & findings table
 ├── .github/workflows/
 │   ├── ci.yml             # Rust build + test
 │   ├── security.yml       # Gitleaks + Trivy container scan
@@ -137,47 +122,27 @@ KalaScan/
 └── README.md
 ```
 
-## API Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/` | Dashboard |
-| `POST` | `/scan` | Start a new scan |
-| `POST` | `/api/scan` | Start scan via JSON URL/ID |
-| `POST` | `/api/scan/upload` | Start scan via `.vsix` / `.zip` file upload |
-| `GET` | `/api/results/:id` | Get scan result |
-| `GET` | `/results/:id` | Result detail page |
-| `GET` | `/api/history` | List scan history |
-| `DELETE` | `/api/history/:id` | Delete scan |
-| `GET` | `/api/report/:id/md` | Download Markdown report |
-| `GET` | `/api/report/:id/html` | Download HTML report |
-
 ## Detection Rules
 
 | Category | Patterns Detected |
 |----------|-------------------|
-| **Exfiltration** | Discord webhooks, Telegram Bot API tokens, Slack webhooks, AWS keys (`AKIA*`), GitHub tokens (`ghp_*`), generic API key assignments, hardcoded IP addresses |
-| **File Access** | Browser profiles (`/AppData/Local/Chrome`), crypto wallets (`wallet.dat`, `metamask`), Discord tokens, SSH keys, `.env`/`.npmrc`, password managers |
-| **Obfuscation** | `eval()`/`exec()`, `b64decode` chains, `child_process`/`subprocess`, `os.system`/`os.popen`, PowerShell `-EncodedCommand`, nested encoding, process injection APIs, DLL loading |
-| **Ransomware** | File encryption functions (`fernet.encrypt`), shadow copy deletion (`vssadmin`), encrypted file extensions, ransom note text, Bitcoin addresses |
+| **Exfiltration** | Discord webhooks, Telegram Bot API tokens, Slack webhooks, AWS keys, GitHub tokens, generic API key assignments, hardcoded IP addresses, browser keyloggers, Java raw sockets |
+| **File Access** | Browser profiles, crypto wallets, Discord tokens, SSH keys, `.env`/`.npmrc`, password managers, Chrome cookies/local storage |
+| **Obfuscation** | `eval()`/`exec()`, `b64decode` chains, `subprocess`/`os.system`, PowerShell `-EncodedCommand`, process injection APIs, DLL loading, JetBrains classloading & reflection |
+| **Advanced Obfuscation** | Shannon high-entropy string blobs (> 5.2), invisible Unicode zero-width characters, Trojan Source BiDi control characters (CVE-2021-42574), confusable Cyrillic homoglyphs |
+| **YARA Rules** | Reverse shells (`/bin/bash -i`, `nc -e`, `pty.spawn`), crypto wallet drainers (`drainAll`, `signTypedData_v4`), Discord webhook credential stealers |
+| **Dependency CVEs** | Known exploited vulnerabilities in `package.json`, `Cargo.lock`, and `requirements.txt` via OSV database |
+| **IDE & Extension Malware** | VS Code session/token theft (`getSession`), clipboard snooping (`clipboard.readText`), workspace file exfiltration (`findFiles`), wildcard auto-activation (`*`, `onStartupFinished`), browser extension `<all_urls>` / `debugger` permissions |
+| **Ransomware** | File encryption functions (`fernet.encrypt`), shadow copy deletion (`vssadmin`), encrypted extensions, ransom note text |
 | **Supply Chain** | npm `postinstall`/`preinstall` scripts, typo-squatted package names, remote script download (`curl|sh`), hidden directory installs |
-| **VS Code Extensions** | Session token stealing (`getSession`), clipboard harvesting (`clipboard.readText`), workspace file enumeration (`findFiles`), wildcard auto-activation (`*`, `onStartupFinished`) |
-
-## Risk Scoring
-
-| Score | Level | Recommendation |
-|-------|-------|---------------|
-| 0–29 | 🟢 Safe | Code appears benign |
-| 30–69 | 🟡 Warning | Review suspicious findings manually |
-| 70–100 | 🔴 High Risk | Do not execute — possible malware |
 
 ## Development
 
 ```bash
-# Run tests (31 tests)
+# Run tests (47 tests)
 cargo test
 
-# Build release
+# Build release binary
 cargo build --release
 
 # Run with debug logging

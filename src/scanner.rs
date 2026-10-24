@@ -5,11 +5,11 @@ use walkdir::WalkDir;
 
 /// Critical file extensions for scanning
 const CRITICAL_EXTENSIONS: &[&str] = &[
-    ".py", ".js", ".ts", ".mjs", ".cjs", ".sh", ".bat", ".ps1", ".vbs", ".php",
+    ".py", ".js", ".ts", ".mjs", ".cjs", ".sh", ".bat", ".ps1", ".vbs", ".php", ".java", ".kt",
 ];
 
 /// Critical filenames (exact match)
-const CRITICAL_FILENAMES: &[&str] = &["package.json", "setup.py"];
+const CRITICAL_FILENAMES: &[&str] = &["package.json", "setup.py", "manifest.json", "plugin.xml"];
 
 pub struct Rule {
     pub name: &'static str,
@@ -390,6 +390,70 @@ pub fn build_rules() -> Vec<Rule> {
             description: "Extension executes automatically on startup without user trigger",
             category: "supply_chain",
         },
+
+        // ============================================================
+        // JETBRAINS PLUGIN MALWARE RULES
+        // ============================================================
+        Rule {
+            name: "JetBrains Dynamic Classloading",
+            pattern: Regex::new(r"(?i)(?:URLClassLoader|ClassLoader\.defineClass|DexClassLoader)\s*\(").unwrap(),
+            severity: "critical",
+            description: "Dynamic Java/Kotlin classloader — payload injection indicator",
+            category: "obfuscation",
+        },
+        Rule {
+            name: "JetBrains Process Execution",
+            pattern: Regex::new(r"(?i)(?:Runtime\.getRuntime\(\)\.exec|ProcessBuilder)\s*\(").unwrap(),
+            severity: "high",
+            description: "Executing OS processes from plugin code",
+            category: "obfuscation",
+        },
+        Rule {
+            name: "JetBrains Malicious Reflection",
+            pattern: Regex::new(r"(?i)(?:Method\.invoke|Field\.setAccessible)\s*\(").unwrap(),
+            severity: "medium",
+            description: "Java reflection to bypass access control or security managers",
+            category: "obfuscation",
+        },
+        Rule {
+            name: "JetBrains Raw Socket Exfiltration",
+            pattern: Regex::new(r"(?i)java\.net\.(?:Socket|HttpURLConnection|URL)\s*").unwrap(),
+            severity: "medium",
+            description: "Raw networking call for beaconing or exfiltration",
+            category: "exfiltration",
+        },
+
+        // ============================================================
+        // CHROME / BROWSER EXTENSION MALWARE RULES
+        // ============================================================
+        Rule {
+            name: "Browser Extension Dangerous Permissions",
+            pattern: Regex::new(r#"(?i)"(?:permissions|optional_permissions)"\s*:\s*\[[^\]]*["'](?:\*://\*|<all_urls>|webRequestBlocking|debugger|nativeMessaging)["']"#).unwrap(),
+            severity: "high",
+            description: "High-risk browser extension permission targeting all network traffic or debugging",
+            category: "supply_chain",
+        },
+        Rule {
+            name: "Browser Extension Dynamic Code Execution",
+            pattern: Regex::new(r"(?i)(?:chrome\.tabs\.executeScript|unsafe-eval)").unwrap(),
+            severity: "high",
+            description: "Dynamic script injection or CSP unsafe-eval in extension",
+            category: "obfuscation",
+        },
+        Rule {
+            name: "Browser Extension Keystroke Logger",
+            pattern: Regex::new(r#"(?i)addEventListener\s*\(\s*["']key(?:down|press|up)["']"#).unwrap(),
+            severity: "high",
+            description: "Key event listener indicating potential keylogger",
+            category: "exfiltration",
+        },
+        Rule {
+            name: "Browser Extension Cookie/Token Theft",
+            pattern: Regex::new(r"(?i)chrome\.(?:cookies\.getAll|storage\.local\.get)").unwrap(),
+            severity: "high",
+            description: "Harvesting browser cookies or local extension storage",
+            category: "file_access",
+        },
     ]
 }
 
@@ -414,7 +478,15 @@ pub fn get_extension(filename: &str) -> &str {
 /// Scan directory for malicious patterns.
 /// Returns (total_files, scanned_files, matches).
 pub fn scan_directory<P: AsRef<Path>>(dir: P) -> (usize, usize, Vec<RuleMatch>) {
+    scan_directory_with_yara(dir, None)
+}
+
+pub fn scan_directory_with_yara<P: AsRef<Path>>(
+    dir: P,
+    custom_yara_dir: Option<&Path>,
+) -> (usize, usize, Vec<RuleMatch>) {
     let rules = build_rules();
+    let yara_engine = crate::yara_engine::YaraEngine::new(custom_yara_dir);
     let mut matches = Vec::new();
     let mut total_files = 0usize;
     let mut scanned_files = 0usize;
@@ -476,6 +548,14 @@ pub fn scan_directory<P: AsRef<Path>>(dir: P) -> (usize, usize, Vec<RuleMatch>) 
                 });
             }
         }
+
+        // Advanced entropy, invisible zero-width, Trojan Source, homoglyphs
+        let entropy_matches = crate::entropy::scan_advanced_obfuscation(&rel_path, &content);
+        matches.extend(entropy_matches);
+
+        // YARA rules matching
+        let yara_matches = yara_engine.scan_data(&rel_path, content.as_bytes());
+        matches.extend(yara_matches);
     }
 
     (total_files, scanned_files, matches)
@@ -590,5 +670,25 @@ mod tests {
 
         let act = rules.iter().find(|r| r.name == "VS Code Wildcard Activation").unwrap();
         assert!(act.pattern.is_match(r#""activationEvents": [ "*", "onCommand:myExt.start" ]"#));
+    }
+
+    #[test]
+    fn test_jetbrains_plugin_rules() {
+        let rules = build_rules();
+        let cl = rules.iter().find(|r| r.name == "JetBrains Dynamic Classloading").unwrap();
+        assert!(cl.pattern.is_match("URLClassLoader loader = new URLClassLoader(urls);"));
+
+        let pe = rules.iter().find(|r| r.name == "JetBrains Process Execution").unwrap();
+        assert!(pe.pattern.is_match("Runtime.getRuntime().exec(cmd);"));
+    }
+
+    #[test]
+    fn test_browser_extension_rules() {
+        let rules = build_rules();
+        let perm = rules.iter().find(|r| r.name == "Browser Extension Dangerous Permissions").unwrap();
+        assert!(perm.pattern.is_match(r#""permissions": ["<all_urls>", "storage"]"#));
+
+        let eval = rules.iter().find(|r| r.name == "Browser Extension Dynamic Code Execution").unwrap();
+        assert!(eval.pattern.is_match("chrome.tabs.executeScript(tabId, { code: payload });"));
     }
 }

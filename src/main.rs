@@ -1,9 +1,13 @@
 mod ai_analyzer;
+mod cli;
+mod cve;
 mod db;
+mod entropy;
 mod export;
 mod git_history;
 mod scanner;
 mod vsix;
+mod yara_engine;
 
 use axum::{
     extract::{Multipart, Path, State},
@@ -12,6 +16,8 @@ use axum::{
     routing::{delete, get, post},
     Router,
 };
+use clap::Parser;
+use cli::{Cli, Commands};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tera::Tera;
@@ -33,6 +39,12 @@ pub struct ScanRequest {
     pub llm_api_key: Option<String>,
     pub llm_endpoint: Option<String>,
     pub ai_analysis_enabled: bool,
+    #[serde(default)]
+    pub check_cve: Option<bool>,
+    #[serde(default)]
+    pub yara_dir: Option<String>,
+    #[serde(default)]
+    pub git_history: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,9 +84,55 @@ pub struct ScanResult {
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter("kalascan=info")
+        .with_writer(std::io::stderr)
         .init();
 
-    info!("KalaScan v1.0.0 starting...");
+    let cli = Cli::parse();
+
+    match cli.command {
+        Some(Commands::Scan {
+            target,
+            format,
+            fail_on_risk,
+            output,
+            ai,
+            llm_provider,
+            llm_model,
+            llm_key,
+            llm_endpoint,
+            cve,
+            yara_dir,
+            git_history,
+        }) => {
+            let req = ScanRequest {
+                repo_url: target,
+                llm_provider,
+                llm_model,
+                llm_api_key: llm_key,
+                llm_endpoint,
+                ai_analysis_enabled: ai,
+                check_cve: Some(cve),
+                yara_dir: yara_dir.map(|p| p.to_string_lossy().to_string()),
+                git_history,
+            };
+            run_cli_scan(req, format, fail_on_risk, output).await?;
+        }
+        Some(Commands::Serve { addr }) => {
+            start_web_server(&addr).await?;
+        }
+        None => {
+            let addr = cli.addr.unwrap_or_else(|| {
+                std::env::var("KALASCAN_ADDR").unwrap_or_else(|_| "0.0.0.0:3000".to_string())
+            });
+            start_web_server(&addr).await?;
+        }
+    }
+
+    Ok(())
+}
+
+async fn start_web_server(addr: &str) -> anyhow::Result<()> {
+    info!("KalaScan v1.2.0 starting Web UI on http://{}", addr);
 
     // Initialize DB
     if let Err(e) = db::init_db() {
@@ -105,9 +163,8 @@ async fn main() -> anyhow::Result<()> {
         .layer(CorsLayer::permissive())
         .with_state(state);
 
-    let addr = std::env::var("KALASCAN_ADDR").unwrap_or_else(|_| "0.0.0.0:3000".to_string());
-    let listener = tokio::net::TcpListener::bind(&addr).await?;
-    info!("Web UI: http://{}", addr);
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    info!("Web UI available at http://{}", addr);
     axum::serve(listener, app).await?;
 
     Ok(())
@@ -370,6 +427,7 @@ async fn api_scan_upload(
     let mut llm_api_key: Option<String> = None;
     let mut llm_endpoint: Option<String> = None;
     let mut ai_analysis_enabled = false;
+    let mut check_cve = true;
 
     while let Ok(Some(field)) = multipart.next_field().await {
         let name = field.name().unwrap_or_default().to_string();
@@ -403,6 +461,10 @@ async fn api_scan_upload(
         } else if name == "ai_analysis_enabled" {
             if let Ok(val) = field.text().await {
                 ai_analysis_enabled = val == "true" || val == "1" || val == "on";
+            }
+        } else if name == "check_cve" {
+            if let Ok(val) = field.text().await {
+                check_cve = val == "true" || val == "1" || val == "on";
             }
         }
     }
@@ -449,7 +511,16 @@ async fn api_scan_upload(
         }
     };
 
-    let (total_files, scanned_files, rule_matches) = scanner::scan_directory(&scan_dir);
+    let (total_files, scanned_files, mut rule_matches) = scanner::scan_directory(&scan_dir);
+
+    // Check dependency manifests for CVEs via OSV API when enabled
+    if check_cve {
+        let pkgs = cve::extract_manifest_packages(&scan_dir);
+        if !pkgs.is_empty() {
+            let cve_matches = cve::check_vulnerabilities(&pkgs).await;
+            rule_matches.extend(cve_matches);
+        }
+    }
 
     let ai_result = if ai_analysis_enabled && !rule_matches.is_empty() {
         let context_snippets: Vec<String> = rule_matches
@@ -508,6 +579,10 @@ async fn api_scan_upload(
 }
 
 async fn run_scan(req: ScanRequest, _state: &AppState) -> anyhow::Result<ScanResult> {
+    execute_scan(req).await
+}
+
+async fn execute_scan(req: ScanRequest) -> anyhow::Result<ScanResult> {
     info!("Starting scan for: {}", req.repo_url);
 
     let scan_id = uuid::Uuid::new_v4().to_string();
@@ -517,15 +592,18 @@ async fn run_scan(req: ScanRequest, _state: &AppState) -> anyhow::Result<ScanRes
     let target_dir = tmp_dir.path().join("source");
     std::fs::create_dir_all(&target_dir)?;
 
-    let scan_dir = if vsix::is_vsix_target(&req.repo_url) {
-        info!("Target detected as VS Code Extension / VSIX: {}", req.repo_url);
+    let is_extension = vsix::is_vsix_target(&req.repo_url);
+    let scan_dir = if is_extension {
+        info!("Target detected as IDE Extension / Package: {}", req.repo_url);
         vsix::unpack_extension(&req.repo_url, &target_dir).await?
     } else {
         info!("Cloning {} to {:?}", req.repo_url, target_dir);
-        let clone_output = tokio::process::Command::new("git")
-            .arg("clone")
-            .arg("--depth")
-            .arg("1")
+        let mut clone_cmd = tokio::process::Command::new("git");
+        clone_cmd.arg("clone");
+        if !req.git_history {
+            clone_cmd.arg("--depth").arg("1");
+        }
+        let clone_output = clone_cmd
             .arg(&req.repo_url)
             .arg(&target_dir)
             .output()
@@ -543,13 +621,33 @@ async fn run_scan(req: ScanRequest, _state: &AppState) -> anyhow::Result<ScanRes
         target_dir
     };
 
-    info!("Source ready at {:?}. Running static scan...", scan_dir);
+    info!("Source ready at {:?}. Running static + YARA + entropy scan...", scan_dir);
 
-    // Phase 2: Static rule check
-    let (total_files, scanned_files, rule_matches) = scanner::scan_directory(&scan_dir);
+    // Phase 2: Static rule + YARA + Entropy check
+    let custom_yara = req.yara_dir.as_ref().map(std::path::Path::new);
+    let (total_files, scanned_files, mut rule_matches) =
+        scanner::scan_directory_with_yara(&scan_dir, custom_yara);
+
+    // Phase 2b: Dependency CVE check via OSV API if enabled
+    if req.check_cve.unwrap_or(true) {
+        let pkgs = cve::extract_manifest_packages(&scan_dir);
+        if !pkgs.is_empty() {
+            info!("Auditing {} manifest packages with OSV API...", pkgs.len());
+            let cve_matches = cve::check_vulnerabilities(&pkgs).await;
+            rule_matches.extend(cve_matches);
+        }
+    }
+
+    // Phase 2c: Full git commit history scan
+    if req.git_history && !is_extension {
+        info!("Scanning full git commit history at {:?}...", scan_dir);
+        let history_matches = git_history::scan_git_history(&scan_dir).await;
+        info!("Git history scan found {} matches", history_matches.len());
+        rule_matches.extend(history_matches);
+    }
 
     info!(
-        "Static scan complete: {} files scanned, {} matches found",
+        "Scan complete: {} files scanned, {} matches found",
         scanned_files,
         rule_matches.len()
     );
@@ -605,10 +703,93 @@ async fn run_scan(req: ScanRequest, _state: &AppState) -> anyhow::Result<ScanRes
         status: "completed".to_string(),
     };
 
-    // tmp_dir goes out of scope here → RAII auto-cleanup
     info!("Scan complete. ID: {}", scan_id);
 
     Ok(result)
+}
+
+async fn run_cli_scan(
+    req: ScanRequest,
+    format: String,
+    fail_on_risk: Option<u8>,
+    output: Option<std::path::PathBuf>,
+) -> anyhow::Result<()> {
+    let result = execute_scan(req).await?;
+
+    let output_content = match format.to_lowercase().as_str() {
+        "json" => serde_json::to_string_pretty(&result)?,
+        "md" | "markdown" => export::export_markdown(&result),
+        "html" => export::export_html(&result),
+        _ => format_cli_text(&result),
+    };
+
+    if let Some(out_path) = output {
+        std::fs::write(&out_path, &output_content)?;
+        println!("Report successfully saved to: {:?}", out_path);
+    } else {
+        println!("{}", output_content);
+    }
+
+    if let Some(threshold) = fail_on_risk {
+        if result.risk_score >= threshold {
+            eprintln!(
+                "\n❌ Quality Gate Failed: Risk score {} >= threshold {}",
+                result.risk_score, threshold
+            );
+            std::process::exit(1);
+        }
+    }
+
+    Ok(())
+}
+
+fn format_cli_text(result: &ScanResult) -> String {
+    let mut out = String::new();
+    out.push_str("============================================================\n");
+    out.push_str("🛡️  KalaScan Security & Malware Audit Report\n");
+    out.push_str("============================================================\n");
+    out.push_str(&format!("Target:        {}\n", result.repo_url));
+    out.push_str(&format!("Scan ID:       {}\n", result.id));
+    out.push_str(&format!("Timestamp:     {}\n", result.timestamp));
+    out.push_str(&format!("Files Scanned: {} / {}\n", result.scanned_files, result.total_files));
+    out.push_str(&format!("Total Matches: {}\n", result.total_matches));
+
+    let level = if result.risk_score >= 70 {
+        "🔴 HIGH RISK (Possible Malware)"
+    } else if result.risk_score >= 30 {
+        "🟡 WARNING (Suspicious)"
+    } else {
+        "🟢 SAFE"
+    };
+    out.push_str(&format!("Risk Score:    {} / 100 [{}]\n", result.risk_score, level));
+    out.push_str("------------------------------------------------------------\n");
+
+    if result.rule_matches.is_empty() {
+        out.push_str("No malicious patterns or high-risk vulnerabilities detected.\n");
+    } else {
+        out.push_str("FINDINGS:\n");
+        for (i, m) in result.rule_matches.iter().enumerate() {
+            out.push_str(&format!(
+                "\n[{}] [{}] {}\n     File:    {}:{}\n     Context: {}\n",
+                i + 1,
+                m.severity.to_uppercase(),
+                m.matched_pattern,
+                m.file_path,
+                m.line_number,
+                m.context.trim()
+            ));
+        }
+    }
+
+    if let Some(ai) = &result.ai_analysis {
+        out.push_str("\n------------------------------------------------------------\n");
+        out.push_str("AI DEEP ANALYSIS:\n");
+        out.push_str(&format!("Malware Type:   {}\n", ai.malware_type));
+        out.push_str(&format!("Threat Summary: {}\n", ai.threat_summary));
+        out.push_str(&format!("Recommendation: {}\n", ai.recommendation));
+    }
+    out.push_str("============================================================\n");
+    out
 }
 
 fn calculate_risk_score(matches: &[RuleMatch], ai: &Option<AiAnalysis>) -> u8 {

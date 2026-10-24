@@ -1,8 +1,8 @@
 [package]
 name = "kalascan"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2021"
-description = "Local Git Repository Security & Malware Scanner — detects malware indicators using static RegEx rules, git history scanning, and AI deep analysis."
+description = "Security & Malware Scanner for Git Repositories and IDE Extensions (VS Code, Open VSX, JetBrains, Browser CRX) using RegEx, YARA, Entropy, and AI deep analysis."
 authors = ["Wahid Hendrawan"]
 license = "GPL-3.0"
 repository = "https://github.com/wahidhendrawan/KalaScan"
@@ -26,3 +26,5 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 url = "2"
 chrono = { version = "0.4", features = ["serde"] }
 rusqlite = { version = "0.31", features = ["bundled"] }
+clap = { version = "4", features = ["derive", "env"] }
+yara-x = "1.22.0"
