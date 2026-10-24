@@ -159,6 +159,34 @@
             <div id="triage-body"></div>
         </div>
 
+        <!-- Deobfuscation card -->
+        <div id="deobfuscation-card" class="hidden bg-gray-900 rounded-xl border border-gray-800 p-6 mb-6">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-8 h-8 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400 text-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/></svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-100">Recursive Deobfuscation</h3>
+                    <p class="text-[10px] text-gray-500">Encoded payload recovery &amp; decoding chains</p>
+                </div>
+            </div>
+            <div id="deobfuscation-body"></div>
+        </div>
+
+        <!-- Safe static emulation card -->
+        <div id="emulation-card" class="hidden bg-gray-900 rounded-xl border border-gray-800 p-6 mb-6">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 text-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25"/></svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-100">Safe Static Emulation</h3>
+                    <p class="text-[10px] text-gray-500">Bounded x86/x64 instruction emulation &amp; API tracing</p>
+                </div>
+            </div>
+            <div id="emulation-body"></div>
+        </div>
+
         <!-- Rule matches table -->
         <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-800 flex items-center justify-between">
@@ -329,6 +357,50 @@
             return html;
         }
 
+        function renderDeobfuscation(d) {
+            var artifacts = d.artifacts || [];
+            var techs = d.attack_techniques || [];
+            var notes = d.notes || [];
+            var card = function(label, value, color) { return '<div class="bg-gray-950 rounded-lg p-3 border border-gray-800 text-center"><div class="text-xl font-bold ' + color + '">' + value + '</div><div class="text-[10px] text-gray-500 mt-0.5">' + label + '</div></div>'; };
+            var html = '<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">' + card('Files', d.files_scanned || 0, 'text-gray-100') + card('Artifacts', artifacts.length, 'text-orange-400') + card('ATT&CK', techs.length, 'text-purple-400') + card('Engine', escHtml(d.engine || '-'), 'text-[10px] text-gray-300') + '</div>';
+            if (techs.length) {
+                html += '<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">MITRE ATT&CK</div><div class="flex flex-wrap gap-1">' + techs.map(function(x) { return '<span class="bg-purple-500/10 border border-purple-500/30 text-purple-300 rounded px-2 py-1 text-[10px]" title="' + escAttr(x.tactic) + '"><strong>' + escHtml(x.id) + '</strong> ' + escHtml(x.name) + '</span>'; }).join('') + '</div></div>';
+            }
+            if (artifacts.length) {
+                html += '<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">Recovered artifacts</div><div class="overflow-x-auto"><table class="w-full text-left text-[10px]"><thead class="text-gray-500 uppercase"><tr><th class="py-1.5 pr-2">Confidence</th><th class="py-1.5 pr-2">Encoding</th><th class="py-1.5 pr-2">File</th><th class="py-1.5 pr-2 text-right">Line</th><th class="py-1.5 pr-2">Indicators</th><th class="py-1.5">Decoded preview</th></tr></thead><tbody class="divide-y divide-gray-800/60">' + artifacts.map(function(a) {
+                    return '<tr class="align-top"><td class="py-1.5 pr-2"><span class="bg-gray-950 border border-gray-800 rounded px-2 py-0.5">' + escHtml(a.confidence) + '</span></td><td class="py-1.5 pr-2">' + escHtml(a.encoding) + '</td><td class="py-1.5 pr-2 font-mono text-blue-400">' + escHtml(a.file_path) + '</td><td class="py-1.5 pr-2 text-right">' + (a.line_number || 0) + '</td><td class="py-1.5 pr-2 text-amber-300">' + escHtml((a.indicators || []).join(', ') || '-') + '</td><td class="py-1.5 font-mono text-gray-300 break-all">' + escHtml(String(a.decoded || '').slice(0, 200)) + '</td></tr>';
+                }).join('') + '</tbody></table></div></div>';
+            } else {
+                html += '<div class="mt-4 text-[10px] text-gray-600 italic">No encoded payloads recovered.</div>';
+            }
+            if (notes.length) {
+                html += '<div class="mt-4 text-[10px] text-gray-500"><ul class="list-disc list-inside space-y-0.5">' + notes.map(function(n) { return '<li>' + escHtml(n) + '</li>'; }).join('') + '</ul></div>';
+            }
+            return html;
+        }
+
+        function renderEmulation(e) {
+            var traces = e.traces || [];
+            var techs = e.attack_techniques || [];
+            var notes = e.notes || [];
+            var card = function(label, value, color) { return '<div class="bg-gray-950 rounded-lg p-3 border border-gray-800 text-center"><div class="text-xl font-bold ' + color + '">' + value + '</div><div class="text-[10px] text-gray-500 mt-0.5">' + label + '</div></div>'; };
+            var html = '<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">' + card('Files', e.files_scanned || 0, 'text-gray-100') + card('Traces', traces.length, 'text-cyan-400') + card('ATT&CK', techs.length, 'text-purple-400') + card('Engine', escHtml(e.engine || '-'), 'text-[10px] text-gray-300') + '</div>';
+            if (techs.length) {
+                html += '<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">MITRE ATT&CK</div><div class="flex flex-wrap gap-1">' + techs.map(function(x) { return '<span class="bg-purple-500/10 border border-purple-500/30 text-purple-300 rounded px-2 py-1 text-[10px]" title="' + escAttr(x.tactic) + '"><strong>' + escHtml(x.id) + '</strong> ' + escHtml(x.name) + '</span>'; }).join('') + '</div></div>';
+            }
+            if (traces.length) {
+                html += '<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">Emulation traces</div><div class="overflow-x-auto"><table class="w-full text-left text-[10px]"><thead class="text-gray-500 uppercase"><tr><th class="py-1.5 pr-2">File</th><th class="py-1.5 pr-2">Arch</th><th class="py-1.5 pr-2 text-right">Instructions</th><th class="py-1.5 pr-2">Stopped</th><th class="py-1.5 pr-2">API calls / indicators</th><th class="py-1.5 pr-2">Recovered strings</th><th class="py-1.5">ATT&CK</th></tr></thead><tbody class="divide-y divide-gray-800/60">' + traces.map(function(t) {
+                    return '<tr class="align-top"><td class="py-1.5 pr-2 font-mono text-blue-400">' + escHtml(t.file_path) + '<div class="text-gray-600">entry ' + escHtml(t.entrypoint) + '</div></td><td class="py-1.5 pr-2">' + escHtml(t.architecture) + '</td><td class="py-1.5 pr-2 text-right">' + (t.instructions || 0) + '</td><td class="py-1.5 pr-2">' + escHtml(t.stopped_reason) + '</td><td class="py-1.5 pr-2">' + escHtml((t.api_calls || []).join(', ') || '-') + '<div class="text-amber-300 mt-0.5">' + escHtml((t.indicators || []).join('; ') || '') + '</div></td><td class="py-1.5 pr-2 font-mono text-gray-300 break-all">' + escHtml((t.recovered_strings || []).join(' | ') || '-') + '</td><td class="py-1.5 text-purple-300">' + ((t.attack || []).map(function(x) { return escHtml(x.id); }).join(', ') || '-') + '</td></tr>';
+                }).join('') + '</tbody></table></div></div>';
+            } else {
+                html += '<div class="mt-4 text-[10px] text-gray-600 italic">No emulation traces produced.</div>';
+            }
+            if (notes.length) {
+                html += '<div class="mt-4 text-[10px] text-gray-500"><ul class="list-disc list-inside space-y-0.5">' + notes.map(function(n) { return '<li>' + escHtml(n) + '</li>'; }).join('') + '</ul></div>';
+            }
+            return html;
+        }
+
         /* ── Match table ── */
         function renderMatches(data) {
             const tbody = document.getElementById('match-body');
@@ -359,6 +431,24 @@
             triageBody.innerHTML = renderTriage(result.triage);
         } else {
             triageCard.classList.add('hidden');
+        }
+
+        var deobfCard = document.getElementById('deobfuscation-card');
+        var deobfBody = document.getElementById('deobfuscation-body');
+        if (result.deobfuscation) {
+            deobfCard.classList.remove('hidden');
+            deobfBody.innerHTML = renderDeobfuscation(result.deobfuscation);
+        } else {
+            deobfCard.classList.add('hidden');
+        }
+
+        var emuCard = document.getElementById('emulation-card');
+        var emuBody = document.getElementById('emulation-body');
+        if (result.emulation) {
+            emuCard.classList.remove('hidden');
+            emuBody.innerHTML = renderEmulation(result.emulation);
+        } else {
+            emuCard.classList.add('hidden');
         }
 
         renderMatches(result.rule_matches);

@@ -136,13 +136,10 @@ pub fn parse_openvsx_target(url_str: &str) -> anyhow::Result<(String, String)> {
 
 async fn resolve_openvsx_download(url_str: &str) -> anyhow::Result<String> {
     let (namespace, name) = parse_openvsx_target(url_str)?;
-    let metadata_url = format!(
-        "https://open-vsx.org/api/{}/{}/latest",
-        namespace, name
-    );
+    let metadata_url = format!("https://open-vsx.org/api/{}/{}/latest", namespace, name);
 
     let client = reqwest::Client::builder()
-        .user_agent("KalaScan-Security-Scanner/1.3.0")
+        .user_agent("KalaScan-Security-Scanner/1.4.0")
         .build()?;
 
     let metadata: OpenVsxMetadata = client
@@ -189,7 +186,7 @@ async fn resolve_jetbrains_download(url_str: &str) -> anyhow::Result<String> {
     );
 
     let client = reqwest::Client::builder()
-        .user_agent("KalaScan-Security-Scanner/1.3.0")
+        .user_agent("KalaScan-Security-Scanner/1.4.0")
         .build()?;
 
     let updates: Vec<JetBrainsUpdate> = client
@@ -200,11 +197,17 @@ async fn resolve_jetbrains_download(url_str: &str) -> anyhow::Result<String> {
         .json()
         .await?;
 
-    let latest = updates
-        .first()
-        .ok_or_else(|| anyhow::anyhow!("No downloadable versions found for JetBrains plugin {}", plugin_id))?;
+    let latest = updates.first().ok_or_else(|| {
+        anyhow::anyhow!(
+            "No downloadable versions found for JetBrains plugin {}",
+            plugin_id
+        )
+    })?;
 
-    Ok(format!("https://plugins.jetbrains.com/files/{}", latest.file))
+    Ok(format!(
+        "https://plugins.jetbrains.com/files/{}",
+        latest.file
+    ))
 }
 
 pub fn extract_zip<R: Read + Seek>(mut reader: R, dest_dir: &Path) -> anyhow::Result<PathBuf> {
@@ -268,9 +271,13 @@ mod tests {
         assert!(is_vsix_target("ext.crx"));
         assert!(is_vsix_target("bundle.zip"));
         assert!(is_vsix_target("https://example.com/ext.vsix"));
-        assert!(is_vsix_target("https://marketplace.visualstudio.com/items?itemName=ms-python.python"));
+        assert!(is_vsix_target(
+            "https://marketplace.visualstudio.com/items?itemName=ms-python.python"
+        ));
         assert!(is_vsix_target("https://open-vsx.org/extension/redhat/java"));
-        assert!(is_vsix_target("https://plugins.jetbrains.com/plugin/1234-myplugin"));
+        assert!(is_vsix_target(
+            "https://plugins.jetbrains.com/plugin/1234-myplugin"
+        ));
         assert!(is_vsix_target("ms-python.python"));
         assert!(is_vsix_target("golang.go"));
         assert!(!is_vsix_target("https://github.com/user/repo.git"));

@@ -46,7 +46,9 @@ fn ensure_schema(conn: &Connection) -> Result<()> {
             status TEXT NOT NULL,
             ai_analysis_json TEXT,
             rule_matches_json TEXT,
-            triage_json TEXT
+            triage_json TEXT,
+            deobfuscation_json TEXT,
+            emulation_json TEXT
         )",
         [],
     )
@@ -55,6 +57,22 @@ fn ensure_schema(conn: &Connection) -> Result<()> {
     if !column_exists(conn, "scan_history", "triage_json")? {
         conn.execute("ALTER TABLE scan_history ADD COLUMN triage_json TEXT", [])
             .context("Failed to add triage_json column")?;
+    }
+
+    if !column_exists(conn, "scan_history", "deobfuscation_json")? {
+        conn.execute(
+            "ALTER TABLE scan_history ADD COLUMN deobfuscation_json TEXT",
+            [],
+        )
+        .context("Failed to add deobfuscation_json column")?;
+    }
+
+    if !column_exists(conn, "scan_history", "emulation_json")? {
+        conn.execute(
+            "ALTER TABLE scan_history ADD COLUMN emulation_json TEXT",
+            [],
+        )
+        .context("Failed to add emulation_json column")?;
     }
 
     Ok(())
@@ -78,13 +96,31 @@ fn column_exists(conn: &Connection, table: &str, column: &str) -> Result<bool> {
 pub fn save_scan(result: &ScanResult) -> Result<()> {
     let conn = open_db()?;
     ensure_schema(&conn)?;
-    let ai_json = result.ai_analysis.as_ref().map(serde_json::to_string).transpose()?;
+    let ai_json = result
+        .ai_analysis
+        .as_ref()
+        .map(serde_json::to_string)
+        .transpose()?;
     let rules_json = serde_json::to_string(&result.rule_matches)?;
-    let triage_json = result.triage.as_ref().map(serde_json::to_string).transpose()?;
+    let triage_json = result
+        .triage
+        .as_ref()
+        .map(serde_json::to_string)
+        .transpose()?;
+    let deobfuscation_json = result
+        .deobfuscation
+        .as_ref()
+        .map(serde_json::to_string)
+        .transpose()?;
+    let emulation_json = result
+        .emulation
+        .as_ref()
+        .map(serde_json::to_string)
+        .transpose()?;
 
     conn.execute(
-        "INSERT INTO scan_history (id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, ai_analysis_json, rule_matches_json, triage_json)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        "INSERT INTO scan_history (id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, ai_analysis_json, rule_matches_json, triage_json, deobfuscation_json, emulation_json)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
         rusqlite::params![
             result.id,
             result.repo_url,
@@ -97,6 +133,8 @@ pub fn save_scan(result: &ScanResult) -> Result<()> {
             ai_json,
             rules_json,
             triage_json,
+            deobfuscation_json,
+            emulation_json,
         ],
     )
     .context("Failed to insert scan result")?;
@@ -109,7 +147,7 @@ pub fn get_scan(id: &str) -> Result<Option<ScanResult>> {
     ensure_schema(&conn)?;
     let mut stmt = conn
         .prepare(
-            "SELECT id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, ai_analysis_json, rule_matches_json, triage_json
+            "SELECT id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, ai_analysis_json, rule_matches_json, triage_json, deobfuscation_json, emulation_json
              FROM scan_history WHERE id = ?1",
         )
         .context("Failed to prepare get_scan statement")?;
@@ -121,6 +159,8 @@ pub fn get_scan(id: &str) -> Result<Option<ScanResult>> {
             let ai_json: Option<String> = row.get(8)?;
             let rules_json: String = row.get(9)?;
             let triage_json: Option<String> = row.get(10)?;
+            let deobfuscation_json: Option<String> = row.get(11)?;
+            let emulation_json: Option<String> = row.get(12)?;
 
             let ai_analysis = match ai_json {
                 Some(s) if !s.is_empty() => serde_json::from_str(&s).ok(),
@@ -129,6 +169,14 @@ pub fn get_scan(id: &str) -> Result<Option<ScanResult>> {
             let rule_matches = serde_json::from_str(&rules_json)
                 .context("Failed to deserialize rule_matches from DB")?;
             let triage = match triage_json {
+                Some(s) if !s.is_empty() => serde_json::from_str(&s).ok(),
+                _ => None,
+            };
+            let deobfuscation = match deobfuscation_json {
+                Some(s) if !s.is_empty() => serde_json::from_str(&s).ok(),
+                _ => None,
+            };
+            let emulation = match emulation_json {
                 Some(s) if !s.is_empty() => serde_json::from_str(&s).ok(),
                 _ => None,
             };
@@ -145,6 +193,8 @@ pub fn get_scan(id: &str) -> Result<Option<ScanResult>> {
                 ai_analysis,
                 rule_matches,
                 triage,
+                deobfuscation,
+                emulation,
             }))
         }
         None => Ok(None),
@@ -195,7 +245,10 @@ pub fn list_scans(limit: u32) -> Result<Vec<ScanResultSummary>> {
 pub fn delete_scan(id: &str) -> Result<()> {
     let conn = open_db()?;
     let affected = conn
-        .execute("DELETE FROM scan_history WHERE id = ?1", rusqlite::params![id])
+        .execute(
+            "DELETE FROM scan_history WHERE id = ?1",
+            rusqlite::params![id],
+        )
         .context("Failed to delete scan")?;
     if affected == 0 {
         anyhow::bail!("Scan with id '{}' not found", id);

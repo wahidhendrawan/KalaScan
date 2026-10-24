@@ -3,6 +3,8 @@ mod attack;
 mod cli;
 mod cve;
 mod db;
+mod deobfuscate;
+mod emulate;
 mod entropy;
 mod export;
 mod git_history;
@@ -49,6 +51,10 @@ pub struct ScanRequest {
     pub git_history: bool,
     #[serde(default)]
     pub deep_triage: bool,
+    #[serde(default)]
+    pub deobfuscate: bool,
+    #[serde(default)]
+    pub emulate: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -83,6 +89,10 @@ pub struct ScanResult {
     pub rule_matches: Vec<RuleMatch>,
     #[serde(default)]
     pub triage: Option<triage::TriageReport>,
+    #[serde(default)]
+    pub deobfuscation: Option<deobfuscate::DeobfuscationReport>,
+    #[serde(default)]
+    pub emulation: Option<emulate::EmulationReport>,
     pub status: String,
 }
 
@@ -110,6 +120,8 @@ async fn main() -> anyhow::Result<()> {
             yara_dir,
             git_history,
             deep_triage,
+            deobfuscate,
+            emulate,
         }) => {
             let req = ScanRequest {
                 repo_url: target,
@@ -122,6 +134,8 @@ async fn main() -> anyhow::Result<()> {
                 yara_dir: yara_dir.map(|p| p.to_string_lossy().to_string()),
                 git_history,
                 deep_triage,
+                deobfuscate,
+                emulate,
             };
             run_cli_scan(req, format, fail_on_risk, output).await?;
         }
@@ -140,18 +154,17 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn start_web_server(addr: &str) -> anyhow::Result<()> {
-    info!("KalaScan v1.3.0 starting Web UI on http://{}", addr);
+    info!("KalaScan v1.4.0 starting Web UI on http://{}", addr);
 
     // Initialize DB
     if let Err(e) = db::init_db() {
         error!("Failed to init DB (running without persistence): {}", e);
     }
 
-    let tera = Tera::new("templates/**/*.html")
-        .map_err(|e| {
-            error!("Failed to load templates: {}", e);
-            e
-        })?;
+    let tera = Tera::new("templates/**/*.html").map_err(|e| {
+        error!("Failed to load templates: {}", e);
+        e
+    })?;
 
     let state = AppState {
         tera: Arc::new(tera),
@@ -245,20 +258,18 @@ async fn api_scan(
             }))
             .into_response()
         }
-        Err(e) => {
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
                 "success": false,
                 "error": e.to_string()
-            })))
-            .into_response()
-        }
+            })),
+        )
+            .into_response(),
     }
 }
 
-async fn get_result(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> impl IntoResponse {
+async fn get_result(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
     // Try in-memory first, then DB
     let scans = state.scans.lock().await;
     if let Some(result) = scans.iter().find(|r| r.id == id) {
@@ -361,10 +372,7 @@ async fn report(Path((id, format)): Path<(String, String)>) -> impl IntoResponse
     }
 }
 
-async fn delete_scan(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> impl IntoResponse {
+async fn delete_scan(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
     // Remove from in-memory
     {
         let mut scans = state.scans.lock().await;
@@ -388,10 +396,7 @@ async fn delete_scan(
     }
 }
 
-async fn results_page(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> impl IntoResponse {
+async fn results_page(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
     let result = {
         let scans = state.scans.lock().await;
         scans.iter().find(|r| r.id == id).cloned()
@@ -440,6 +445,8 @@ async fn api_scan_upload(
     let mut ai_analysis_enabled = false;
     let mut check_cve = true;
     let mut deep_triage = false;
+    let mut deobfuscate = false;
+    let mut emulate = false;
 
     while let Ok(Some(field)) = multipart.next_field().await {
         let name = field.name().unwrap_or_default().to_string();
@@ -481,6 +488,14 @@ async fn api_scan_upload(
         } else if name == "deep_triage" {
             if let Ok(val) = field.text().await {
                 deep_triage = val == "true" || val == "1" || val == "on";
+            }
+        } else if name == "deobfuscate" {
+            if let Ok(val) = field.text().await {
+                deobfuscate = val == "true" || val == "1" || val == "on";
+            }
+        } else if name == "emulate" {
+            if let Ok(val) = field.text().await {
+                emulate = val == "true" || val == "1" || val == "on";
             }
         }
     }
@@ -539,6 +554,16 @@ async fn api_scan_upload(
     }
 
     let triage_report = triage::analyze_directory(&scan_dir, &rule_matches, deep_triage).await;
+    let deobfuscation_report = if deobfuscate {
+        Some(deobfuscate::analyze_directory(&scan_dir))
+    } else {
+        None
+    };
+    let emulation_report = if emulate {
+        Some(emulate::analyze_triage(&scan_dir, &triage_report))
+    } else {
+        None
+    };
 
     let ai_result = if ai_analysis_enabled && !rule_matches.is_empty() {
         let context_snippets: Vec<String> = rule_matches
@@ -565,7 +590,13 @@ async fn api_scan_upload(
         None
     };
 
-    let risk_score = calculate_risk_score(&rule_matches, &ai_result, Some(&triage_report));
+    let risk_score = calculate_risk_score(
+        &rule_matches,
+        &ai_result,
+        Some(&triage_report),
+        deobfuscation_report.as_ref(),
+        emulation_report.as_ref(),
+    );
 
     let result = ScanResult {
         id: scan_id.clone(),
@@ -578,6 +609,8 @@ async fn api_scan_upload(
         ai_analysis: ai_result,
         rule_matches,
         triage: Some(triage_report),
+        deobfuscation: deobfuscation_report,
+        emulation: emulation_report,
         status: "completed".to_string(),
     };
 
@@ -613,7 +646,10 @@ async fn execute_scan(req: ScanRequest) -> anyhow::Result<ScanResult> {
 
     let is_extension = vsix::is_vsix_target(&req.repo_url);
     let scan_dir = if is_extension {
-        info!("Target detected as IDE Extension / Package: {}", req.repo_url);
+        info!(
+            "Target detected as IDE Extension / Package: {}",
+            req.repo_url
+        );
         vsix::unpack_extension(&req.repo_url, &target_dir).await?
     } else {
         info!("Cloning {} to {:?}", req.repo_url, target_dir);
@@ -640,7 +676,10 @@ async fn execute_scan(req: ScanRequest) -> anyhow::Result<ScanResult> {
         target_dir
     };
 
-    info!("Source ready at {:?}. Running static + YARA + entropy scan...", scan_dir);
+    info!(
+        "Source ready at {:?}. Running static + YARA + entropy scan...",
+        scan_dir
+    );
 
     // Phase 2: Static rule + YARA + Entropy check
     let custom_yara = req.yara_dir.as_ref().map(std::path::Path::new);
@@ -674,6 +713,20 @@ async fn execute_scan(req: ScanRequest) -> anyhow::Result<ScanResult> {
     // Phase 2d: Deep static binary triage
     info!("Running static binary triage...");
     let triage_report = triage::analyze_directory(&scan_dir, &rule_matches, req.deep_triage).await;
+
+    let deobfuscation_report = if req.deobfuscate {
+        info!("Running recursive deobfuscation...");
+        Some(deobfuscate::analyze_directory(&scan_dir))
+    } else {
+        None
+    };
+
+    let emulation_report = if req.emulate {
+        info!("Running bounded static emulation...");
+        Some(emulate::analyze_triage(&scan_dir, &triage_report))
+    } else {
+        None
+    };
 
     // Phase 3: AI analysis
     let ai_result = if req.ai_analysis_enabled && !rule_matches.is_empty() {
@@ -711,7 +764,13 @@ async fn execute_scan(req: ScanRequest) -> anyhow::Result<ScanResult> {
         None
     };
 
-    let risk_score = calculate_risk_score(&rule_matches, &ai_result, Some(&triage_report));
+    let risk_score = calculate_risk_score(
+        &rule_matches,
+        &ai_result,
+        Some(&triage_report),
+        deobfuscation_report.as_ref(),
+        emulation_report.as_ref(),
+    );
 
     let result = ScanResult {
         id: scan_id.clone(),
@@ -724,6 +783,8 @@ async fn execute_scan(req: ScanRequest) -> anyhow::Result<ScanResult> {
         ai_analysis: ai_result,
         rule_matches,
         triage: Some(triage_report),
+        deobfuscation: deobfuscation_report,
+        emulation: emulation_report,
         status: "completed".to_string(),
     };
 
@@ -775,7 +836,10 @@ fn format_cli_text(result: &ScanResult) -> String {
     out.push_str(&format!("Target:        {}\n", result.repo_url));
     out.push_str(&format!("Scan ID:       {}\n", result.id));
     out.push_str(&format!("Timestamp:     {}\n", result.timestamp));
-    out.push_str(&format!("Files Scanned: {} / {}\n", result.scanned_files, result.total_files));
+    out.push_str(&format!(
+        "Files Scanned: {} / {}\n",
+        result.scanned_files, result.total_files
+    ));
     out.push_str(&format!("Total Matches: {}\n", result.total_matches));
 
     let level = if result.risk_score >= 70 {
@@ -785,7 +849,10 @@ fn format_cli_text(result: &ScanResult) -> String {
     } else {
         "🟢 SAFE"
     };
-    out.push_str(&format!("Risk Score:    {} / 100 [{}]\n", result.risk_score, level));
+    out.push_str(&format!(
+        "Risk Score:    {} / 100 [{}]\n",
+        result.risk_score, level
+    ));
     out.push_str("------------------------------------------------------------\n");
 
     if result.rule_matches.is_empty() {
@@ -819,7 +886,10 @@ fn format_cli_text(result: &ScanResult) -> String {
         out.push_str(&format!("Files Analyzed: {}\n", triage.files_scanned));
         out.push_str(&format!("Binaries:       {}\n", triage.binaries.len()));
         out.push_str(&format!("Capabilities:   {}\n", triage.capabilities.len()));
-        out.push_str(&format!("ATT&CK Techniques: {}\n", triage.attack_techniques.len()));
+        out.push_str(&format!(
+            "ATT&CK Techniques: {}\n",
+            triage.attack_techniques.len()
+        ));
         if triage.deep {
             let available: Vec<String> = triage
                 .tools
@@ -866,6 +936,64 @@ fn format_cli_text(result: &ScanResult) -> String {
         }
     }
 
+    if let Some(deobfuscation) = &result.deobfuscation {
+        out.push_str("\n------------------------------------------------------------\n");
+        out.push_str("DEOBFUSCATION:\n");
+        out.push_str(&format!(
+            "Files Analyzed: {}\n",
+            deobfuscation.files_scanned
+        ));
+        out.push_str(&format!(
+            "Artifacts:      {}\n",
+            deobfuscation.artifacts.len()
+        ));
+        for artifact in &deobfuscation.artifacts {
+            out.push_str(&format!(
+                "\n[{}] {}:{} ({})\n",
+                artifact.confidence.to_uppercase(),
+                artifact.file_path,
+                artifact.line_number,
+                artifact.encoding
+            ));
+            out.push_str(&format!(
+                "  Decoded: {}\n",
+                artifact.decoded.replace('\n', " ")
+            ));
+            if !artifact.indicators.is_empty() {
+                out.push_str(&format!(
+                    "  Indicators: {}\n",
+                    artifact.indicators.join("; ")
+                ));
+            }
+        }
+    }
+
+    if let Some(emulation) = &result.emulation {
+        out.push_str("\n------------------------------------------------------------\n");
+        out.push_str("SAFE STATIC EMULATION:\n");
+        out.push_str(&format!("Files Analyzed: {}\n", emulation.files_scanned));
+        out.push_str(&format!("Traces:         {}\n", emulation.traces.len()));
+        for trace in &emulation.traces {
+            out.push_str(&format!(
+                "\n{} [{}] entry {} instructions {}\n",
+                trace.file_path, trace.architecture, trace.entrypoint, trace.instructions
+            ));
+            out.push_str(&format!("  Stopped: {}\n", trace.stopped_reason));
+            if !trace.api_calls.is_empty() {
+                out.push_str(&format!("  API Calls: {}\n", trace.api_calls.join(", ")));
+            }
+            if !trace.recovered_strings.is_empty() {
+                out.push_str(&format!(
+                    "  Recovered Strings: {}\n",
+                    trace.recovered_strings.join(" | ")
+                ));
+            }
+            if !trace.indicators.is_empty() {
+                out.push_str(&format!("  Indicators: {}\n", trace.indicators.join("; ")));
+            }
+        }
+    }
+
     out.push_str("============================================================\n");
     out
 }
@@ -874,6 +1002,8 @@ fn calculate_risk_score(
     matches: &[RuleMatch],
     ai: &Option<AiAnalysis>,
     triage: Option<&triage::TriageReport>,
+    deobfuscation: Option<&deobfuscate::DeobfuscationReport>,
+    emulation: Option<&emulate::EmulationReport>,
 ) -> u8 {
     let mut score = 0u16;
 
@@ -897,6 +1027,14 @@ fn calculate_risk_score(
 
     if let Some(triage) = triage {
         score += triage::risk_contribution(triage) as u16;
+    }
+
+    if let Some(deobfuscation) = deobfuscation {
+        score += deobfuscate::risk_contribution(deobfuscation) as u16;
+    }
+
+    if let Some(emulation) = emulation {
+        score += emulate::risk_contribution(emulation) as u16;
     }
 
     if score > 100 {
