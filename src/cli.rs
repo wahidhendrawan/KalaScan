@@ -5,7 +5,7 @@ use std::path::PathBuf;
 #[command(
     name = "kalascan",
     author = "Wahid Hendrawan",
-    version = "1.4.0",
+    version = "1.5.0",
     about = "🛡️ KalaScan — Local Git Repository & IDE Extension Security and Malware Scanner"
 )]
 pub struct Cli {
@@ -84,5 +84,13 @@ pub enum Commands {
         /// Safely emulate supported x86/x64 code to recover stack strings and API calls
         #[arg(long)]
         emulate: bool,
+
+        /// Execute compatible ELF samples in an isolated Docker sandbox
+        #[arg(long)]
+        sandbox: bool,
+
+        /// Docker image used for sandbox execution
+        #[arg(long, default_value = "kalascan-sandbox:latest")]
+        sandbox_image: String,
     },
 }

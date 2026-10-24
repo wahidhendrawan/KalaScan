@@ -245,7 +245,10 @@ pub async fn check_vulnerabilities(packages: &[DependencyPackage]) -> Vec<RuleMa
                         matches.push(RuleMatch {
                             file_path: pkg.manifest_file.clone(),
                             line_number: 1,
-                            matched_pattern: format!("Known Vulnerability: {} in {}@{}", v.id, pkg.name, pkg.version),
+                            matched_pattern: format!(
+                                "Known Vulnerability: {} in {}@{}",
+                                v.id, pkg.name, pkg.version
+                            ),
                             severity: "high".to_string(),
                             context: short_summary,
                         });
@@ -277,9 +280,15 @@ mod tests {
 
         let pkgs = parse_package_json(json_str, "package.json");
         assert_eq!(pkgs.len(), 3);
-        assert!(pkgs.iter().any(|p| p.name == "axios" && p.version == "0.21.1"));
-        assert!(pkgs.iter().any(|p| p.name == "lodash" && p.version == "4.17.20"));
-        assert!(pkgs.iter().any(|p| p.name == "mocha" && p.version == "8.0.0"));
+        assert!(pkgs
+            .iter()
+            .any(|p| p.name == "axios" && p.version == "0.21.1"));
+        assert!(pkgs
+            .iter()
+            .any(|p| p.name == "lodash" && p.version == "4.17.20"));
+        assert!(pkgs
+            .iter()
+            .any(|p| p.name == "mocha" && p.version == "8.0.0"));
     }
 
     #[test]

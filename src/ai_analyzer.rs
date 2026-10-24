@@ -47,14 +47,16 @@ pub async fn analyze_with_llm(
     match provider.to_lowercase().as_str() {
         "ollama" => ollama_analyze(model, endpoint, code_snippets).await,
         "openai" => openai_analyze(model, api_key, endpoint, code_snippets, true).await,
-        "deepseek" => openai_analyze(
-            model,
-            api_key,
-            &Some("https://api.deepseek.com/v1/chat/completions".to_string()),
-            code_snippets,
-            true,
-        )
-        .await,
+        "deepseek" => {
+            openai_analyze(
+                model,
+                api_key,
+                &Some("https://api.deepseek.com/v1/chat/completions".to_string()),
+                code_snippets,
+                true,
+            )
+            .await
+        }
         "9router" | "custom" => {
             // Generic OpenAI-compatible provider (API key optional)
             openai_analyze(model, api_key, endpoint, code_snippets, false).await
@@ -64,7 +66,6 @@ pub async fn analyze_with_llm(
             provider
         )),
     }
-
 }
 
 /// Analyze with local Ollama instance
@@ -136,16 +137,21 @@ async fn openai_analyze(
     code_snippets: &str,
     require_key: bool,
 ) -> anyhow::Result<AiAnalysis> {
-    let base_url = resolve_host(&match (endpoint.as_deref(), require_key) {
-        // 9Router local proxy default
-        (None, false) => "http://localhost:20128/v1/chat/completions",
-        // OpenAI default
-        (None, true) => "https://api.openai.com/v1/chat/completions",
-        (Some(ep), _) => ep,
-    }.to_string());
+    let base_url = resolve_host(
+        &match (endpoint.as_deref(), require_key) {
+            // 9Router local proxy default
+            (None, false) => "http://localhost:20128/v1/chat/completions",
+            // OpenAI default
+            (None, true) => "https://api.openai.com/v1/chat/completions",
+            (Some(ep), _) => ep,
+        }
+        .to_string(),
+    );
 
     if require_key && api_key.is_none() {
-        return Err(anyhow::anyhow!("OpenAI API key is required for this provider"));
+        return Err(anyhow::anyhow!(
+            "OpenAI API key is required for this provider"
+        ));
     }
     let key = api_key.as_deref().unwrap_or("");
 
@@ -185,9 +191,14 @@ async fn openai_analyze(
         "temperature": 0.1,
         "max_tokens": 1024
     });
-    let final_body = if require_key { &body } else { &body_no_json_mode };
+    let final_body = if require_key {
+        &body
+    } else {
+        &body_no_json_mode
+    };
 
-    let resp = req.json(final_body)
+    let resp = req
+        .json(final_body)
         .send()
         .await
         .map_err(|e| anyhow::anyhow!("OpenAI API connection failed: {}", e))?;
@@ -202,9 +213,17 @@ async fn openai_analyze(
         // Try to parse JSON error
         if let Ok(val) = serde_json::from_str::<Value>(&response_text) {
             let error_msg = val["error"]["message"].as_str().unwrap_or(&response_text);
-            return Err(anyhow::anyhow!("OpenAI API error {}: {}", status.as_u16(), error_msg));
+            return Err(anyhow::anyhow!(
+                "OpenAI API error {}: {}",
+                status.as_u16(),
+                error_msg
+            ));
         }
-        return Err(anyhow::anyhow!("OpenAI API error {}: {}", status.as_u16(), response_text));
+        return Err(anyhow::anyhow!(
+            "OpenAI API error {}: {}",
+            status.as_u16(),
+            response_text
+        ));
     }
 
     // Strip SSE trailing data: [DONE] before JSON parsing
@@ -262,16 +281,30 @@ fn parse_ai_response(text: &str) -> anyhow::Result<AiAnalysis> {
         if let Some(inner) = content_str {
             // Try to parse the inner content as our JSON
             match serde_json::from_str::<Value>(inner) {
-                Ok(inner_val) => {
-                    AiAnalysis {
-                        is_malicious: inner_val["is_malicious"].as_bool().unwrap_or(false),
-                        risk_score: inner_val["risk_score"].as_u64().unwrap_or(0) as u8,
-                        malware_type: inner_val["malware_type"].as_str().unwrap_or("None").to_string(),
-                        threat_summary: inner_val["threat_summary"].as_str().unwrap_or("No threat summary provided").to_string(),
-                        suspicious_lines: inner_val["suspicious_lines"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default(),
-                        recommendation: inner_val["recommendation"].as_str().unwrap_or("Safe").to_string(),
-                    }
-                }
+                Ok(inner_val) => AiAnalysis {
+                    is_malicious: inner_val["is_malicious"].as_bool().unwrap_or(false),
+                    risk_score: inner_val["risk_score"].as_u64().unwrap_or(0) as u8,
+                    malware_type: inner_val["malware_type"]
+                        .as_str()
+                        .unwrap_or("None")
+                        .to_string(),
+                    threat_summary: inner_val["threat_summary"]
+                        .as_str()
+                        .unwrap_or("No threat summary provided")
+                        .to_string(),
+                    suspicious_lines: inner_val["suspicious_lines"]
+                        .as_array()
+                        .map(|a| {
+                            a.iter()
+                                .filter_map(|v| v.as_str().map(String::from))
+                                .collect()
+                        })
+                        .unwrap_or_default(),
+                    recommendation: inner_val["recommendation"]
+                        .as_str()
+                        .unwrap_or("Safe")
+                        .to_string(),
+                },
                 Err(_) => {
                     // Inner content isn't JSON — return raw fields
                     AiAnalysis {
@@ -290,8 +323,18 @@ fn parse_ai_response(text: &str) -> anyhow::Result<AiAnalysis> {
                 is_malicious: val["is_malicious"].as_bool().unwrap_or(false),
                 risk_score: val["risk_score"].as_u64().unwrap_or(0) as u8,
                 malware_type: val["malware_type"].as_str().unwrap_or("None").to_string(),
-                threat_summary: val["threat_summary"].as_str().unwrap_or("No threat summary provided").to_string(),
-                suspicious_lines: val["suspicious_lines"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default(),
+                threat_summary: val["threat_summary"]
+                    .as_str()
+                    .unwrap_or("No threat summary provided")
+                    .to_string(),
+                suspicious_lines: val["suspicious_lines"]
+                    .as_array()
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
                 recommendation: val["recommendation"].as_str().unwrap_or("Safe").to_string(),
             }
         }

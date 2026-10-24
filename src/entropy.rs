@@ -84,9 +84,8 @@ pub fn scan_advanced_obfuscation(file_path: &str, content: &str) -> Vec<RuleMatc
     let mut matches = Vec::new();
 
     // Skip scanning markdown or text files for entropy/homoglyphs to reduce noise
-    let is_doc = file_path.ends_with(".md")
-        || file_path.ends_with(".txt")
-        || file_path.ends_with(".rst");
+    let is_doc =
+        file_path.ends_with(".md") || file_path.ends_with(".txt") || file_path.ends_with(".rst");
 
     for (line_idx, line) in content.lines().enumerate() {
         let line_num = line_idx + 1;
@@ -96,7 +95,8 @@ pub fn scan_advanced_obfuscation(file_path: &str, content: &str) -> Vec<RuleMatc
             matches.push(RuleMatch {
                 file_path: file_path.to_string(),
                 line_number: line_num,
-                matched_pattern: "Trojan Source Bi-Directional Character (CVE-2021-42574)".to_string(),
+                matched_pattern: "Trojan Source Bi-Directional Character (CVE-2021-42574)"
+                    .to_string(),
                 severity: "critical".to_string(),
                 context: line.chars().take(120).collect(),
             });
@@ -113,7 +113,8 @@ pub fn scan_advanced_obfuscation(file_path: &str, content: &str) -> Vec<RuleMatc
             matches.push(RuleMatch {
                 file_path: file_path.to_string(),
                 line_number: line_num,
-                matched_pattern: "Invisible Zero-Width Character (Steganography/Obfuscation)".to_string(),
+                matched_pattern: "Invisible Zero-Width Character (Steganography/Obfuscation)"
+                    .to_string(),
                 severity: "high".to_string(),
                 context: line.chars().take(120).collect(),
             });
@@ -132,7 +133,8 @@ pub fn scan_advanced_obfuscation(file_path: &str, content: &str) -> Vec<RuleMatc
             matches.push(RuleMatch {
                 file_path: file_path.to_string(),
                 line_number: line_num,
-                matched_pattern: "Confusable Homoglyph Character (Supply Chain Spoofing)".to_string(),
+                matched_pattern: "Confusable Homoglyph Character (Supply Chain Spoofing)"
+                    .to_string(),
                 severity: "high".to_string(),
                 context: line.chars().take(120).collect(),
             });
@@ -143,7 +145,15 @@ pub fn scan_advanced_obfuscation(file_path: &str, content: &str) -> Vec<RuleMatc
         for token in line.split_whitespace() {
             // Strip quotes and delimiters
             let clean_token = token.trim_matches(|c: char| {
-                c == '"' || c == '\'' || c == '`' || c == ';' || c == ',' || c == '(' || c == ')' || c == '[' || c == ']'
+                c == '"'
+                    || c == '\''
+                    || c == '`'
+                    || c == ';'
+                    || c == ','
+                    || c == '('
+                    || c == ')'
+                    || c == '['
+                    || c == ']'
             });
 
             if clean_token.len() >= 60 {
@@ -152,7 +162,10 @@ pub fn scan_advanced_obfuscation(file_path: &str, content: &str) -> Vec<RuleMatc
                     matches.push(RuleMatch {
                         file_path: file_path.to_string(),
                         line_number: line_num,
-                        matched_pattern: format!("High-Entropy Suspicious Blob (Entropy: {:.2})", ent),
+                        matched_pattern: format!(
+                            "High-Entropy Suspicious Blob (Entropy: {:.2})",
+                            ent
+                        ),
                         severity: "medium".to_string(),
                         context: format!("{}...", &clean_token[..clean_token.len().min(80)]),
                     });
@@ -182,14 +195,18 @@ mod tests {
     fn test_zero_width_detection() {
         let content = "const secret = \"test\u{200B}hidden\";";
         let matches = scan_advanced_obfuscation("app.js", content);
-        assert!(matches.iter().any(|m| m.matched_pattern.contains("Zero-Width")));
+        assert!(matches
+            .iter()
+            .any(|m| m.matched_pattern.contains("Zero-Width")));
     }
 
     #[test]
     fn test_trojan_source_detection() {
         let content = "/* \u{202E} } \u{2066} if (isAdmin) { */";
         let matches = scan_advanced_obfuscation("auth.py", content);
-        assert!(matches.iter().any(|m| m.matched_pattern.contains("Trojan Source")));
+        assert!(matches
+            .iter()
+            .any(|m| m.matched_pattern.contains("Trojan Source")));
     }
 
     #[test]
@@ -197,7 +214,9 @@ mod tests {
         // Contains Cyrillic 'а' (\u{0430}) instead of Latin 'a'
         let content = "const p\u{0430}ssword = 'admin';";
         let matches = scan_advanced_obfuscation("index.js", content);
-        assert!(matches.iter().any(|m| m.matched_pattern.contains("Homoglyph")));
+        assert!(matches
+            .iter()
+            .any(|m| m.matched_pattern.contains("Homoglyph")));
     }
 
     #[test]
@@ -205,6 +224,8 @@ mod tests {
         // High entropy string with varied alphanumeric characters
         let content = "const payload = '4A9kLm3ZpQ1xW8vB7cE0yT6uR5oI2sN4gH9fD8aS3jK1lP0oI9uY8t7r6e5w4q3z2x1c';";
         let matches = scan_advanced_obfuscation("exploit.js", content);
-        assert!(matches.iter().any(|m| m.matched_pattern.contains("High-Entropy")));
+        assert!(matches
+            .iter()
+            .any(|m| m.matched_pattern.contains("High-Entropy")));
     }
 }

@@ -1,11 +1,11 @@
 # 🛡️ KalaScan
 
-**Security & Malware Scanner for Git Repositories and IDE Extensions** (VS Code, Open VSX, JetBrains, Chrome CRX) — detects malicious code, token stealers, supply chain attacks, and known CVEs using high-speed Rust RegEx rules, YARA rules engine, Shannon entropy analysis, deep static binary triage, recursive deobfuscation, safe static emulation, and optional AI deep audit.
+**Security & Malware Scanner for Git Repositories and IDE Extensions** (VS Code, Open VSX, JetBrains, Chrome CRX) — detects malicious code, token stealers, supply chain attacks, and known CVEs using high-speed Rust RegEx rules, YARA rules engine, Shannon entropy analysis, deep static binary triage, recursive deobfuscation, safe static emulation, TTP/ATT&CK coverage mapping, opt-in Docker sandboxing, and optional AI deep audit.
 
 <p align="center">
   <img src="https://img.shields.io/badge/rust-1.95+-orange?logo=rust" />
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" />
-  <img src="https://img.shields.io/badge/tests-72%20passed-brightgreen" />
+  <img src="https://img.shields.io/badge/tests-82%20passed-brightgreen" />
   <img src="https://img.shields.io/badge/docker-ready-2496ED?logo=docker" />
 </p>
 
@@ -51,6 +51,20 @@
 - **Stack String Recovery** — reconstructs strings built through `push`/`mov` sequences and writes to mapped memory
 - **API & ATT&CK Tracing** — records imported API calls, recovered strings, behavioral indicators, and mapped ATT&CK techniques
 - **Safe by Design** — no syscalls, no network access, no sample execution; emulation stops on unsupported instructions or budget exhaustion
+
+### TTP / ATT&CK Coverage (v1.5)
+- **Unified Technique Mapping** — aggregates observations from RegEx/YARA matches, static triage capabilities, recursive deobfuscation, static emulation, and sandbox telemetry
+- **Kill-Chain Ordering** — groups techniques by ATT&CK tactic in execution order with per-tactic observation counts
+- **Coverage Scoring** — reports technique/tactic coverage and contributes a capped risk signal without overriding the primary risk model
+- **Safe by Design** — pure metadata aggregation; no sample execution or network access
+
+### Opt-in Docker Sandbox (v1.5)
+- **Isolated Execution** — optionally executes host-compatible ELF samples inside a disposable Docker container with `--network none`, read-only root filesystem, `--cap-drop ALL`, `no-new-privileges`, non-root user, and pids/memory/CPU/time limits
+- **Strace Telemetry** — captures process creation, network attempts, credential/persistence file access, executable memory, shell/transfer tool usage, and anti-analysis behavior
+- **ATT&CK Enrichment** — maps sandbox indicators into the unified TTP report and risk score
+- **Graceful Fallback** — if Docker or the sandbox image is unavailable, the scan continues with a clear note; samples are never executed on the host
+- **Runtime Requirement** — the KalaScan process needs access to a Docker daemon; when running KalaScan itself in a container, mount the Docker socket or run the CLI on the host
+- **Build the Image** — `docker build -t kalascan-sandbox:latest sandbox`
 
 ### Entropy & Advanced Obfuscation Analysis
 - **Shannon Entropy Analysis**: Scans string literals for high-entropy blobs (> 5.2 entropy on tokens >= 60 chars) indicating encrypted ciphers or packed scripts
@@ -114,6 +128,10 @@ kalascan scan ./suspicious.vsix --deep-triage --format json -o triage.json
 
 # Recursive deobfuscation + bounded static emulation
 kalascan scan ./suspicious.vsix --deobfuscate --emulate --format html -o deep-report.html
+
+# Opt-in Docker sandbox execution (requires Docker + kalascan-sandbox image)
+docker build -t kalascan-sandbox:latest sandbox
+kalascan scan ./suspicious.vsix --sandbox --format json -o sandbox-report.json
 ```
 
 ## Architecture
@@ -131,6 +149,8 @@ KalaScan/
 │   ├── triage.rs          # Deep static binary triage (goblin, capa/FLOSS/DIE)
 │   ├── deobfuscate.rs     # Recursive decoding chains & recovered payloads
 │   ├── emulate.rs         # Bounded x86/x64 static emulation (iced-x86)
+│   ├── sandbox.rs         # Opt-in Docker sandbox runner & strace parser
+│   ├── ttp.rs             # Unified ATT&CK technique & kill-chain aggregation
 │   ├── cve.rs             # Manifest dependency extractor & OSV API client
 │   ├── ai_analyzer.rs     # Ollama / OpenAI / DeepSeek / 9Router integration
 │   ├── db.rs              # SQLite scan history persistence
@@ -145,6 +165,8 @@ KalaScan/
 │   ├── dependabot-auto-merge.yml
 │   ├── dependency-review.yml
 │   └── docker.yml         # Multi-arch build + push to ghcr.io
+├── sandbox/
+│   └── Dockerfile         # Minimal strace-enabled sandbox runtime image
 ├── Dockerfile             # Multi-stage Rust container build
 ├── docker-compose.yml     # KalaScan stack
 ├── Cargo.toml
@@ -163,6 +185,8 @@ KalaScan/
 | **Deep Static Triage** | PE/ELF/Mach-O metadata, SHA-256, section entropy, packer signatures, suspicious imports, capa/FLOSS/DIE capabilities, ATT&CK mapping |
 | **Recursive Deobfuscation** | Nested base64/hex/URL/PowerShell/char-code/Unicode/ROT13/XOR/gzip/zlib layers, decoded payload previews, ATT&CK mapping |
 | **Safe Static Emulation** | Bounded x86/x64 entrypoint emulation, PE import stubs, API call tracing, stack string recovery, ATT&CK mapping |
+| **TTP / ATT&CK Coverage** | Unified technique/tactic aggregation, kill-chain ordering, coverage scoring, capped risk contribution |
+| **Docker Sandbox (opt-in)** | Isolated ELF execution, strace process/network/file telemetry, credential & persistence access detection, ATT&CK enrichment, graceful fallback |
 | **YARA Rules** | Reverse shells (`/bin/bash -i`, `nc -e`, `pty.spawn`), crypto wallet drainers (`drainAll`, `signTypedData_v4`), Discord webhook credential stealers |
 | **Dependency CVEs** | Known exploited vulnerabilities in `package.json`, `Cargo.lock`, and `requirements.txt` via OSV database |
 | **IDE & Extension Malware** | VS Code session/token theft (`getSession`), clipboard snooping (`clipboard.readText`), workspace file exfiltration (`findFiles`), wildcard auto-activation (`*`, `onStartupFinished`), browser extension `<all_urls>` / `debugger` permissions |
@@ -172,7 +196,7 @@ KalaScan/
 ## Development
 
 ```bash
-# Run tests (72 tests)
+# Run tests (82 tests)
 cargo test
 
 # Build release binary
