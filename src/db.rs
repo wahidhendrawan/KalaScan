@@ -30,6 +30,10 @@ fn open_db() -> Result<Connection> {
 
 pub fn init_db() -> Result<()> {
     let conn = open_db()?;
+    ensure_schema(&conn)
+}
+
+fn ensure_schema(conn: &Connection) -> Result<()> {
     conn.execute(
         "CREATE TABLE IF NOT EXISTS scan_history (
             id TEXT PRIMARY KEY,
@@ -41,22 +45,46 @@ pub fn init_db() -> Result<()> {
             total_matches INTEGER NOT NULL,
             status TEXT NOT NULL,
             ai_analysis_json TEXT,
-            rule_matches_json TEXT
+            rule_matches_json TEXT,
+            triage_json TEXT
         )",
         [],
     )
     .context("Failed to create scan_history table")?;
+
+    if !column_exists(conn, "scan_history", "triage_json")? {
+        conn.execute("ALTER TABLE scan_history ADD COLUMN triage_json TEXT", [])
+            .context("Failed to add triage_json column")?;
+    }
+
     Ok(())
+}
+
+fn column_exists(conn: &Connection, table: &str, column: &str) -> Result<bool> {
+    let mut stmt = conn
+        .prepare(&format!("PRAGMA table_info({})", table))
+        .context("Failed to inspect table schema")?;
+    let columns = stmt
+        .query_map([], |row| row.get::<_, String>(1))
+        .context("Failed to read table schema")?;
+    for name in columns {
+        if name? == column {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 pub fn save_scan(result: &ScanResult) -> Result<()> {
     let conn = open_db()?;
+    ensure_schema(&conn)?;
     let ai_json = result.ai_analysis.as_ref().map(serde_json::to_string).transpose()?;
     let rules_json = serde_json::to_string(&result.rule_matches)?;
+    let triage_json = result.triage.as_ref().map(serde_json::to_string).transpose()?;
 
     conn.execute(
-        "INSERT INTO scan_history (id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, ai_analysis_json, rule_matches_json)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        "INSERT INTO scan_history (id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, ai_analysis_json, rule_matches_json, triage_json)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
         rusqlite::params![
             result.id,
             result.repo_url,
@@ -68,6 +96,7 @@ pub fn save_scan(result: &ScanResult) -> Result<()> {
             result.status,
             ai_json,
             rules_json,
+            triage_json,
         ],
     )
     .context("Failed to insert scan result")?;
@@ -77,9 +106,10 @@ pub fn save_scan(result: &ScanResult) -> Result<()> {
 
 pub fn get_scan(id: &str) -> Result<Option<ScanResult>> {
     let conn = open_db()?;
+    ensure_schema(&conn)?;
     let mut stmt = conn
         .prepare(
-            "SELECT id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, ai_analysis_json, rule_matches_json
+            "SELECT id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, ai_analysis_json, rule_matches_json, triage_json
              FROM scan_history WHERE id = ?1",
         )
         .context("Failed to prepare get_scan statement")?;
@@ -90,6 +120,7 @@ pub fn get_scan(id: &str) -> Result<Option<ScanResult>> {
         Some(row) => {
             let ai_json: Option<String> = row.get(8)?;
             let rules_json: String = row.get(9)?;
+            let triage_json: Option<String> = row.get(10)?;
 
             let ai_analysis = match ai_json {
                 Some(s) if !s.is_empty() => serde_json::from_str(&s).ok(),
@@ -97,6 +128,10 @@ pub fn get_scan(id: &str) -> Result<Option<ScanResult>> {
             };
             let rule_matches = serde_json::from_str(&rules_json)
                 .context("Failed to deserialize rule_matches from DB")?;
+            let triage = match triage_json {
+                Some(s) if !s.is_empty() => serde_json::from_str(&s).ok(),
+                _ => None,
+            };
 
             Ok(Some(ScanResult {
                 id: row.get(0)?,
@@ -109,6 +144,7 @@ pub fn get_scan(id: &str) -> Result<Option<ScanResult>> {
                 status: row.get(7)?,
                 ai_analysis,
                 rule_matches,
+                triage,
             }))
         }
         None => Ok(None),

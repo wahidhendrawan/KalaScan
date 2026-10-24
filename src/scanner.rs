@@ -15,6 +15,7 @@ pub struct Rule {
     pub name: &'static str,
     pub pattern: Regex,
     pub severity: &'static str,
+    #[allow(dead_code)]
     pub description: &'static str,
     pub category: &'static str,
 }

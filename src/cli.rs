@@ -5,7 +5,7 @@ use std::path::PathBuf;
 #[command(
     name = "kalascan",
     author = "Wahid Hendrawan",
-    version = "1.2.0",
+    version = "1.3.0",
     about = "🛡️ KalaScan — Local Git Repository & IDE Extension Security and Malware Scanner"
 )]
 pub struct Cli {
@@ -72,5 +72,9 @@ pub enum Commands {
         /// Scan full git commit history (only applies to Git repositories)
         #[arg(long)]
         git_history: bool,
+
+        /// Enable deep static binary triage with optional capa, FLOSS, and DIE
+        #[arg(long)]
+        deep_triage: bool,
     },
 }

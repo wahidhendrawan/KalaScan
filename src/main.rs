@@ -1,4 +1,5 @@
 mod ai_analyzer;
+mod attack;
 mod cli;
 mod cve;
 mod db;
@@ -6,6 +7,7 @@ mod entropy;
 mod export;
 mod git_history;
 mod scanner;
+mod triage;
 mod vsix;
 mod yara_engine;
 
@@ -45,6 +47,8 @@ pub struct ScanRequest {
     pub yara_dir: Option<String>,
     #[serde(default)]
     pub git_history: bool,
+    #[serde(default)]
+    pub deep_triage: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,6 +81,8 @@ pub struct ScanResult {
     pub risk_score: u8,
     pub ai_analysis: Option<AiAnalysis>,
     pub rule_matches: Vec<RuleMatch>,
+    #[serde(default)]
+    pub triage: Option<triage::TriageReport>,
     pub status: String,
 }
 
@@ -103,6 +109,7 @@ async fn main() -> anyhow::Result<()> {
             cve,
             yara_dir,
             git_history,
+            deep_triage,
         }) => {
             let req = ScanRequest {
                 repo_url: target,
@@ -114,6 +121,7 @@ async fn main() -> anyhow::Result<()> {
                 check_cve: Some(cve),
                 yara_dir: yara_dir.map(|p| p.to_string_lossy().to_string()),
                 git_history,
+                deep_triage,
             };
             run_cli_scan(req, format, fail_on_risk, output).await?;
         }
@@ -132,7 +140,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn start_web_server(addr: &str) -> anyhow::Result<()> {
-    info!("KalaScan v1.2.0 starting Web UI on http://{}", addr);
+    info!("KalaScan v1.3.0 starting Web UI on http://{}", addr);
 
     // Initialize DB
     if let Err(e) = db::init_db() {
@@ -388,6 +396,10 @@ async fn results_page(
         let scans = state.scans.lock().await;
         scans.iter().find(|r| r.id == id).cloned()
     };
+    let result = match result {
+        Some(result) => Some(result),
+        None => db::get_scan(&id).ok().flatten(),
+    };
 
     let mut ctx = tera::Context::new();
     match result {
@@ -404,7 +416,6 @@ async fn results_page(
 
     let id_str = id.clone();
     ctx.insert("result_id", &id_str);
-    drop(state.scans);
 
     match state.tera.render("result.html", &ctx) {
         Ok(html) => Html(html).into_response(),
@@ -428,6 +439,7 @@ async fn api_scan_upload(
     let mut llm_endpoint: Option<String> = None;
     let mut ai_analysis_enabled = false;
     let mut check_cve = true;
+    let mut deep_triage = false;
 
     while let Ok(Some(field)) = multipart.next_field().await {
         let name = field.name().unwrap_or_default().to_string();
@@ -465,6 +477,10 @@ async fn api_scan_upload(
         } else if name == "check_cve" {
             if let Ok(val) = field.text().await {
                 check_cve = val == "true" || val == "1" || val == "on";
+            }
+        } else if name == "deep_triage" {
+            if let Ok(val) = field.text().await {
+                deep_triage = val == "true" || val == "1" || val == "on";
             }
         }
     }
@@ -522,6 +538,8 @@ async fn api_scan_upload(
         }
     }
 
+    let triage_report = triage::analyze_directory(&scan_dir, &rule_matches, deep_triage).await;
+
     let ai_result = if ai_analysis_enabled && !rule_matches.is_empty() {
         let context_snippets: Vec<String> = rule_matches
             .iter()
@@ -547,7 +565,7 @@ async fn api_scan_upload(
         None
     };
 
-    let risk_score = calculate_risk_score(&rule_matches, &ai_result);
+    let risk_score = calculate_risk_score(&rule_matches, &ai_result, Some(&triage_report));
 
     let result = ScanResult {
         id: scan_id.clone(),
@@ -559,6 +577,7 @@ async fn api_scan_upload(
         risk_score,
         ai_analysis: ai_result,
         rule_matches,
+        triage: Some(triage_report),
         status: "completed".to_string(),
     };
 
@@ -652,6 +671,10 @@ async fn execute_scan(req: ScanRequest) -> anyhow::Result<ScanResult> {
         rule_matches.len()
     );
 
+    // Phase 2d: Deep static binary triage
+    info!("Running static binary triage...");
+    let triage_report = triage::analyze_directory(&scan_dir, &rule_matches, req.deep_triage).await;
+
     // Phase 3: AI analysis
     let ai_result = if req.ai_analysis_enabled && !rule_matches.is_empty() {
         info!("Running AI deep analysis...");
@@ -688,7 +711,7 @@ async fn execute_scan(req: ScanRequest) -> anyhow::Result<ScanResult> {
         None
     };
 
-    let risk_score = calculate_risk_score(&rule_matches, &ai_result);
+    let risk_score = calculate_risk_score(&rule_matches, &ai_result, Some(&triage_report));
 
     let result = ScanResult {
         id: scan_id.clone(),
@@ -700,6 +723,7 @@ async fn execute_scan(req: ScanRequest) -> anyhow::Result<ScanResult> {
         risk_score,
         ai_analysis: ai_result,
         rule_matches,
+        triage: Some(triage_report),
         status: "completed".to_string(),
     };
 
@@ -788,11 +812,69 @@ fn format_cli_text(result: &ScanResult) -> String {
         out.push_str(&format!("Threat Summary: {}\n", ai.threat_summary));
         out.push_str(&format!("Recommendation: {}\n", ai.recommendation));
     }
+
+    if let Some(triage) = &result.triage {
+        out.push_str("\n------------------------------------------------------------\n");
+        out.push_str("DEEP STATIC TRIAGE:\n");
+        out.push_str(&format!("Files Analyzed: {}\n", triage.files_scanned));
+        out.push_str(&format!("Binaries:       {}\n", triage.binaries.len()));
+        out.push_str(&format!("Capabilities:   {}\n", triage.capabilities.len()));
+        out.push_str(&format!("ATT&CK Techniques: {}\n", triage.attack_techniques.len()));
+        if triage.deep {
+            let available: Vec<String> = triage
+                .tools
+                .iter()
+                .filter(|tool| tool.available)
+                .map(|tool| tool.name.clone())
+                .collect();
+            out.push_str(&format!(
+                "Deep Tools:     {}\n",
+                if available.is_empty() {
+                    "none available".to_string()
+                } else {
+                    available.join(", ")
+                }
+            ));
+        }
+        for binary in &triage.binaries {
+            out.push_str(&format!(
+                "\nBinary: {} [{} {}] entropy {:.2}\n",
+                binary.path,
+                binary.file_type,
+                binary.architecture.as_deref().unwrap_or("unknown"),
+                binary.entropy
+            ));
+            out.push_str(&format!("  SHA-256: {}\n", binary.sha256));
+            if let Some(packer) = &binary.packer {
+                out.push_str(&format!(
+                    "  Packer:  {} ({}) - {}\n",
+                    packer.name, packer.confidence, packer.evidence
+                ));
+            }
+            if !binary.indicators.is_empty() {
+                out.push_str(&format!("  Indicators: {}\n", binary.indicators.join("; ")));
+            }
+        }
+        if !triage.attack_techniques.is_empty() {
+            out.push_str("\nATT&CK Techniques:\n");
+            for technique in &triage.attack_techniques {
+                out.push_str(&format!(
+                    "  {} {} [{}]\n",
+                    technique.id, technique.name, technique.tactic
+                ));
+            }
+        }
+    }
+
     out.push_str("============================================================\n");
     out
 }
 
-fn calculate_risk_score(matches: &[RuleMatch], ai: &Option<AiAnalysis>) -> u8 {
+fn calculate_risk_score(
+    matches: &[RuleMatch],
+    ai: &Option<AiAnalysis>,
+    triage: Option<&triage::TriageReport>,
+) -> u8 {
     let mut score = 0u16;
 
     for m in matches {
@@ -811,6 +893,10 @@ fn calculate_risk_score(matches: &[RuleMatch], ai: &Option<AiAnalysis>) -> u8 {
     if let Some(ai) = ai {
         let ai_score = ai.risk_score as u16 / 2;
         score += ai_score;
+    }
+
+    if let Some(triage) = triage {
+        score += triage::risk_contribution(triage) as u16;
     }
 
     if score > 100 {

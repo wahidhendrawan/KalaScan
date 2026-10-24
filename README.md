@@ -1,11 +1,11 @@
 # 🛡️ KalaScan
 
-**Security & Malware Scanner for Git Repositories and IDE Extensions** (VS Code, Open VSX, JetBrains, Chrome CRX) — detects malicious code, token stealers, supply chain attacks, and known CVEs using high-speed Rust RegEx rules, YARA rules engine, Shannon entropy analysis, and optional AI deep audit.
+**Security & Malware Scanner for Git Repositories and IDE Extensions** (VS Code, Open VSX, JetBrains, Chrome CRX) — detects malicious code, token stealers, supply chain attacks, and known CVEs using high-speed Rust RegEx rules, YARA rules engine, Shannon entropy analysis, deep static binary triage, and optional AI deep audit.
 
 <p align="center">
   <img src="https://img.shields.io/badge/rust-1.95+-orange?logo=rust" />
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" />
-  <img src="https://img.shields.io/badge/tests-47%20passed-brightgreen" />
+  <img src="https://img.shields.io/badge/tests-56%20passed-brightgreen" />
   <img src="https://img.shields.io/badge/docker-ready-2496ED?logo=docker" />
 </p>
 
@@ -31,6 +31,13 @@
 ### YARA Rules Engine (`yara-x`)
 - Built-in pure-Rust YARA rule compilation for generic reverse shells, crypto drainers, and Discord webhook stealers
 - Support for loading custom user YARA rules from a directory via `--yara-dir <PATH>`
+
+### Deep Static Binary Triage (v1.3)
+- **Binary Metadata** — detects PE, ELF, Mach-O, Java class, WebAssembly, archives, and scripts; extracts SHA-256, architecture, bitness, entrypoint, sections, and imports
+- **Packer & Entropy Detection** — identifies UPX, ASPack, MPRESS, Themida, VMProtect, Enigma, and high-entropy/encrypted executable sections
+- **Capability Mapping** — maps static rules and binary indicators to MITRE ATT&CK techniques
+- **Optional Deep Tools** — integrates `capa`, `FLOSS`, and `DIE` when available, with bounded execution and graceful fallback
+- **Safe by Design** — never executes samples; all triage is static and read-only
 
 ### Entropy & Advanced Obfuscation Analysis
 - **Shannon Entropy Analysis**: Scans string literals for high-entropy blobs (> 5.2 entropy on tokens >= 60 chars) indicating encrypted ciphers or packed scripts
@@ -88,6 +95,9 @@ kalascan scan ./my-extension.vsix --fail-on-risk 70
 
 # Scan with custom YARA rules and save HTML report
 kalascan scan target/package.jar --yara-dir ./custom_rules/ --format html -o report.html
+
+# Deep static binary triage (optionally uses capa, FLOSS, and DIE from PATH)
+kalascan scan ./suspicious.vsix --deep-triage --format json -o triage.json
 ```
 
 ## Architecture
@@ -101,6 +111,8 @@ KalaScan/
 │   ├── scanner.rs         # 50+ RegEx rules, WalkDir scanner, file filter
 │   ├── yara_engine.rs     # YARA rules engine (yara-x) & custom rule loader
 │   ├── entropy.rs         # Shannon entropy, Zero-Width, Trojan Source, Homoglyphs
+│   ├── attack.rs          # MITRE ATT&CK technique mapping
+│   ├── triage.rs          # Deep static binary triage (goblin, capa/FLOSS/DIE)
 │   ├── cve.rs             # Manifest dependency extractor & OSV API client
 │   ├── ai_analyzer.rs     # Ollama / OpenAI / DeepSeek / 9Router integration
 │   ├── db.rs              # SQLite scan history persistence
@@ -130,6 +142,7 @@ KalaScan/
 | **File Access** | Browser profiles, crypto wallets, Discord tokens, SSH keys, `.env`/`.npmrc`, password managers, Chrome cookies/local storage |
 | **Obfuscation** | `eval()`/`exec()`, `b64decode` chains, `subprocess`/`os.system`, PowerShell `-EncodedCommand`, process injection APIs, DLL loading, JetBrains classloading & reflection |
 | **Advanced Obfuscation** | Shannon high-entropy string blobs (> 5.2), invisible Unicode zero-width characters, Trojan Source BiDi control characters (CVE-2021-42574), confusable Cyrillic homoglyphs |
+| **Deep Static Triage** | PE/ELF/Mach-O metadata, SHA-256, section entropy, packer signatures, suspicious imports, capa/FLOSS/DIE capabilities, ATT&CK mapping |
 | **YARA Rules** | Reverse shells (`/bin/bash -i`, `nc -e`, `pty.spawn`), crypto wallet drainers (`drainAll`, `signTypedData_v4`), Discord webhook credential stealers |
 | **Dependency CVEs** | Known exploited vulnerabilities in `package.json`, `Cargo.lock`, and `requirements.txt` via OSV database |
 | **IDE & Extension Malware** | VS Code session/token theft (`getSession`), clipboard snooping (`clipboard.readText`), workspace file exfiltration (`findFiles`), wildcard auto-activation (`*`, `onStartupFinished`), browser extension `<all_urls>` / `debugger` permissions |
@@ -139,7 +152,7 @@ KalaScan/
 ## Development
 
 ```bash
-# Run tests (47 tests)
+# Run tests (56 tests)
 cargo test
 
 # Build release binary

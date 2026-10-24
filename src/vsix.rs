@@ -142,7 +142,7 @@ async fn resolve_openvsx_download(url_str: &str) -> anyhow::Result<String> {
     );
 
     let client = reqwest::Client::builder()
-        .user_agent("KalaScan-Security-Scanner/1.2.0")
+        .user_agent("KalaScan-Security-Scanner/1.3.0")
         .build()?;
 
     let metadata: OpenVsxMetadata = client
@@ -189,7 +189,7 @@ async fn resolve_jetbrains_download(url_str: &str) -> anyhow::Result<String> {
     );
 
     let client = reqwest::Client::builder()
-        .user_agent("KalaScan-Security-Scanner/1.2.0")
+        .user_agent("KalaScan-Security-Scanner/1.3.0")
         .build()?;
 
     let updates: Vec<JetBrainsUpdate> = client
