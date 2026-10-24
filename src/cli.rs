@@ -5,7 +5,7 @@ use std::path::PathBuf;
 #[command(
     name = "kalascan",
     author = "Wahid Hendrawan",
-    version = "1.3.0",
+    version = "1.4.0",
     about = "🛡️ KalaScan — Local Git Repository & IDE Extension Security and Malware Scanner"
 )]
 pub struct Cli {
@@ -76,5 +76,13 @@ pub enum Commands {
         /// Enable deep static binary triage with optional capa, FLOSS, and DIE
         #[arg(long)]
         deep_triage: bool,
+
+        /// Recursively decode obfuscated strings and scripts
+        #[arg(long)]
+        deobfuscate: bool,
+
+        /// Safely emulate supported x86/x64 code to recover stack strings and API calls
+        #[arg(long)]
+        emulate: bool,
     },
 }

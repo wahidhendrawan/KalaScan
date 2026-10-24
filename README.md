@@ -1,11 +1,11 @@
 # 🛡️ KalaScan
 
-**Security & Malware Scanner for Git Repositories and IDE Extensions** (VS Code, Open VSX, JetBrains, Chrome CRX) — detects malicious code, token stealers, supply chain attacks, and known CVEs using high-speed Rust RegEx rules, YARA rules engine, Shannon entropy analysis, deep static binary triage, and optional AI deep audit.
+**Security & Malware Scanner for Git Repositories and IDE Extensions** (VS Code, Open VSX, JetBrains, Chrome CRX) — detects malicious code, token stealers, supply chain attacks, and known CVEs using high-speed Rust RegEx rules, YARA rules engine, Shannon entropy analysis, deep static binary triage, recursive deobfuscation, safe static emulation, and optional AI deep audit.
 
 <p align="center">
   <img src="https://img.shields.io/badge/rust-1.95+-orange?logo=rust" />
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" />
-  <img src="https://img.shields.io/badge/tests-56%20passed-brightgreen" />
+  <img src="https://img.shields.io/badge/tests-72%20passed-brightgreen" />
   <img src="https://img.shields.io/badge/docker-ready-2496ED?logo=docker" />
 </p>
 
@@ -38,6 +38,19 @@
 - **Capability Mapping** — maps static rules and binary indicators to MITRE ATT&CK techniques
 - **Optional Deep Tools** — integrates `capa`, `FLOSS`, and `DIE` when available, with bounded execution and graceful fallback
 - **Safe by Design** — never executes samples; all triage is static and read-only
+
+### Recursive Deobfuscation (v1.4)
+- **Multi-Encoding Recovery** — recursively decodes base64, hex escapes/arrays/strings, URL percent encoding, PowerShell `-EncodedCommand`, JS/Python/PowerShell char codes, Unicode escapes, ROT13, single-byte XOR, gzip, and zlib
+- **Decode Chains** — follows nested layers up to depth 3, tracking confidence, decoded size, source file, and line number
+- **Indicator & ATT&CK Mapping** — reuses the scanner's indicator engine and maps recovered behavior to MITRE ATT&CK
+- **Safe by Design** — pure static string and byte analysis; recovered payloads are never executed
+
+### Safe Static Emulation (v1.4)
+- **Bounded x86/x64 Emulation** — uses `iced-x86` to emulate entrypoint code for PE, ELF, and Mach-O binaries with strict instruction and memory budgets
+- **Import Stubbing** — resolves PE IAT imports to synthetic addresses so API usage can be recorded without calling host functions
+- **Stack String Recovery** — reconstructs strings built through `push`/`mov` sequences and writes to mapped memory
+- **API & ATT&CK Tracing** — records imported API calls, recovered strings, behavioral indicators, and mapped ATT&CK techniques
+- **Safe by Design** — no syscalls, no network access, no sample execution; emulation stops on unsupported instructions or budget exhaustion
 
 ### Entropy & Advanced Obfuscation Analysis
 - **Shannon Entropy Analysis**: Scans string literals for high-entropy blobs (> 5.2 entropy on tokens >= 60 chars) indicating encrypted ciphers or packed scripts
@@ -98,6 +111,9 @@ kalascan scan target/package.jar --yara-dir ./custom_rules/ --format html -o rep
 
 # Deep static binary triage (optionally uses capa, FLOSS, and DIE from PATH)
 kalascan scan ./suspicious.vsix --deep-triage --format json -o triage.json
+
+# Recursive deobfuscation + bounded static emulation
+kalascan scan ./suspicious.vsix --deobfuscate --emulate --format html -o deep-report.html
 ```
 
 ## Architecture
@@ -113,6 +129,8 @@ KalaScan/
 │   ├── entropy.rs         # Shannon entropy, Zero-Width, Trojan Source, Homoglyphs
 │   ├── attack.rs          # MITRE ATT&CK technique mapping
 │   ├── triage.rs          # Deep static binary triage (goblin, capa/FLOSS/DIE)
+│   ├── deobfuscate.rs     # Recursive decoding chains & recovered payloads
+│   ├── emulate.rs         # Bounded x86/x64 static emulation (iced-x86)
 │   ├── cve.rs             # Manifest dependency extractor & OSV API client
 │   ├── ai_analyzer.rs     # Ollama / OpenAI / DeepSeek / 9Router integration
 │   ├── db.rs              # SQLite scan history persistence
@@ -143,6 +161,8 @@ KalaScan/
 | **Obfuscation** | `eval()`/`exec()`, `b64decode` chains, `subprocess`/`os.system`, PowerShell `-EncodedCommand`, process injection APIs, DLL loading, JetBrains classloading & reflection |
 | **Advanced Obfuscation** | Shannon high-entropy string blobs (> 5.2), invisible Unicode zero-width characters, Trojan Source BiDi control characters (CVE-2021-42574), confusable Cyrillic homoglyphs |
 | **Deep Static Triage** | PE/ELF/Mach-O metadata, SHA-256, section entropy, packer signatures, suspicious imports, capa/FLOSS/DIE capabilities, ATT&CK mapping |
+| **Recursive Deobfuscation** | Nested base64/hex/URL/PowerShell/char-code/Unicode/ROT13/XOR/gzip/zlib layers, decoded payload previews, ATT&CK mapping |
+| **Safe Static Emulation** | Bounded x86/x64 entrypoint emulation, PE import stubs, API call tracing, stack string recovery, ATT&CK mapping |
 | **YARA Rules** | Reverse shells (`/bin/bash -i`, `nc -e`, `pty.spawn`), crypto wallet drainers (`drainAll`, `signTypedData_v4`), Discord webhook credential stealers |
 | **Dependency CVEs** | Known exploited vulnerabilities in `package.json`, `Cargo.lock`, and `requirements.txt` via OSV database |
 | **IDE & Extension Malware** | VS Code session/token theft (`getSession`), clipboard snooping (`clipboard.readText`), workspace file exfiltration (`findFiles`), wildcard auto-activation (`*`, `onStartupFinished`), browser extension `<all_urls>` / `debugger` permissions |
@@ -152,7 +172,7 @@ KalaScan/
 ## Development
 
 ```bash
-# Run tests (56 tests)
+# Run tests (72 tests)
 cargo test
 
 # Build release binary

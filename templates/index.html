@@ -189,6 +189,20 @@
                             </label>
                             <span class="text-xs text-gray-400">Deep Binary Triage (capa/FLOSS/DIE)</span>
                         </div>
+                        <div class="flex items-center gap-3">
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="deobfuscate-enabled" name="deobfuscate" class="sr-only peer" />
+                                <div class="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-orange-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                            </label>
+                            <span class="text-xs text-gray-400">Recursive Deobfuscation</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="emulate-enabled" name="emulate" class="sr-only peer" />
+                                <div class="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-cyan-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                            </label>
+                            <span class="text-xs text-gray-400">Safe Static Emulation</span>
+                        </div>
                     </div>
                     <button type="submit" id="scan-btn"
                         class="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-green-600 text-white text-sm font-semibold rounded-lg hover:from-blue-500 hover:to-green-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-green-600/10">
@@ -253,6 +267,20 @@
                             <div id="triage-content"></div>
                         </div>
                     </div>
+                    <!-- Deobfuscation -->
+                    <div id="deobfuscation-section" class="hidden">
+                        <div class="bg-gray-950 rounded-xl border border-gray-800 p-5">
+                            <h3 class="text-sm font-semibold text-orange-400 mb-3">&#x1F9EA; Recursive Deobfuscation</h3>
+                            <div id="deobfuscation-content"></div>
+                        </div>
+                    </div>
+                    <!-- Safe static emulation -->
+                    <div id="emulation-section" class="hidden">
+                        <div class="bg-gray-950 rounded-xl border border-gray-800 p-5">
+                            <h3 class="text-sm font-semibold text-cyan-400 mb-3">&#x1F5A5; Safe Static Emulation</h3>
+                            <div id="emulation-content"></div>
+                        </div>
+                    </div>
                     <!-- Match table -->
                     <div class="overflow-x-auto">
                         <table class="w-full text-xs text-left">
@@ -274,7 +302,7 @@
 
     <!-- Footer -->
     <footer class="border-t border-gray-800 bg-gray-900/30 py-3 text-center text-[10px] text-gray-600">
-        KalaScan v1.3.0 &middot; Rust + Axum &middot; <span class="text-red-500/60">&#x26A0;</span> Never execute untrusted code
+        KalaScan v1.4.0 &middot; Rust + Axum &middot; <span class="text-red-500/60">&#x26A0;</span> Never execute untrusted code
     </footer>
 
     <script>
@@ -332,6 +360,8 @@
                 llm_api_key: document.getElementById('llm-key').value,
                 ai_analysis_enabled: document.getElementById('ai-enabled').checked,
                 deep_triage_enabled: document.getElementById('deep-triage-enabled').checked,
+                deobfuscate_enabled: document.getElementById('deobfuscate-enabled').checked,
+                emulate_enabled: document.getElementById('emulate-enabled').checked,
             }));
         }
 
@@ -346,10 +376,12 @@
                 if (s.llm_api_key) document.getElementById('llm-key').value = s.llm_api_key;
                 if (s.ai_analysis_enabled !== undefined) document.getElementById('ai-enabled').checked = s.ai_analysis_enabled;
                 if (s.deep_triage_enabled !== undefined) document.getElementById('deep-triage-enabled').checked = s.deep_triage_enabled;
+                if (s.deobfuscate_enabled !== undefined) document.getElementById('deobfuscate-enabled').checked = s.deobfuscate_enabled;
+                if (s.emulate_enabled !== undefined) document.getElementById('emulate-enabled').checked = s.emulate_enabled;
             } catch(_) {}
         }
 
-        ['llm-provider','llm-model','llm-endpoint','llm-key','ai-enabled','deep-triage-enabled'].forEach(id => {
+        ['llm-provider','llm-model','llm-endpoint','llm-key','ai-enabled','deep-triage-enabled','deobfuscate-enabled','emulate-enabled'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.addEventListener('change', saveSettings);
             if (el && el.type !== 'checkbox') el.addEventListener('input', saveSettings);
@@ -474,6 +506,8 @@
                     uploadFd.append('ai_analysis_enabled', document.getElementById('ai-enabled').checked ? 'true' : 'false');
                     uploadFd.append('check_cve', document.getElementById('cve-enabled').checked ? 'true' : 'false');
                     uploadFd.append('deep_triage', document.getElementById('deep-triage-enabled').checked ? 'true' : 'false');
+                    uploadFd.append('deobfuscate', document.getElementById('deobfuscate-enabled').checked ? 'true' : 'false');
+                    uploadFd.append('emulate', document.getElementById('emulate-enabled').checked ? 'true' : 'false');
 
                     resp = await fetch(API + '/api/scan/upload', {
                         method: 'POST',
@@ -487,9 +521,10 @@
                         llm_api_key: document.getElementById('llm-key').value || null,
                         llm_endpoint: document.getElementById('llm-endpoint').value || null,
                         ai_analysis_enabled: document.getElementById('ai-enabled').checked,
-                deep_triage_enabled: document.getElementById('deep-triage-enabled').checked,
                         check_cve: document.getElementById('cve-enabled').checked,
                         deep_triage: document.getElementById('deep-triage-enabled').checked,
+                        deobfuscate: document.getElementById('deobfuscate-enabled').checked,
+                        emulate: document.getElementById('emulate-enabled').checked,
                     };
                     resp = await fetch(API + '/scan', {
                         method: 'POST',
@@ -541,6 +576,46 @@
             }
             if (tools.length) {
                 html += `<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">Deep analysis tools</div><div class="flex flex-wrap gap-1">${tools.map(x => `<span class="rounded px-2 py-1 text-[10px] ${x.available ? 'bg-green-500/10 border border-green-500/30 text-green-300' : 'bg-gray-900 border border-gray-800 text-gray-500'}">${escHtml(x.name)}: ${escHtml(x.version || x.status)}</span>`).join('')}</div></div>`;
+            }
+            if (notes.length) {
+                html += `<div class="mt-4 text-[10px] text-gray-500"><ul class="list-disc list-inside space-y-0.5">${notes.map(n => `<li>${escHtml(n)}</li>`).join('')}</ul></div>`;
+            }
+            return html;
+        }
+
+        function renderDeobfuscation(d) {
+            const artifacts = d.artifacts || [];
+            const techs = d.attack_techniques || [];
+            const notes = d.notes || [];
+            const card = (label, value, color) => `<div class="bg-gray-900 rounded-lg p-3 border border-gray-800"><div class="text-xl font-bold ${color}">${value}</div><div class="text-[10px] text-gray-500 mt-0.5">${label}</div></div>`;
+            let html = `<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">${card('Files', d.files_scanned || 0, 'text-gray-100')}${card('Artifacts', artifacts.length, 'text-orange-400')}${card('ATT&CK', techs.length, 'text-purple-400')}${card('Engine', escHtml(d.engine || '-'), 'text-[10px] text-gray-300')}</div>`;
+            if (techs.length) {
+                html += `<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">MITRE ATT&CK</div><div class="flex flex-wrap gap-1">${techs.map(x => `<span class="bg-purple-500/10 border border-purple-500/30 text-purple-300 rounded px-2 py-1 text-[10px]" title="${escHtml(x.tactic)}"><strong>${escHtml(x.id)}</strong> ${escHtml(x.name)}</span>`).join('')}</div></div>`;
+            }
+            if (artifacts.length) {
+                html += `<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">Recovered artifacts</div><div class="overflow-x-auto"><table class="w-full text-left text-[10px]"><thead class="text-gray-500 uppercase"><tr><th class="py-1.5 pr-2">Confidence</th><th class="py-1.5 pr-2">Encoding</th><th class="py-1.5 pr-2">File</th><th class="py-1.5 pr-2 text-right">Line</th><th class="py-1.5 pr-2">Indicators</th><th class="py-1.5">Decoded preview</th></tr></thead><tbody class="divide-y divide-gray-800/60">${artifacts.map(a => `<tr class="align-top"><td class="py-1.5 pr-2"><span class="bg-gray-900 border border-gray-800 rounded px-2 py-0.5">${escHtml(a.confidence)}</span></td><td class="py-1.5 pr-2">${escHtml(a.encoding)}</td><td class="py-1.5 pr-2 font-mono text-blue-400">${escHtml(a.file_path)}</td><td class="py-1.5 pr-2 text-right">${a.line_number || 0}</td><td class="py-1.5 pr-2 text-amber-300">${escHtml((a.indicators || []).join(', ') || '-')}</td><td class="py-1.5 font-mono text-gray-300 break-all">${escHtml(String(a.decoded || '').slice(0, 200))}</td></tr>`).join('')}</tbody></table></div></div>`;
+            } else {
+                html += '<div class="mt-4 text-[10px] text-gray-600 italic">No encoded payloads recovered.</div>';
+            }
+            if (notes.length) {
+                html += `<div class="mt-4 text-[10px] text-gray-500"><ul class="list-disc list-inside space-y-0.5">${notes.map(n => `<li>${escHtml(n)}</li>`).join('')}</ul></div>`;
+            }
+            return html;
+        }
+
+        function renderEmulation(e) {
+            const traces = e.traces || [];
+            const techs = e.attack_techniques || [];
+            const notes = e.notes || [];
+            const card = (label, value, color) => `<div class="bg-gray-900 rounded-lg p-3 border border-gray-800"><div class="text-xl font-bold ${color}">${value}</div><div class="text-[10px] text-gray-500 mt-0.5">${label}</div></div>`;
+            let html = `<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">${card('Files', e.files_scanned || 0, 'text-gray-100')}${card('Traces', traces.length, 'text-cyan-400')}${card('ATT&CK', techs.length, 'text-purple-400')}${card('Engine', escHtml(e.engine || '-'), 'text-[10px] text-gray-300')}</div>`;
+            if (techs.length) {
+                html += `<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">MITRE ATT&CK</div><div class="flex flex-wrap gap-1">${techs.map(x => `<span class="bg-purple-500/10 border border-purple-500/30 text-purple-300 rounded px-2 py-1 text-[10px]" title="${escHtml(x.tactic)}"><strong>${escHtml(x.id)}</strong> ${escHtml(x.name)}</span>`).join('')}</div></div>`;
+            }
+            if (traces.length) {
+                html += `<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">Emulation traces</div><div class="overflow-x-auto"><table class="w-full text-left text-[10px]"><thead class="text-gray-500 uppercase"><tr><th class="py-1.5 pr-2">File</th><th class="py-1.5 pr-2">Arch</th><th class="py-1.5 pr-2 text-right">Instructions</th><th class="py-1.5 pr-2">Stopped</th><th class="py-1.5 pr-2">API calls / indicators</th><th class="py-1.5 pr-2">Recovered strings</th><th class="py-1.5">ATT&CK</th></tr></thead><tbody class="divide-y divide-gray-800/60">${traces.map(t => `<tr class="align-top"><td class="py-1.5 pr-2 font-mono text-blue-400">${escHtml(t.file_path)}<div class="text-gray-600">entry ${escHtml(t.entrypoint)}</div></td><td class="py-1.5 pr-2">${escHtml(t.architecture)}</td><td class="py-1.5 pr-2 text-right">${t.instructions || 0}</td><td class="py-1.5 pr-2">${escHtml(t.stopped_reason)}</td><td class="py-1.5 pr-2">${escHtml((t.api_calls || []).join(', ') || '-')}<div class="text-amber-300 mt-0.5">${escHtml((t.indicators || []).join('; ') || '')}</div></td><td class="py-1.5 pr-2 font-mono text-gray-300 break-all">${escHtml((t.recovered_strings || []).join(' | ') || '-')}</td><td class="py-1.5 text-purple-300">${(t.attack || []).map(x => escHtml(x.id)).join(', ') || '-'}</td></tr>`).join('')}</tbody></table></div></div>`;
+            } else {
+                html += '<div class="mt-4 text-[10px] text-gray-600 italic">No emulation traces produced.</div>';
             }
             if (notes.length) {
                 html += `<div class="mt-4 text-[10px] text-gray-500"><ul class="list-disc list-inside space-y-0.5">${notes.map(n => `<li>${escHtml(n)}</li>`).join('')}</ul></div>`;
@@ -620,6 +695,26 @@
                     triageContent.innerHTML = renderTriage(r.triage);
                 } else {
                     triageSec.classList.add('hidden');
+                }
+
+                // Deobfuscation
+                const deobfSec = document.getElementById('deobfuscation-section');
+                const deobfContent = document.getElementById('deobfuscation-content');
+                if (r.deobfuscation) {
+                    deobfSec.classList.remove('hidden');
+                    deobfContent.innerHTML = renderDeobfuscation(r.deobfuscation);
+                } else {
+                    deobfSec.classList.add('hidden');
+                }
+
+                // Safe static emulation
+                const emuSec = document.getElementById('emulation-section');
+                const emuContent = document.getElementById('emulation-content');
+                if (r.emulation) {
+                    emuSec.classList.remove('hidden');
+                    emuContent.innerHTML = renderEmulation(r.emulation);
+                } else {
+                    emuSec.classList.add('hidden');
                 }
 
                 // Match table
