@@ -5,7 +5,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/rust-1.75+-orange?logo=rust" />
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" />
-  <img src="https://img.shields.io/badge/tests-28%20passed-brightgreen" />
+  <img src="https://img.shields.io/badge/tests-31%20passed-brightgreen" />
   <img src="https://img.shields.io/badge/docker-ready-2496ED?logo=docker" />
 </p>
 
@@ -15,6 +15,11 @@
 - **40+ RegEx Rules** across 5 threat categories: exfiltration, sensitive data access, obfuscation, ransomware, supply chain
 - **Rust Speed** — compiled binary, multi-threaded WalkDir scanner, zero-copy regex matching
 - **Safe by Design** — clones repos read-only via `git clone --depth 1`, never executes any code, auto-cleanup with RAII temp dirs
+
+### VS Code Extension & Plugin Scanning
+- **Multi-Source Ingestion** — scan local `.vsix` / `.zip` packages via drag-and-drop file upload, or scan remote extensions directly by entering a Visual Studio Marketplace URL or extension ID (e.g. `publisher.extension-name`)
+- **Safe Unpacking** — automated extraction with zip-slip path traversal guards, targeting extension runtime payloads (`extension/`)
+- **IDE Malware Detection** — targeted static rules for session token theft, clipboard snooping, mass workspace file reading, and wildcard startup activations
 
 ### AI Deep Analysis
 - **Multi-Provider LLM Support**: Ollama (local), OpenAI, DeepSeek, 9Router (local proxy), or any OpenAI-compatible custom endpoint
@@ -94,8 +99,11 @@ Settings are auto-saved to browser localStorage.
 
 ## Usage
 
-1. Enter a GitHub/GitLab repository URL (e.g., `https://github.com/user/repo.git`)
-2. Select LLM provider and configure API key if needed
+1. **Scan a Git Repository or VS Code Extension**:
+   - Enter a Git repository URL (e.g., `https://github.com/user/repo.git`)
+   - OR enter a VS Code Marketplace URL or Extension ID (e.g., `ms-python.python` or `https://marketplace.visualstudio.com/items?itemName=...`)
+   - OR drag & drop / upload a local `.vsix` or `.zip` extension package
+2. Select LLM provider and configure API key if needed (for optional deep AI malware audit)
 3. Click **Start Scan**
 4. View results: risk score gauge, matched patterns table, AI analysis card
 5. Download MD or HTML report
@@ -107,6 +115,7 @@ Settings are auto-saved to browser localStorage.
 KalaScan/
 ├── src/
 │   ├── main.rs            # Axum web server, routes, scan orchestrator
+│   ├── vsix.rs            # VSIX package extraction & marketplace downloader
 │   ├── scanner.rs         # 40+ RegEx rules, WalkDir scanner, file filter
 │   ├── ai_analyzer.rs     # Ollama / OpenAI / DeepSeek / 9Router integration
 │   ├── db.rs              # SQLite scan history persistence
@@ -134,7 +143,8 @@ KalaScan/
 |--------|------|-------------|
 | `GET` | `/` | Dashboard |
 | `POST` | `/scan` | Start a new scan |
-| `POST` | `/api/scan` | Start scan (JSON response) |
+| `POST` | `/api/scan` | Start scan via JSON URL/ID |
+| `POST` | `/api/scan/upload` | Start scan via `.vsix` / `.zip` file upload |
 | `GET` | `/api/results/:id` | Get scan result |
 | `GET` | `/results/:id` | Result detail page |
 | `GET` | `/api/history` | List scan history |
@@ -151,6 +161,7 @@ KalaScan/
 | **Obfuscation** | `eval()`/`exec()`, `b64decode` chains, `child_process`/`subprocess`, `os.system`/`os.popen`, PowerShell `-EncodedCommand`, nested encoding, process injection APIs, DLL loading |
 | **Ransomware** | File encryption functions (`fernet.encrypt`), shadow copy deletion (`vssadmin`), encrypted file extensions, ransom note text, Bitcoin addresses |
 | **Supply Chain** | npm `postinstall`/`preinstall` scripts, typo-squatted package names, remote script download (`curl|sh`), hidden directory installs |
+| **VS Code Extensions** | Session token stealing (`getSession`), clipboard harvesting (`clipboard.readText`), workspace file enumeration (`findFiles`), wildcard auto-activation (`*`, `onStartupFinished`) |
 
 ## Risk Scoring
 
@@ -163,7 +174,7 @@ KalaScan/
 ## Development
 
 ```bash
-# Run tests (28 tests)
+# Run tests (31 tests)
 cargo test
 
 # Build release
