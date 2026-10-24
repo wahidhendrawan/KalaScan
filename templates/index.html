@@ -118,19 +118,19 @@
                 <form id="scan-form" class="space-y-4">
                     <div>
                         <div class="flex items-center justify-between mb-1.5">
-                            <label class="block text-xs font-medium text-gray-500" for="repo-url">Repository or VS Code Extension</label>
-                            <span class="text-[10px] text-blue-400 font-medium">Supports Git, Marketplace URLs, publisher.ext &amp; .vsix</span>
+                            <label class="block text-xs font-medium text-gray-500" for="repo-url">Repository or IDE Extension / Plugin</label>
+                            <span class="text-[10px] text-blue-400 font-medium">Supports Git, VS Code, Open VSX, JetBrains &amp; CRX</span>
                         </div>
                         <input type="text" id="repo-url" name="repo_url"
                             class="w-full px-4 py-2.5 bg-gray-950 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition text-sm"
-                            placeholder="e.g. https://github.com/user/repo, marketplace URL, publisher.extension, or leave empty if uploading file below" />
+                            placeholder="e.g. https://github.com/user/repo, Open VSX URL, JetBrains plugin, ms-python.python, or upload file below" />
                     </div>
                     <div>
                         <div class="relative flex items-center justify-center p-3 border-2 border-dashed border-gray-800 hover:border-blue-500/60 rounded-lg bg-gray-950/60 cursor-pointer transition text-center group" id="drop-zone" onclick="document.getElementById('vsix-file').click()">
-                            <input type="file" id="vsix-file" name="file" accept=".vsix,.zip" class="hidden" onchange="handleFileSelect(this)" />
+                            <input type="file" id="vsix-file" name="file" accept=".vsix,.zip,.jar,.crx" class="hidden" onchange="handleFileSelect(this)" />
                             <div class="flex items-center gap-2 text-xs text-gray-400 group-hover:text-blue-300">
                                 <span class="text-base">📦</span>
-                                <span id="file-label">Or upload <strong>.vsix</strong> / <strong>.zip</strong> extension file directly</span>
+                                <span id="file-label">Or upload <strong>.vsix</strong> / <strong>.zip</strong> / <strong>.jar</strong> / <strong>.crx</strong> file directly</span>
                                 <button type="button" id="clear-file-btn" class="hidden text-xs text-red-400 hover:text-red-300 ml-2" onclick="event.stopPropagation(); clearFileSelect();">&#x2715; Clear</button>
                             </div>
                         </div>
@@ -167,12 +167,21 @@
                                 placeholder="sk-... (not needed for Ollama)" />
                         </div>
                     </div>
-                    <div class="flex items-center gap-3 pt-1">
-                        <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="ai-enabled" name="ai_analysis_enabled" checked class="sr-only peer" />
-                            <div class="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-green-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
-                        </label>
-                        <span class="text-xs text-gray-400">AI Deep Analysis</span>
+                    <div class="flex flex-wrap items-center gap-6 pt-1">
+                        <div class="flex items-center gap-3">
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="ai-enabled" name="ai_analysis_enabled" checked class="sr-only peer" />
+                                <div class="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-green-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                            </label>
+                            <span class="text-xs text-gray-400">AI Deep Analysis</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="cve-enabled" name="check_cve" checked class="sr-only peer" />
+                                <div class="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                            </label>
+                            <span class="text-xs text-gray-400">OSV Dependency CVE Check</span>
+                        </div>
                     </div>
                     <button type="submit" id="scan-btn"
                         class="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-green-600 text-white text-sm font-semibold rounded-lg hover:from-blue-500 hover:to-green-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-green-600/10">
@@ -447,6 +456,7 @@
                         uploadFd.append('llm_endpoint', document.getElementById('llm-endpoint').value);
                     }
                     uploadFd.append('ai_analysis_enabled', document.getElementById('ai-enabled').checked ? 'true' : 'false');
+                    uploadFd.append('check_cve', document.getElementById('cve-enabled').checked ? 'true' : 'false');
 
                     resp = await fetch(API + '/api/scan/upload', {
                         method: 'POST',
@@ -460,6 +470,7 @@
                         llm_api_key: document.getElementById('llm-key').value || null,
                         llm_endpoint: document.getElementById('llm-endpoint').value || null,
                         ai_analysis_enabled: document.getElementById('ai-enabled').checked,
+                        check_cve: document.getElementById('cve-enabled').checked,
                     };
                     resp = await fetch(API + '/scan', {
                         method: 'POST',

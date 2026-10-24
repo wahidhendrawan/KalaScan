@@ -62,7 +62,7 @@ pub async fn scan_git_history(repo_path: &Path) -> Vec<RuleMatch> {
     matches
 }
 
-/// Run `git log --diff-filter=AM --name-only --format=%H`
+/// Run `git log --diff-filter=AM --name-only --format=COMMIT:%H`
 async fn get_commits_with_files(repo_path: &Path) -> Option<String> {
     let output = Command::new("git")
         .arg("-C")
@@ -70,7 +70,7 @@ async fn get_commits_with_files(repo_path: &Path) -> Option<String> {
         .arg("log")
         .arg("--diff-filter=AM")
         .arg("--name-only")
-        .arg("--format=%H")
+        .arg("--format=COMMIT:%H")
         .output()
         .await
         .ok()?;
@@ -84,40 +84,39 @@ async fn get_commits_with_files(repo_path: &Path) -> Option<String> {
 
 /// Parse git log output.
 ///
-/// Format per commit (with `--format=%H --name-only`):
+/// Format per commit (with `--format=COMMIT:%H --name-only`):
 /// ```text
-/// <hash>
+/// COMMIT:<hash>
 /// <file1>
 /// <file2>
-///
-/// <hash>
+/// COMMIT:<hash>
 /// <file1>
 /// ```
-/// Commits are separated by a blank line after the file list.
+/// Blank lines are ignored, so files are never mistaken for commit hashes.
 fn parse_git_log(log: &str) -> Vec<(String, Vec<String>)> {
     let mut entries = Vec::new();
     let mut current_hash = String::new();
     let mut current_files: Vec<String> = Vec::new();
 
     for line in log.lines() {
+        let line = line.trim();
         if line.is_empty() {
+            continue;
+        }
+
+        if let Some(hash) = line.strip_prefix("COMMIT:") {
             if !current_hash.is_empty() {
                 entries.push((
                     std::mem::take(&mut current_hash),
                     std::mem::take(&mut current_files),
                 ));
             }
-            continue;
-        }
-
-        if current_hash.is_empty() {
-            current_hash = line.to_string();
-        } else {
+            current_hash = hash.to_string();
+        } else if !current_hash.is_empty() {
             current_files.push(line.to_string());
         }
     }
 
-    // trailing entry (no trailing blank line)
     if !current_hash.is_empty() {
         entries.push((current_hash, current_files));
     }
@@ -194,7 +193,7 @@ mod tests {
 
     #[test]
     fn test_parse_git_log_two_commits() {
-        let log = "abc123def\nsrc/main.py\nsrc/utils.js\n\ndef789abc\nscript.sh\n";
+        let log = "COMMIT:abc123def\n\nsrc/main.py\nsrc/utils.js\nCOMMIT:def789abc\n\nscript.sh\n";
         let entries = parse_git_log(log);
         assert_eq!(entries.len(), 2);
         assert_eq!(entries[0].0, "abc123def");
@@ -205,7 +204,7 @@ mod tests {
 
     #[test]
     fn test_parse_git_log_single_commit_no_trailing_blank() {
-        let log = "abc123\na.py\nb.ts\n";
+        let log = "COMMIT:abc123\n\na.py\nb.ts\n";
         let entries = parse_git_log(log);
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].0, "abc123");
