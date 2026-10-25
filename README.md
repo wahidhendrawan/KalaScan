@@ -5,7 +5,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/rust-1.95+-orange?logo=rust" />
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" />
-  <img src="https://img.shields.io/badge/tests-90%20passed-brightgreen" />
+  <img src="https://img.shields.io/badge/tests-98%20passed-brightgreen" />
   <img src="https://img.shields.io/badge/docker-ready-2496ED?logo=docker" />
 </p>
 
@@ -94,6 +94,21 @@
 - When bound to a non-loopback address without a token, KalaScan logs a prominent warning at startup
 - Responses carry a strict `Content-Security-Policy` (self-hosted assets only), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and `Referrer-Policy: no-referrer`
 
+### Multi-User Auth & RBAC (v1.8)
+- `kalascan user add <name> --role viewer|operator|admin` prints a bearer token once (stored as a salted `sha256`, never recoverable)
+- Roles: **viewer** (read results), **operator** (submit/cancel scans), **admin** (view audit log)
+- `kalascan user list` / `kalascan user remove <name>`; `KALASCAN_TOKEN` still works as a legacy admin token
+- Every submit, cancel, login failure and user change is written to an append-only `audit_log` (`GET /api/audit`, admin only)
+
+### Observability & Standards (v1.8)
+- `GET /healthz` — liveness probe; `GET /metrics` — Prometheus metrics (queue depth, active scans, durations, rule hits)
+- `GET /openapi.yaml` — OpenAPI 3.0 spec; extra report formats `csv`, `junit`, `github` (workflow annotations)
+- `kalascan rules` lists built-in rules; `kalascan rules <name>` explains a rule and shows its pattern
+
+### Persistence Bounds & Resume (v1.8)
+- `KALASCAN_HISTORY_LIMIT` (default 500) caps rows in SQLite; `KALASCAN_MEMORY_SCANS` (default 100) caps the in-memory list
+- Queued scans are persisted with their request; on restart they are requeued automatically (API keys are stripped before storage)
+
 ### Async Web Scans
 - `POST /scan` and `POST /api/scan` return `{ "success": true, "result_id": "...", "status": "queued" }` immediately
 - Poll `GET /api/scan/{id}/status`; it returns `done: true` plus the full result when the job finishes
@@ -107,6 +122,8 @@
 | `KALASCAN_SCAN_TIMEOUT_SECS` | `900` | Hard timeout per scan; exceeded scans are marked failed |
 | `KALASCAN_SCAN_RATE_LIMIT` | `30` | Submissions allowed per minute (HTTP `429` beyond that) |
 | `KALASCAN_TOKEN` | unset | Bearer token required on every route |
+| `KALASCAN_HISTORY_LIMIT` | `500` | Scans kept in SQLite; older finished scans are pruned |
+| `KALASCAN_MEMORY_SCANS` | `100` | Scans kept in the in-memory cache |
 
 ### Local Directory Scans (v1.7)
 - Pass a directory path as the target to scan a checkout in place: `kalascan scan . --changed-only --base-ref origin/main`
@@ -211,7 +228,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: wahidhendrawan/KalaScan@v1.7.0
+      - uses: wahidhendrawan/KalaScan@v1.8.0
         with:
           target: https://github.com/${{ github.repository }}.git
           fail_on_risk: "60"
@@ -246,10 +263,12 @@ KalaScan/
 │   ├── ttp.rs             # Unified ATT&CK technique & kill-chain aggregation
 │   ├── cve.rs             # Manifest dependency extractor & OSV API client
 │   ├── ai_analyzer.rs     # Ollama / OpenAI / DeepSeek / 9Router integration
-│   ├── db.rs              # SQLite scan history persistence
+│   ├── db.rs              # SQLite scan history persistence & migrations
+│   ├── auth.rs            # Multi-user RBAC tokens, principals, audit helpers
+│   ├── metrics.rs         # Prometheus counters/gauges (atomic, lock-free)
 │   ├── git_history.rs     # Commit history scanner
 │   ├── baseline.rs        # Finding fingerprints, baselines & .kalascanignore
-│   └── export.rs          # Markdown + HTML + SARIF report generator
+│   └── export.rs          # MD + HTML + SARIF + CSV + JUnit + GitHub export
 ├── templates/
 │   ├── index.html         # Dashboard with drag-and-drop upload & scan form
 │   └── result.html        # Redirect shim to the single-page result view
@@ -292,7 +311,7 @@ KalaScan/
 ## Development
 
 ```bash
-# Run tests (90 tests)
+# Run tests (98 tests)
 cargo test
 
 # Build release binary
