@@ -19,7 +19,7 @@ mod vsix;
 mod yara_engine;
 
 use axum::{
-    extract::{Extension, Multipart, Path, State},
+    extract::{Extension, Multipart, Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::{Html, IntoResponse, Json},
     routing::{delete, get, post},
@@ -257,7 +257,11 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn start_web_server(addr: &str) -> anyhow::Result<()> {
-    info!("KalaScan v1.8.0 starting Web UI on http://{}", addr);
+    info!(
+        "KalaScan v{} starting Web UI on http://{}",
+        env!("CARGO_PKG_VERSION"),
+        addr
+    );
 
     // Initialize DB
     if let Err(e) = db::init_db() {
@@ -326,6 +330,7 @@ async fn start_web_server(addr: &str) -> anyhow::Result<()> {
         .route("/api/history", get(history))
         .route("/api/report/{id}/{format}", get(report))
         .route("/api/audit", get(audit_log))
+        .route("/api/sbom", get(sbom_endpoint))
         .route("/api/scan/{id}", delete(delete_scan))
         .route("/results/{id}", get(results_page))
         .route("/healthz", get(healthz))
@@ -502,6 +507,7 @@ async fn root(State(state): State<AppState>) -> Result<Html<String>, (StatusCode
         .replace('>', "\\u003e")
         .replace('&', "\\u0026");
     ctx.insert("scans_json", &scans_json);
+    ctx.insert("version", env!("CARGO_PKG_VERSION"));
     match state.tera.render("index.html", &ctx) {
         Ok(html) => Ok(Html(html)),
         Err(e) => {
@@ -826,6 +832,46 @@ async fn metrics_endpoint(State(state): State<AppState>) -> impl IntoResponse {
     (
         [("content-type", "text/plain; version=0.0.4; charset=utf-8")],
         metrics::render(pending.saturating_sub(active)),
+    )
+        .into_response()
+}
+
+async fn sbom_endpoint(
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let root = params
+        .get("path")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| cwd.clone());
+
+    let (canon_root, canon_cwd) = match (root.canonicalize(), cwd.canonicalize()) {
+        (Ok(r), Ok(c)) => (r, c),
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "success": false, "error": "path does not exist" })),
+            )
+                .into_response();
+        }
+    };
+    // Refuse reads outside the process working directory.
+    if !canon_root.starts_with(&canon_cwd) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({ "success": false, "error": "path is outside the allowed root" })),
+        )
+            .into_response();
+    }
+
+    let packages = cve::extract_manifest_packages(&canon_root);
+    let sbom = export::export_cyclonedx(&packages, &canon_root);
+    (
+        [(
+            "content-type",
+            "application/vnd.cyclonedx+json; charset=utf-8",
+        )],
+        sbom,
     )
         .into_response()
 }

@@ -104,6 +104,10 @@
 - `GET /healthz` — liveness probe; `GET /metrics` — Prometheus metrics (queue depth, active scans, durations, rule hits)
 - `GET /openapi.yaml` — OpenAPI 3.0 spec; extra report formats `csv`, `junit`, `github` (workflow annotations)
 - `kalascan rules` lists built-in rules; `kalascan rules <name>` explains a rule and shows its pattern
+- `GET /api/sbom?path=…` — CycloneDX 1.5 SBOM for a directory under the server working dir (auth required, path traversal blocked)
+
+### Dashboard bearer token (v1.10)
+- Token-protected servers prompt for the bearer token in the browser; it is held in `sessionStorage` (this tab only) and never persisted
 
 ### Persistence Bounds & Resume (v1.8)
 - `KALASCAN_HISTORY_LIMIT` (default 500) caps rows in SQLite; `KALASCAN_MEMORY_SCANS` (default 100) caps the in-memory list
@@ -222,6 +226,7 @@ kalascan sbom . -o sbom.json
 ```bash
 docker run --rm -p 3000:3000 ghcr.io/wahidhendrawan/kalascan:latest
 ```
+Images are published for `linux/amd64` and `linux/arm64`.
 
 ### Scan performance
 - Files are scanned in parallel across available CPU cores (up to 16 workers); findings keep deterministic order

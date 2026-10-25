@@ -132,6 +132,42 @@ paths:
       responses:
         "200": { description: Report body }
         "404": { description: Not found }
+  /api/sbom:
+    get:
+      summary: CycloneDX 1.5 SBOM for a directory under the server working dir
+      parameters:
+        - name: path
+          in: query
+          required: false
+          schema: { type: string }
+          description: Absolute path; defaults to the server working directory
+      responses:
+        "200":
+          description: CycloneDX document
+          content:
+            application/vnd.cyclonedx+json:
+              schema: { type: object }
+        "400": { description: Path does not exist }
+        "403": { description: Path is outside the allowed root }
+        "401": { description: Missing or invalid bearer token }
+  /api/audit:
+    get:
+      summary: Append-only audit log (admin only)
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, default: 100 }
+      responses:
+        "200":
+          description: Audit entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries: { type: array, items: { type: object } }
+        "403": { description: Admin role required }
 
 components:
   securitySchemes:
