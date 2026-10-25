@@ -347,6 +347,11 @@ async fn start_web_server(addr: &str) -> anyhow::Result<()> {
         .route("/metrics", get(metrics_endpoint))
         .route("/openapi.yaml", get(openapi_spec))
         .route("/static/app.css", get(app_css))
+        // axum's 2 MiB default rejects real .vsix uploads with a dropped
+        // connection (the browser only sees "Failed to fetch").
+        .layer(axum::extract::DefaultBodyLimit::max(
+            env_u32("KALASCAN_MAX_UPLOAD_MB", 256) as usize * 1024 * 1024,
+        ))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             security_headers,
