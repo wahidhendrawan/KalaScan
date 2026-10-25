@@ -5,7 +5,7 @@ use std::path::PathBuf;
 #[command(
     name = "kalascan",
     author = "Wahid Hendrawan",
-    version = "1.7.0",
+    version = "1.8.0",
     about = "🛡️ KalaScan — Local Git Repository & IDE Extension Security and Malware Scanner"
 )]
 pub struct Cli {
@@ -29,7 +29,7 @@ pub enum Commands {
         /// Target URL (Git repo, VS Code / Open VSX / JetBrains marketplace) or local file path (.vsix, .zip, .jar, .crx)
         target: String,
 
-        /// Output format: text, json, md, html, sarif
+        /// Output format: text, json, md, html, sarif, csv, junit, github
         #[arg(short, long, default_value = "text")]
         format: String,
 
@@ -113,4 +113,29 @@ pub enum Commands {
         #[arg(long, default_value = "kalascan-sandbox:latest")]
         sandbox_image: String,
     },
+    /// Manage API users (RBAC tokens for the web server)
+    User {
+        #[command(subcommand)]
+        action: UserAction,
+    },
+    /// List built-in detection rules, or explain one by name
+    Rules {
+        /// Rule name (or unique substring) to explain; omit to list all rules
+        name: Option<String>,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum UserAction {
+    /// Create a user and print its token (shown only once)
+    Add {
+        name: String,
+        /// Role: viewer (read-only), operator (scan), admin (everything)
+        #[arg(long, default_value = "operator")]
+        role: String,
+    },
+    /// List users
+    List,
+    /// Delete a user (its token stops working immediately)
+    Remove { name: String },
 }

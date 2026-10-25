@@ -29,7 +29,7 @@ runs:
       run: |
         set -euo pipefail
         if ! command -v kalascan >/dev/null 2>&1; then
-          cargo install --git https://github.com/wahidhendrawan/KalaScan --tag v1.7.0
+          cargo install --git https://github.com/wahidhendrawan/KalaScan --tag v1.8.0
         fi
       shell: bash
 
