@@ -420,14 +420,12 @@ fn analyze_binary(rel_path: &str, kind: &str, data: &[u8]) -> BinaryArtifact {
             .push("Binary header could not be parsed".to_string()),
     }
 
-    if kind == "Java class" {
-        if data.len() >= 8 {
-            let major = u16::from_be_bytes([data[6], data[7]]);
-            artifact.architecture = Some("JVM".to_string());
-            artifact
-                .indicators
-                .push(format!("Java class major version {}", major));
-        }
+    if kind == "Java class" && data.len() >= 8 {
+        let major = u16::from_be_bytes([data[6], data[7]]);
+        artifact.architecture = Some("JVM".to_string());
+        artifact
+            .indicators
+            .push(format!("Java class major version {}", major));
     }
 
     artifact.packer = detect_packer(&artifact, data);

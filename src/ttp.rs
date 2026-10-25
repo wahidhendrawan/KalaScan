@@ -168,9 +168,7 @@ pub fn build(
         entry.observations += technique.observations;
     }
     report.tactics = tactics.into_values().collect();
-    report
-        .tactics
-        .sort_by(|left, right| tactic_rank(&left.tactic).cmp(&tactic_rank(&right.tactic)));
+    report.tactics.sort_by_key(|left| tactic_rank(&left.tactic));
 
     report.coverage_score = if report.tactics.is_empty() {
         0
