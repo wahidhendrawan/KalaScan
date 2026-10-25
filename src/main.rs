@@ -646,6 +646,7 @@ async fn failed_result(state: &AppState, id: &str, message: String) -> ScanResul
 }
 
 /// Register a pending scan or reject it when the submission budget is spent.
+#[allow(clippy::result_large_err)]
 async fn begin_scan(
     state: &AppState,
     req: &ScanRequest,
@@ -1499,7 +1500,7 @@ async fn git_changed_files(
     // Shallow-clone fallback: diff against the freshly fetched FETCH_HEAD.
     let output = if output.status.success() {
         output
-    } else if fetched.as_ref().map_or(false, |f| f.status.success()) {
+    } else if fetched.as_ref().is_ok_and(|f| f.status.success()) {
         run_diff("FETCH_HEAD...HEAD").await?
     } else {
         output

@@ -235,6 +235,7 @@ fn scan_text(file_path: &str, content: &str, state: &mut ScanState<'_>) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn process_decoded(
     state: &mut ScanState<'_>,
     file_path: &str,
@@ -278,11 +279,10 @@ fn process_decoded(
             None => chain.clone(),
         };
         let indicators = detect_indicators(&text);
-        let confidence = if base_confidence == "high" {
-            "high"
-        } else if indicators
-            .iter()
-            .any(|indicator| is_strong_indicator(indicator))
+        let confidence = if base_confidence == "high"
+            || indicators
+                .iter()
+                .any(|indicator| is_strong_indicator(indicator))
         {
             "high"
         } else if !indicators.is_empty() {
@@ -658,7 +658,7 @@ fn decode_unicode_escapes(input: &str) -> Option<Vec<u8>> {
 fn decode_text(bytes: &[u8]) -> Option<(String, Option<&'static str>)> {
     if is_utf16le(bytes) {
         let mut text = String::new();
-        for chunk in bytes.chunks_exact(2) {
+        for chunk in bytes.as_chunks::<2>().0 {
             let value = u16::from_le_bytes([chunk[0], chunk[1]]);
             if let Some(ch) = char::from_u32(value as u32) {
                 text.push(ch);
@@ -678,11 +678,13 @@ fn decode_text(bytes: &[u8]) -> Option<(String, Option<&'static str>)> {
 }
 
 fn is_utf16le(bytes: &[u8]) -> bool {
-    if bytes.len() < 8 || bytes.len() % 2 != 0 {
+    if bytes.len() < 8 || !bytes.len().is_multiple_of(2) {
         return false;
     }
     let zeros = bytes
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .filter(|chunk| chunk[1] == 0 && chunk[0] != 0)
         .count();
     zeros * 100 / (bytes.len() / 2) >= 30
@@ -699,7 +701,7 @@ fn try_decompress(bytes: &[u8]) -> Option<(&'static str, Vec<u8>)> {
     }
     if bytes.len() >= 2 && bytes[0] & 0x0f == 8 {
         let header = u16::from_be_bytes([bytes[0], bytes[1]]);
-        if header % 31 == 0 {
+        if header.is_multiple_of(31) {
             if let Some(out) = read_decoder(ZlibDecoder::new(bytes)) {
                 return Some(("zlib", out));
             }
@@ -897,7 +899,9 @@ fn is_text_candidate(path: &Path) -> bool {
 }
 
 fn is_hex_string(value: &str) -> bool {
-    value.len() >= 32 && value.len() % 2 == 0 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+    value.len() >= 32
+        && value.len().is_multiple_of(2)
+        && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 fn contains_any(haystack: &str, needles: &[&str]) -> bool {

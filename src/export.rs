@@ -1492,6 +1492,63 @@ fn escape_html(s: &str) -> String {
         .replace('\'', "&#39;")
 }
 
+/// Render a CycloneDX 1.5 JSON SBOM from manifest-derived dependency packages.
+pub fn export_cyclonedx(
+    packages: &[crate::cve::DependencyPackage],
+    root: &std::path::Path,
+) -> String {
+    let mut components: Vec<serde_json::Value> = Vec::with_capacity(packages.len());
+    for p in packages {
+        let purl = match p.ecosystem.as_str() {
+            "npm" => format!("pkg:npm/{}@{}", p.name, p.version),
+            "crates.io" => format!("pkg:cargo/{}@{}", p.name, p.version),
+            "PyPI" => format!("pkg:pypi/{}@{}", p.name, p.version),
+            "Go" => format!("pkg:golang/{}@{}", p.name, p.version),
+            "Maven" => format!("pkg:maven/{}@{}", p.name, p.version),
+            "RubyGems" => format!("pkg:gem/{}@{}", p.name, p.version),
+            other => format!("pkg:generic/{}@{}", p.name, other),
+        };
+        components.push(serde_json::json!({
+            "type": "library",
+            "name": p.name,
+            "version": p.version,
+            "purl": purl,
+            "properties": [
+                { "name": "kalascan:ecosystem", "value": p.ecosystem },
+                { "name": "kalascan:manifest", "value": p.manifest_file },
+            ],
+        }));
+    }
+
+    serde_json::json!({
+        "bomFormat": "CycloneDX",
+        "specVersion": "1.5",
+        "serialNumber": format!("urn:uuid:{}", uuid::Uuid::new_v4()),
+        "version": 1,
+        "metadata": {
+            "timestamp": chrono::Utc::now().to_rfc3339(),
+            "tools": {
+                "components": [
+                    {
+                        "type": "application",
+                        "name": "kalascan",
+                        "version": env!("CARGO_PKG_VERSION"),
+                    }
+                ]
+            },
+            "component": {
+                "type": "application",
+                "name": root
+                    .file_name()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| "root".to_string()),
+            },
+        },
+        "components": components,
+    })
+    .to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1508,7 +1565,7 @@ mod tests {
 
     fn sample_triage() -> TriageReport {
         TriageReport {
-            engine: format!("kalascan-static-triage/{}", env!("CARGO_PKG_VERSION")).into(),
+            engine: format!("kalascan-static-triage/{}", env!("CARGO_PKG_VERSION")),
             deep: true,
             files_scanned: 45,
             file_types: vec![
@@ -1576,7 +1633,7 @@ mod tests {
 
     fn sample_deobfuscation() -> DeobfuscationReport {
         DeobfuscationReport {
-            engine: format!("kalascan-deobfuscation/{}", env!("CARGO_PKG_VERSION")).into(),
+            engine: format!("kalascan-deobfuscation/{}", env!("CARGO_PKG_VERSION")),
             files_scanned: 12,
             artifacts: vec![DeobfuscatedArtifact {
                 file_path: "src/installer.py".into(),
@@ -1605,7 +1662,7 @@ mod tests {
 
     fn sample_emulation() -> EmulationReport {
         EmulationReport {
-            engine: format!("kalascan-emulation/{}", env!("CARGO_PKG_VERSION")).into(),
+            engine: format!("kalascan-emulation/{}", env!("CARGO_PKG_VERSION")),
             files_scanned: 1,
             traces: vec![EmulationTrace {
                 file_path: "dist/evil.exe".into(),
@@ -1634,7 +1691,7 @@ mod tests {
 
     fn sample_sandbox() -> SandboxReport {
         SandboxReport {
-            engine: format!("kalascan-sandbox/{}", env!("CARGO_PKG_VERSION")).into(),
+            engine: format!("kalascan-sandbox/{}", env!("CARGO_PKG_VERSION")),
             available: true,
             image: "kalascan-sandbox:latest".into(),
             files_analyzed: 1,
@@ -1671,7 +1728,7 @@ mod tests {
 
     fn sample_ttp() -> TtpReport {
         TtpReport {
-            engine: format!("kalascan-ttp/{}", env!("CARGO_PKG_VERSION")).into(),
+            engine: format!("kalascan-ttp/{}", env!("CARGO_PKG_VERSION")),
             techniques: vec![TtpTechnique {
                 id: "T1071".into(),
                 name: "Application Layer Protocol".into(),
@@ -2008,61 +2065,4 @@ mod tests {
         assert!(json.contains("pkg:cargo/serde@1.0.0"));
         assert!(json.contains("\"name\":\"my-repo\""));
     }
-}
-
-/// Render a CycloneDX 1.5 JSON SBOM from manifest-derived dependency packages.
-pub fn export_cyclonedx(
-    packages: &[crate::cve::DependencyPackage],
-    root: &std::path::Path,
-) -> String {
-    let mut components: Vec<serde_json::Value> = Vec::with_capacity(packages.len());
-    for p in packages {
-        let purl = match p.ecosystem.as_str() {
-            "npm" => format!("pkg:npm/{}@{}", p.name, p.version),
-            "crates.io" => format!("pkg:cargo/{}@{}", p.name, p.version),
-            "PyPI" => format!("pkg:pypi/{}@{}", p.name, p.version),
-            "Go" => format!("pkg:golang/{}@{}", p.name, p.version),
-            "Maven" => format!("pkg:maven/{}@{}", p.name, p.version),
-            "RubyGems" => format!("pkg:gem/{}@{}", p.name, p.version),
-            other => format!("pkg:generic/{}@{}", p.name, other),
-        };
-        components.push(serde_json::json!({
-            "type": "library",
-            "name": p.name,
-            "version": p.version,
-            "purl": purl,
-            "properties": [
-                { "name": "kalascan:ecosystem", "value": p.ecosystem },
-                { "name": "kalascan:manifest", "value": p.manifest_file },
-            ],
-        }));
-    }
-
-    serde_json::json!({
-        "bomFormat": "CycloneDX",
-        "specVersion": "1.5",
-        "serialNumber": format!("urn:uuid:{}", uuid::Uuid::new_v4()),
-        "version": 1,
-        "metadata": {
-            "timestamp": chrono::Utc::now().to_rfc3339(),
-            "tools": {
-                "components": [
-                    {
-                        "type": "application",
-                        "name": "kalascan",
-                        "version": env!("CARGO_PKG_VERSION"),
-                    }
-                ]
-            },
-            "component": {
-                "type": "application",
-                "name": root
-                    .file_name()
-                    .map(|s| s.to_string_lossy().into_owned())
-                    .unwrap_or_else(|| "root".to_string()),
-            },
-        },
-        "components": components,
-    })
-    .to_string()
 }

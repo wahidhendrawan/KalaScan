@@ -120,7 +120,7 @@ pub fn apply_filters(
     matches
         .into_iter()
         .filter(|m| !ignore.is_ignored(&m.file_path))
-        .filter(|m| baseline.map_or(true, |b| !b.contains(&fingerprint(m))))
+        .filter(|m| baseline.is_none_or(|b| !b.contains(&fingerprint(m))))
         .collect()
 }
 

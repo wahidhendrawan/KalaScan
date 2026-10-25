@@ -1165,7 +1165,7 @@ fn sign_extend(value: u64, size: usize) -> u64 {
 }
 
 fn parity(value: u64) -> bool {
-    (value as u8).count_ones() % 2 == 0
+    (value as u8).count_ones().is_multiple_of(2)
 }
 
 fn add_result(left: u64, right: u64, size: usize) -> (u64, bool, bool) {
