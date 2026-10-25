@@ -18,6 +18,8 @@ RUN mkdir -p src templates && \
 
 COPY src/ src/
 COPY templates/ templates/
+# openapi.yaml is embedded with include_str!, so it must exist before compiling.
+COPY openapi.yaml ./
 
 RUN touch src/main.rs src/scanner.rs src/ai_analyzer.rs && \
     cargo build --release --locked
