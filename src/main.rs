@@ -1517,7 +1517,6 @@ async fn execute_scan_in(
         deobfuscation_report.as_ref(),
         emulation_report.as_ref(),
         sandbox_report.as_ref(),
-        Some(&ttp_report),
     );
 
     let result = ScanResult {
@@ -2073,51 +2072,143 @@ fn calculate_risk_score(
     deobfuscation: Option<&deobfuscate::DeobfuscationReport>,
     emulation: Option<&emulate::EmulationReport>,
     sandbox: Option<&sandbox::SandboxReport>,
-    ttp: Option<&ttp::TtpReport>,
 ) -> u8 {
-    let mut score = 0u16;
+    use std::collections::HashSet;
+
+    // Count each (file, rule) pair once: the same regex firing 40 times in a
+    // minified bundle is one finding, not 40. The old code added every hit at
+    // full weight, so a legitimate extension with a few hundred benign matches
+    // saturated the static cap by itself and every later pass pushed it to 100.
+    let mut seen: HashSet<(&str, &str)> = HashSet::new();
+    let (mut critical, mut high, mut medium, mut cve) = (0u16, 0u16, 0u16, 0u16);
 
     for m in matches {
-        score += match m.severity.as_str() {
-            "critical" => 15,
-            "high" => 10,
-            "medium" => 5,
-            _ => 2,
-        };
+        if !seen.insert((m.file_path.as_str(), m.matched_pattern.as_str())) {
+            continue;
+        }
+        if m.matched_pattern.starts_with("Known Vulnerability:") {
+            cve += 1;
+            continue;
+        }
+        match m.severity.as_str() {
+            "critical" => critical += 1,
+            "high" => high += 1,
+            "medium" => medium += 1,
+            _ => {}
+        }
     }
 
-    if score > 60 {
-        score = 60;
+    // Hard signals dominate (exfil endpoints, encoded commands). Soft ones
+    // (`process.env`, loopback IPs, `exec()` in a Python extension) are
+    // ubiquitous in legitimate code, so they saturate quickly.
+    let static_score = (critical * 35).min(70) + (high * 5).min(15) + medium.min(5);
+
+    // Vulnerable dependencies are a hygiene issue, not malware evidence.
+    let cve_score = cve.min(5);
+
+    // The deep passes overlap heavily. One shared budget keeps them from
+    // stacking five separate ceilings on the same evidence.
+    let dynamic = triage.map_or(0, |r| triage::risk_contribution(r) as u16)
+        + deobfuscation.map_or(0, |r| deobfuscate::risk_contribution(r) as u16)
+        + emulation.map_or(0, |r| emulate::risk_contribution(r) as u16)
+        + sandbox.map_or(0, |r| sandbox::risk_contribution(r) as u16);
+    let dynamic_score = dynamic.min(20);
+
+    // AI corroborates the static result; a benign verdict never raises it.
+    // TTP is derived from the matches above, so it is reported but not scored
+    // twice.
+    let ai_score = ai.as_ref().map_or(0, |a| {
+        if a.is_malicious {
+            (a.risk_score as u16 / 2).min(25)
+        } else {
+            0
+        }
+    });
+
+    (static_score + cve_score + dynamic_score + ai_score).min(100) as u8
+}
+
+#[cfg(test)]
+mod risk_score_tests {
+    use super::*;
+
+    fn hit(file: &str, rule: &str, severity: &str) -> RuleMatch {
+        RuleMatch {
+            file_path: file.to_string(),
+            line_number: 1,
+            matched_pattern: rule.to_string(),
+            severity: severity.to_string(),
+            context: String::new(),
+        }
     }
 
-    if let Some(ai) = ai {
-        let ai_score = ai.risk_score as u16 / 2;
-        score += ai_score;
+    fn benign_ai() -> Option<AiAnalysis> {
+        Some(AiAnalysis {
+            is_malicious: false,
+            risk_score: 15,
+            malware_type: "None".to_string(),
+            threat_summary: String::new(),
+            suspicious_lines: Vec::new(),
+            recommendation: String::new(),
+        })
     }
 
-    if let Some(triage) = triage {
-        score += triage::risk_contribution(triage) as u16;
+    #[test]
+    fn repeated_benign_hits_do_not_reach_high_risk() {
+        // Real case: legitimate Python extension, 310 files, 570 matches and
+        // 14 CVEs, AI says benign — the score was pinned at 100.
+        let mut matches = Vec::new();
+        for file in 0..300 {
+            for rule in ["Environment Variable Dump", "Hardcoded IP Address"] {
+                for line in 0..3 {
+                    let mut m = hit(&format!("out/{}", file), rule, "medium");
+                    m.line_number = line;
+                    matches.push(m);
+                }
+            }
+            matches.push(hit(&format!("out/{}", file), "exec() Usage", "high"));
+        }
+        for id in 0..14 {
+            matches.push(hit(
+                "package.json",
+                &format!("Known Vulnerability: GHSA-{} in lodash@4.17.15", id),
+                "high",
+            ));
+        }
+
+        let score = calculate_risk_score(&matches, &benign_ai(), None, None, None, None);
+        assert!(score < 70, "benign extension scored {}", score);
     }
 
-    if let Some(deobfuscation) = deobfuscation {
-        score += deobfuscate::risk_contribution(deobfuscation) as u16;
+    #[test]
+    fn single_hit_per_rule_per_file() {
+        let many: Vec<_> = (0..50)
+            .map(|_| hit("a.js", "Environment Variable Dump", "medium"))
+            .collect();
+        let one = vec![hit("a.js", "Environment Variable Dump", "medium")];
+        assert_eq!(
+            calculate_risk_score(&many, &None, None, None, None, None),
+            calculate_risk_score(&one, &None, None, None, None, None)
+        );
     }
 
-    if let Some(emulation) = emulation {
-        score += emulate::risk_contribution(emulation) as u16;
+    #[test]
+    fn real_malware_chain_stays_high_risk() {
+        let matches = vec![
+            hit("out/extension.js", "Discord Webhook", "critical"),
+            hit("out/extension.js", "SSH Key Access", "high"),
+            hit("out/extension.js", "exec() Usage", "high"),
+            hit("out/extension.js", "Environment Variable Dump", "medium"),
+        ];
+        let score = calculate_risk_score(&matches, &benign_ai(), None, None, None, None);
+        assert!(score >= 40, "malware chain scored {}", score);
     }
 
-    if let Some(sandbox) = sandbox {
-        score += sandbox::risk_contribution(sandbox) as u16;
-    }
-
-    if let Some(ttp) = ttp {
-        score += ttp::risk_contribution(ttp) as u16;
-    }
-
-    if score > 100 {
-        100
-    } else {
-        score as u8
+    #[test]
+    fn benign_ai_never_raises_score() {
+        let base = vec![hit("a.js", "exec() Usage", "high")];
+        let without = calculate_risk_score(&base, &None, None, None, None, None);
+        let with = calculate_risk_score(&base, &benign_ai(), None, None, None, None);
+        assert_eq!(without, with);
     }
 }
