@@ -7,7 +7,7 @@ use crate::RuleMatch;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-const ENGINE: &str = "kalascan-ttp/1.5.0";
+const ENGINE: &str = "kalascan-ttp/1.6.0";
 
 const TACTIC_ORDER: &[&str] = &[
     "Reconnaissance",

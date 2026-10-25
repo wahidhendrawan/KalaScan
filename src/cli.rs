@@ -5,7 +5,7 @@ use std::path::PathBuf;
 #[command(
     name = "kalascan",
     author = "Wahid Hendrawan",
-    version = "1.5.0",
+    version = "1.6.0",
     about = "🛡️ KalaScan — Local Git Repository & IDE Extension Security and Malware Scanner"
 )]
 pub struct Cli {
@@ -29,7 +29,7 @@ pub enum Commands {
         /// Target URL (Git repo, VS Code / Open VSX / JetBrains marketplace) or local file path (.vsix, .zip, .jar, .crx)
         target: String,
 
-        /// Output format: text, json, md, html
+        /// Output format: text, json, md, html, sarif
         #[arg(short, long, default_value = "text")]
         format: String,
 
@@ -40,6 +40,26 @@ pub enum Commands {
         /// Path to save export report
         #[arg(short, long)]
         output: Option<PathBuf>,
+
+        /// Only report findings absent from the baseline file (requires --baseline)
+        #[arg(long)]
+        new_only: bool,
+
+        /// Baseline JSON file of known findings; also rewritten with current findings when set
+        #[arg(long)]
+        baseline: Option<PathBuf>,
+
+        /// Path-glob ignore file (default: .kalascanignore in the working directory, if present)
+        #[arg(long)]
+        ignore: Option<PathBuf>,
+
+        /// Only scan files changed against --base-ref (fast PR scans)
+        #[arg(long)]
+        changed_only: bool,
+
+        /// Git ref used as the diff base for --changed-only
+        #[arg(long, default_value = "origin/main")]
+        base_ref: String,
 
         /// Enable AI deep analysis
         #[arg(long)]

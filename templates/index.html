@@ -3,334 +3,510 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>KalaScan — Security & Malware Scanner</title>
+    <title>KalaScan — Local-First Security Scanner</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237c3aed'/%3E%3Cstop offset='1' stop-color='%2322d3ee'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23g)' d='M16 2l12 4.5v9.2C28 24 22.8 29 16 31 9.2 29 4 24 4 15.7V6.5L16 2z'/%3E%3Cpath fill='%2307080c' d='M14.2 21.3l-4.6-4.6 2-2 2.6 2.6 6.2-6.2 2 2z'/%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%233fb950' d='M8 0l8 3v5c0 4.5-3.5 8.7-8 10C3.5 16.7 0 12.5 0 8V3l8-3z'/%3E%3Cpath fill='%2358a6ff' d='M6.5 10.5l-3-3 1.4-1.4 1.6 1.6 4.6-4.6 1.4 1.4-6 6z'/%3E%3C/svg%3E">
     <script>
         tailwind.config = {
             darkMode: 'class',
             theme: { extend: {
+                fontFamily: {
+                    sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+                },
                 colors: {
-                    kblue: { 400: '#58a6ff', 500: '#1f6feb' },
-                    kgreen: { 400: '#3fb950', 500: '#2ea043' },
-                    kred: { 400: '#f85149', 500: '#da3633' },
-                    kamber: { 400: '#d2991d' },
-                }
+                    ink: { 950: '#07080c', 900: '#0b0d13', 800: '#12151f', 700: '#1b1f2c' },
+                    brand: { 400: '#a78bfa', 500: '#8b5cf6', 600: '#7c3aed' },
+                    aqua: { 400: '#22d3ee', 500: '#06b6d4' },
+                },
+                keyframes: {
+                    float: { '0%,100%': { transform: 'translate3d(0,0,0)' }, '50%': { transform: 'translate3d(0,-12px,0)' } },
+                    shimmer: { '0%': { backgroundPosition: '0% 50%' }, '100%': { backgroundPosition: '200% 50%' } },
+                    rise: { '0%': { opacity: '0', transform: 'translateY(10px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+                },
+                animation: {
+                    float: 'float 9s ease-in-out infinite',
+                    shimmer: 'shimmer 6s linear infinite',
+                    rise: 'rise .4s cubic-bezier(.22,1,.36,1) both',
+                },
             }}
         };
     </script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
-        .gradient-text { background: linear-gradient(135deg, #58a6ff, #3fb950); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-        .scan-progress { transition: width 0.45s ease; }
-        .sidebar-item { transition: all 0.15s ease; }
-        .sidebar-item .actions { opacity: 0; transition: opacity 0.15s ease; }
-        .sidebar-item:hover .actions { opacity: 1; }
-        .sidebar-item.active { background: rgba(88,166,255,0.08); border-color: rgba(88,166,255,0.2); }
-        #history-list::-webkit-scrollbar { width: 4px; }
-        #history-list::-webkit-scrollbar-thumb { background: #30363d; border-radius: 2px; }
-        #history-list::-webkit-scrollbar-track { background: transparent; }
-        @keyframes countUp { 0% { opacity: 0; transform: scale(0.6); } 100% { opacity: 1; transform: scale(1); } }
-        .count-up { animation: countUp 0.5s ease-out forwards; }
-        .spinner { border: 2px solid rgba(88,166,255,0.2); border-top-color: #58a6ff; border-radius: 50%; width: 20px; height: 20px; animation: spin 0.7s linear infinite; }
+        :root { color-scheme: dark; }
+        html, body { height: 100%; }
+        body { background: #07080c; font-feature-settings: 'cv02','cv03','cv04','cv11'; }
+        ::selection { background: rgba(139,92,246,.35); }
+
+        .bg-grid {
+            position: fixed; inset: 0; z-index: -2; pointer-events: none;
+            background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+            background-size: 56px 56px;
+            mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 35%, transparent 78%);
+        }
+        .bg-glow { position: fixed; z-index: -1; pointer-events: none; filter: blur(90px); opacity: .5; }
+        .glow-a { top: -220px; left: -140px; width: 560px; height: 560px; border-radius: 9999px;
+            background: radial-gradient(circle, rgba(124,58,237,.55), transparent 65%); }
+        .glow-b { top: -260px; right: -160px; width: 620px; height: 620px; border-radius: 9999px;
+            background: radial-gradient(circle, rgba(34,211,238,.35), transparent 65%); }
+
+        .glass { background: linear-gradient(180deg, rgba(18,21,31,.86), rgba(11,13,19,.78));
+            border: 1px solid rgba(255,255,255,.07); backdrop-filter: blur(18px) saturate(130%); }
+        .card { border-radius: 1.25rem; }
+        .card-hover { transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease; }
+        .card-hover:hover { border-color: rgba(167,139,250,.28); box-shadow: 0 24px 60px -32px rgba(124,58,237,.6); }
+
+        .text-gradient { background: linear-gradient(100deg, #f5f3ff 5%, #c4b5fd 42%, #67e8f9 90%);
+            -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+        .ring-gradient { background: linear-gradient(135deg, rgba(139,92,246,.9), rgba(34,211,238,.9));
+            padding: 1px; border-radius: 1.25rem; }
+        .ring-gradient > .inner { border-radius: calc(1.25rem - 1px); background: #0b0d13; }
+
+        .btn-primary {
+            position: relative; overflow: hidden; border-radius: .85rem;
+            background: linear-gradient(120deg, #7c3aed, #6366f1 45%, #06b6d4);
+            background-size: 190% 190%; animation: shimmer 7s linear infinite;
+            box-shadow: 0 18px 40px -22px rgba(99,102,241,.95), inset 0 1px 0 rgba(255,255,255,.18);
+            transition: transform .15s ease, box-shadow .2s ease;
+        }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 22px 46px -20px rgba(34,211,238,.75); }
+        .btn-primary:disabled { opacity: .55; cursor: not-allowed; animation: none; }
+
+        .input { background: rgba(7,8,12,.72); border: 1px solid rgba(255,255,255,.08); border-radius: .8rem;
+            transition: border-color .15s ease, box-shadow .15s ease, background .15s ease; }
+        .input:focus { outline: none; border-color: rgba(139,92,246,.65); box-shadow: 0 0 0 4px rgba(139,92,246,.13); background: rgba(7,8,12,.92); }
+        .input::placeholder { color: rgba(148,163,184,.42); }
+
+        .chip { display: inline-flex; align-items: center; gap: .4rem; border-radius: 9999px;
+            border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.025);
+            padding: .28rem .6rem; font-size: .68rem; color: rgba(203,213,225,.8); white-space: nowrap; }
+        .chip-dot { width: .4rem; height: .4rem; border-radius: 9999px; }
+
+        .toggle { position: relative; width: 2.35rem; height: 1.3rem; border-radius: 9999px;
+            background: rgba(148,163,184,.2); transition: background .2s ease; flex: none; }
+        .toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 1rem; height: 1rem;
+            border-radius: 9999px; background: #fff; transition: transform .2s cubic-bezier(.22,1,.36,1); }
+        input:checked + .toggle { background: linear-gradient(120deg, #7c3aed, #06b6d4); }
+        input:checked + .toggle::after { transform: translateX(1.05rem); }
+
+        .tab { position: relative; padding: .55rem .85rem; border-radius: .65rem; font-size: .8rem;
+            color: rgba(148,163,184,.85); transition: color .15s ease, background .15s ease; white-space: nowrap; }
+        .tab:hover { color: #e2e8f0; background: rgba(255,255,255,.04); }
+        .tab.active { color: #fff; background: rgba(139,92,246,.14); box-shadow: inset 0 0 0 1px rgba(139,92,246,.35); }
+
+        .sidebar-item { border: 1px solid transparent; border-radius: .9rem; transition: all .15s ease; cursor: pointer; }
+        .sidebar-item:hover { background: rgba(255,255,255,.03); border-color: rgba(255,255,255,.07); }
+        .sidebar-item.active { background: rgba(139,92,246,.1); border-color: rgba(139,92,246,.35); }
+        .sidebar-item .actions { opacity: 0; transition: opacity .15s ease; }
+        .sidebar-item:hover .actions, .sidebar-item.active .actions { opacity: 1; }
+
+        .scroll-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+        .scroll-thin::-webkit-scrollbar-thumb { background: rgba(148,163,184,.22); border-radius: 9999px; }
+        .scroll-thin::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,.4); }
+        .scroll-thin::-webkit-scrollbar-track { background: transparent; }
+
+        .spinner { width: 18px; height: 18px; border-radius: 9999px; border: 2px solid rgba(139,92,246,.22);
+            border-top-color: #a78bfa; animation: spin .7s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
+        .progress-stripe { background-image: linear-gradient(90deg, rgba(255,255,255,.0), rgba(255,255,255,.22), rgba(255,255,255,.0));
+            background-size: 200% 100%; animation: shimmer 1.6s linear infinite; }
+
+        details > summary { list-style: none; cursor: pointer; }
+        details > summary::-webkit-details-marker { display: none; }
+        .fade-up { animation: rise .4s cubic-bezier(.22,1,.36,1) both; }
+        .hidden { display: none !important; }
     </style>
 </head>
-<body class="bg-gray-950 text-gray-200 min-h-screen flex flex-col">
+<body class="min-h-screen text-slate-200 font-sans antialiased">
+    <div class="bg-grid"></div>
+    <div class="bg-glow glow-a"></div>
+    <div class="bg-glow glow-b"></div>
+
     <!-- Tera data bridge -->
-    <script id="tera-data" type="application/json">{{ scans | default(value=[]) | json_encode | safe }}</script>
+    <script id="tera-data" type="application/json">{{ scans_json | default(value="[]") | safe }}</script>
 
     <!-- Navbar -->
-    <header class="border-b border-gray-800 bg-gray-900/90 backdrop-blur-sm sticky top-0 z-50">
-        <div class="flex items-center justify-between px-4 py-2 max-w-7xl mx-auto w-full">
+    <header class="sticky top-0 z-40 border-b border-white/[.06] bg-ink-950/70 backdrop-blur-xl">
+        <div class="mx-auto flex w-full max-w-[1500px] items-center justify-between gap-4 px-4 py-3 lg:px-6">
             <div class="flex items-center gap-3">
-                <button id="sidebar-toggle" class="md:hidden text-gray-500 hover:text-white text-lg p-1" onclick="toggleSidebar()" aria-label="Toggle sidebar">&#x2630;</button>
-                <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-green-500 rounded-lg flex items-center justify-center font-bold text-sm text-white shrink-0">K</div>
-                <div>
-                    <h1 class="text-base font-bold gradient-text leading-tight">KalaScan</h1>
-                    <span class="text-[10px] text-gray-500 leading-tight">Security &amp; Malware Scanner</span>
-                </div>
+                <button id="sidebar-toggle" class="rounded-lg p-1.5 text-slate-400 transition hover:bg-white/5 hover:text-white md:hidden" onclick="toggleSidebar()" aria-label="Toggle history">&#x2630;</button>
+                <a href="/" class="flex items-center gap-2.5">
+                    <span class="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-aqua-400 shadow-lg shadow-brand-600/30">
+                        <svg viewBox="0 0 32 32" class="h-5 w-5"><path fill="#07080c" d="M16 2l12 4.5v9.2C28 24 22.8 29 16 31 9.2 29 4 24 4 15.7V6.5L16 2z"/><path fill="#fff" d="M14.2 21.3l-4.6-4.6 2-2 2.6 2.6 6.2-6.2 2 2z"/></svg>
+                    </span>
+                    <span class="leading-tight">
+                        <span class="block text-[15px] font-extrabold tracking-tight text-white">KalaScan</span>
+                        <span class="block text-[10px] font-medium uppercase tracking-[.18em] text-slate-500">Local-first scanner</span>
+                    </span>
+                </a>
             </div>
-            <div class="flex items-center gap-3 text-[10px] text-gray-500">
-                <span class="hidden sm:inline-flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>Rust</span>
-                <span class="hidden sm:inline-flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>LLM</span>
-                <span class="hidden sm:inline-flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Regex</span>
+            <div class="flex items-center gap-2">
+                <span class="chip hidden sm:inline-flex"><span class="chip-dot bg-emerald-400"></span>Rust engine</span>
+                <span class="chip hidden sm:inline-flex"><span class="chip-dot bg-brand-400"></span>YARA + ATT&amp;CK</span>
+                <span class="chip hidden lg:inline-flex"><span class="chip-dot bg-aqua-400"></span>v1.6.0</span>
+                <button onclick="openSettings()" class="rounded-lg border border-white/[.08] bg-white/[.03] p-2 text-slate-400 transition hover:text-white" title="Scan settings">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                </button>
             </div>
         </div>
     </header>
 
-    <!-- Body: sidebar + main -->
-    <div class="flex flex-1 overflow-hidden relative">
-        <!-- Sidebar overlay (mobile) -->
-        <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-30 hidden" onclick="hideSidebar()"></div>
+    <div class="relative mx-auto flex w-full max-w-[1500px] flex-1">
+        <div id="sidebar-overlay" class="fixed inset-0 z-30 hidden bg-black/60 backdrop-blur-sm md:hidden" onclick="hideSidebar()"></div>
 
-        <!-- Sidebar -->
-        <aside id="sidebar" class="w-72 shrink-0 border-r border-gray-800 bg-gray-900/60 flex flex-col md:static fixed inset-y-0 left-0 z-40 -translate-x-full md:translate-x-0 transition-transform duration-200">
-            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-800 shrink-0">
-                <h2 class="text-[10px] font-semibold text-gray-500 uppercase tracking-widest">Scan History</h2>
-                <div class="flex items-center gap-2">
-                    <button onclick="loadHistory()" class="text-gray-600 hover:text-gray-300 transition text-xs p-1" title="Refresh">&#x21bb;</button>
-                    <button class="md:hidden text-gray-600 hover:text-gray-300 text-sm p-1" onclick="hideSidebar()" title="Close">&#x2715;</button>
+        <!-- History sidebar -->
+        <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 flex w-80 -translate-x-full flex-col border-r border-white/[.06] bg-ink-950/95 pt-3 transition-transform duration-200 md:static md:z-0 md:translate-x-0 md:bg-transparent md:pt-4">
+            <div class="flex items-center justify-between px-4 pb-2">
+                <span class="text-[10px] font-semibold uppercase tracking-[.2em] text-slate-500">Scan history</span>
+                <div class="flex items-center gap-1">
+                    <button onclick="loadHistory()" class="rounded-md p-1.5 text-slate-500 transition hover:bg-white/5 hover:text-slate-200" title="Refresh">
+                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    </button>
+                    <button class="rounded-md p-1.5 text-slate-500 transition hover:text-slate-200 md:hidden" onclick="hideSidebar()" title="Close">&#x2715;</button>
                 </div>
             </div>
-            <div id="history-list" class="flex-1 overflow-y-auto p-2 space-y-1">
-                {% if scans and scans | length > 0 %}
-                {% for scan in scans %}
-                <div class="sidebar-item rounded-lg p-2.5 border border-transparent hover:border-gray-700/50 hover:bg-gray-800/40 cursor-pointer" data-id="{{ scan.id }}" onclick="viewResult('{{ scan.id }}')">
-                    <div class="flex items-start justify-between gap-2">
-                        <div class="min-w-0 flex-1">
-                            <p class="text-[10px] text-gray-600 font-mono">{{ scan.timestamp }}</p>
-                            <p class="text-xs text-gray-300 truncate mt-0.5" title="{{ scan.repo_url }}">{{ scan.repo_url }}</p>
-                            <div class="flex items-center gap-2 mt-1">
-                                <span class="text-xs font-bold score-color" data-score="{{ scan.risk_score }}">{{ scan.risk_score }}</span>
-                                <span class="text-[10px] text-gray-600">{{ scan.total_matches }} hit</span>
-                            </div>
-                        </div>
-                        <div class="actions flex gap-0.5 shrink-0 pt-1">
-                            <button onclick="event.stopPropagation();downloadReport('{{ scan.id }}','md')" class="p-1 text-gray-600 hover:text-blue-400 text-xs" title="MD report">MD</button>
-                            <button onclick="event.stopPropagation();downloadReport('{{ scan.id }}','html')" class="p-1 text-gray-600 hover:text-green-400 text-xs" title="HTML report">HTML</button>
-                            <button onclick="event.stopPropagation();deleteScan('{{ scan.id }}')" class="p-1 text-gray-600 hover:text-red-400 text-xs" title="Delete">&#x2715;</button>
-                        </div>
-                    </div>
+            <div class="px-3 pb-2">
+                <div class="relative">
+                    <svg class="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
+                    <input id="history-filter" oninput="renderHistory(scans)" class="input w-full py-1.5 pl-8 pr-2 text-xs" placeholder="Filter scans…" />
                 </div>
-                {% endfor %}
-                {% else %}
-                <div class="text-center py-16 px-4">
-                    <svg class="w-10 h-10 mx-auto mb-3 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01M3 12c0-4.97 4.03-9 9-9s9 4.03 9 9-4.03 9-9 9-9-4.03-9-9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6v2m0 4h.01"/></svg>
-                    <p class="text-xs text-gray-600">No scans yet</p>
-                    <p class="text-[10px] text-gray-700 mt-1">Enter a repo URL to begin</p>
-                </div>
-                {% endif %}
             </div>
+            <div id="history-list" class="scroll-thin flex-1 space-y-1 overflow-y-auto px-2 pb-6"></div>
         </aside>
 
-        <!-- Main content -->
-        <main class="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 max-w-4xl mx-auto w-full">
-            <!-- Scan form -->
-            <div class="bg-gray-900 rounded-xl border border-gray-800 p-6 mb-6">
-                <div class="flex items-center gap-3 mb-5">
-                    <div class="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 text-sm">&#x1F50D;</div>
-                    <div>
-                        <h2 class="text-base font-semibold text-gray-100">New Scan</h2>
-                        <p class="text-[11px] text-gray-500">Analyze a Git repository or VS Code extension for threats, secrets &amp; malware</p>
+        <!-- Main -->
+        <main class="min-w-0 flex-1 px-4 pb-16 pt-6 lg:px-8">
+            <!-- Hero -->
+            <section class="mb-8 flex flex-col gap-5 lg:mb-10 lg:flex-row lg:items-end lg:justify-between">
+                <div class="max-w-2xl">
+                    <div class="mb-4 inline-flex items-center gap-2 rounded-full border border-brand-400/20 bg-brand-500/[.08] px-3 py-1 text-[11px] font-medium text-brand-400">
+                        <span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-400 opacity-60"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand-400"></span></span>
+                        New · SARIF, baselines &amp; async scans
+                    </div>
+                    <h1 class="text-4xl font-extrabold leading-[1.05] tracking-tight text-white sm:text-5xl">
+                        Find malware<br><span class="text-gradient">before it ships.</span>
+                    </h1>
+                    <p class="mt-4 max-w-xl text-sm leading-relaxed text-slate-400">
+                        Scan Git repositories and IDE packages for stealers, ransomware, backdoors, obfuscation, and supply-chain attacks — locally, in seconds.
+                    </p>
+                </div>
+                <div class="grid grid-cols-3 gap-2 text-center lg:min-w-[330px]">
+                    <div class="glass card p-3">
+                        <div class="text-xl font-bold text-white">50+</div>
+                        <div class="mt-0.5 text-[10px] uppercase tracking-wider text-slate-500">Rules</div>
+                    </div>
+                    <div class="glass card p-3">
+                        <div class="text-xl font-bold text-aqua-400">5</div>
+                        <div class="mt-0.5 text-[10px] uppercase tracking-wider text-slate-500">Engines</div>
+                    </div>
+                    <div class="glass card p-3">
+                        <div class="text-xl font-bold text-brand-400">0</div>
+                        <div class="mt-0.5 text-[10px] uppercase tracking-wider text-slate-500">Code exec</div>
                     </div>
                 </div>
-                <form id="scan-form" class="space-y-4">
-                    <div>
-                        <div class="flex items-center justify-between mb-1.5">
-                            <label class="block text-xs font-medium text-gray-500" for="repo-url">Repository or IDE Extension / Plugin</label>
-                            <span class="text-[10px] text-blue-400 font-medium">Supports Git, VS Code, Open VSX, JetBrains &amp; CRX</span>
+            </section>
+
+            <!-- Scan form -->
+            <section class="ring-gradient card mb-6 shadow-2xl shadow-black/40">
+                <div class="inner p-5 sm:p-6">
+                    <div class="mb-4 flex items-center justify-between gap-3">
+                        <div>
+                            <h2 class="text-base font-semibold text-white">New scan</h2>
+                            <p class="mt-0.5 text-xs text-slate-500">Repository, marketplace URL, or a local package.</p>
                         </div>
-                        <input type="text" id="repo-url" name="repo_url"
-                            class="w-full px-4 py-2.5 bg-gray-950 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition text-sm"
-                            placeholder="e.g. https://github.com/user/repo, Open VSX URL, JetBrains plugin, ms-python.python, or upload file below" />
+                        <span class="chip hidden sm:inline-flex"><span class="chip-dot bg-emerald-400"></span>Read-only</span>
                     </div>
-                    <div>
-                        <div class="relative flex items-center justify-center p-3 border-2 border-dashed border-gray-800 hover:border-blue-500/60 rounded-lg bg-gray-950/60 cursor-pointer transition text-center group" id="drop-zone" onclick="document.getElementById('vsix-file').click()">
+
+                    <form id="scan-form" class="space-y-3">
+                        <div class="flex flex-col gap-2 sm:flex-row">
+                            <div class="relative flex-1">
+                                <svg class="pointer-events-none absolute left-3.5 top-3.5 h-4 w-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+                                <input type="text" id="repo-url" name="repo_url"
+                                    class="input w-full py-3 pl-10 pr-4 text-sm text-slate-100"
+                                    placeholder="https://github.com/user/repo · ms-python.python · Open VSX URL" />
+                            </div>
+                            <button type="submit" id="scan-btn" class="btn-primary px-6 py-3 text-sm font-semibold text-white">
+                                <span class="inline-flex items-center gap-2">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
+                                    <span id="scan-btn-label">Scan now</span>
+                                </span>
+                            </button>
+                        </div>
+
+                        <!-- Dropzone -->
+                        <div id="drop-zone" class="group flex cursor-pointer items-center justify-center gap-3 rounded-xl border border-dashed border-white/10 bg-white/[.015] px-4 py-3 text-center transition hover:border-brand-400/50 hover:bg-brand-500/[.04]" onclick="document.getElementById('vsix-file').click()">
                             <input type="file" id="vsix-file" name="file" accept=".vsix,.zip,.jar,.crx" class="hidden" onchange="handleFileSelect(this)" />
-                            <div class="flex items-center gap-2 text-xs text-gray-400 group-hover:text-blue-300">
-                                <span class="text-base">📦</span>
-                                <span id="file-label">Or upload <strong>.vsix</strong> / <strong>.zip</strong> / <strong>.jar</strong> / <strong>.crx</strong> file directly</span>
-                                <button type="button" id="clear-file-btn" class="hidden text-xs text-red-400 hover:text-red-300 ml-2" onclick="event.stopPropagation(); clearFileSelect();">&#x2715; Clear</button>
+                            <svg class="h-5 w-5 text-slate-500 transition group-hover:text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                            <span id="file-label" class="text-xs text-slate-400">Drop or upload <span class="font-mono text-slate-300">.vsix / .zip / .jar / .crx</span></span>
+                            <button type="button" id="clear-file-btn" class="hidden rounded-md px-2 py-0.5 text-[11px] text-rose-400 hover:text-rose-300" onclick="event.stopPropagation(); clearFileSelect();">Clear</button>
+                        </div>
+
+                        <!-- Feature toggles -->
+                        <div class="grid grid-cols-2 gap-2 pt-1 sm:grid-cols-3 lg:grid-cols-6">
+                            <label class="flex items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.02] px-3 py-2">
+                                <input type="checkbox" id="ai-enabled" name="ai_analysis_enabled" checked class="peer sr-only" />
+                                <span class="toggle"></span>
+                                <span class="text-[11px] text-slate-400">AI analysis</span>
+                            </label>
+                            <label class="flex items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.02] px-3 py-2">
+                                <input type="checkbox" id="cve-enabled" name="check_cve" checked class="peer sr-only" />
+                                <span class="toggle"></span>
+                                <span class="text-[11px] text-slate-400">OSV CVEs</span>
+                            </label>
+                            <label class="flex items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.02] px-3 py-2">
+                                <input type="checkbox" id="deep-triage-enabled" name="deep_triage" class="peer sr-only" />
+                                <span class="toggle"></span>
+                                <span class="text-[11px] text-slate-400">Bin triage</span>
+                            </label>
+                            <label class="flex items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.02] px-3 py-2">
+                                <input type="checkbox" id="deobfuscate-enabled" name="deobfuscate" class="peer sr-only" />
+                                <span class="toggle"></span>
+                                <span class="text-[11px] text-slate-400">Deobfuscate</span>
+                            </label>
+                            <label class="flex items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.02] px-3 py-2">
+                                <input type="checkbox" id="emulate-enabled" name="emulate" class="peer sr-only" />
+                                <span class="toggle"></span>
+                                <span class="text-[11px] text-slate-400">Emulate</span>
+                            </label>
+                            <label class="flex items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.02] px-3 py-2">
+                                <input type="checkbox" id="sandbox-enabled" name="sandbox" class="peer sr-only" />
+                                <span class="toggle"></span>
+                                <span class="text-[11px] text-slate-400">Sandbox</span>
+                            </label>
+                        </div>
+
+                        <!-- Advanced / LLM settings -->
+                        <details id="advanced" class="rounded-xl border border-white/[.06] bg-white/[.015] px-4 py-3">
+                            <summary class="flex items-center justify-between text-[11px] font-medium text-slate-400">
+                                <span class="inline-flex items-center gap-2">
+                                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3"/></svg>
+                                    AI provider settings
+                                </span>
+                                <svg class="h-4 w-4 transition details-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </summary>
+                            <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div>
+                                    <label class="mb-1 block text-[10px] uppercase tracking-wider text-slate-500" for="llm-provider">Provider</label>
+                                    <select id="llm-provider" name="llm_provider" onchange="toggleProvider()" class="input w-full px-3 py-2 text-sm text-slate-100">
+                                        <option value="ollama">Ollama (local)</option>
+                                        <option value="openai">OpenAI</option>
+                                        <option value="deepseek">DeepSeek</option>
+                                        <option value="9router">9Router</option>
+                                        <option value="custom">Custom (OpenAI-compatible)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="mb-1 block text-[10px] uppercase tracking-wider text-slate-500" for="llm-model">Model</label>
+                                    <input type="text" id="llm-model" name="llm_model" value="llama3" class="input w-full px-3 py-2 text-sm text-slate-100" />
+                                </div>
+                                <div>
+                                    <label class="mb-1 block text-[10px] uppercase tracking-wider text-slate-500" for="llm-endpoint">Endpoint</label>
+                                    <input type="text" id="llm-endpoint" name="llm_endpoint" placeholder="Auto-detected" class="input w-full px-3 py-2 font-mono text-xs text-slate-100" />
+                                </div>
+                                <div>
+                                    <label class="mb-1 block text-[10px] uppercase tracking-wider text-slate-500" for="llm-key">API key</label>
+                                    <input type="password" id="llm-key" name="llm_api_key" placeholder="sk-… (not needed for Ollama)" class="input w-full px-3 py-2 text-sm text-slate-100" />
+                                </div>
+                            </div>
+                        </details>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Progress -->
+            <section id="progress-card" class="glass card mb-6 hidden overflow-hidden p-5">
+                <div class="flex items-start gap-4">
+                    <div class="mt-0.5 grid h-9 w-9 place-items-center rounded-lg bg-brand-500/10 ring-1 ring-brand-500/20">
+                        <div class="spinner"></div>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center justify-between gap-4">
+                            <p id="progress-text" class="truncate text-sm font-medium text-slate-200">Initializing scan…</p>
+                            <span id="progress-pct" class="font-mono text-xs text-slate-500">0%</span>
+                        </div>
+                        <div class="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-white/[.06]">
+                            <div id="progress-bar" class="progress-stripe h-full w-0 rounded-full bg-gradient-to-r from-brand-500 to-aqua-400 transition-all duration-500"></div>
+                        </div>
+                        <div class="mt-2 flex items-center justify-between text-[10px] uppercase tracking-wider text-slate-600">
+                            <span id="progress-phase">Queued</span>
+                            <span>Never executes untrusted code</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Result -->
+            <section id="result-card" class="hidden space-y-4 animate-rise">
+                <div class="glass card p-5">
+                    <div class="flex flex-wrap items-start justify-between gap-4">
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span id="status-badge" class="chip"></span>
+                                <span id="result-time" class="font-mono text-[10px] text-slate-600"></span>
+                            </div>
+                            <h2 id="result-target" class="mt-1.5 max-w-2xl truncate text-lg font-semibold text-white" title=""></h2>
+                            <p id="result-id" class="mt-0.5 font-mono text-[10px] text-slate-600"></p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="downloadReport(currentResultId,'sarif')" class="rounded-lg border border-white/[.08] bg-white/[.03] px-3 py-1.5 text-[11px] text-slate-400 transition hover:text-white">SARIF</button>
+                            <button onclick="downloadReport(currentResultId,'md')" class="rounded-lg border border-white/[.08] bg-white/[.03] px-3 py-1.5 text-[11px] text-slate-400 transition hover:text-white">Markdown</button>
+                            <button onclick="downloadReport(currentResultId,'html')" class="rounded-lg border border-white/[.08] bg-white/[.03] px-3 py-1.5 text-[11px] text-slate-400 transition hover:text-white">HTML</button>
+                        </div>
+                    </div>
+
+                    <div class="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[170px_1fr]">
+                        <!-- Risk ring -->
+                        <div class="flex flex-col items-center justify-center rounded-2xl border border-white/[.06] bg-ink-950/60 p-4">
+                            <div class="relative h-28 w-28">
+                                <svg class="h-28 w-28 -rotate-90" viewBox="0 0 100 100">
+                                    <circle cx="50" cy="50" r="43" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="8"/>
+                                    <circle id="risk-ring" cx="50" cy="50" r="43" fill="none" stroke-width="8" stroke-linecap="round"
+                                        stroke-dasharray="270" stroke-dashoffset="270" style="transition: stroke-dashoffset .9s cubic-bezier(.22,1,.36,1), stroke .3s"/>
+                                </svg>
+                                <div class="absolute inset-0 flex flex-col items-center justify-center">
+                                    <span id="risk-score" class="text-3xl font-bold text-white">0</span>
+                                    <span class="text-[9px] uppercase tracking-[.15em] text-slate-500">Risk</span>
+                                </div>
+                            </div>
+                            <span id="risk-label" class="mt-2 text-[10px] font-semibold uppercase tracking-[.18em] text-slate-500">—</span>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                            <div class="rounded-2xl border border-white/[.06] bg-ink-950/50 p-4">
+                                <div id="total-matches" class="text-2xl font-bold text-white">0</div>
+                                <div class="mt-1 text-[10px] uppercase tracking-wider text-slate-500">Findings</div>
+                            </div>
+                            <div class="rounded-2xl border border-white/[.06] bg-ink-950/50 p-4">
+                                <div id="files-scanned" class="text-2xl font-bold text-aqua-400">0</div>
+                                <div class="mt-1 text-[10px] uppercase tracking-wider text-slate-500">Files</div>
+                            </div>
+                            <div class="rounded-2xl border border-white/[.06] bg-ink-950/50 p-4">
+                                <div id="critical-count" class="text-2xl font-bold text-rose-400">0</div>
+                                <div class="mt-1 text-[10px] uppercase tracking-wider text-slate-500">Critical</div>
+                            </div>
+                            <div class="rounded-2xl border border-white/[.06] bg-ink-950/50 p-4">
+                                <div id="attack-count" class="text-2xl font-bold text-brand-400">0</div>
+                                <div class="mt-1 text-[10px] uppercase tracking-wider text-slate-500">ATT&amp;CK</div>
                             </div>
                         </div>
                     </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1.5" for="llm-provider">Provider</label>
-                            <select id="llm-provider" name="llm_provider" onchange="toggleProvider()"
-                                class="w-full px-4 py-2.5 bg-gray-950 border border-gray-700 rounded-lg text-gray-100 focus:outline-none focus:border-blue-500 transition text-sm">
-                                <option value="ollama">Ollama (Local)</option>
-                                <option value="openai">OpenAI</option>
-                                <option value="deepseek">DeepSeek</option>
-                                <option value="9router">9Router (Proxy)</option>
-                                <option value="custom">Custom (OpenAI-compat)</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1.5" for="llm-model">Model</label>
-                            <input type="text" id="llm-model" name="llm_model" value="llama3"
-                                class="w-full px-4 py-2.5 bg-gray-950 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500 transition text-sm" />
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1.5" for="llm-endpoint">API Endpoint</label>
-                            <input type="text" id="llm-endpoint" name="llm_endpoint"
-                                class="w-full px-4 py-2.5 bg-gray-950 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500 transition text-sm"
-                                placeholder="Auto-detected" />
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1.5" for="llm-key">API Key</label>
-                            <input type="password" id="llm-key" name="llm_api_key"
-                                class="w-full px-4 py-2.5 bg-gray-950 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500 transition text-sm"
-                                placeholder="sk-... (not needed for Ollama)" />
-                        </div>
-                    </div>
-                    <div class="flex flex-wrap items-center gap-6 pt-1">
-                        <div class="flex items-center gap-3">
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" id="ai-enabled" name="ai_analysis_enabled" checked class="sr-only peer" />
-                                <div class="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-green-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
-                            </label>
-                            <span class="text-xs text-gray-400">AI Deep Analysis</span>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" id="cve-enabled" name="check_cve" checked class="sr-only peer" />
-                                <div class="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
-                            </label>
-                            <span class="text-xs text-gray-400">OSV Dependency CVE Check</span>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" id="deep-triage-enabled" name="deep_triage" class="sr-only peer" />
-                                <div class="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-purple-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
-                            </label>
-                            <span class="text-xs text-gray-400">Deep Binary Triage (capa/FLOSS/DIE)</span>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" id="deobfuscate-enabled" name="deobfuscate" class="sr-only peer" />
-                                <div class="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-orange-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
-                            </label>
-                            <span class="text-xs text-gray-400">Recursive Deobfuscation</span>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" id="emulate-enabled" name="emulate" class="sr-only peer" />
-                                <div class="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-cyan-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
-                            </label>
-                            <span class="text-xs text-gray-400">Safe Static Emulation</span>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" id="sandbox-enabled" name="sandbox" class="sr-only peer" />
-                                <div class="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-red-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
-                            </label>
-                            <span class="text-xs text-gray-400">Docker Sandbox (opt-in)</span>
-                        </div>
-                    </div>
-                    <button type="submit" id="scan-btn"
-                        class="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-green-600 text-white text-sm font-semibold rounded-lg hover:from-blue-500 hover:to-green-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-green-600/10">
-                        &#x25B6; Start Scan
-                    </button>
-                </form>
-            </div>
 
-            <!-- Progress bar -->
-            <div id="progress-card" class="hidden bg-gray-900 rounded-xl border border-gray-800 p-6 mb-6">
-                <div class="flex items-center gap-3 mb-3">
-                    <div class="spinner"></div>
-                    <span id="progress-text" class="text-sm text-gray-300">Initializing scan...</span>
+                    <!-- Tabs -->
+                    <div class="mt-5 flex items-center gap-1 overflow-x-auto border-t border-white/[.06] pt-3">
+                        <button class="tab active" data-tab="overview" onclick="switchTab('overview')">Overview</button>
+                        <button class="tab" data-tab="findings" onclick="switchTab('findings')">Findings</button>
+                        <button class="tab" data-tab="analysis" onclick="switchTab('analysis')">Deep analysis</button>
+                        <button class="tab" data-tab="attack" onclick="switchTab('attack')">ATT&amp;CK</button>
+                    </div>
                 </div>
-                <div class="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
-                    <div id="progress-bar" class="scan-progress h-full rounded-full w-0 bg-gradient-to-r from-blue-500 to-green-500"></div>
-                </div>
-                <div class="flex justify-between text-[10px] text-gray-600 mt-1.5">
-                    <span id="progress-phase">Cloning</span>
-                    <span id="progress-pct">0%</span>
-                </div>
-            </div>
 
-            <!-- Result card -->
-            <div id="result-card" class="hidden bg-gray-900 rounded-xl border border-gray-800 overflow-hidden mb-6">
-                <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-                    <h2 class="text-base font-semibold text-gray-100">Scan Results</h2>
-                    <div id="result-actions" class="hidden items-center gap-2">
-                        <button onclick="downloadReport(currentResultId,'md')" class="px-3 py-1.5 text-[11px] bg-gray-800 border border-gray-700 rounded-md text-gray-400 hover:text-gray-200 hover:border-gray-600 transition">&#x1F4C4; MD</button>
-                        <button onclick="downloadReport(currentResultId,'html')" class="px-3 py-1.5 text-[11px] bg-gray-800 border border-gray-700 rounded-md text-gray-400 hover:text-gray-200 hover:border-gray-600 transition">&#x1F4C4; HTML</button>
+                <!-- Overview tab -->
+                <div id="tab-overview" class="space-y-4">
+                    <div id="ai-section" class="glass card hidden p-5">
+                        <div class="mb-3 flex items-center gap-2">
+                            <span class="grid h-7 w-7 place-items-center rounded-lg bg-brand-500/10 text-brand-400">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3"/></svg>
+                            </span>
+                            <div>
+                                <h3 class="text-sm font-semibold text-white">AI deep analysis</h3>
+                                <p class="text-[10px] text-slate-500">LLM-generated threat assessment</p>
+                            </div>
+                        </div>
+                        <div id="ai-content" class="text-sm text-slate-300"></div>
+                    </div>
+
+                    <div class="glass card p-5">
+                        <div class="mb-3 flex items-center justify-between">
+                            <h3 class="text-sm font-semibold text-white">Top findings</h3>
+                            <button onclick="switchTab('findings')" class="text-[11px] text-brand-400 hover:text-brand-300">View all →</button>
+                        </div>
+                        <div id="top-findings" class="space-y-2"></div>
                     </div>
                 </div>
-                <div class="p-6 space-y-6">
-                    <!-- Stats -->
-                    <div class="grid grid-cols-3 gap-4">
-                        <div class="bg-gray-950 rounded-xl p-5 text-center border border-gray-800">
-                            <div class="text-3xl font-bold count-up" id="risk-score">0</div>
-                            <div class="text-[11px] text-gray-500 mt-1">Risk Score</div>
+
+                <!-- Findings tab -->
+                <div id="tab-findings" class="hidden">
+                    <div class="glass card overflow-hidden">
+                        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-white/[.06] px-5 py-3">
+                            <div class="flex items-center gap-2">
+                                <h3 class="text-sm font-semibold text-white">Findings</h3>
+                                <span id="match-count" class="chip"></span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <input id="finding-filter" oninput="renderMatchesTable()" class="input px-3 py-1.5 text-xs" placeholder="Filter file or rule…" />
+                                <select id="severity-filter" onchange="renderMatchesTable()" class="input px-2 py-1.5 text-xs">
+                                    <option value="">All severities</option>
+                                    <option value="critical">Critical</option>
+                                    <option value="high">High</option>
+                                    <option value="medium">Medium</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="bg-gray-950 rounded-xl p-5 text-center border border-gray-800">
-                            <div class="text-3xl font-bold count-up" id="total-matches">0</div>
-                            <div class="text-[11px] text-gray-500 mt-1">Matches</div>
+                        <div class="scroll-thin overflow-x-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead class="border-b border-white/[.06] text-[10px] uppercase tracking-wider text-slate-500">
+                                    <tr>
+                                        <th class="px-5 py-2.5 font-medium">Severity</th>
+                                        <th class="px-3 py-2.5 font-medium">Rule</th>
+                                        <th class="px-3 py-2.5 font-medium">File</th>
+                                        <th class="px-3 py-2.5 text-right font-medium">Line</th>
+                                        <th class="px-5 py-2.5 font-medium">Context</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="match-body" class="divide-y divide-white/[.04]"></tbody>
+                            </table>
                         </div>
-                        <div class="bg-gray-950 rounded-xl p-5 text-center border border-gray-800">
-                            <div class="text-3xl font-bold count-up" id="files-scanned">0</div>
-                            <div class="text-[11px] text-gray-500 mt-1">Files Scanned</div>
-                        </div>
-                    </div>
-                    <!-- Badge -->
-                    <div id="status-badge" class="text-center"></div>
-                    <!-- AI analysis -->
-                    <div id="ai-section" class="hidden">
-                        <div class="bg-gray-950 rounded-xl border border-gray-800 p-5">
-                            <h3 class="text-sm font-semibold text-blue-400 mb-3">&#x1F9E0; AI Analysis</h3>
-                            <div id="ai-content"></div>
-                        </div>
-                    </div>
-                    <!-- Deep static triage -->
-                    <div id="triage-section" class="hidden">
-                        <div class="bg-gray-950 rounded-xl border border-gray-800 p-5">
-                            <h3 class="text-sm font-semibold text-purple-400 mb-3">&#x1F9EC; Deep Static Triage</h3>
-                            <div id="triage-content"></div>
-                        </div>
-                    </div>
-                    <!-- Deobfuscation -->
-                    <div id="deobfuscation-section" class="hidden">
-                        <div class="bg-gray-950 rounded-xl border border-gray-800 p-5">
-                            <h3 class="text-sm font-semibold text-orange-400 mb-3">&#x1F9EA; Recursive Deobfuscation</h3>
-                            <div id="deobfuscation-content"></div>
-                        </div>
-                    </div>
-                    <!-- Safe static emulation -->
-                    <div id="emulation-section" class="hidden">
-                        <div class="bg-gray-950 rounded-xl border border-gray-800 p-5">
-                            <h3 class="text-sm font-semibold text-cyan-400 mb-3">&#x1F5A5; Safe Static Emulation</h3>
-                            <div id="emulation-content"></div>
-                        </div>
-                    </div>
-                    <!-- Docker sandbox -->
-                    <div id="sandbox-section" class="hidden">
-                        <div class="bg-gray-950 rounded-xl border border-gray-800 p-5">
-                            <h3 class="text-sm font-semibold text-red-400 mb-3">&#x1F433; Docker Sandbox</h3>
-                            <div id="sandbox-content"></div>
-                        </div>
-                    </div>
-                    <!-- TTP coverage -->
-                    <div id="ttp-section" class="hidden">
-                        <div class="bg-gray-950 rounded-xl border border-gray-800 p-5">
-                            <h3 class="text-sm font-semibold text-purple-400 mb-3">&#x1F3AF; TTP / ATT&amp;CK Coverage</h3>
-                            <div id="ttp-content"></div>
-                        </div>
-                    </div>
-                    <!-- Match table -->
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-xs text-left">
-                            <thead class="border-b border-gray-800 text-gray-500 uppercase text-[10px]">
-                                <tr>
-                                    <th class="py-2.5 px-3 font-medium">File</th>
-                                    <th class="py-2.5 px-3 font-medium">Line</th>
-                                    <th class="py-2.5 px-3 font-medium">Pattern</th>
-                                    <th class="py-2.5 px-3 font-medium">Severity</th>
-                                </tr>
-                            </thead>
-                            <tbody id="match-body" class="divide-y divide-gray-800/50"></tbody>
-                        </table>
                     </div>
                 </div>
-            </div>
+
+                <!-- Analysis tab -->
+                <div id="tab-analysis" class="space-y-4">
+                    <div id="triage-section" class="glass card hidden p-5">
+                        <h3 class="mb-3 text-sm font-semibold text-white">Deep static triage</h3>
+                        <div id="triage-content"></div>
+                    </div>
+                    <div id="deobfuscation-section" class="glass card hidden p-5">
+                        <h3 class="mb-3 text-sm font-semibold text-white">Recursive deobfuscation</h3>
+                        <div id="deobfuscation-content"></div>
+                    </div>
+                    <div id="emulation-section" class="glass card hidden p-5">
+                        <h3 class="mb-3 text-sm font-semibold text-white">Safe static emulation</h3>
+                        <div id="emulation-content"></div>
+                    </div>
+                    <div id="sandbox-section" class="glass card hidden p-5">
+                        <h3 class="mb-3 text-sm font-semibold text-white">Docker sandbox</h3>
+                        <div id="sandbox-content"></div>
+                    </div>
+                    <div id="no-analysis" class="glass card p-8 text-center text-xs text-slate-500">No deep-analysis modules were enabled for this scan.</div>
+                </div>
+
+                <!-- ATT&CK tab -->
+                <div id="tab-attack" class="hidden space-y-4">
+                    <div id="ttp-section" class="glass card hidden p-5">
+                        <h3 class="mb-3 text-sm font-semibold text-white">TTP / ATT&amp;CK coverage</h3>
+                        <div id="ttp-content"></div>
+                    </div>
+                    <div id="no-attack" class="glass card p-8 text-center text-xs text-slate-500">No ATT&amp;CK techniques observed.</div>
+                </div>
+            </section>
+
+            <footer class="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-white/[.06] pt-5 text-[10px] text-slate-600">
+                <span>KalaScan v1.6.0 · Rust + Axum</span>
+                <span class="inline-flex items-center gap-1.5"><span class="h-1.5 w-1.5 rounded-full bg-rose-500/70"></span>Never execute untrusted code</span>
+            </footer>
         </main>
     </div>
 
-    <!-- Footer -->
-    <footer class="border-t border-gray-800 bg-gray-900/30 py-3 text-center text-[10px] text-gray-600">
-        KalaScan v1.5.0 &middot; Rust + Axum &middot; <span class="text-red-500/60">&#x26A0;</span> Never execute untrusted code
-    </footer>
-
     <script>
-        /* ── Data ── */
         const API = '';
         let currentResultId = null;
         let scans = [];
+        let currentResult = null;
+        let historyTimer = null;
 
         try {
             const td = document.getElementById('tera-data');
@@ -340,9 +516,7 @@
         /* ── Sidebar ── */
         function toggleSidebar() {
             const sb = document.getElementById('sidebar');
-            const ov = document.getElementById('sidebar-overlay');
-            const isOpen = !sb.classList.contains('-translate-x-full');
-            if (isOpen) { hideSidebar(); } else { showSidebar(); }
+            (sb.classList.contains('-translate-x-full')) ? showSidebar() : hideSidebar();
         }
         function showSidebar() {
             document.getElementById('sidebar').classList.remove('-translate-x-full');
@@ -353,7 +527,16 @@
             document.getElementById('sidebar-overlay').classList.add('hidden');
         }
 
-        /* ── Settings persistence ── */
+        /* ── Settings ── */
+        const SETTING_IDS = ['llm-provider','llm-model','llm-endpoint','llm-key','ai-enabled','cve-enabled','deep-triage-enabled','deobfuscate-enabled','emulate-enabled','sandbox-enabled'];
+
+        function openSettings() {
+            const d = document.getElementById('advanced');
+            d.open = true;
+            d.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            document.getElementById('llm-provider').focus();
+        }
+
         function toggleProvider() {
             const p = document.getElementById('llm-provider').value;
             const ep = document.getElementById('llm-endpoint');
@@ -361,13 +544,13 @@
             const model = document.getElementById('llm-model');
             const presets = {
                 '9router':  { ep: 'http://localhost:20128/v1/chat/completions', model: 'deepseek', key: '' },
-                'ollama':   { ep: 'http://localhost:11434/api/generate',         model: 'llama3',   key: '' },
-                'openai':   { ep: 'https://api.openai.com/v1/chat/completions',  model: 'gpt-4o' },
-                'deepseek': { ep: 'https://api.deepseek.com/v1/chat/completions',model: 'deepseek-chat' },
+                'ollama':   { ep: 'http://localhost:11434/api/generate',        model: 'llama3',   key: '' },
+                'openai':   { ep: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o' },
+                'deepseek': { ep: 'https://api.deepseek.com/v1/chat/completions', model: 'deepseek-chat' },
                 'custom':   { ep: '', model: '' },
             };
             const cfg = presets[p] || {};
-            if (cfg.ep !== undefined) { ep.value = cfg.ep; ep.placeholder = cfg.ep || 'http://localhost:20128/v1/chat/completions'; }
+            if (cfg.ep !== undefined) { ep.value = cfg.ep; ep.placeholder = cfg.ep || 'https://…'; }
             if (cfg.model !== undefined) model.value = cfg.model;
             if (cfg.key !== undefined) key.value = cfg.key;
             saveSettings();
@@ -380,6 +563,7 @@
                 llm_endpoint: document.getElementById('llm-endpoint').value,
                 llm_api_key: document.getElementById('llm-key').value,
                 ai_analysis_enabled: document.getElementById('ai-enabled').checked,
+                cve_enabled: document.getElementById('cve-enabled').checked,
                 deep_triage_enabled: document.getElementById('deep-triage-enabled').checked,
                 deobfuscate_enabled: document.getElementById('deobfuscate-enabled').checked,
                 emulate_enabled: document.getElementById('emulate-enabled').checked,
@@ -397,6 +581,7 @@
                 if (s.llm_model) document.getElementById('llm-model').value = s.llm_model;
                 if (s.llm_api_key) document.getElementById('llm-key').value = s.llm_api_key;
                 if (s.ai_analysis_enabled !== undefined) document.getElementById('ai-enabled').checked = s.ai_analysis_enabled;
+                if (s.cve_enabled !== undefined) document.getElementById('cve-enabled').checked = s.cve_enabled;
                 if (s.deep_triage_enabled !== undefined) document.getElementById('deep-triage-enabled').checked = s.deep_triage_enabled;
                 if (s.deobfuscate_enabled !== undefined) document.getElementById('deobfuscate-enabled').checked = s.deobfuscate_enabled;
                 if (s.emulate_enabled !== undefined) document.getElementById('emulate-enabled').checked = s.emulate_enabled;
@@ -404,50 +589,60 @@
             } catch(_) {}
         }
 
-        ['llm-provider','llm-model','llm-endpoint','llm-key','ai-enabled','deep-triage-enabled','deobfuscate-enabled','emulate-enabled','sandbox-enabled'].forEach(id => {
+        SETTING_IDS.forEach(id => {
             const el = document.getElementById(id);
-            if (el) el.addEventListener('change', saveSettings);
-            if (el && el.type !== 'checkbox') el.addEventListener('input', saveSettings);
+            if (!el) return;
+            el.addEventListener('change', saveSettings);
+            if (el.type !== 'checkbox') el.addEventListener('input', saveSettings);
         });
         loadSettings();
 
         /* ── History ── */
+        function scoreClass(score) {
+            return score >= 70 ? 'text-rose-400' : score >= 30 ? 'text-amber-400' : score > 0 ? 'text-aqua-400' : 'text-emerald-400';
+        }
+
         function renderHistory(scansArray) {
             const container = document.getElementById('history-list');
-            if (!scansArray || scansArray.length === 0) {
-                container.innerHTML = `<div class="text-center py-16 px-4">
-                    <svg class="w-10 h-10 mx-auto mb-3 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01M3 12c0-4.97 4.03-9 9-9s9 4.03 9 9-4.03 9-9 9-9-4.03-9-9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6v2m0 4h.01"/></svg>
-                    <p class="text-xs text-gray-600">No scans yet</p>
-                    <p class="text-[10px] text-gray-700 mt-1">Enter a repo URL to begin</p>
+            const q = (document.getElementById('history-filter').value || '').toLowerCase();
+            const list = (scansArray || []).filter(s => !q || (s.repo_url || '').toLowerCase().includes(q));
+            if (!list.length) {
+                container.innerHTML = `<div class="px-4 py-14 text-center">
+                    <div class="mx-auto mb-3 grid h-10 w-10 place-items-center rounded-xl border border-white/[.06] bg-white/[.02] text-slate-600">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    </div>
+                    <p class="text-xs text-slate-500">${q ? 'No matching scans' : 'No scans yet'}</p>
+                    <p class="mt-1 text-[10px] text-slate-600">${q ? 'Try a different filter' : 'Your scan history will appear here'}</p>
                 </div>`;
                 return;
             }
-            container.innerHTML = scansArray.map(s => {
-                const scoreClass = s.risk_score >= 70 ? 'text-red-400' : s.risk_score >= 30 ? 'text-amber-400' : 'text-green-400';
+            container.innerHTML = list.map(s => {
                 const ts = (s.timestamp || '').replace('T',' ').substring(0,19);
-                return `<div class="sidebar-item rounded-lg p-2.5 border border-transparent hover:border-gray-700/50 hover:bg-gray-800/40 cursor-pointer ${s.id === currentResultId ? 'active' : ''}" data-id="${s.id}" onclick="viewResult('${s.id}')">
+                const running = s.status === 'running';
+                return `<div class="sidebar-item ${s.id === currentResultId ? 'active' : ''} px-3 py-2.5" data-id="${s.id}" onclick="viewResult('${s.id}')">
                     <div class="flex items-start justify-between gap-2">
                         <div class="min-w-0 flex-1">
-                            <p class="text-[10px] text-gray-600 font-mono">${ts}</p>
-                            <p class="text-xs text-gray-300 truncate mt-0.5" title="${s.repo_url}">${escHtml(s.repo_url)}</p>
-                            <div class="flex items-center gap-2 mt-1">
-                                <span class="text-xs font-bold ${scoreClass}">${s.risk_score}</span>
-                                <span class="text-[10px] text-gray-600">${s.total_matches} hit</span>
+                            <p class="font-mono text-[9px] text-slate-600">${ts}</p>
+                            <p class="mt-0.5 truncate text-xs text-slate-300" title="${escAttr(s.repo_url)}">${escHtml(s.repo_url)}</p>
+                            <div class="mt-1 flex items-center gap-2">
+                                <span class="text-[11px] font-bold ${scoreClass(s.risk_score)}">${s.risk_score}</span>
+                                <span class="text-[9px] text-slate-600">${s.total_matches} hit</span>
+                                ${running ? '<span class="text-[9px] text-brand-400">running…</span>' : ''}
                             </div>
                         </div>
-                        <div class="actions flex gap-0.5 shrink-0 pt-1">
-                            <button onclick="event.stopPropagation();downloadReport('${s.id}','md')" class="p-1 text-gray-600 hover:text-blue-400 text-xs" title="MD">MD</button>
-                            <button onclick="event.stopPropagation();downloadReport('${s.id}','html')" class="p-1 text-gray-600 hover:text-green-400 text-xs" title="HTML">HTML</button>
-                            <button onclick="event.stopPropagation();deleteScan('${s.id}')" class="p-1 text-gray-600 hover:text-red-400 text-xs" title="Delete">&#x2715;</button>
+                        <div class="actions flex shrink-0 gap-0.5 pt-0.5">
+                            <button onclick="event.stopPropagation();downloadReport('${s.id}','sarif')" class="rounded p-1 text-[9px] text-slate-500 hover:text-brand-400" title="SARIF">SARIF</button>
+                            <button onclick="event.stopPropagation();deleteScan('${s.id}')" class="rounded p-1 text-slate-500 hover:text-rose-400" title="Delete">&#x2715;</button>
                         </div>
                     </div>
                 </div>`;
             }).join('');
         }
 
-        function escHtml(s) { return String(s).replace(/[&<>'"]/g, function(c) {
+        function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>'"]/g, function(c) {
             return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]; });
         }
+        function escAttr(s) { return String(s == null ? '' : s).replace(/"/g,'&quot;').replace(/&/g,'&amp;'); }
 
         async function loadHistory() {
             try {
@@ -460,34 +655,35 @@
         function handleFileSelect(input) {
             if (input.files && input.files[0]) {
                 const file = input.files[0];
-                document.getElementById('file-label').innerHTML = `Selected: <strong>${file.name}</strong> (${(file.size / 1024).toFixed(1)} KB)`;
+                document.getElementById('file-label').innerHTML = `Selected <strong class="text-slate-200">${escHtml(file.name)}</strong> · ${(file.size / 1024).toFixed(1)} KB`;
                 document.getElementById('clear-file-btn').classList.remove('hidden');
                 document.getElementById('repo-url').required = false;
-                document.getElementById('repo-url').placeholder = "Scanning uploaded file: " + file.name;
             }
         }
 
         function clearFileSelect() {
             const input = document.getElementById('vsix-file');
             input.value = "";
-            document.getElementById('file-label').innerHTML = "Or upload <strong>.vsix</strong> / <strong>.zip</strong> extension file directly";
+            document.getElementById('file-label').innerHTML = 'Drop or upload <span class="font-mono text-slate-300">.vsix / .zip / .jar / .crx</span>';
             document.getElementById('clear-file-btn').classList.add('hidden');
-            document.getElementById('repo-url').placeholder = "e.g. https://github.com/user/repo, marketplace URL, publisher.extension, or leave empty if uploading file below";
         }
 
-        /* ── Scan form ── */
+        /* ── Tabs ── */
+        function switchTab(name) {
+            ['overview','findings','analysis','attack'].forEach(t => {
+                document.getElementById('tab-' + t).classList.toggle('hidden', t !== name);
+                document.querySelector(`.tab[data-tab="${t}"]`).classList.toggle('active', t === name);
+            });
+        }
+
+        /* ── Scan submit (async + polling) ── */
         document.getElementById('scan-form').addEventListener('submit', async function(e) {
             e.preventDefault();
             const fileInput = document.getElementById('vsix-file');
             const hasFile = fileInput.files && fileInput.files.length > 0;
             const repoUrl = document.getElementById('repo-url').value.trim();
+            if (!hasFile && !repoUrl) { alert('Enter a repository/extension target or upload a package.'); return; }
 
-            if (!hasFile && !repoUrl) {
-                alert("Please enter a Repository/Marketplace URL or upload a .vsix extension file.");
-                return;
-            }
-
-            // Show progress
             document.getElementById('result-card').classList.add('hidden');
             const pc = document.getElementById('progress-card');
             pc.classList.remove('hidden');
@@ -495,48 +691,52 @@
             const pt = document.getElementById('progress-text');
             const pp = document.getElementById('progress-pct');
             const ph = document.getElementById('progress-phase');
-            pb.style.width = '0%'; pp.textContent = '0%';
-            pt.textContent = hasFile ? 'Uploading & unpacking extension...' : 'Fetching source files...'; 
-            ph.textContent = hasFile ? 'Unpacking' : 'Fetching';
-            const btn = document.getElementById('scan-btn');
-            btn.disabled = true; btn.innerHTML = '&#x23F3; Scanning...';
+            pb.style.width = '6%'; pp.textContent = '6%';
+            pt.textContent = 'Submitting scan…'; ph.textContent = 'Queued';
 
-            let progress = 8;
-            const pi = setInterval(() => {
-                if (progress < 85) {
-                    progress += Math.random() * 9 + 1;
-                    if (progress > 85) progress = 85;
-                    pb.style.width = progress + '%';
-                    pp.textContent = Math.round(progress) + '%';
-                    if (progress > 50) { pt.textContent = 'Scanning files with Regex & VS Code rules...'; ph.textContent = 'Scanning'; }
-                    if (progress > 80) { pt.textContent = 'Running AI deep analysis...'; ph.textContent = 'AI Analysis'; }
+            const btn = document.getElementById('scan-btn');
+            const btnLabel = document.getElementById('scan-btn-label');
+            btn.disabled = true; btnLabel.textContent = 'Scanning…';
+
+            let progress = 6;
+            const tick = setInterval(() => {
+                if (progress < 88) {
+                    progress = Math.min(88, progress + Math.random() * 7 + 1);
+                    pb.style.width = progress + '%'; pp.textContent = Math.round(progress) + '%';
+                    if (progress > 30) { pt.textContent = 'Fetching and scanning source files…'; ph.textContent = 'Scanning'; }
+                    if (progress > 62) { pt.textContent = 'Running deep analysis modules…'; ph.textContent = 'Analysis'; }
                 }
-            }, 1000);
+            }, 800);
+
+            function finish() {
+                clearInterval(tick);
+                pb.style.width = '100%'; pp.textContent = '100%';
+                pt.textContent = 'Scan complete'; ph.textContent = 'Done';
+                btn.disabled = false; btnLabel.textContent = 'Scan now';
+            }
+            function fail(msg) {
+                clearInterval(tick);
+                pc.classList.add('hidden');
+                btn.disabled = false; btnLabel.textContent = 'Scan now';
+                alert('Scan error: ' + msg);
+            }
 
             try {
                 let resp;
                 if (hasFile) {
-                    const uploadFd = new FormData();
-                    uploadFd.append('file', fileInput.files[0]);
-                    uploadFd.append('llm_provider', document.getElementById('llm-provider').value);
-                    uploadFd.append('llm_model', document.getElementById('llm-model').value);
-                    if (document.getElementById('llm-key').value) {
-                        uploadFd.append('llm_api_key', document.getElementById('llm-key').value);
-                    }
-                    if (document.getElementById('llm-endpoint').value) {
-                        uploadFd.append('llm_endpoint', document.getElementById('llm-endpoint').value);
-                    }
-                    uploadFd.append('ai_analysis_enabled', document.getElementById('ai-enabled').checked ? 'true' : 'false');
-                    uploadFd.append('check_cve', document.getElementById('cve-enabled').checked ? 'true' : 'false');
-                    uploadFd.append('deep_triage', document.getElementById('deep-triage-enabled').checked ? 'true' : 'false');
-                    uploadFd.append('deobfuscate', document.getElementById('deobfuscate-enabled').checked ? 'true' : 'false');
-                    uploadFd.append('emulate', document.getElementById('emulate-enabled').checked ? 'true' : 'false');
-                    uploadFd.append('sandbox', document.getElementById('sandbox-enabled').checked ? 'true' : 'false');
-
-                    resp = await fetch(API + '/api/scan/upload', {
-                        method: 'POST',
-                        body: uploadFd,
-                    });
+                    const fd = new FormData();
+                    fd.append('file', fileInput.files[0]);
+                    fd.append('llm_provider', document.getElementById('llm-provider').value);
+                    fd.append('llm_model', document.getElementById('llm-model').value);
+                    if (document.getElementById('llm-key').value) fd.append('llm_api_key', document.getElementById('llm-key').value);
+                    if (document.getElementById('llm-endpoint').value) fd.append('llm_endpoint', document.getElementById('llm-endpoint').value);
+                    fd.append('ai_analysis_enabled', document.getElementById('ai-enabled').checked ? 'true' : 'false');
+                    fd.append('check_cve', document.getElementById('cve-enabled').checked ? 'true' : 'false');
+                    fd.append('deep_triage', document.getElementById('deep-triage-enabled').checked ? 'true' : 'false');
+                    fd.append('deobfuscate', document.getElementById('deobfuscate-enabled').checked ? 'true' : 'false');
+                    fd.append('emulate', document.getElementById('emulate-enabled').checked ? 'true' : 'false');
+                    fd.append('sandbox', document.getElementById('sandbox-enabled').checked ? 'true' : 'false');
+                    resp = await fetch(API + '/api/scan/upload', { method: 'POST', body: fd });
                 } else {
                     const data = {
                         repo_url: repoUrl,
@@ -551,28 +751,45 @@
                         emulate: document.getElementById('emulate-enabled').checked,
                         sandbox: document.getElementById('sandbox-enabled').checked,
                     };
-                    resp = await fetch(API + '/scan', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data),
-                    });
+                    resp = await fetch(API + '/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
                 }
-
-                clearInterval(pi);
                 const json = await resp.json();
                 if (!resp.ok || !json.success) throw new Error(json.error || 'Scan failed');
-                pb.style.width = '100%'; pp.textContent = '100%';
-                pt.textContent = 'Scan complete!'; ph.textContent = 'Done';
-                btn.innerHTML = '&#x1F504; Scan Again'; btn.disabled = false;
-                await loadResult(json.result_id);
-                await loadHistory();
-            } catch (err) {
-                clearInterval(pi);
-                pc.classList.add('hidden');
-                btn.innerHTML = '&#x25B6; Start Scan'; btn.disabled = false;
-                alert('Scan error: ' + err.message);
-            }
+
+                // Poll until the background job completes.
+                const id = json.result_id;
+                currentResultId = id;
+                await pollScan(id, { onDone: async () => { finish(); await loadResult(id); await loadHistory(); }, onFail: fail, onProgress: (p) => {
+                    if (p > progress) { progress = p; pb.style.width = p + '%'; pp.textContent = Math.round(p) + '%'; }
+                }});
+            } catch (err) { fail(err.message); }
         });
+
+        async function pollScan(id, cb) {
+            const start = Date.now();
+            while (Date.now() - start < 30 * 60 * 1000) {
+                try {
+                    const r = await fetch(API + '/api/scan/' + encodeURIComponent(id) + '/status');
+                    const j = await r.json();
+                    if (!j.success) { cb.onFail(j.error || 'Scan not found'); return; }
+                    if (j.done) {
+                        if ((j.status || '').startsWith('failed')) { cb.onFail(j.status); return; }
+                        cb.onDone(); return;
+                    }
+                } catch(_) {}
+                cb.onProgress(88);
+                await new Promise(res => setTimeout(res, 1500));
+            }
+            cb.onFail('Timed out waiting for scan');
+        }
+
+        /* ── Render helpers ── */
+        function card(label, value, color) {
+            return `<div class="rounded-xl border border-white/[.06] bg-ink-950/60 p-3 text-center"><div class="text-xl font-bold ${color}">${value}</div><div class="mt-0.5 text-[10px] uppercase tracking-wider text-slate-500">${label}</div></div>`;
+        }
+        function attackChip(x) {
+            return `<span class="chip border-brand-500/25 bg-brand-500/10 text-[10px] text-brand-300" title="${escAttr(x.tactic)}"><strong>${escHtml(x.id)}</strong> ${escHtml(x.name)}</span>`;
+        }
 
         function renderTriage(t) {
             const fileTypes = t.file_types || [];
@@ -581,30 +798,17 @@
             const caps = t.capabilities || [];
             const tools = t.tools || [];
             const notes = t.notes || [];
-            const card = (label, value, color) => `<div class="bg-gray-900 rounded-lg p-3 border border-gray-800"><div class="text-xl font-bold ${color}">${value}</div><div class="text-[10px] text-gray-500 mt-0.5">${label}</div></div>`;
-            let html = `<div class="grid grid-cols-2 sm:grid-cols-5 gap-2">${card('Files', t.files_scanned || 0, 'text-gray-100')}${card('Binaries', bins.length, 'text-blue-400')}${card('Capabilities', caps.length, 'text-orange-400')}${card('ATT&CK', techs.length, 'text-purple-400')}${card('Deep tools', t.deep ? 'on' : 'off', t.deep ? 'text-green-400' : 'text-gray-500')}</div>`;
-            if (fileTypes.length) {
-                html += `<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">File types</div><div class="flex flex-wrap gap-1">${fileTypes.map(k => `<span class="bg-gray-900 border border-gray-800 rounded px-2 py-1 text-[10px] text-gray-300">${escHtml(k.kind)} <strong class="text-blue-400">${k.count}</strong></span>`).join('')}</div></div>`;
-            }
-            if (techs.length) {
-                html += `<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">MITRE ATT&CK</div><div class="flex flex-wrap gap-1">${techs.map(x => `<span class="bg-purple-500/10 border border-purple-500/30 text-purple-300 rounded px-2 py-1 text-[10px]" title="${escHtml(x.tactic)}"><strong>${escHtml(x.id)}</strong> ${escHtml(x.name)}</span>`).join('')}</div></div>`;
-            }
-            if (bins.length) {
-                html += `<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">Binaries</div><div class="overflow-x-auto"><table class="w-full text-left text-[10px]"><thead class="text-gray-500 uppercase"><tr><th class="py-1.5 pr-2">File</th><th class="py-1.5 pr-2">Type</th><th class="py-1.5 pr-2">Arch</th><th class="py-1.5 pr-2 text-right">Entropy</th><th class="py-1.5 pr-2">SHA-256</th><th class="py-1.5">Packer / indicators</th></tr></thead><tbody class="divide-y divide-gray-800/60">${bins.map(b => {
-                    const packer = b.packer ? `<span class="text-amber-400">${escHtml(b.packer.name)}</span> <span class="text-gray-500">(${escHtml(b.packer.confidence)})</span>` : '<span class="text-gray-600">-</span>';
-                    const ind = (b.indicators || []).length ? `<div class="text-gray-500 mt-0.5">${escHtml((b.indicators || []).join('; '))}</div>` : '';
-                    return `<tr class="align-top"><td class="py-1.5 pr-2 font-mono text-blue-400">${escHtml(b.path)}</td><td class="py-1.5 pr-2">${escHtml(b.file_type)}</td><td class="py-1.5 pr-2">${escHtml(b.architecture || 'unknown')}${b.bits ? ' / ' + b.bits + '-bit' : ''}</td><td class="py-1.5 pr-2 text-right">${Number(b.entropy || 0).toFixed(2)}</td><td class="py-1.5 pr-2 font-mono text-gray-500 break-all">${escHtml(b.sha256)}</td><td class="py-1.5">${packer}${ind}</td></tr>`;
-                }).join('')}</tbody></table></div></div>`;
-            }
-            if (caps.length) {
-                html += `<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">Capabilities</div><div class="overflow-x-auto"><table class="w-full text-left text-[10px]"><thead class="text-gray-500 uppercase"><tr><th class="py-1.5 pr-2">Severity</th><th class="py-1.5 pr-2">Source</th><th class="py-1.5 pr-2">Capability</th><th class="py-1.5 pr-2">File</th><th class="py-1.5">ATT&CK</th></tr></thead><tbody class="divide-y divide-gray-800/60">${caps.map(c => `<tr class="align-top"><td class="py-1.5 pr-2 uppercase ${c.severity === 'critical' ? 'text-red-400' : c.severity === 'high' ? 'text-amber-400' : 'text-gray-400'}">${escHtml(c.severity)}</td><td class="py-1.5 pr-2 text-gray-500">${escHtml(c.source)}</td><td class="py-1.5 pr-2">${escHtml(c.name)}</td><td class="py-1.5 pr-2 font-mono text-blue-400">${escHtml(c.file_path)}</td><td class="py-1.5 text-purple-300">${(c.attack || []).map(x => escHtml(x.id)).join(', ') || '-'}</td></tr>`).join('')}</tbody></table></div></div>`;
-            }
-            if (tools.length) {
-                html += `<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">Deep analysis tools</div><div class="flex flex-wrap gap-1">${tools.map(x => `<span class="rounded px-2 py-1 text-[10px] ${x.available ? 'bg-green-500/10 border border-green-500/30 text-green-300' : 'bg-gray-900 border border-gray-800 text-gray-500'}">${escHtml(x.name)}: ${escHtml(x.version || x.status)}</span>`).join('')}</div></div>`;
-            }
-            if (notes.length) {
-                html += `<div class="mt-4 text-[10px] text-gray-500"><ul class="list-disc list-inside space-y-0.5">${notes.map(n => `<li>${escHtml(n)}</li>`).join('')}</ul></div>`;
-            }
+            let html = `<div class="grid grid-cols-2 gap-2 sm:grid-cols-5">${card('Files', t.files_scanned || 0, 'text-white')}${card('Binaries', bins.length, 'text-aqua-400')}${card('Capabilities', caps.length, 'text-amber-400')}${card('ATT&CK', techs.length, 'text-brand-400')}${card('Deep tools', t.deep ? 'on' : 'off', t.deep ? 'text-emerald-400' : 'text-slate-500')}</div>`;
+            if (fileTypes.length) html += `<div class="mt-4"><div class="mb-1 text-[10px] uppercase tracking-wider text-slate-500">File types</div><div class="flex flex-wrap gap-1">${fileTypes.map(k => `<span class="chip">${escHtml(k.kind)} <strong class="text-aqua-400">${k.count}</strong></span>`).join('')}</div></div>`;
+            if (techs.length) html += `<div class="mt-4"><div class="mb-1 text-[10px] uppercase tracking-wider text-slate-500">MITRE ATT&amp;CK</div><div class="flex flex-wrap gap-1">${techs.map(attackChip).join('')}</div></div>`;
+            if (bins.length) html += `<div class="mt-4"><div class="mb-1 text-[10px] uppercase tracking-wider text-slate-500">Binaries</div><div class="scroll-thin overflow-x-auto"><table class="w-full text-left text-[10px]"><thead class="text-slate-500 uppercase"><tr><th class="py-1.5 pr-2">File</th><th class="py-1.5 pr-2">Type</th><th class="py-1.5 pr-2">Arch</th><th class="py-1.5 pr-2 text-right">Entropy</th><th class="py-1.5 pr-2">SHA-256</th><th class="py-1.5">Packer / indicators</th></tr></thead><tbody class="divide-y divide-white/[.04]">${bins.map(b => {
+                const packer = b.packer ? `<span class="text-amber-300">${escHtml(b.packer.name)}</span> <span class="text-slate-500">(${escHtml(b.packer.confidence)})</span>` : '<span class="text-slate-600">-</span>';
+                const ind = (b.indicators || []).length ? `<div class="mt-0.5 text-slate-500">${escHtml((b.indicators || []).join('; '))}</div>` : '';
+                return `<tr class="align-top"><td class="py-1.5 pr-2 font-mono text-aqua-400">${escHtml(b.path)}</td><td class="py-1.5 pr-2">${escHtml(b.file_type)}</td><td class="py-1.5 pr-2">${escHtml(b.architecture || 'unknown')}${b.bits ? ' / ' + b.bits + '-bit' : ''}</td><td class="py-1.5 pr-2 text-right">${Number(b.entropy || 0).toFixed(2)}</td><td class="py-1.5 pr-2 break-all font-mono text-slate-500">${escHtml(b.sha256)}</td><td class="py-1.5">${packer}${ind}</td></tr>`;
+            }).join('')}</tbody></table></div></div>`;
+            if (caps.length) html += `<div class="mt-4"><div class="mb-1 text-[10px] uppercase tracking-wider text-slate-500">Capabilities</div><div class="scroll-thin overflow-x-auto"><table class="w-full text-left text-[10px]"><thead class="text-slate-500 uppercase"><tr><th class="py-1.5 pr-2">Severity</th><th class="py-1.5 pr-2">Source</th><th class="py-1.5 pr-2">Capability</th><th class="py-1.5 pr-2">File</th><th class="py-1.5">ATT&CK</th></tr></thead><tbody class="divide-y divide-white/[.04]">${caps.map(c => `<tr class="align-top"><td class="py-1.5 pr-2 uppercase ${c.severity === 'critical' ? 'text-rose-400' : c.severity === 'high' ? 'text-amber-400' : 'text-slate-400'}">${escHtml(c.severity)}</td><td class="py-1.5 pr-2 text-slate-500">${escHtml(c.source)}</td><td class="py-1.5 pr-2">${escHtml(c.name)}</td><td class="py-1.5 pr-2 font-mono text-aqua-400">${escHtml(c.file_path)}</td><td class="py-1.5 text-brand-300">${(c.attack || []).map(x => escHtml(x.id)).join(', ') || '-'}</td></tr>`).join('')}</tbody></table></div></div>`;
+            if (tools.length) html += `<div class="mt-4"><div class="mb-1 text-[10px] uppercase tracking-wider text-slate-500">Deep analysis tools</div><div class="flex flex-wrap gap-1">${tools.map(x => `<span class="chip ${x.available ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300' : 'text-slate-500'}">${escHtml(x.name)}: ${escHtml(x.version || x.status)}</span>`).join('')}</div></div>`;
+            if (notes.length) html += `<div class="mt-4 text-[10px] text-slate-500"><ul class="list-inside list-disc space-y-0.5">${notes.map(n => `<li>${escHtml(n)}</li>`).join('')}</ul></div>`;
             return html;
         }
 
@@ -612,19 +816,11 @@
             const artifacts = d.artifacts || [];
             const techs = d.attack_techniques || [];
             const notes = d.notes || [];
-            const card = (label, value, color) => `<div class="bg-gray-900 rounded-lg p-3 border border-gray-800"><div class="text-xl font-bold ${color}">${value}</div><div class="text-[10px] text-gray-500 mt-0.5">${label}</div></div>`;
-            let html = `<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">${card('Files', d.files_scanned || 0, 'text-gray-100')}${card('Artifacts', artifacts.length, 'text-orange-400')}${card('ATT&CK', techs.length, 'text-purple-400')}${card('Engine', escHtml(d.engine || '-'), 'text-[10px] text-gray-300')}</div>`;
-            if (techs.length) {
-                html += `<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">MITRE ATT&CK</div><div class="flex flex-wrap gap-1">${techs.map(x => `<span class="bg-purple-500/10 border border-purple-500/30 text-purple-300 rounded px-2 py-1 text-[10px]" title="${escHtml(x.tactic)}"><strong>${escHtml(x.id)}</strong> ${escHtml(x.name)}</span>`).join('')}</div></div>`;
-            }
-            if (artifacts.length) {
-                html += `<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">Recovered artifacts</div><div class="overflow-x-auto"><table class="w-full text-left text-[10px]"><thead class="text-gray-500 uppercase"><tr><th class="py-1.5 pr-2">Confidence</th><th class="py-1.5 pr-2">Encoding</th><th class="py-1.5 pr-2">File</th><th class="py-1.5 pr-2 text-right">Line</th><th class="py-1.5 pr-2">Indicators</th><th class="py-1.5">Decoded preview</th></tr></thead><tbody class="divide-y divide-gray-800/60">${artifacts.map(a => `<tr class="align-top"><td class="py-1.5 pr-2"><span class="bg-gray-900 border border-gray-800 rounded px-2 py-0.5">${escHtml(a.confidence)}</span></td><td class="py-1.5 pr-2">${escHtml(a.encoding)}</td><td class="py-1.5 pr-2 font-mono text-blue-400">${escHtml(a.file_path)}</td><td class="py-1.5 pr-2 text-right">${a.line_number || 0}</td><td class="py-1.5 pr-2 text-amber-300">${escHtml((a.indicators || []).join(', ') || '-')}</td><td class="py-1.5 font-mono text-gray-300 break-all">${escHtml(String(a.decoded || '').slice(0, 200))}</td></tr>`).join('')}</tbody></table></div></div>`;
-            } else {
-                html += '<div class="mt-4 text-[10px] text-gray-600 italic">No encoded payloads recovered.</div>';
-            }
-            if (notes.length) {
-                html += `<div class="mt-4 text-[10px] text-gray-500"><ul class="list-disc list-inside space-y-0.5">${notes.map(n => `<li>${escHtml(n)}</li>`).join('')}</ul></div>`;
-            }
+            let html = `<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">${card('Files', d.files_scanned || 0, 'text-white')}${card('Artifacts', artifacts.length, 'text-amber-400')}${card('ATT&CK', techs.length, 'text-brand-400')}${card('Engine', escHtml(d.engine || '-'), 'text-[10px] text-slate-300')}</div>`;
+            if (techs.length) html += `<div class="mt-4"><div class="mb-1 text-[10px] uppercase tracking-wider text-slate-500">MITRE ATT&amp;CK</div><div class="flex flex-wrap gap-1">${techs.map(attackChip).join('')}</div></div>`;
+            if (artifacts.length) html += `<div class="mt-4"><div class="mb-1 text-[10px] uppercase tracking-wider text-slate-500">Recovered artifacts</div><div class="scroll-thin overflow-x-auto"><table class="w-full text-left text-[10px]"><thead class="text-slate-500 uppercase"><tr><th class="py-1.5 pr-2">Confidence</th><th class="py-1.5 pr-2">Encoding</th><th class="py-1.5 pr-2">File</th><th class="py-1.5 pr-2 text-right">Line</th><th class="py-1.5 pr-2">Indicators</th><th class="py-1.5">Decoded preview</th></tr></thead><tbody class="divide-y divide-white/[.04]">${artifacts.map(a => `<tr class="align-top"><td class="py-1.5 pr-2"><span class="chip">${escHtml(a.confidence)}</span></td><td class="py-1.5 pr-2">${escHtml(a.encoding)}</td><td class="py-1.5 pr-2 font-mono text-aqua-400">${escHtml(a.file_path)}</td><td class="py-1.5 pr-2 text-right">${a.line_number || 0}</td><td class="py-1.5 pr-2 text-amber-300">${escHtml((a.indicators || []).join(', ') || '-')}</td><td class="py-1.5 break-all font-mono text-slate-300">${escHtml(String(a.decoded || '').slice(0, 200))}</td></tr>`).join('')}</tbody></table></div></div>`;
+            else html += '<div class="mt-4 text-[10px] italic text-slate-600">No encoded payloads recovered.</div>';
+            if (notes.length) html += `<div class="mt-4 text-[10px] text-slate-500"><ul class="list-inside list-disc space-y-0.5">${notes.map(n => `<li>${escHtml(n)}</li>`).join('')}</ul></div>`;
             return html;
         }
 
@@ -632,35 +828,21 @@
             const traces = e.traces || [];
             const techs = e.attack_techniques || [];
             const notes = e.notes || [];
-            const card = (label, value, color) => `<div class="bg-gray-900 rounded-lg p-3 border border-gray-800"><div class="text-xl font-bold ${color}">${value}</div><div class="text-[10px] text-gray-500 mt-0.5">${label}</div></div>`;
-            let html = `<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">${card('Files', e.files_scanned || 0, 'text-gray-100')}${card('Traces', traces.length, 'text-cyan-400')}${card('ATT&CK', techs.length, 'text-purple-400')}${card('Engine', escHtml(e.engine || '-'), 'text-[10px] text-gray-300')}</div>`;
-            if (techs.length) {
-                html += `<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">MITRE ATT&CK</div><div class="flex flex-wrap gap-1">${techs.map(x => `<span class="bg-purple-500/10 border border-purple-500/30 text-purple-300 rounded px-2 py-1 text-[10px]" title="${escHtml(x.tactic)}"><strong>${escHtml(x.id)}</strong> ${escHtml(x.name)}</span>`).join('')}</div></div>`;
-            }
-            if (traces.length) {
-                html += `<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">Emulation traces</div><div class="overflow-x-auto"><table class="w-full text-left text-[10px]"><thead class="text-gray-500 uppercase"><tr><th class="py-1.5 pr-2">File</th><th class="py-1.5 pr-2">Arch</th><th class="py-1.5 pr-2 text-right">Instructions</th><th class="py-1.5 pr-2">Stopped</th><th class="py-1.5 pr-2">API calls / indicators</th><th class="py-1.5 pr-2">Recovered strings</th><th class="py-1.5">ATT&CK</th></tr></thead><tbody class="divide-y divide-gray-800/60">${traces.map(t => `<tr class="align-top"><td class="py-1.5 pr-2 font-mono text-blue-400">${escHtml(t.file_path)}<div class="text-gray-600">entry ${escHtml(t.entrypoint)}</div></td><td class="py-1.5 pr-2">${escHtml(t.architecture)}</td><td class="py-1.5 pr-2 text-right">${t.instructions || 0}</td><td class="py-1.5 pr-2">${escHtml(t.stopped_reason)}</td><td class="py-1.5 pr-2">${escHtml((t.api_calls || []).join(', ') || '-')}<div class="text-amber-300 mt-0.5">${escHtml((t.indicators || []).join('; ') || '')}</div></td><td class="py-1.5 pr-2 font-mono text-gray-300 break-all">${escHtml((t.recovered_strings || []).join(' | ') || '-')}</td><td class="py-1.5 text-purple-300">${(t.attack || []).map(x => escHtml(x.id)).join(', ') || '-'}</td></tr>`).join('')}</tbody></table></div></div>`;
-            } else {
-                html += '<div class="mt-4 text-[10px] text-gray-600 italic">No emulation traces produced.</div>';
-            }
-            if (notes.length) {
-                html += `<div class="mt-4 text-[10px] text-gray-500"><ul class="list-disc list-inside space-y-0.5">${notes.map(n => `<li>${escHtml(n)}</li>`).join('')}</ul></div>`;
-            }
+            let html = `<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">${card('Files', e.files_scanned || 0, 'text-white')}${card('Traces', traces.length, 'text-aqua-400')}${card('ATT&CK', techs.length, 'text-brand-400')}${card('Engine', escHtml(e.engine || '-'), 'text-[10px] text-slate-300')}</div>`;
+            if (techs.length) html += `<div class="mt-4"><div class="mb-1 text-[10px] uppercase tracking-wider text-slate-500">MITRE ATT&amp;CK</div><div class="flex flex-wrap gap-1">${techs.map(attackChip).join('')}</div></div>`;
+            if (traces.length) html += `<div class="mt-4"><div class="mb-1 text-[10px] uppercase tracking-wider text-slate-500">Emulation traces</div><div class="scroll-thin overflow-x-auto"><table class="w-full text-left text-[10px]"><thead class="text-slate-500 uppercase"><tr><th class="py-1.5 pr-2">File</th><th class="py-1.5 pr-2">Arch</th><th class="py-1.5 pr-2 text-right">Instructions</th><th class="py-1.5 pr-2">Stopped</th><th class="py-1.5 pr-2">API calls / indicators</th><th class="py-1.5 pr-2">Recovered strings</th><th class="py-1.5">ATT&CK</th></tr></thead><tbody class="divide-y divide-white/[.04]">${traces.map(t => `<tr class="align-top"><td class="py-1.5 pr-2 font-mono text-aqua-400">${escHtml(t.file_path)}<div class="text-slate-600">entry ${escHtml(t.entrypoint)}</div></td><td class="py-1.5 pr-2">${escHtml(t.architecture)}</td><td class="py-1.5 pr-2 text-right">${t.instructions || 0}</td><td class="py-1.5 pr-2">${escHtml(t.stopped_reason)}</td><td class="py-1.5 pr-2">${escHtml((t.api_calls || []).join(', ') || '-')}<div class="mt-0.5 text-amber-300">${escHtml((t.indicators || []).join('; ') || '')}</div></td><td class="py-1.5 pr-2 break-all font-mono text-slate-300">${escHtml((t.recovered_strings || []).join(' | ') || '-')}</td><td class="py-1.5 text-brand-300">${(t.attack || []).map(x => escHtml(x.id)).join(', ') || '-'}</td></tr>`).join('')}</tbody></table></div></div>`;
+            else html += '<div class="mt-4 text-[10px] italic text-slate-600">No emulation traces produced.</div>';
+            if (notes.length) html += `<div class="mt-4 text-[10px] text-slate-500"><ul class="list-inside list-disc space-y-0.5">${notes.map(n => `<li>${escHtml(n)}</li>`).join('')}</ul></div>`;
             return html;
         }
 
         function renderSandbox(sb) {
             const executions = sb.executions || [];
             const notes = sb.notes || [];
-            const card = (label, value, color) => `<div class="bg-gray-900 rounded-lg p-3 border border-gray-800"><div class="text-xl font-bold ${color}">${value}</div><div class="text-[10px] text-gray-500 mt-0.5">${label}</div></div>`;
-            let html = `<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">${card('Files', sb.files_analyzed || 0, 'text-gray-100')}${card('Executions', executions.length, 'text-cyan-400')}${card('Available', sb.available ? 'yes' : 'no', sb.available ? 'text-green-400' : 'text-gray-500')}${card('Image', escHtml(sb.image || '-'), 'text-[10px] text-gray-300')}</div>`;
-            if (executions.length) {
-                html += `<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">Sandbox executions</div><div class="overflow-x-auto"><table class="w-full text-left text-[10px]"><thead class="text-gray-500 uppercase"><tr><th class="py-1.5 pr-2">File</th><th class="py-1.5 pr-2">Arch</th><th class="py-1.5 pr-2 text-right">Exit</th><th class="py-1.5 pr-2 text-right">ms</th><th class="py-1.5 pr-2 text-right">Syscalls</th><th class="py-1.5 pr-2">Processes</th><th class="py-1.5 pr-2">Network</th><th class="py-1.5 pr-2">Sensitive files</th><th class="py-1.5">Indicators</th></tr></thead><tbody class="divide-y divide-gray-800/60">${executions.map(x => `<tr class="align-top"><td class="py-1.5 pr-2 font-mono text-blue-400">${escHtml(x.file_path)}</td><td class="py-1.5 pr-2">${escHtml(x.architecture)}</td><td class="py-1.5 pr-2 text-right">${x.exit_code === null || x.exit_code === undefined ? '-' : x.exit_code}</td><td class="py-1.5 pr-2 text-right">${x.duration_ms || 0}</td><td class="py-1.5 pr-2 text-right">${x.syscalls || 0}</td><td class="py-1.5 pr-2">${escHtml((x.processes || []).join(', ') || '-')}</td><td class="py-1.5 pr-2 text-amber-300">${escHtml((x.network_attempts || []).join(' | ') || '-')}</td><td class="py-1.5 pr-2 font-mono text-gray-300 break-all">${escHtml((x.file_accesses || []).join(' | ') || '-')}</td><td class="py-1.5 text-amber-300">${escHtml((x.indicators || []).join('; ') || '-')}</td></tr>`).join('')}</tbody></table></div></div>`;
-            } else {
-                html += '<div class="mt-4 text-[10px] text-gray-600 italic">No sandbox executions produced.</div>';
-            }
-            if (notes.length) {
-                html += `<div class="mt-4 text-[10px] text-gray-500"><ul class="list-disc list-inside space-y-0.5">${notes.map(n => `<li>${escHtml(n)}</li>`).join('')}</ul></div>`;
-            }
+            let html = `<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">${card('Files', sb.files_analyzed || 0, 'text-white')}${card('Executions', executions.length, 'text-aqua-400')}${card('Available', sb.available ? 'yes' : 'no', sb.available ? 'text-emerald-400' : 'text-slate-500')}${card('Image', escHtml(sb.image || '-'), 'text-[10px] text-slate-300')}</div>`;
+            if (executions.length) html += `<div class="mt-4"><div class="mb-1 text-[10px] uppercase tracking-wider text-slate-500">Sandbox executions</div><div class="scroll-thin overflow-x-auto"><table class="w-full text-left text-[10px]"><thead class="text-slate-500 uppercase"><tr><th class="py-1.5 pr-2">File</th><th class="py-1.5 pr-2">Arch</th><th class="py-1.5 pr-2 text-right">Exit</th><th class="py-1.5 pr-2 text-right">ms</th><th class="py-1.5 pr-2 text-right">Syscalls</th><th class="py-1.5 pr-2">Processes</th><th class="py-1.5 pr-2">Network</th><th class="py-1.5 pr-2">Sensitive files</th><th class="py-1.5">Indicators</th></tr></thead><tbody class="divide-y divide-white/[.04]">${executions.map(x => `<tr class="align-top"><td class="py-1.5 pr-2 font-mono text-aqua-400">${escHtml(x.file_path)}</td><td class="py-1.5 pr-2">${escHtml(x.architecture)}</td><td class="py-1.5 pr-2 text-right">${x.exit_code === null || x.exit_code === undefined ? '-' : x.exit_code}</td><td class="py-1.5 pr-2 text-right">${x.duration_ms || 0}</td><td class="py-1.5 pr-2 text-right">${x.syscalls || 0}</td><td class="py-1.5 pr-2">${escHtml((x.processes || []).join(', ') || '-')}</td><td class="py-1.5 pr-2 text-amber-300">${escHtml((x.network_attempts || []).join(' | ') || '-')}</td><td class="py-1.5 pr-2 break-all font-mono text-slate-300">${escHtml((x.file_accesses || []).join(' | ') || '-')}</td><td class="py-1.5 text-amber-300">${escHtml((x.indicators || []).join('; ') || '-')}</td></tr>`).join('')}</tbody></table></div></div>`;
+            else html += '<div class="mt-4 text-[10px] italic text-slate-600">No sandbox executions produced.</div>';
+            if (notes.length) html += `<div class="mt-4 text-[10px] text-slate-500"><ul class="list-inside list-disc space-y-0.5">${notes.map(n => `<li>${escHtml(n)}</li>`).join('')}</ul></div>`;
             return html;
         }
 
@@ -668,158 +850,155 @@
             const techniques = t.techniques || [];
             const tactics = t.tactics || [];
             const notes = t.notes || [];
-            const card = (label, value, color) => `<div class="bg-gray-900 rounded-lg p-3 border border-gray-800"><div class="text-xl font-bold ${color}">${value}</div><div class="text-[10px] text-gray-500 mt-0.5">${label}</div></div>`;
-            let html = `<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">${card('Techniques', techniques.length, 'text-purple-400')}${card('Tactics', tactics.length, 'text-blue-400')}${card('Coverage', (t.coverage_score || 0) + '%', 'text-orange-400')}${card('Engine', escHtml(t.engine || '-'), 'text-[10px] text-gray-300')}</div>`;
-            if (tactics.length) {
-                html += `<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">Kill chain</div><div class="flex flex-wrap gap-1">${tactics.map(x => `<span class="bg-purple-500/10 border border-purple-500/30 text-purple-300 rounded px-2 py-1 text-[10px]"><strong>${escHtml(x.tactic)}</strong> ${(x.techniques || []).length}</span>`).join('')}</div></div>`;
-            }
-            if (techniques.length) {
-                html += `<div class="mt-4"><div class="text-[10px] text-gray-500 mb-1">Observed techniques</div><div class="overflow-x-auto"><table class="w-full text-left text-[10px]"><thead class="text-gray-500 uppercase"><tr><th class="py-1.5 pr-2">Severity</th><th class="py-1.5 pr-2">ID</th><th class="py-1.5 pr-2">Technique</th><th class="py-1.5 pr-2">Tactic</th><th class="py-1.5 pr-2 text-right">Obs</th><th class="py-1.5">Sources</th></tr></thead><tbody class="divide-y divide-gray-800/60">${techniques.map(x => `<tr class="align-top"><td class="py-1.5 pr-2 uppercase ${x.severity === 'critical' ? 'text-red-400' : x.severity === 'high' ? 'text-amber-400' : 'text-gray-400'}">${escHtml(x.severity)}</td><td class="py-1.5 pr-2 font-mono text-purple-300">${escHtml(x.id)}</td><td class="py-1.5 pr-2">${escHtml(x.name)}</td><td class="py-1.5 pr-2 text-gray-400">${escHtml(x.tactic)}</td><td class="py-1.5 pr-2 text-right">${x.observations || 0}</td><td class="py-1.5 text-gray-500">${escHtml((x.sources || []).join(', '))}</td></tr>`).join('')}</tbody></table></div></div>`;
-            } else {
-                html += '<div class="mt-4 text-[10px] text-gray-600 italic">No ATT&CK techniques observed.</div>';
-            }
-            if (notes.length) {
-                html += `<div class="mt-4 text-[10px] text-gray-500"><ul class="list-disc list-inside space-y-0.5">${notes.map(n => `<li>${escHtml(n)}</li>`).join('')}</ul></div>`;
-            }
+            let html = `<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">${card('Techniques', techniques.length, 'text-brand-400')}${card('Tactics', tactics.length, 'text-aqua-400')}${card('Coverage', (t.coverage_score || 0) + '%', 'text-amber-400')}${card('Engine', escHtml(t.engine || '-'), 'text-[10px] text-slate-300')}</div>`;
+            if (tactics.length) html += `<div class="mt-4"><div class="mb-1 text-[10px] uppercase tracking-wider text-slate-500">Kill chain</div><div class="flex flex-wrap gap-1">${tactics.map(x => `<span class="chip border-brand-500/25 bg-brand-500/10 text-brand-300"><strong>${escHtml(x.tactic)}</strong> ${(x.techniques || []).length}</span>`).join('')}</div></div>`;
+            if (techniques.length) html += `<div class="mt-4"><div class="mb-1 text-[10px] uppercase tracking-wider text-slate-500">Observed techniques</div><div class="scroll-thin overflow-x-auto"><table class="w-full text-left text-[10px]"><thead class="text-slate-500 uppercase"><tr><th class="py-1.5 pr-2">Severity</th><th class="py-1.5 pr-2">ID</th><th class="py-1.5 pr-2">Technique</th><th class="py-1.5 pr-2">Tactic</th><th class="py-1.5 pr-2 text-right">Obs</th><th class="py-1.5">Sources</th></tr></thead><tbody class="divide-y divide-white/[.04]">${techniques.map(x => `<tr class="align-top"><td class="py-1.5 pr-2 uppercase ${x.severity === 'critical' ? 'text-rose-400' : x.severity === 'high' ? 'text-amber-400' : 'text-slate-400'}">${escHtml(x.severity)}</td><td class="py-1.5 pr-2 font-mono text-brand-300">${escHtml(x.id)}</td><td class="py-1.5 pr-2">${escHtml(x.name)}</td><td class="py-1.5 pr-2 text-slate-400">${escHtml(x.tactic)}</td><td class="py-1.5 pr-2 text-right">${x.observations || 0}</td><td class="py-1.5 text-slate-500">${escHtml((x.sources || []).join(', '))}</td></tr>`).join('')}</tbody></table></div></div>`;
+            else html += '<div class="mt-4 text-[10px] italic text-slate-600">No ATT&CK techniques observed.</div>';
+            if (notes.length) html += `<div class="mt-4 text-[10px] text-slate-500"><ul class="list-inside list-disc space-y-0.5">${notes.map(n => `<li>${escHtml(n)}</li>`).join('')}</ul></div>`;
             return html;
+        }
+
+        /* ── Findings table ── */
+        const SEV_STYLE = {
+            critical: 'border-rose-500/30 bg-rose-500/10 text-rose-300',
+            high: 'border-orange-500/30 bg-orange-500/10 text-orange-300',
+            medium: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
+            low: 'border-slate-500/30 bg-slate-500/10 text-slate-300',
+        };
+
+        function renderMatchesTable() {
+            const tbody = document.getElementById('match-body');
+            if (!currentResult) return;
+            const q = (document.getElementById('finding-filter').value || '').toLowerCase();
+            const sev = document.getElementById('severity-filter').value;
+            const all = currentResult.rule_matches || [];
+            const rows = all.filter(m => {
+                if (sev && m.severity !== sev) return false;
+                if (!q) return true;
+                return (m.file_path + ' ' + m.matched_pattern + ' ' + (m.context || '')).toLowerCase().includes(q);
+            });
+            if (!rows.length) {
+                tbody.innerHTML = '<tr><td colspan="5" class="px-5 py-12 text-center text-xs text-slate-500">No findings match this filter.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = rows.map(m => {
+                const style = SEV_STYLE[m.severity] || SEV_STYLE.low;
+                const ctx = (m.context || '').replace(/\s+/g, ' ').trim().slice(0, 110);
+                return `<tr class="transition hover:bg-white/[.025]">
+                    <td class="px-5 py-2.5"><span class="inline-flex rounded-md border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${style}">${escHtml(m.severity)}</span></td>
+                    <td class="px-3 py-2.5 text-[11px] text-slate-300">${escHtml(m.matched_pattern)}</td>
+                    <td class="px-3 py-2.5 font-mono text-[11px] text-aqua-400" title="${escAttr(m.file_path)}"><span class="block max-w-[260px] truncate">${escHtml(m.file_path)}</span></td>
+                    <td class="px-3 py-2.5 text-right font-mono text-[11px] text-slate-500">${m.line_number}</td>
+                    <td class="px-5 py-2.5 font-mono text-[10px] text-slate-500" title="${escAttr(m.context || '')}"><span class="block max-w-[320px] truncate">${escHtml(ctx)}</span></td>
+                </tr>`;
+            }).join('');
         }
 
         /* ── Load result ── */
         async function loadResult(id) {
             try {
-                const resp = await fetch(API + '/api/results/' + id);
+                const resp = await fetch(API + '/api/results/' + encodeURIComponent(id));
                 const json = await resp.json();
                 if (!json.success) throw new Error(json.error || 'Unknown error');
-
-                hideSidebar();
                 const r = json.result;
+                currentResult = r;
                 currentResultId = r.id;
 
-                // Update sidebar active state
-                document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
-                const activeEl = document.querySelector(`.sidebar-item[data-id="${r.id}"]`);
-                if (activeEl) activeEl.classList.add('active');
-
+                document.querySelectorAll('.sidebar-item').forEach(el => el.classList.toggle('active', el.dataset.id === r.id));
                 document.getElementById('progress-card').classList.add('hidden');
                 document.getElementById('result-card').classList.remove('hidden');
 
-                // Mark sidebar item active — refresh sidebar styles
-                renderHistory(scans);
+                document.getElementById('result-target').textContent = r.repo_url;
+                document.getElementById('result-target').title = r.repo_url;
+                document.getElementById('result-id').textContent = 'ID ' + r.id;
+                document.getElementById('result-time').textContent = (r.timestamp || '').replace('T', ' ').substring(0, 19);
 
-                // Animate stats
-                animateValue('risk-score', 0, r.risk_score, 600);
-                animateValue('total-matches', 0, r.total_matches, 500);
-                animateValue('files-scanned', 0, r.scanned_files, 500);
+                const score = r.risk_score || 0;
+                animateValue('risk-score', 0, score, 600);
+                animateValue('total-matches', 0, r.total_matches || 0, 500);
+                animateValue('files-scanned', 0, r.scanned_files || 0, 500);
+                animateValue('critical-count', 0, (r.rule_matches || []).filter(m => m.severity === 'critical').length, 500);
+                animateValue('attack-count', 0, (r.ttp && r.ttp.techniques ? r.ttp.techniques.length : 0), 500);
 
-                // Color score
-                const se = document.getElementById('risk-score');
-                se.className = 'text-3xl font-bold count-up ' + (
-                    r.risk_score >= 70 ? 'text-red-400' : r.risk_score >= 30 ? 'text-amber-400' : 'text-green-400'
-                );
+                const ring = document.getElementById('risk-ring');
+                const dash = 270;
+                ring.style.strokeDashoffset = dash - (score / 100) * dash;
+                const color = score >= 70 ? '#fb7185' : score >= 30 ? '#fbbf24' : score > 0 ? '#22d3ee' : '#34d399';
+                ring.setAttribute('stroke', color);
+                document.getElementById('risk-score').style.color = color;
 
-                // Badge
+                const label = score >= 70 ? 'High risk' : score >= 30 ? 'Warning' : score > 0 ? 'Low risk' : 'Clean';
+                document.getElementById('risk-label').textContent = label;
+                document.getElementById('risk-label').style.color = color;
+
                 const badge = document.getElementById('status-badge');
-                if (r.risk_score >= 70) badge.innerHTML = '<span class="inline-flex items-center gap-2 px-5 py-2 bg-red-500/10 border border-red-500/30 text-red-400 rounded-full text-sm font-bold">&#x1F6A8; HIGH RISK</span>';
-                else if (r.risk_score >= 30) badge.innerHTML = '<span class="inline-flex items-center gap-2 px-5 py-2 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-full text-sm font-bold">&#x26A0;&#xFE0F; WARNING</span>';
-                else if (r.risk_score > 0) badge.innerHTML = '<span class="inline-flex items-center gap-2 px-5 py-2 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-full text-sm font-bold">&#x2139;&#xFE0F; LOW RISK</span>';
-                else badge.innerHTML = '<span class="inline-flex items-center gap-2 px-5 py-2 bg-green-500/10 border border-green-500/30 text-green-400 rounded-full text-sm font-bold">&#x2705; SAFE</span>';
+                badge.className = 'chip ' + (
+                    score >= 70 ? 'border-rose-500/30 bg-rose-500/10 text-rose-300' :
+                    score >= 30 ? 'border-amber-500/30 bg-amber-500/10 text-amber-300' :
+                    score > 0  ? 'border-aqua-500/30 bg-aqua-500/10 text-aqua-300' :
+                                 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300');
+                badge.textContent = label;
 
-                // Show download buttons
-                document.getElementById('result-actions').classList.remove('hidden');
-
-                // AI analysis
+                // AI
                 const aiSec = document.getElementById('ai-section');
-                const aiContent = document.getElementById('ai-content');
                 if (r.ai_analysis && r.ai_analysis.threat_summary) {
                     aiSec.classList.remove('hidden');
-                    aiContent.innerHTML = `
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm mb-3">
-                            <div><span class="text-gray-500 text-xs">Type:</span> <span class="font-mono text-xs ml-1">${escHtml(r.ai_analysis.malware_type)}</span></div>
-                            <div><span class="text-gray-500 text-xs">Recommendation:</span> <span class="font-mono text-xs ml-1 text-red-400">${escHtml(r.ai_analysis.recommendation)}</span></div>
+                    const ai = r.ai_analysis;
+                    document.getElementById('ai-content').innerHTML = `
+                        <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                            <div class="rounded-xl border border-white/[.06] bg-ink-950/50 px-3 py-2"><div class="text-[10px] uppercase tracking-wider text-slate-500">Type</div><div class="mt-0.5 text-xs font-semibold text-slate-200">${escHtml(ai.malware_type || 'Unknown')}</div></div>
+                            <div class="rounded-xl border border-white/[.06] bg-ink-950/50 px-3 py-2"><div class="text-[10px] uppercase tracking-wider text-slate-500">AI risk</div><div class="mt-0.5 text-xs font-semibold ${ai.risk_score >= 60 ? 'text-rose-300' : ai.risk_score >= 30 ? 'text-amber-300' : 'text-emerald-300'}">${ai.risk_score}/100</div></div>
+                            <div class="rounded-xl border border-white/[.06] bg-ink-950/50 px-3 py-2"><div class="text-[10px] uppercase tracking-wider text-slate-500">Recommendation</div><div class="mt-0.5 text-xs font-semibold text-amber-300">${escHtml(ai.recommendation || 'Review')}</div></div>
                         </div>
-                        <p class="text-xs text-gray-400 leading-relaxed">${escHtml(r.ai_analysis.threat_summary)}</p>
-                        ${r.ai_analysis.suspicious_lines && r.ai_analysis.suspicious_lines.length > 0 ? `
-                        <div class="mt-3">
-                            <span class="text-gray-600 text-[10px]">Suspicious lines:</span>
-                            <pre class="text-xs text-red-400/80 mt-1 bg-gray-900 p-3 rounded-md max-h-32 overflow-y-auto border border-gray-800">${r.ai_analysis.suspicious_lines.map(l=>escHtml(l)).join('\n')}</pre>
-                        </div>` : ''}
+                        <p class="mt-3 text-xs leading-relaxed text-slate-400">${escHtml(ai.threat_summary)}</p>
+                        ${(ai.suspicious_lines || []).length ? `<pre class="scroll-thin mt-3 max-h-44 overflow-y-auto rounded-xl border border-white/[.06] bg-ink-950/70 p-3 font-mono text-[10px] leading-relaxed text-rose-300/80">${ai.suspicious_lines.map(l => escHtml(l)).join('\n')}</pre>` : ''}
                     `;
-                } else {
-                    aiSec.classList.add('hidden');
-                }
+                } else { aiSec.classList.add('hidden'); }
 
-                // Deep static triage
-                const triageSec = document.getElementById('triage-section');
-                const triageContent = document.getElementById('triage-content');
-                if (r.triage) {
-                    triageSec.classList.remove('hidden');
-                    triageContent.innerHTML = renderTriage(r.triage);
-                } else {
-                    triageSec.classList.add('hidden');
-                }
+                // Analysis modules
+                const setModule = (sectionId, contentId, data, renderer) => {
+                    const sec = document.getElementById(sectionId);
+                    if (data) { sec.classList.remove('hidden'); document.getElementById(contentId).innerHTML = renderer(data); }
+                    else sec.classList.add('hidden');
+                };
+                setModule('triage-section', 'triage-content', r.triage, renderTriage);
+                setModule('deobfuscation-section', 'deobfuscation-content', r.deobfuscation, renderDeobfuscation);
+                setModule('emulation-section', 'emulation-content', r.emulation, renderEmulation);
+                setModule('sandbox-section', 'sandbox-content', r.sandbox, renderSandbox);
+                const anyAnalysis = !!(r.triage || r.deobfuscation || r.emulation || r.sandbox);
+                document.getElementById('no-analysis').classList.toggle('hidden', anyAnalysis);
 
-                // Deobfuscation
-                const deobfSec = document.getElementById('deobfuscation-section');
-                const deobfContent = document.getElementById('deobfuscation-content');
-                if (r.deobfuscation) {
-                    deobfSec.classList.remove('hidden');
-                    deobfContent.innerHTML = renderDeobfuscation(r.deobfuscation);
-                } else {
-                    deobfSec.classList.add('hidden');
-                }
+                // ATT&CK
+                setModule('ttp-section', 'ttp-content', r.ttp, renderTtp);
+                const anyAttack = !!(r.ttp && (r.ttp.techniques || []).length);
+                document.getElementById('no-attack').classList.toggle('hidden', anyAttack);
 
-                // Safe static emulation
-                const emuSec = document.getElementById('emulation-section');
-                const emuContent = document.getElementById('emulation-content');
-                if (r.emulation) {
-                    emuSec.classList.remove('hidden');
-                    emuContent.innerHTML = renderEmulation(r.emulation);
-                } else {
-                    emuSec.classList.add('hidden');
-                }
+                // Findings
+                document.getElementById('match-count').textContent = (r.total_matches || 0) + ((r.total_matches === 1) ? ' finding' : ' findings');
+                renderMatchesTable();
 
-                // Docker sandbox
-                const sandboxSec = document.getElementById('sandbox-section');
-                const sandboxContent = document.getElementById('sandbox-content');
-                if (r.sandbox) {
-                    sandboxSec.classList.remove('hidden');
-                    sandboxContent.innerHTML = renderSandbox(r.sandbox);
-                } else {
-                    sandboxSec.classList.add('hidden');
-                }
+                // Top findings (highest severity, max 6)
+                const order = { critical: 0, high: 1, medium: 2, low: 3 };
+                const top = (r.rule_matches || []).slice().sort((a, b) => (order[a.severity] ?? 9) - (order[b.severity] ?? 9)).slice(0, 6);
+                document.getElementById('top-findings').innerHTML = top.length ? top.map(m => {
+                    const style = SEV_STYLE[m.severity] || SEV_STYLE.low;
+                    return `<div class="flex items-start justify-between gap-3 rounded-xl border border-white/[.05] bg-white/[.015] px-3 py-2">
+                        <div class="min-w-0">
+                            <div class="text-[11px] font-medium text-slate-200">${escHtml(m.matched_pattern)}</div>
+                            <div class="mt-0.5 truncate font-mono text-[10px] text-slate-500">${escHtml(m.file_path)}:${m.line_number}</div>
+                        </div>
+                        <span class="shrink-0 rounded-md border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${style}">${escHtml(m.severity)}</span>
+                    </div>`;
+                }).join('') : '<div class="rounded-xl border border-emerald-500/20 bg-emerald-500/[.06] px-3 py-6 text-center text-xs text-emerald-300">No threats detected. This target looks clean.</div>';
 
-                // TTP coverage
-                const ttpSec = document.getElementById('ttp-section');
-                const ttpContent = document.getElementById('ttp-content');
-                if (r.ttp) {
-                    ttpSec.classList.remove('hidden');
-                    ttpContent.innerHTML = renderTtp(r.ttp);
-                } else {
-                    ttpSec.classList.add('hidden');
-                }
-
-                // Match table
-                const tbody = document.getElementById('match-body');
-                tbody.innerHTML = '';
-                if (!r.rule_matches || r.rule_matches.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="py-10 text-center text-gray-600 text-xs">&#x2705; No threats detected</td></tr>';
-                } else {
-                    r.rule_matches.forEach(m => {
-                        const sc = m.severity === 'critical' ? 'text-red-400' : m.severity === 'high' ? 'text-amber-400' : 'text-gray-500';
-                        tbody.innerHTML += `<tr class="hover:bg-gray-800/30 transition">
-                            <td class="py-2.5 px-3 font-mono text-blue-400 max-w-[220px] truncate" title="${escHtml(m.file_path)}">${escHtml(m.file_path)}</td>
-                            <td class="py-2.5 px-3 text-gray-400">${m.line_number}</td>
-                            <td class="py-2.5 px-3"><span class="bg-gray-800 px-2 py-0.5 rounded text-[10px] font-mono">${escHtml(m.matched_pattern)}</span><div class="text-[10px] text-gray-600 mt-0.5 truncate max-w-[200px]">${escHtml((m.context||'').split('\n')[0])}</div></td>
-                            <td class="py-2.5 px-3 font-semibold uppercase text-[10px] ${sc}">${m.severity}</td>
-                        </tr>`;
-                    });
-                }
+                switchTab('overview');
             } catch (err) {
                 alert('Failed to load results: ' + err.message);
             }
         }
 
         function viewResult(id) {
+            hideSidebar();
             loadResult(id);
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
@@ -827,41 +1006,43 @@
         function animateValue(elId, start, end, duration) {
             const el = document.getElementById(elId);
             if (!el) return;
-            const range = end - start;
+            if (end === 0) { el.textContent = '0'; return; }
             const startTime = performance.now();
             function step(now) {
-                const elapsed = now - startTime;
-                const pct = Math.min(elapsed / duration, 1);
+                const pct = Math.min((now - startTime) / duration, 1);
                 const eased = 1 - Math.pow(1 - pct, 3);
-                el.textContent = Math.round(start + range * eased);
-                if (pct < 1) requestAnimationFrame(step);
-                else el.textContent = end;
+                el.textContent = Math.round(start + (end - start) * eased);
+                if (pct < 1) requestAnimationFrame(step); else el.textContent = end;
             }
             requestAnimationFrame(step);
         }
 
-        /* ── Report download ── */
+        /* ── Reports & delete ── */
         function downloadReport(id, format) {
-            const url = API + '/api/report/' + encodeURIComponent(id) + '/' + format;
-            window.open(url, '_blank');
+            if (!id) return;
+            window.open(API + '/api/report/' + encodeURIComponent(id) + '/' + format, '_blank');
         }
 
-        /* ── Delete scan ── */
         async function deleteScan(id) {
             if (!confirm('Delete this scan result?')) return;
             try {
-                const r = await fetch(API + '/api/scan/' + id, { method: 'DELETE' });
+                const r = await fetch(API + '/api/scan/' + encodeURIComponent(id), { method: 'DELETE' });
                 const j = await r.json();
                 if (!j.success) throw new Error(j.error || 'Delete failed');
                 if (currentResultId === id) {
                     document.getElementById('result-card').classList.add('hidden');
-                    currentResultId = null;
+                    currentResultId = null; currentResult = null;
                 }
                 await loadHistory();
-            } catch (err) {
-                alert('Delete failed: ' + err.message);
-            }
+            } catch (err) { alert('Delete failed: ' + err.message); }
         }
+
+        /* ── Boot ── */
+        renderHistory(scans);
+        const pendingResult = new URLSearchParams(location.search).get('result');
+        if (pendingResult) { currentResultId = pendingResult; loadResult(pendingResult); }
+        window.addEventListener('scroll', hideSidebarOnScroll);
+        function hideSidebarOnScroll() { if (window.innerWidth < 768 && !document.getElementById('sidebar').classList.contains('-translate-x-full')) hideSidebar(); }
     </script>
 </body>
 </html>
