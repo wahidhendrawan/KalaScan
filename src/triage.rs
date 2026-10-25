@@ -15,7 +15,7 @@ use tokio::process::Command;
 use tokio::time::timeout;
 use walkdir::WalkDir;
 
-const ENGINE: &str = "kalascan-static-triage/1.8.0";
+const ENGINE: &str = concat!("kalascan-static-triage/", env!("CARGO_PKG_VERSION"));
 const MAX_FILES: usize = 10_000;
 const MAX_FILE_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_TOTAL_BYTES: u64 = 256 * 1024 * 1024;
