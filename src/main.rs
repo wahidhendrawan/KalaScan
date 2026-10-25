@@ -1,5 +1,6 @@
 mod ai_analyzer;
 mod attack;
+mod auth;
 mod baseline;
 mod cli;
 mod cve;
@@ -9,6 +10,7 @@ mod emulate;
 mod entropy;
 mod export;
 mod git_history;
+mod metrics;
 mod sandbox;
 mod scanner;
 mod triage;
@@ -17,14 +19,14 @@ mod vsix;
 mod yara_engine;
 
 use axum::{
-    extract::{Multipart, Path, State},
-    http::StatusCode,
+    extract::{Extension, Multipart, Path, State},
+    http::{HeaderMap, StatusCode},
     response::{Html, IntoResponse, Json},
     routing::{delete, get, post},
     Router,
 };
 use clap::Parser;
-use cli::{Cli, Commands};
+use cli::{Cli, Commands, UserAction};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -32,7 +34,7 @@ use std::time::{Duration, Instant};
 use tera::Tera;
 use tokio::sync::Mutex;
 use tower_http::cors::CorsLayer;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 #[derive(Clone)]
 struct AppState {
@@ -168,6 +170,9 @@ pub struct ScanResult {
     #[serde(default)]
     pub sandbox: Option<sandbox::SandboxReport>,
     pub status: String,
+    /// Wall-clock duration of the scan, when it ran to completion.
+    #[serde(default)]
+    pub duration_ms: Option<u64>,
 }
 
 #[tokio::main]
@@ -231,6 +236,12 @@ async fn main() -> anyhow::Result<()> {
         Some(Commands::Serve { addr }) => {
             start_web_server(&addr).await?;
         }
+        Some(Commands::User { action }) => {
+            run_user_command(action)?;
+        }
+        Some(Commands::Rules { name }) => {
+            run_rules_command(name)?;
+        }
         None => {
             let addr = cli.addr.unwrap_or_else(|| {
                 std::env::var("KALASCAN_ADDR").unwrap_or_else(|_| "0.0.0.0:3000".to_string())
@@ -243,7 +254,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn start_web_server(addr: &str) -> anyhow::Result<()> {
-    info!("KalaScan v1.7.0 starting Web UI on http://{}", addr);
+    info!("KalaScan v1.8.0 starting Web UI on http://{}", addr);
 
     // Initialize DB
     if let Err(e) = db::init_db() {
@@ -258,13 +269,31 @@ async fn start_web_server(addr: &str) -> anyhow::Result<()> {
     let token = std::env::var("KALASCAN_TOKEN")
         .ok()
         .filter(|t| !t.trim().is_empty());
+    let user_count: i64 = db::ready_conn()
+        .ok()
+        .and_then(|conn| {
+            conn.query_row("SELECT COUNT(*) FROM users", [], |row| row.get(0))
+                .ok()
+        })
+        .unwrap_or(0);
     if token.is_some() {
-        info!("API bearer-token authentication enabled (KALASCAN_TOKEN)");
-    } else if !is_loopback(addr) {
-        error!(
-            "Bound to non-loopback address {} without KALASCAN_TOKEN — API is unauthenticated",
-            addr
+        info!("Legacy bearer token enabled (KALASCAN_TOKEN, admin role)");
+    }
+    if user_count > 0 {
+        info!(
+            "Multi-user auth enabled: {} user(s) in the database",
+            user_count
         );
+    }
+    if token.is_none() && user_count == 0 {
+        if is_loopback(addr) {
+            info!("No auth configured (loopback only)");
+        } else {
+            error!(
+                "Bound to non-loopback address {} without users or KALASCAN_TOKEN — API is unauthenticated",
+                addr
+            );
+        }
     }
 
     let state = AppState {
@@ -281,6 +310,9 @@ async fn start_web_server(addr: &str) -> anyhow::Result<()> {
         )))),
     };
 
+    // Resume scans that were queued/running when the process last stopped.
+    requeue_pending(&state).await;
+
     let app = Router::new()
         .route("/", get(root))
         .route("/scan", post(start_scan))
@@ -290,8 +322,12 @@ async fn start_web_server(addr: &str) -> anyhow::Result<()> {
         .route("/api/scan/{id}/status", get(scan_status))
         .route("/api/history", get(history))
         .route("/api/report/{id}/{format}", get(report))
+        .route("/api/audit", get(audit_log))
         .route("/api/scan/{id}", delete(delete_scan))
         .route("/results/{id}", get(results_page))
+        .route("/healthz", get(healthz))
+        .route("/metrics", get(metrics_endpoint))
+        .route("/openapi.yaml", get(openapi_spec))
         .nest_service("/static", tower_http::services::ServeDir::new("static"))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
@@ -316,46 +352,98 @@ fn is_loopback(addr: &str) -> bool {
     matches!(host, "127.0.0.1" | "localhost" | "[::1]" | "::1")
 }
 
-/// Enforce bearer auth when `KALASCAN_TOKEN` is set.
+/// Enforce bearer auth + RBAC. Inserts the resolved [`auth::Principal`] into
+/// request extensions so handlers can attribute actions in the audit log.
 async fn auth_middleware(
     State(state): State<AppState>,
-    req: axum::extract::Request,
+    mut req: axum::extract::Request,
     next: axum::middleware::Next,
 ) -> axum::response::Response {
-    if let Err((status, msg)) = check_auth(&state, req.headers()) {
+    let path = req.uri().path().to_string();
+    if is_auth_exempt(&path) {
+        return next.run(req).await;
+    }
+
+    let principal = match authenticate_request(&state, req.headers()) {
+        Ok(Some(p)) => p,
+        Ok(None) => {
+            auth::audit("anonymous", "auth.denied", None, Some(&path));
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({ "success": false, "error": "Unauthorized" })),
+            )
+                .into_response();
+        }
+        Err(e) => {
+            warn!("Auth check failed: {}", e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "success": false, "error": "Authentication error" })),
+            )
+                .into_response();
+        }
+    };
+
+    // Read routes: viewer. Anything that mutates state: operator.
+    let required = if req.method().as_str() == "GET" {
+        auth::Role::Viewer
+    } else {
+        auth::Role::Operator
+    };
+    if !principal.role.at_least(required) {
+        auth::audit(&principal.name, "auth.forbidden", None, Some(&path));
         return (
-            status,
-            Json(serde_json::json!({ "success": false, "error": msg })),
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({ "success": false, "error": "Insufficient role" })),
         )
             .into_response();
     }
+
+    req.extensions_mut().insert(principal.clone());
     next.run(req).await
 }
 
-fn check_auth(
+/// Liveness/readiness probes and the spec stay unauthenticated so health
+/// checks, Prometheus scrapers and API discovery work without credentials.
+fn is_auth_exempt(path: &str) -> bool {
+    path == "/healthz"
+        || path == "/metrics"
+        || path == "/openapi.yaml"
+        || path.starts_with("/static/")
+}
+
+/// Resolve the caller. `None` = credentials missing or wrong.
+fn authenticate_request(
     state: &AppState,
-    headers: &axum::http::HeaderMap,
-) -> Result<(), (StatusCode, String)> {
-    let Some(expected) = state.token.as_deref() else {
-        return Ok(());
-    };
-    let provided = headers
+    headers: &HeaderMap,
+) -> anyhow::Result<Option<auth::Principal>> {
+    let token = headers
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
         .unwrap_or_default();
-    // Constant-time-ish comparison
-    let expected = expected.as_bytes();
-    let provided = provided.as_bytes();
-    let mut diff = expected.len() ^ provided.len();
-    for i in 0..expected.len() {
-        diff |= (expected[i] ^ *provided.get(i).unwrap_or(&0)) as usize;
+    if token.is_empty() {
+        // Anonymous access only while no auth of any kind is configured.
+        if state.token.is_none() && !auth::any_users() {
+            return Ok(Some(auth::Principal::anonymous()));
+        }
+        return Ok(None);
     }
-    if diff == 0 {
-        Ok(())
-    } else {
-        Err((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()))
+    if let Some(expected) = state.token.as_deref() {
+        if constant_time_eq(token.as_bytes(), expected.as_bytes()) {
+            return Ok(Some(auth::Principal::legacy_admin()));
+        }
     }
+    Ok(auth::authenticate(token))
+}
+
+/// Length-independent, data-independent comparison (no early exit).
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    let mut diff = a.len() ^ b.len();
+    for i in 0..a.len().max(b.len()) {
+        diff |= (a.get(i).copied().unwrap_or(0) ^ b.get(i).copied().unwrap_or(0)) as usize;
+    }
+    diff == 0
 }
 
 /// Add hardening headers. Styles and scripts are self-hosted and inline, so
@@ -440,25 +528,45 @@ fn pending_scan(id: &str, target: &str) -> ScanResult {
         ttp: None,
         sandbox: None,
         status: "queued".to_string(),
+        duration_ms: None,
     }
 }
 
 async fn store_result(state: &AppState, result: ScanResult) {
     // A deleted scan must stay deleted, even if its task finished afterwards.
-    let deleted = {
-        let scans = state.scans.lock().await;
-        !scans.iter().any(|s| s.id == result.id)
-    };
-    if deleted {
+    // The pending row is written at submit time, so a missing row means the
+    // caller deleted it while the scan was running.
+    if let Ok(None) = db::get_scan(&result.id) {
         info!("Scan {} was deleted; discarding result", result.id);
         return;
     }
     if let Err(e) = db::save_scan(&result) {
         error!("Failed to save scan to DB: {}", e);
     }
+    let history_limit = env_u32("KALASCAN_HISTORY_LIMIT", 500);
+    if let Err(e) = db::prune_scans(history_limit) {
+        warn!("Failed to prune scan history: {}", e);
+    }
+
     let mut scans = state.scans.lock().await;
     if let Some(slot) = scans.iter_mut().find(|s| s.id == result.id) {
         *slot = result;
+    } else {
+        scans.push(result);
+    }
+    trim_memory(&mut scans);
+}
+
+/// Bound the in-memory scan list; finished scans are re-readable from SQLite.
+fn trim_memory(scans: &mut Vec<ScanResult>) {
+    let cap = env_u32("KALASCAN_MEMORY_SCANS", 100) as usize;
+    if scans.len() <= cap {
+        return;
+    }
+    scans.retain(|s| matches!(s.status.as_str(), "queued" | "running"));
+    if scans.len() > cap {
+        let excess = scans.len() - cap;
+        scans.drain(0..excess);
     }
 }
 
@@ -482,6 +590,7 @@ where
             Ok(p) => p,
             Err(_) => return,
         };
+        metrics::scan_started();
         {
             let mut scans = task_state.scans.lock().await;
             if let Some(slot) = scans.iter_mut().find(|s| s.id == task_id) {
@@ -489,20 +598,29 @@ where
             }
         }
 
+        let started = Instant::now();
         let outcome = tokio::time::timeout(scan_timeout(), work).await;
         drop(permit);
+        let duration_ms = started.elapsed().as_millis() as u64;
 
         let result = match outcome {
-            Ok(Ok(result)) => result,
+            Ok(Ok(result)) => {
+                metrics::scan_finished(true, false, duration_ms, result.total_matches as u64);
+                result
+            }
             Ok(Err(e)) => {
                 error!("Scan {} failed: {}", task_id, e);
+                metrics::scan_finished(false, false, duration_ms, 0);
                 failed_result(&task_state, &task_id, e.to_string()).await
             }
             Err(_) => {
                 error!("Scan {} timed out", task_id);
+                metrics::scan_finished(false, true, duration_ms, 0);
                 failed_result(&task_state, &task_id, "scan timed out".to_string()).await
             }
         };
+        let mut result = result;
+        result.duration_ms = Some(duration_ms);
         store_result(&task_state, result).await;
         task_state.running.lock().await.remove(&task_id);
     });
@@ -528,6 +646,7 @@ async fn failed_result(state: &AppState, id: &str, message: String) -> ScanResul
 async fn begin_scan(
     state: &AppState,
     req: &ScanRequest,
+    actor: &str,
 ) -> Result<String, axum::response::Response> {
     let allowed = state.submit_budget.lock().await.try_take();
     if !allowed {
@@ -541,17 +660,28 @@ async fn begin_scan(
             .into_response());
     }
     let id = uuid::Uuid::new_v4().to_string();
+    let timestamp = chrono::Utc::now().to_rfc3339();
     state
         .scans
         .lock()
         .await
         .push(pending_scan(&id, &req.repo_url));
+    // Persist the queued row (with the request) so a restart can resume it.
+    if let Err(e) = db::save_pending(&id, req, &timestamp) {
+        warn!("Failed to persist pending scan {}: {}", id, e);
+    }
+    metrics::scan_submitted();
+    auth::audit(actor, "scan.submit", Some(&id), Some(&req.repo_url));
     Ok(id)
 }
 
 /// Shared submit path for both JSON and form endpoints.
-async fn scan_accepted(state: &AppState, req: ScanRequest) -> axum::response::Response {
-    let id = match begin_scan(state, &req).await {
+async fn scan_accepted(
+    state: &AppState,
+    req: ScanRequest,
+    actor: &str,
+) -> axum::response::Response {
+    let id = match begin_scan(state, &req, actor).await {
         Ok(id) => id,
         Err(resp) => return resp,
     };
@@ -567,16 +697,18 @@ async fn scan_accepted(state: &AppState, req: ScanRequest) -> axum::response::Re
 
 async fn start_scan(
     State(state): State<AppState>,
+    Extension(principal): Extension<auth::Principal>,
     Json(req): Json<ScanRequest>,
 ) -> impl IntoResponse {
-    scan_accepted(&state, req).await
+    scan_accepted(&state, req, &principal.name).await
 }
 
 async fn api_scan(
     State(state): State<AppState>,
+    Extension(principal): Extension<auth::Principal>,
     Json(req): Json<ScanRequest>,
 ) -> impl IntoResponse {
-    scan_accepted(&state, req).await
+    scan_accepted(&state, req, &principal.name).await
 }
 
 async fn scan_status(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
@@ -669,6 +801,64 @@ async fn history() -> impl IntoResponse {
     }
 }
 
+async fn healthz() -> impl IntoResponse {
+    let db_ok = db::list_scans(1).is_ok();
+    Json(serde_json::json!({
+        "status": "ok",
+        "version": env!("CARGO_PKG_VERSION"),
+        "db": if db_ok { "ok" } else { "unavailable" },
+    }))
+}
+
+async fn metrics_endpoint(State(state): State<AppState>) -> impl IntoResponse {
+    let pending = state
+        .scans
+        .lock()
+        .await
+        .iter()
+        .filter(|s| matches!(s.status.as_str(), "queued" | "running"))
+        .count();
+    let active = metrics::active_scans().max(0) as usize;
+    (
+        [("content-type", "text/plain; version=0.0.4; charset=utf-8")],
+        metrics::render(pending.saturating_sub(active)),
+    )
+        .into_response()
+}
+
+async fn openapi_spec() -> impl IntoResponse {
+    (
+        [("content-type", "application/yaml; charset=utf-8")],
+        include_str!("../openapi.yaml"),
+    )
+        .into_response()
+}
+
+async fn audit_log(Extension(principal): Extension<auth::Principal>) -> impl IntoResponse {
+    // GET only requires viewer, so the audit trail is additionally gated to
+    // admins here: it reveals who did what and when.
+    if !principal.role.at_least(auth::Role::Admin) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({ "success": false, "error": "Admin role required" })),
+        )
+            .into_response();
+    }
+    match db::audit_list(200) {
+        Ok(entries) => {
+            Json(serde_json::json!({ "success": true, "entries": entries })).into_response()
+        }
+        Err(e) => {
+            error!("Failed to read audit log: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "success": false, "error": "Failed to read audit log" })),
+            )
+                .into_response()
+        }
+    }
+}
+
 async fn report(Path((id, format)): Path<(String, String)>) -> impl IntoResponse {
     match db::get_scan(&id) {
         Ok(Some(result)) => match format.as_str() {
@@ -699,11 +889,41 @@ async fn report(Path((id, format)): Path<(String, String)>) -> impl IntoResponse
                 )
                     .into_response()
             }
+            "csv" => {
+                let content = export::export_csv(&result);
+                (
+                    StatusCode::OK,
+                    [
+                        ("content-type", "text/csv; charset=utf-8"),
+                        ("content-disposition", "attachment; filename=\"report.csv\""),
+                    ],
+                    content,
+                )
+                    .into_response()
+            }
+            "junit" | "junit.xml" => {
+                let content = export::export_junit(&result);
+                (
+                    StatusCode::OK,
+                    [("content-type", "application/xml; charset=utf-8")],
+                    content,
+                )
+                    .into_response()
+            }
+            "github" => {
+                let content = export::export_github(&result);
+                (
+                    StatusCode::OK,
+                    [("content-type", "text/plain; charset=utf-8")],
+                    content,
+                )
+                    .into_response()
+            }
             _ => (
                 StatusCode::BAD_REQUEST,
                 Json(serde_json::json!({
                     "success": false,
-                    "error": "Invalid format. Use 'md', 'html' or 'sarif'"
+                    "error": "Invalid format. Use 'md', 'html', 'sarif', 'csv', 'junit' or 'github'"
                 })),
             )
                 .into_response(),
@@ -730,7 +950,11 @@ async fn report(Path((id, format)): Path<(String, String)>) -> impl IntoResponse
     }
 }
 
-async fn delete_scan(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
+async fn delete_scan(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Extension(principal): Extension<auth::Principal>,
+) -> impl IntoResponse {
     // Cancel queued/running work first; aborting drops the future, which also
     // releases its temp dir and concurrency permit.
     let cancelled = state
@@ -745,6 +969,7 @@ async fn delete_scan(State(state): State<AppState>, Path(id): Path<String>) -> i
         .unwrap_or(false);
     if cancelled {
         info!("Cancelled running scan {}", id);
+        metrics::scan_cancelled();
     }
 
     let was_in_memory = {
@@ -757,9 +982,13 @@ async fn delete_scan(State(state): State<AppState>, Path(id): Path<String>) -> i
     // Remove from DB. A cancelled scan may never have been persisted, which is
     // still a successful delete from the caller's perspective.
     match db::delete_scan(&id) {
-        Ok(_) => Json(serde_json::json!({ "success": true })).into_response(),
+        Ok(_) => {
+            auth::audit(&principal.name, "scan.delete", Some(&id), None);
+            Json(serde_json::json!({ "success": true })).into_response()
+        }
         Err(e) if was_in_memory || cancelled => {
             info!("Deleted in-memory scan {}: {}", id, e);
+            auth::audit(&principal.name, "scan.delete", Some(&id), None);
             Json(serde_json::json!({ "success": true })).into_response()
         }
         Err(e) => {
@@ -814,6 +1043,7 @@ async fn results_page(State(state): State<AppState>, Path(id): Path<String>) -> 
 
 async fn api_scan_upload(
     State(state): State<AppState>,
+    Extension(principal): Extension<auth::Principal>,
     mut multipart: Multipart,
 ) -> impl IntoResponse {
     let mut file_bytes: Option<Vec<u8>> = None;
@@ -960,7 +1190,7 @@ async fn api_scan_upload(
         base_ref: None,
     };
 
-    let scan_id = match begin_scan(&state, &req).await {
+    let scan_id = match begin_scan(&state, &req, &principal.name).await {
         Ok(id) => id,
         Err(resp) => return resp,
     };
@@ -1223,6 +1453,7 @@ async fn execute_scan_in(
         ttp: Some(ttp_report),
         sandbox: sandbox_report,
         status: "completed".to_string(),
+        duration_ms: None,
     };
 
     info!("Scan complete. ID: {}", scan_id);
@@ -1294,6 +1525,131 @@ async fn git_changed_files(
     Some(changed)
 }
 
+async fn requeue_pending(state: &AppState) {
+    match db::pending_scans(10_000) {
+        Ok(pending) => {
+            for (id, req) in pending {
+                info!("Requeuing interrupted scan {} ({})", id, req.repo_url);
+                state
+                    .scans
+                    .lock()
+                    .await
+                    .push(pending_scan(&id, &req.repo_url));
+                spawn_scan(state.clone(), req, id).await;
+            }
+        }
+        Err(e) => error!("Failed to list pending scans for requeue: {}", e),
+    }
+}
+
+fn run_user_command(action: UserAction) -> anyhow::Result<()> {
+    db::init_db()?;
+    match action {
+        UserAction::Add { name, role } => {
+            let role = auth::Role::parse(&role).ok_or_else(|| {
+                anyhow::anyhow!("Invalid role '{}'; use viewer, operator or admin", role)
+            })?;
+            match auth::create_user(&name, role) {
+                Ok(token) => {
+                    auth::audit("cli", "user.add", Some(&name), None);
+                    println!(
+                        "User '{}' created ({}).\n\nToken (store it now; it is not shown again):\n\n  {}",
+                        name,
+                        role.as_str(),
+                        token
+                    );
+                }
+                Err(e) => anyhow::bail!("Failed to create user '{}': {}", name, e),
+            }
+        }
+        UserAction::List => {
+            let users = auth::list_users()?;
+            if users.is_empty() {
+                println!("No users yet. Create one with: kalascan user add <name> --role operator");
+                return Ok(());
+            }
+            for u in users {
+                println!(
+                    "{:8} {} (created {}, last used {})",
+                    u.role,
+                    u.name,
+                    u.created_at,
+                    u.last_used_at.as_deref().unwrap_or("never")
+                );
+            }
+        }
+        UserAction::Remove { name } => {
+            if auth::remove_user(&name)? {
+                auth::audit("cli", "user.remove", Some(&name), None);
+                println!("User '{}' removed", name);
+            } else {
+                eprintln!("User '{}' not found", name);
+                std::process::exit(2);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn run_rules_command(name: Option<String>) -> anyhow::Result<()> {
+    let rules = scanner::build_rules();
+    match name {
+        Some(query) => {
+            let q = query.to_lowercase();
+            let matches: Vec<_> = rules
+                .iter()
+                .filter(|r| r.name.to_lowercase().contains(&q))
+                .collect();
+            match matches.as_slice() {
+                [rule] => {
+                    println!(
+                        "Rule: {}  [{}, {}]",
+                        rule.name, rule.severity, rule.category
+                    );
+                    println!("Ruleset: {}", scanner::RULESET_VERSION);
+                    println!();
+                    println!("{}", rule.description);
+                    println!();
+                    println!("Pattern: {}", rule.pattern.as_str());
+                }
+                [] => {
+                    eprintln!(
+                        "Unknown rule '{}'. Use `kalascan rules` to list rules.",
+                        query
+                    );
+                    std::process::exit(2);
+                }
+                many => {
+                    eprintln!("'{}' is ambiguous; matches:", query);
+                    for r in many {
+                        println!("  {}", r.name);
+                    }
+                    std::process::exit(2);
+                }
+            }
+        }
+        None => {
+            println!("Ruleset version: {}", scanner::RULESET_VERSION);
+            println!(
+                "{:8}  {:<34} {:<14} DESCRIPTION",
+                "SEVERITY", "RULE", "CATEGORY"
+            );
+            for r in rules.iter() {
+                let desc = if r.description.len() > 50 {
+                    format!("{}…", r.description.chars().take(50).collect::<String>())
+                } else {
+                    r.description.to_string()
+                };
+                println!(
+                    "{:8}  {:<34} {:<14} {}",
+                    r.severity, r.name, r.category, desc
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
 async fn run_cli_scan(
     req: ScanRequest,
     format: String,
@@ -1324,6 +1680,9 @@ async fn run_cli_scan(
         "md" | "markdown" => export::export_markdown(&result),
         "html" => export::export_html(&result),
         "sarif" => export::export_sarif(&result),
+        "csv" => export::export_csv(&result),
+        "junit" | "junit.xml" => export::export_junit(&result),
+        "github" => export::export_github(&result),
         _ => format_cli_text(&result),
     };
 

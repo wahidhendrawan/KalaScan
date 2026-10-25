@@ -1,0 +1,225 @@
+openapi: 3.0.3
+info:
+  title: KalaScan API
+  description: |
+    Local Git repository & IDE extension security and malware scanner.
+    Async scan API: submit, then poll the status endpoint until `done`.
+  version: 1.8.0
+servers:
+  - url: http://127.0.0.1:3000
+security:
+  - bearerAuth: []
+paths:
+  /healthz:
+    get:
+      summary: Liveness/readiness probe (no auth)
+      security: []
+      responses:
+        "200":
+          description: Service is up
+  /metrics:
+    get:
+      summary: Prometheus metrics (no auth)
+      security: []
+      responses:
+        "200":
+          description: text/plain Prometheus exposition
+  /openapi.yaml:
+    get:
+      summary: This specification (no auth)
+      security: []
+      responses:
+        "200":
+          description: The OpenAPI document
+  /api/scan:
+    post:
+      summary: Submit a scan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ScanRequest" }
+      responses:
+        "200":
+          description: Accepted; poll the status endpoint
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScanAccepted" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /api/scan/upload:
+    post:
+      summary: Submit a scan from an uploaded package (.vsix/.zip/.jar/.crx)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+                llm_provider: { type: string }
+                llm_model: { type: string }
+                ai_analysis_enabled: { type: boolean }
+                check_cve: { type: boolean }
+                deep_triage: { type: boolean }
+                deobfuscate: { type: boolean }
+                emulate: { type: boolean }
+                sandbox: { type: boolean }
+      responses:
+        "200":
+          description: Accepted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScanAccepted" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/scan/{id}/status:
+    get:
+      summary: Poll scan progress
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Scan status; `result` is present once `done` is true
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScanStatus" }
+  /api/scan/{id}:
+    delete:
+      summary: Cancel a queued or running scan
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Deleted or cancelled }
+        "404": { description: Not found }
+  /api/results/{id}:
+    get:
+      summary: Full scan result
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScanResult" }
+        "404": { description: Not found }
+  /api/history:
+    get:
+      summary: Recent scan summaries
+      responses:
+        "200":
+          description: Scan list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  scans:
+                    type: array
+                    items: { $ref: "#/components/schemas/ScanSummary" }
+  /api/report/{id}/{format}:
+    get:
+      summary: Export a scan in another format
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - name: format
+          in: path
+          required: true
+          schema: { type: string, enum: [md, html, sarif, csv, junit, github] }
+      responses:
+        "200": { description: Report body }
+        "404": { description: Not found }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        `Authorization: Bearer <token>`. Tokens are created with
+        `kalascan user add`. The legacy `KALASCAN_TOKEN` env var also works.
+  responses:
+    Unauthorized:
+      description: Missing or invalid token
+    Forbidden:
+      description: Role too low for this action
+    RateLimited:
+      description: Submission budget exhausted (KALASCAN_SCAN_RATE_LIMIT)
+  schemas:
+    ScanRequest:
+      type: object
+      required: [repo_url, llm_provider, llm_model]
+      properties:
+        repo_url: { type: string, description: "Git URL, marketplace URL, or local directory path" }
+        llm_provider: { type: string, default: ollama }
+        llm_model: { type: string, default: llama3 }
+        llm_api_key: { type: string, description: "Never persisted with queued scans" }
+        llm_endpoint: { type: string }
+        ai_analysis_enabled: { type: boolean }
+        check_cve: { type: boolean }
+        yara_dir: { type: string }
+        git_history: { type: boolean }
+        deep_triage: { type: boolean }
+        deobfuscate: { type: boolean }
+        emulate: { type: boolean }
+        sandbox: { type: boolean }
+        sandbox_image: { type: string }
+        new_only: { type: boolean }
+        baseline: { type: string }
+        ignore: { type: string }
+        changed_only: { type: boolean }
+        base_ref: { type: string }
+    ScanAccepted:
+      type: object
+      properties:
+        success: { type: boolean }
+        result_id: { type: string }
+        status: { type: string, example: queued }
+    ScanStatus:
+      type: object
+      properties:
+        success: { type: boolean }
+        status: { type: string }
+        done: { type: boolean }
+        result: { $ref: "#/components/schemas/ScanResult" }
+    ScanSummary:
+      type: object
+      properties:
+        id: { type: string }
+        repo_url: { type: string }
+        timestamp: { type: string }
+        risk_score: { type: integer }
+        total_matches: { type: integer }
+        status: { type: string }
+    RuleMatch:
+      type: object
+      properties:
+        file_path: { type: string }
+        line_number: { type: integer }
+        matched_pattern: { type: string }
+        severity: { type: string }
+        context: { type: string }
+    ScanResult:
+      type: object
+      properties:
+        id: { type: string }
+        repo_url: { type: string }
+        timestamp: { type: string }
+        total_files: { type: integer }
+        scanned_files: { type: integer }
+        total_matches: { type: integer }
+        risk_score: { type: integer }
+        ai_analysis: { type: object, nullable: true }
+        rule_matches:
+          type: array
+          items: { $ref: "#/components/schemas/RuleMatch" }
+        triage: { type: object, nullable: true }
+        deobfuscation: { type: object, nullable: true }
+        emulation: { type: object, nullable: true }
+        ttp: { type: object, nullable: true }
+        sandbox: { type: object, nullable: true }
+        status: { type: string }
+        duration_ms: { type: integer, nullable: true }
