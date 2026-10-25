@@ -167,7 +167,7 @@ pub fn scan_advanced_obfuscation(file_path: &str, content: &str) -> Vec<RuleMatc
                             ent
                         ),
                         severity: "medium".to_string(),
-                        context: format!("{}...", &clean_token[..clean_token.len().min(80)]),
+                        context: format!("{}...", clean_token.chars().take(80).collect::<String>()),
                     });
                     break; // Max one entropy match per line
                 }
@@ -181,6 +181,17 @@ pub fn scan_advanced_obfuscation(file_path: &str, content: &str) -> Vec<RuleMatc
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_multibyte_high_entropy_token_no_panic() {
+        // A long high-entropy token containing a multi-byte char right at the
+        // old 80-byte slice boundary must not panic (regression).
+        let mut token = "A".repeat(78);
+        token.push('产'); // 3 bytes, straddles byte index 78..81
+        token.push_str(&"B".repeat(30));
+        let content = format!("const x = \"{}\";", token);
+        let _ = scan_advanced_obfuscation("app.js", &content);
+    }
 
     #[test]
     fn test_calculate_entropy() {
