@@ -116,7 +116,7 @@ async fn ollama_analyze(
         return Err(anyhow::anyhow!(
             "Ollama API error {}: {}",
             status.as_u16(),
-            raw.to_string()
+            raw
         ));
     }
 
@@ -137,16 +137,13 @@ async fn openai_analyze(
     code_snippets: &str,
     require_key: bool,
 ) -> anyhow::Result<AiAnalysis> {
-    let base_url = resolve_host(
-        &match (endpoint.as_deref(), require_key) {
-            // 9Router local proxy default
-            (None, false) => "http://localhost:20128/v1/chat/completions",
-            // OpenAI default
-            (None, true) => "https://api.openai.com/v1/chat/completions",
-            (Some(ep), _) => ep,
-        }
-        .to_string(),
-    );
+    let base_url = resolve_host(match (endpoint.as_deref(), require_key) {
+        // 9Router local proxy default
+        (None, false) => "http://localhost:20128/v1/chat/completions",
+        // OpenAI default
+        (None, true) => "https://api.openai.com/v1/chat/completions",
+        (Some(ep), _) => ep,
+    });
 
     if require_key && api_key.is_none() {
         return Err(anyhow::anyhow!(

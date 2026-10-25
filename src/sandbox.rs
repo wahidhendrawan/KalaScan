@@ -675,13 +675,7 @@ fn add_attack(out: &mut Vec<AttackTechnique>, id: &str) {
 }
 
 fn host_arch() -> &'static str {
-    match std::env::consts::ARCH {
-        "aarch64" => "aarch64",
-        "x86_64" => "x86_64",
-        "x86" => "x86",
-        "arm" => "arm",
-        other => other,
-    }
+    std::env::consts::ARCH
 }
 
 fn architecture_matches(architecture: Option<&str>, host: &str) -> bool {

@@ -5,7 +5,7 @@ use std::path::PathBuf;
 #[command(
     name = "kalascan",
     author = "Wahid Hendrawan",
-    version = "1.8.0",
+    version,
     about = "🛡️ KalaScan — Local Git Repository & IDE Extension Security and Malware Scanner"
 )]
 pub struct Cli {
@@ -18,6 +18,7 @@ pub struct Cli {
 }
 
 #[derive(Subcommand, Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum Commands {
     /// Start the Web UI dashboard server (default when no subcommand is provided)
     Serve {
