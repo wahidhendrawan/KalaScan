@@ -4,7 +4,7 @@ FROM rust:1.97-slim-bookworm AS builder
 WORKDIR /app
 
 RUN apt-get update -qq && \
-    apt-get install -y -qq --no-install-recommends pkg-config libssl-dev git && \
+    apt-get install -y -qq --no-install-recommends git && \
     rm -rf /var/lib/apt/lists/*
 
 # Cache deps
