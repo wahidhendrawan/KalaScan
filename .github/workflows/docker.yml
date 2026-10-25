@@ -20,7 +20,8 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  # Docker repository names must be lowercase (the repo is KalaScan).
+  IMAGE_NAME: ${{ github.repository_owner }}/kalascan
 
 jobs:
   build:
