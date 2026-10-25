@@ -88,5 +88,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh api --method PATCH /user/packages/container/kalascan \
+          # /user/packages/... returns 404 for GITHUB_TOKEN; use the
+          # explicit owner path instead.
+          gh api --method PATCH \
+            "/users/${{ github.repository_owner }}/packages/container/kalascan" \
             -f visibility=public
