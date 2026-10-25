@@ -3,6 +3,9 @@ use regex::Regex;
 use std::path::Path;
 use walkdir::WalkDir;
 
+/// Human-readable ruleset version (also surfaced by `kalascan rules`).
+pub const RULESET_VERSION: &str = "2026.10";
+
 /// Critical file extensions for scanning
 const CRITICAL_EXTENSIONS: &[&str] = &[
     ".py", ".js", ".ts", ".mjs", ".cjs", ".sh", ".bat", ".ps1", ".vbs", ".php", ".java", ".kt",

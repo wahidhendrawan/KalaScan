@@ -1,4 +1,4 @@
-use crate::ScanResult;
+use crate::{ScanRequest, ScanResult};
 use anyhow::{Context, Result};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -20,7 +20,7 @@ fn dirs_or_cwd() -> PathBuf {
     }
 }
 
-fn open_db() -> Result<Connection> {
+pub(crate) fn open_db() -> Result<Connection> {
     let conn = Connection::open(db_path())
         .with_context(|| format!("Failed to open database at {:?}", db_path()))?;
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;")
@@ -29,7 +29,7 @@ fn open_db() -> Result<Connection> {
 }
 
 /// Schema version applied by `migrate`. Bump when adding a migration step.
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_VERSION: i64 = 3;
 
 pub fn init_db() -> Result<()> {
     let conn = open_db()?;
@@ -82,6 +82,44 @@ fn migrate(conn: &Connection) -> Result<()> {
         )
         .context("Failed to create status index")?;
         conn.execute_batch("PRAGMA user_version = 2")?;
+    }
+
+    if current < 3 {
+        // v3: multi-user auth + audit log + scan worker persistence.
+        if !column_exists(conn, "scan_history", "request_json")? {
+            conn.execute("ALTER TABLE scan_history ADD COLUMN request_json TEXT", [])
+                .context("Failed to add request_json column")?;
+        }
+        if !column_exists(conn, "scan_history", "duration_ms")? {
+            conn.execute(
+                "ALTER TABLE scan_history ADD COLUMN duration_ms INTEGER",
+                [],
+            )
+            .context("Failed to add duration_ms column")?;
+        }
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                role TEXT NOT NULL,
+                token_prefix TEXT NOT NULL UNIQUE,
+                token_hash TEXT NOT NULL,
+                salt TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                last_used_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS audit_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                actor TEXT NOT NULL,
+                action TEXT NOT NULL,
+                target TEXT,
+                detail TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp);",
+        )
+        .context("Failed to create users/audit_log tables")?;
+        conn.execute_batch("PRAGMA user_version = 3")?;
     }
 
     Ok(())
@@ -160,8 +198,22 @@ pub fn save_scan(result: &ScanResult) -> Result<()> {
         .transpose()?;
 
     conn.execute(
-        "INSERT INTO scan_history (id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, ai_analysis_json, rule_matches_json, triage_json, deobfuscation_json, emulation_json, ttp_json, sandbox_json)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+        "INSERT INTO scan_history (id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, ai_analysis_json, rule_matches_json, triage_json, deobfuscation_json, emulation_json, ttp_json, sandbox_json, request_json, duration_ms)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
+         ON CONFLICT(id) DO UPDATE SET
+            status = excluded.status,
+            total_files = excluded.total_files,
+            scanned_files = excluded.scanned_files,
+            risk_score = excluded.risk_score,
+            total_matches = excluded.total_matches,
+            ai_analysis_json = excluded.ai_analysis_json,
+            rule_matches_json = excluded.rule_matches_json,
+            triage_json = excluded.triage_json,
+            deobfuscation_json = excluded.deobfuscation_json,
+            emulation_json = excluded.emulation_json,
+            ttp_json = excluded.ttp_json,
+            sandbox_json = excluded.sandbox_json,
+            duration_ms = COALESCE(excluded.duration_ms, scan_history.duration_ms)",
         rusqlite::params![
             result.id,
             result.repo_url,
@@ -178,6 +230,8 @@ pub fn save_scan(result: &ScanResult) -> Result<()> {
             emulation_json,
             ttp_json,
             sandbox_json,
+            Option::<String>::None,
+            result.duration_ms.map(|d| d as i64),
         ],
     )
     .context("Failed to insert scan result")?;
@@ -185,12 +239,78 @@ pub fn save_scan(result: &ScanResult) -> Result<()> {
     Ok(())
 }
 
+/// Persist a queued scan together with the request needed to resume it.
+///
+/// Scan workers live in-process, so a restart loses unstarted work; storing the
+/// request lets the next boot requeue it (`pending_scans`).
+pub fn save_pending(id: &str, req: &ScanRequest, timestamp: &str) -> Result<()> {
+    let conn = open_db()?;
+    ensure_schema(&conn)?;
+    // Never persist secrets with the queued request.
+    let mut safe = req.clone();
+    safe.llm_api_key = None;
+    let request_json = serde_json::to_string(&safe)?;
+    conn.execute(
+        "INSERT INTO scan_history (id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, rule_matches_json, request_json)
+         VALUES (?1, ?2, ?3, 0, 0, 0, 0, 'queued', '[]', ?4)
+         ON CONFLICT(id) DO UPDATE SET status = 'queued', request_json = excluded.request_json",
+        rusqlite::params![id, req.repo_url, timestamp, request_json],
+    )
+    .context("Failed to insert pending scan")?;
+    Ok(())
+}
+
+/// Scans that were queued or running when the process stopped.
+pub fn pending_scans(limit: u32) -> Result<Vec<(String, ScanRequest)>> {
+    let conn = open_db()?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, request_json FROM scan_history
+             WHERE status IN ('queued', 'running') AND request_json IS NOT NULL
+             ORDER BY timestamp ASC LIMIT ?1",
+        )
+        .context("Failed to prepare pending_scans statement")?;
+    let rows = stmt
+        .query_map(rusqlite::params![limit], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .context("Failed to query pending scans")?;
+    let mut out = Vec::new();
+    for row in rows {
+        let (id, json) = row.context("Failed to read pending scan")?;
+        match serde_json::from_str::<ScanRequest>(&json) {
+            Ok(req) => out.push((id, req)),
+            // An unreadable request can never be resumed; drop it so the queue
+            // does not retry it forever.
+            Err(e) => {
+                eprintln!("Discarding unresumable scan {}: {}", id, e);
+                let _ = delete_scan(&id);
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Delete all but the newest `keep` finished scans. Used to bound DB growth.
+pub fn prune_scans(keep: u32) -> Result<usize> {
+    let conn = open_db()?;
+    let affected = conn
+        .execute(
+            "DELETE FROM scan_history WHERE id NOT IN (
+                SELECT id FROM scan_history ORDER BY timestamp DESC LIMIT ?1
+             ) AND status NOT IN ('queued', 'running')",
+            rusqlite::params![keep],
+        )
+        .context("Failed to prune scan history")?;
+    Ok(affected)
+}
+
 pub fn get_scan(id: &str) -> Result<Option<ScanResult>> {
     let conn = open_db()?;
     ensure_schema(&conn)?;
     let mut stmt = conn
         .prepare(
-            "SELECT id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, ai_analysis_json, rule_matches_json, triage_json, deobfuscation_json, emulation_json, ttp_json, sandbox_json
+            "SELECT id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, ai_analysis_json, rule_matches_json, triage_json, deobfuscation_json, emulation_json, ttp_json, sandbox_json, duration_ms
              FROM scan_history WHERE id = ?1",
         )
         .context("Failed to prepare get_scan statement")?;
@@ -233,6 +353,7 @@ pub fn get_scan(id: &str) -> Result<Option<ScanResult>> {
                 Some(s) if !s.is_empty() => serde_json::from_str(&s).ok(),
                 _ => None,
             };
+            let duration_ms: Option<i64> = row.get(15)?;
 
             Ok(Some(ScanResult {
                 id: row.get(0)?,
@@ -250,6 +371,7 @@ pub fn get_scan(id: &str) -> Result<Option<ScanResult>> {
                 emulation,
                 ttp,
                 sandbox,
+                duration_ms: duration_ms.map(|d| d as u64),
             }))
         }
         None => Ok(None),
@@ -311,6 +433,70 @@ pub fn delete_scan(id: &str) -> Result<()> {
     Ok(())
 }
 
+/// Open a connection with the schema guaranteed to exist (used by auth).
+pub(crate) fn ready_conn() -> Result<Connection> {
+    let conn = open_db()?;
+    ensure_schema(&conn)?;
+    Ok(conn)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditEntry {
+    pub timestamp: String,
+    pub actor: String,
+    pub action: String,
+    pub target: Option<String>,
+    pub detail: Option<String>,
+}
+
+pub fn audit_insert(
+    actor: &str,
+    action: &str,
+    target: Option<&str>,
+    detail: Option<&str>,
+) -> Result<()> {
+    let conn = ready_conn()?;
+    conn.execute(
+        "INSERT INTO audit_log (timestamp, actor, action, target, detail)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![
+            chrono::Utc::now().to_rfc3339(),
+            actor,
+            action,
+            target,
+            detail
+        ],
+    )
+    .context("Failed to write audit log")?;
+    Ok(())
+}
+
+pub fn audit_list(limit: u32) -> Result<Vec<AuditEntry>> {
+    let conn = ready_conn()?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT timestamp, actor, action, target, detail FROM audit_log
+             ORDER BY id DESC LIMIT ?1",
+        )
+        .context("Failed to prepare audit_list statement")?;
+    let rows = stmt
+        .query_map(rusqlite::params![limit], |row| {
+            Ok(AuditEntry {
+                timestamp: row.get(0)?,
+                actor: row.get(1)?,
+                action: row.get(2)?,
+                target: row.get(3)?,
+                detail: row.get(4)?,
+            })
+        })
+        .context("Failed to query audit log")?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row.context("Failed to read audit row")?);
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -367,5 +553,24 @@ mod tests {
             .unwrap();
         assert_eq!(version, SCHEMA_VERSION);
         assert!(column_exists(&conn, "scan_history", "status").unwrap());
+        // v3 additions
+        assert!(column_exists(&conn, "scan_history", "request_json").unwrap());
+        assert!(column_exists(&conn, "scan_history", "duration_ms").unwrap());
+        let users: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='users'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(users, 1);
+        let audit: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='audit_log'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(audit, 1);
     }
 }
