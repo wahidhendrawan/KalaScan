@@ -7,7 +7,8 @@ on:
       - 'templates/**'
       - 'Dockerfile'
       - 'Cargo.toml'
-      - 'Cargo.lock'
+      - 'Cargo.lock
+openapi.yaml'
   pull_request:
     branches: [main]
 

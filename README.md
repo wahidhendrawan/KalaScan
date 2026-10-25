@@ -200,7 +200,23 @@ kalascan scan https://github.com/user/repo.git \
 
 # Restrict a PR scan to changed files
 kalascan scan https://github.com/user/repo.git --changed-only --base-ref origin/main
+
+# CI annotations (GitHub Actions) and machine-readable test reports
+kalascan scan . --format github
+kalascan scan . --format junit -o kalascan-junit.xml
+kalascan scan . --format csv -o kalascan.csv
+
+# CycloneDX SBOM from lockfiles and manifests (no network calls)
+kalascan sbom . -o sbom.json
 ```
+
+#### Run with Docker
+```bash
+docker run --rm -p 3000:3000 ghcr.io/wahidhendrawan/kalascan:latest
+```
+
+### Scan performance
+- Files are scanned in parallel across available CPU cores (up to 16 workers); findings keep deterministic order
 
 Suppress known noise with a `.kalascanignore` file in the working directory:
 
