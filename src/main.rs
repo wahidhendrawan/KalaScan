@@ -92,10 +92,15 @@ fn scan_timeout() -> Duration {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScanRequest {
     pub repo_url: String,
+    #[serde(default)]
     pub llm_provider: String,
+    #[serde(default)]
     pub llm_model: String,
+    #[serde(default)]
     pub llm_api_key: Option<String>,
+    #[serde(default)]
     pub llm_endpoint: Option<String>,
+    #[serde(default)]
     pub ai_analysis_enabled: bool,
     #[serde(default)]
     pub check_cve: Option<bool>,
@@ -268,10 +273,15 @@ async fn start_web_server(addr: &str) -> anyhow::Result<()> {
         error!("Failed to init DB (running without persistence): {}", e);
     }
 
-    let tera = Tera::new("templates/**/*.html").map_err(|e| {
-        error!("Failed to load templates: {}", e);
-        e
-    })?;
+    let mut tera = Tera::default();
+    tera.add_raw_template("index.html", include_str!("../templates/index.html"))
+        .and_then(|_| {
+            tera.add_raw_template("result.html", include_str!("../templates/result.html"))
+        })
+        .map_err(|e| {
+            error!("Failed to load templates: {}", e);
+            e
+        })?;
 
     let token = std::env::var("KALASCAN_TOKEN")
         .ok()
@@ -336,7 +346,7 @@ async fn start_web_server(addr: &str) -> anyhow::Result<()> {
         .route("/healthz", get(healthz))
         .route("/metrics", get(metrics_endpoint))
         .route("/openapi.yaml", get(openapi_spec))
-        .nest_service("/static", tower_http::services::ServeDir::new("static"))
+        .route("/static/app.css", get(app_css))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             security_headers,
@@ -872,6 +882,17 @@ async fn sbom_endpoint(
             "application/vnd.cyclonedx+json; charset=utf-8",
         )],
         sbom,
+    )
+        .into_response()
+}
+
+async fn app_css() -> impl IntoResponse {
+    (
+        [
+            ("content-type", "text/css; charset=utf-8"),
+            ("cache-control", "public, max-age=3600"),
+        ],
+        include_str!("../static/app.css"),
     )
         .into_response()
 }
