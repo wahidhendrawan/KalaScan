@@ -198,18 +198,22 @@ pub fn analyze_directory(dir: &Path) -> DeobfuscationReport {
 pub fn risk_contribution(report: &DeobfuscationReport) -> u8 {
     let mut score = 0u16;
     for artifact in &report.artifacts {
+        // Plain base64/hex blobs are everywhere in legitimate bundles. Only
+        // decodes that resolve to a hostile action count; otherwise a Python
+        // extension full of base64 icons alone would read as obfuscated.
+        if !artifact
+            .indicators
+            .iter()
+            .any(|indicator| is_strong_indicator(indicator))
+        {
+            continue;
+        }
         score += match artifact.confidence.as_str() {
             "high" => 6,
             "medium" => 3,
             _ => 1,
         };
-        if artifact
-            .indicators
-            .iter()
-            .any(|indicator| is_strong_indicator(indicator))
-        {
-            score += 2;
-        }
+        score += 2;
     }
     score.min(25) as u8
 }

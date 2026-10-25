@@ -191,20 +191,6 @@ pub fn build(
     report
 }
 
-pub fn risk_contribution(report: &TtpReport) -> u8 {
-    let mut score = 0u16;
-    for technique in &report.techniques {
-        score += match technique.severity.as_str() {
-            "critical" => 3,
-            "high" => 2,
-            "medium" => 1,
-            _ => 0,
-        };
-    }
-    score += report.tactics.len() as u16;
-    score.min(15) as u8
-}
-
 fn record(
     techniques: &mut BTreeMap<String, TtpTechnique>,
     technique: AttackTechnique,
@@ -266,7 +252,6 @@ mod tests {
         assert!(report.techniques.is_empty());
         assert!(report.tactics.is_empty());
         assert_eq!(report.coverage_score, 0);
-        assert_eq!(risk_contribution(&report), 0);
     }
 
     #[test]
@@ -305,19 +290,5 @@ mod tests {
         let report = build(&[], Some(&triage), None, None, None);
         assert_eq!(report.tactics[0].tactic, "Execution");
         assert_eq!(report.tactics[1].tactic, "Impact");
-    }
-
-    #[test]
-    fn risk_is_capped() {
-        let triage = TriageReport {
-            attack_techniques: TACTIC_ORDER
-                .iter()
-                .enumerate()
-                .map(|(index, tactic)| technique(&format!("T{:04}", 1000 + index), "Test", tactic))
-                .collect(),
-            ..Default::default()
-        };
-        let report = build(&[], Some(&triage), None, None, None);
-        assert!(risk_contribution(&report) <= 15);
     }
 }
