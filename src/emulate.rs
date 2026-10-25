@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-const ENGINE: &str = "kalascan-emulation/1.6.0";
+const ENGINE: &str = "kalascan-emulation/1.7.0";
 const MAX_FILES: usize = 16;
 const MAX_FILE_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_REGION_BYTES: usize = 16 * 1024 * 1024;

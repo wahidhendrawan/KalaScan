@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use tokio::process::Command;
 use tokio::time::timeout;
 
-const ENGINE: &str = "kalascan-sandbox/1.6.0";
+const ENGINE: &str = "kalascan-sandbox/1.7.0";
 const DEFAULT_IMAGE: &str = "kalascan-sandbox:latest";
 const MAX_SAMPLES: usize = 3;
 const MAX_TRACE_BYTES: usize = 2 * 1024 * 1024;

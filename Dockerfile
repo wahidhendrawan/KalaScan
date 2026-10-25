@@ -31,6 +31,7 @@ RUN apt-get update -qq && \
 
 COPY --from=builder /app/target/release/kalascan /usr/local/bin/kalascan
 COPY templates/ /app/templates/
+COPY static/ /app/static/
 
 WORKDIR /app
 EXPOSE 3000

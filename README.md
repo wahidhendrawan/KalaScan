@@ -5,7 +5,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/rust-1.95+-orange?logo=rust" />
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" />
-  <img src="https://img.shields.io/badge/tests-85%20passed-brightgreen" />
+  <img src="https://img.shields.io/badge/tests-90%20passed-brightgreen" />
   <img src="https://img.shields.io/badge/docker-ready-2496ED?logo=docker" />
 </p>
 
@@ -92,11 +92,34 @@
 ### API Authentication
 - Set `KALASCAN_TOKEN` to require `Authorization: Bearer <token>` on all routes
 - When bound to a non-loopback address without a token, KalaScan logs a prominent warning at startup
+- Responses carry a strict `Content-Security-Policy` (self-hosted assets only), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and `Referrer-Policy: no-referrer`
 
 ### Async Web Scans
-- `POST /scan` and `POST /api/scan` return `{ "success": true, "result_id": "...", "status": "running" }` immediately
+- `POST /scan` and `POST /api/scan` return `{ "success": true, "result_id": "...", "status": "queued" }` immediately
 - Poll `GET /api/scan/{id}/status`; it returns `done: true` plus the full result when the job finishes
 - Upload (`POST /api/scan/upload`) follows the same contract; archive unpacking runs on a blocking thread and scanning runs as a background task
+- `DELETE /api/scan/{id}` cancels a queued or running scan (aborts the task and releases its temp dir)
+
+### Operational Limits (v1.7)
+| Env var | Default | Purpose |
+|---------|---------|---------|
+| `KALASCAN_MAX_CONCURRENT_SCANS` | `4` | Scans running at once; the rest wait in FIFO order |
+| `KALASCAN_SCAN_TIMEOUT_SECS` | `900` | Hard timeout per scan; exceeded scans are marked failed |
+| `KALASCAN_SCAN_RATE_LIMIT` | `30` | Submissions allowed per minute (HTTP `429` beyond that) |
+| `KALASCAN_TOKEN` | unset | Bearer token required on every route |
+
+### Local Directory Scans (v1.7)
+- Pass a directory path as the target to scan a checkout in place: `kalascan scan . --changed-only --base-ref origin/main`
+- No clone is performed, so `--changed-only` uses the real PR diff and finishes faster in CI
+- Local paths are read-only; packages (`.vsix`/`.zip`/`.jar`/`.crx`) are still extracted into a temp dir
+
+### Database Migrations (v1.7)
+- `PRAGMA user_version` tracks schema state; versions upgrade in place on startup
+- Legacy databases gain missing columns automatically and are stamped to the current version
+
+### Self-Hosted UI (v1.7)
+- Tailwind is compiled into `static/app.css` (no CDN, no Google Fonts); the UI works fully offline
+- Rebuild after editing templates: `npx tailwindcss@3.4.17 -c tailwind.config.js -i tailwind.input.css -o static/app.css --minify`
 
 ### AI Deep Analysis
 - **Multi-Provider LLM Support**: Ollama (local), OpenAI, DeepSeek, 9Router (local proxy), or any OpenAI-compatible custom endpoint
@@ -188,7 +211,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: wahidhendrawan/KalaScan@v1.6.0
+      - uses: wahidhendrawan/KalaScan@v1.7.0
         with:
           target: https://github.com/${{ github.repository }}.git
           fail_on_risk: "60"
@@ -269,11 +292,14 @@ KalaScan/
 ## Development
 
 ```bash
-# Run tests (85 tests)
+# Run tests (90 tests)
 cargo test
 
 # Build release binary
 cargo build --release
+
+# Rebuild the bundled UI stylesheet after editing templates
+npx tailwindcss@3.4.17 -c tailwind.config.js -i tailwind.input.css -o static/app.css --minify
 
 # Run with debug logging
 RUST_LOG=kalascan=debug cargo run

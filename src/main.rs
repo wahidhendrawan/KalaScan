@@ -26,7 +26,9 @@ use axum::{
 use clap::Parser;
 use cli::{Cli, Commands};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tera::Tera;
 use tokio::sync::Mutex;
 use tower_http::cors::CorsLayer;
@@ -37,6 +39,52 @@ struct AppState {
     tera: Arc<Tera>,
     scans: Arc<Mutex<Vec<ScanResult>>>,
     token: Option<String>,
+    /// Caps how many scans run at once; the rest wait in the queue.
+    scan_slots: Arc<tokio::sync::Semaphore>,
+    /// Abort handles for queued/running scans, so `DELETE` cancels work.
+    running: Arc<Mutex<HashMap<String, tokio::task::AbortHandle>>>,
+    /// Simple submission budget (scans per minute) to prevent API abuse.
+    submit_budget: Arc<Mutex<RateBudget>>,
+}
+
+struct RateBudget {
+    window: Instant,
+    count: u32,
+    limit: u32,
+}
+
+impl RateBudget {
+    fn new(limit: u32) -> Self {
+        Self {
+            window: Instant::now(),
+            count: 0,
+            limit,
+        }
+    }
+
+    /// Returns false once the per-minute budget is exhausted.
+    fn try_take(&mut self) -> bool {
+        if self.window.elapsed() >= Duration::from_secs(60) {
+            self.window = Instant::now();
+            self.count = 0;
+        }
+        if self.count >= self.limit {
+            return false;
+        }
+        self.count += 1;
+        true
+    }
+}
+
+fn env_u32(name: &str, default: u32) -> u32 {
+    std::env::var(name)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
+}
+
+fn scan_timeout() -> Duration {
+    Duration::from_secs(u64::from(env_u32("KALASCAN_SCAN_TIMEOUT_SECS", 900)))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -195,7 +243,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn start_web_server(addr: &str) -> anyhow::Result<()> {
-    info!("KalaScan v1.6.0 starting Web UI on http://{}", addr);
+    info!("KalaScan v1.7.0 starting Web UI on http://{}", addr);
 
     // Initialize DB
     if let Err(e) = db::init_db() {
@@ -223,6 +271,14 @@ async fn start_web_server(addr: &str) -> anyhow::Result<()> {
         tera: Arc::new(tera),
         scans: Arc::new(Mutex::new(Vec::new())),
         token,
+        scan_slots: Arc::new(tokio::sync::Semaphore::new(
+            env_u32("KALASCAN_MAX_CONCURRENT_SCANS", 4) as usize,
+        )),
+        running: Arc::new(Mutex::new(HashMap::new())),
+        submit_budget: Arc::new(Mutex::new(RateBudget::new(env_u32(
+            "KALASCAN_SCAN_RATE_LIMIT",
+            30,
+        )))),
     };
 
     let app = Router::new()
@@ -236,6 +292,11 @@ async fn start_web_server(addr: &str) -> anyhow::Result<()> {
         .route("/api/report/{id}/{format}", get(report))
         .route("/api/scan/{id}", delete(delete_scan))
         .route("/results/{id}", get(results_page))
+        .nest_service("/static", tower_http::services::ServeDir::new("static"))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            security_headers,
+        ))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
@@ -297,6 +358,46 @@ fn check_auth(
     }
 }
 
+/// Add hardening headers. Styles and scripts are self-hosted and inline, so
+/// `unsafe-inline` stays for those sources; the CSP's real job is blocking any
+/// third-party CDN or injected remote resource.
+async fn security_headers(
+    State(_state): State<AppState>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let mut resp = next.run(req).await;
+    let headers = resp.headers_mut();
+    headers.insert(
+        axum::http::header::CONTENT_SECURITY_POLICY,
+        axum::http::HeaderValue::from_static(
+            "default-src 'self'; \
+             style-src 'self' 'unsafe-inline'; \
+             script-src 'self' 'unsafe-inline'; \
+             img-src 'self' data:; \
+             font-src 'self'; \
+             connect-src 'self'; \
+             object-src 'none'; \
+             base-uri 'self'; \
+             frame-ancestors 'none'; \
+             form-action 'self'",
+        ),
+    );
+    headers.insert(
+        axum::http::header::X_CONTENT_TYPE_OPTIONS,
+        axum::http::HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        axum::http::header::X_FRAME_OPTIONS,
+        axum::http::HeaderValue::from_static("DENY"),
+    );
+    headers.insert(
+        axum::http::header::REFERRER_POLICY,
+        axum::http::HeaderValue::from_static("no-referrer"),
+    );
+    resp
+}
+
 async fn root(State(state): State<AppState>) -> Result<Html<String>, (StatusCode, String)> {
     let mut ctx = tera::Context::new();
     // Load scans from DB for initial render
@@ -338,78 +439,144 @@ fn pending_scan(id: &str, target: &str) -> ScanResult {
         emulation: None,
         ttp: None,
         sandbox: None,
-        status: "running".to_string(),
+        status: "queued".to_string(),
     }
 }
 
 async fn store_result(state: &AppState, result: ScanResult) {
+    // A deleted scan must stay deleted, even if its task finished afterwards.
+    let deleted = {
+        let scans = state.scans.lock().await;
+        !scans.iter().any(|s| s.id == result.id)
+    };
+    if deleted {
+        info!("Scan {} was deleted; discarding result", result.id);
+        return;
+    }
     if let Err(e) = db::save_scan(&result) {
         error!("Failed to save scan to DB: {}", e);
     }
     let mut scans = state.scans.lock().await;
     if let Some(slot) = scans.iter_mut().find(|s| s.id == result.id) {
         *slot = result;
-    } else {
-        scans.push(result);
     }
 }
 
-fn spawn_scan(state: AppState, req: ScanRequest, id: String) {
-    tokio::spawn(async move {
-        match execute_scan_with_id(req, id.clone()).await {
-            Ok(result) => store_result(&state, result).await,
-            Err(e) => {
-                error!("Scan {} failed: {}", id, e);
-                let mut failed = pending_scan(&id, "");
-                {
-                    let scans = state.scans.lock().await;
-                    if let Some(prev) = scans.iter().find(|s| s.id == id) {
-                        failed.repo_url = prev.repo_url.clone();
-                    }
-                }
-                failed.status = format!("failed: {}", e);
-                store_result(&state, failed).await;
+/// Enqueue a scan: register a pending entry, then run the work in the
+/// background behind a concurrency permit and a timeout.
+async fn spawn_scan(state: AppState, req: ScanRequest, id: String) {
+    let work_id = id.clone();
+    let work = async move { execute_scan_with_id(req, work_id).await };
+    spawn_task(state, id, work).await;
+}
+
+async fn spawn_task<F>(state: AppState, id: String, work: F)
+where
+    F: std::future::Future<Output = anyhow::Result<ScanResult>> + Send + 'static,
+{
+    let task_state = state.clone();
+    let task_id = id.clone();
+    let handle = tokio::spawn(async move {
+        // Queueing happens here so the HTTP response stays instant.
+        let permit = match task_state.scan_slots.clone().acquire_owned().await {
+            Ok(p) => p,
+            Err(_) => return,
+        };
+        {
+            let mut scans = task_state.scans.lock().await;
+            if let Some(slot) = scans.iter_mut().find(|s| s.id == task_id) {
+                slot.status = "running".to_string();
             }
         }
+
+        let outcome = tokio::time::timeout(scan_timeout(), work).await;
+        drop(permit);
+
+        let result = match outcome {
+            Ok(Ok(result)) => result,
+            Ok(Err(e)) => {
+                error!("Scan {} failed: {}", task_id, e);
+                failed_result(&task_state, &task_id, e.to_string()).await
+            }
+            Err(_) => {
+                error!("Scan {} timed out", task_id);
+                failed_result(&task_state, &task_id, "scan timed out".to_string()).await
+            }
+        };
+        store_result(&task_state, result).await;
+        task_state.running.lock().await.remove(&task_id);
     });
+
+    let mut running = state.running.lock().await;
+    running.retain(|_, h| !h.is_finished());
+    running.insert(id, handle.abort_handle());
+}
+
+async fn failed_result(state: &AppState, id: &str, message: String) -> ScanResult {
+    let mut failed = pending_scan(id, "");
+    {
+        let scans = state.scans.lock().await;
+        if let Some(prev) = scans.iter().find(|s| s.id == id) {
+            failed.repo_url = prev.repo_url.clone();
+        }
+    }
+    failed.status = format!("failed: {}", message);
+    failed
+}
+
+/// Register a pending scan or reject it when the submission budget is spent.
+async fn begin_scan(
+    state: &AppState,
+    req: &ScanRequest,
+) -> Result<String, axum::response::Response> {
+    let allowed = state.submit_budget.lock().await.try_take();
+    if !allowed {
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(serde_json::json!({
+                "success": false,
+                "error": "Scan rate limit exceeded; try again shortly"
+            })),
+        )
+            .into_response());
+    }
+    let id = uuid::Uuid::new_v4().to_string();
+    state
+        .scans
+        .lock()
+        .await
+        .push(pending_scan(&id, &req.repo_url));
+    Ok(id)
+}
+
+/// Shared submit path for both JSON and form endpoints.
+async fn scan_accepted(state: &AppState, req: ScanRequest) -> axum::response::Response {
+    let id = match begin_scan(state, &req).await {
+        Ok(id) => id,
+        Err(resp) => return resp,
+    };
+    info!("Queued scan {} for {}", id, req.repo_url);
+    spawn_scan(state.clone(), req, id.clone()).await;
+    Json(serde_json::json!({
+        "success": true,
+        "result_id": id,
+        "status": "queued"
+    }))
+    .into_response()
 }
 
 async fn start_scan(
     State(state): State<AppState>,
     Json(req): Json<ScanRequest>,
 ) -> impl IntoResponse {
-    let id = uuid::Uuid::new_v4().to_string();
-    {
-        let mut scans = state.scans.lock().await;
-        scans.push(pending_scan(&id, &req.repo_url));
-    }
-    spawn_scan(state, req, id.clone());
-
-    Json(serde_json::json!({
-        "success": true,
-        "result_id": id,
-        "status": "running"
-    }))
-    .into_response()
+    scan_accepted(&state, req).await
 }
 
 async fn api_scan(
     State(state): State<AppState>,
     Json(req): Json<ScanRequest>,
 ) -> impl IntoResponse {
-    let id = uuid::Uuid::new_v4().to_string();
-    {
-        let mut scans = state.scans.lock().await;
-        scans.push(pending_scan(&id, &req.repo_url));
-    }
-    spawn_scan(state, req, id.clone());
-
-    Json(serde_json::json!({
-        "success": true,
-        "result_id": id,
-        "status": "running"
-    }))
-    .into_response()
+    scan_accepted(&state, req).await
 }
 
 async fn scan_status(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
@@ -421,7 +588,7 @@ async fn scan_status(State(state): State<AppState>, Path(id): Path<String>) -> i
         .find(|r| r.id == id)
         .cloned()
     {
-        let done = result.status != "running";
+        let done = !matches!(result.status.as_str(), "running" | "queued");
         return Json(serde_json::json!({
             "success": true,
             "status": result.status,
@@ -564,15 +731,37 @@ async fn report(Path((id, format)): Path<(String, String)>) -> impl IntoResponse
 }
 
 async fn delete_scan(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
-    // Remove from in-memory
-    {
-        let mut scans = state.scans.lock().await;
-        scans.retain(|r| r.id != id);
+    // Cancel queued/running work first; aborting drops the future, which also
+    // releases its temp dir and concurrency permit.
+    let cancelled = state
+        .running
+        .lock()
+        .await
+        .remove(&id)
+        .map(|handle| {
+            handle.abort();
+            true
+        })
+        .unwrap_or(false);
+    if cancelled {
+        info!("Cancelled running scan {}", id);
     }
 
-    // Remove from DB
+    let was_in_memory = {
+        let mut scans = state.scans.lock().await;
+        let before = scans.len();
+        scans.retain(|r| r.id != id);
+        scans.len() != before
+    };
+
+    // Remove from DB. A cancelled scan may never have been persisted, which is
+    // still a successful delete from the caller's perspective.
     match db::delete_scan(&id) {
         Ok(_) => Json(serde_json::json!({ "success": true })).into_response(),
+        Err(e) if was_in_memory || cancelled => {
+            info!("Deleted in-memory scan {}: {}", id, e);
+            Json(serde_json::json!({ "success": true })).into_response()
+        }
         Err(e) => {
             error!("Failed to delete scan {}: {}", id, e);
             (
@@ -771,35 +960,20 @@ async fn api_scan_upload(
         base_ref: None,
     };
 
-    let scan_id = uuid::Uuid::new_v4().to_string();
-    {
-        let mut scans = state.scans.lock().await;
-        scans.push(pending_scan(&scan_id, &req.repo_url));
-    }
-    let task_state = state.clone();
-    let task_id = scan_id.clone();
+    let scan_id = match begin_scan(&state, &req).await {
+        Ok(id) => id,
+        Err(resp) => return resp,
+    };
+
     // The temp dir must outlive the scan task; move it into the task.
-    tokio::spawn(async move {
-        let result = execute_scan_in(req, scan_dir, task_id.clone(), Some(tmp_dir)).await;
-        match result {
-            Ok(r) => store_result(&task_state, r).await,
-            Err(e) => {
-                error!("Upload scan {} failed: {}", task_id, e);
-                let _ = tokio::time::timeout(std::time::Duration::from_secs(1), async {
-                    let mut scans = task_state.scans.lock().await;
-                    if let Some(slot) = scans.iter_mut().find(|s| s.id == task_id) {
-                        slot.status = format!("failed: {}", e);
-                    }
-                })
-                .await;
-            }
-        }
-    });
+    let work_id = scan_id.clone();
+    let work = async move { execute_scan_in(req, scan_dir, work_id, Some(tmp_dir)).await };
+    spawn_task(state.clone(), scan_id.clone(), work).await;
 
     Json(serde_json::json!({
         "success": true,
         "result_id": scan_id,
-        "status": "running"
+        "status": "queued"
     }))
     .into_response()
 }
@@ -811,6 +985,16 @@ async fn execute_scan(req: ScanRequest) -> anyhow::Result<ScanResult> {
 
 async fn execute_scan_with_id(req: ScanRequest, id: String) -> anyhow::Result<ScanResult> {
     info!("Starting scan for: {}", req.repo_url);
+
+    // A local directory is scanned in place (no clone, no temp dir). This keeps
+    // PR scans fast and avoids a second clone when the caller already has a
+    // checkout. Packages (.vsix/.zip/.jar/.crx) still go through unpacking.
+    let local_path = std::path::Path::new(&req.repo_url);
+    if local_path.is_dir() && !vsix::is_vsix_target(&req.repo_url) {
+        let path = local_path.to_path_buf();
+        info!("Scanning local directory {:?} in place", path);
+        return execute_scan_in(req, path, id, None).await;
+    }
 
     let tmp_dir = tempfile::tempdir()?;
     let target_dir = tmp_dir.path().join("source");
