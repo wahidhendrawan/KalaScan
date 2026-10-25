@@ -28,9 +28,63 @@ fn open_db() -> Result<Connection> {
     Ok(conn)
 }
 
+/// Schema version applied by `migrate`. Bump when adding a migration step.
+const SCHEMA_VERSION: i64 = 2;
+
 pub fn init_db() -> Result<()> {
     let conn = open_db()?;
-    ensure_schema(&conn)
+    ensure_schema(&conn)?;
+    migrate(&conn)
+}
+
+/// Apply incremental migrations keyed on `PRAGMA user_version`.
+///
+/// Version 1 legacy databases were built by `CREATE TABLE IF NOT EXISTS` with
+/// per-column `ALTER`s, so they report `user_version = 0` while already having
+/// most columns. Step 1 therefore only adds missing columns, then stamps 1.
+fn migrate(conn: &Connection) -> Result<()> {
+    let current: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+    if current >= SCHEMA_VERSION {
+        return Ok(());
+    }
+
+    if current < 1 {
+        // Older versions created the table once and never migrated it, so
+        // legacy DBs can be missing columns added in later releases.
+        const LEGACY_COLUMNS: &[(&str, &str)] = &[
+            ("status", "TEXT NOT NULL DEFAULT 'completed'"),
+            ("ai_analysis_json", "TEXT"),
+            ("rule_matches_json", "TEXT DEFAULT '[]'"),
+            ("triage_json", "TEXT"),
+            ("deobfuscation_json", "TEXT"),
+            ("emulation_json", "TEXT"),
+            ("ttp_json", "TEXT"),
+            ("sandbox_json", "TEXT"),
+        ];
+        for (column, decl) in LEGACY_COLUMNS {
+            if !column_exists(conn, "scan_history", column)? {
+                conn.execute(
+                    &format!("ALTER TABLE scan_history ADD COLUMN {} {}", column, decl),
+                    [],
+                )
+                .with_context(|| format!("Failed to add {} column", column))?;
+            }
+        }
+        conn.execute_batch("PRAGMA user_version = 1")?;
+    }
+
+    if current < 2 {
+        // Scans are now enqueued before they start; index the status column so
+        // `list_scans` and queue lookups stay cheap as history grows.
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_scan_history_status ON scan_history(status)",
+            [],
+        )
+        .context("Failed to create status index")?;
+        conn.execute_batch("PRAGMA user_version = 2")?;
+    }
+
+    Ok(())
 }
 
 fn ensure_schema(conn: &Connection) -> Result<()> {
@@ -56,38 +110,7 @@ fn ensure_schema(conn: &Connection) -> Result<()> {
     )
     .context("Failed to create scan_history table")?;
 
-    if !column_exists(conn, "scan_history", "triage_json")? {
-        conn.execute("ALTER TABLE scan_history ADD COLUMN triage_json TEXT", [])
-            .context("Failed to add triage_json column")?;
-    }
-
-    if !column_exists(conn, "scan_history", "deobfuscation_json")? {
-        conn.execute(
-            "ALTER TABLE scan_history ADD COLUMN deobfuscation_json TEXT",
-            [],
-        )
-        .context("Failed to add deobfuscation_json column")?;
-    }
-
-    if !column_exists(conn, "scan_history", "emulation_json")? {
-        conn.execute(
-            "ALTER TABLE scan_history ADD COLUMN emulation_json TEXT",
-            [],
-        )
-        .context("Failed to add emulation_json column")?;
-    }
-
-    if !column_exists(conn, "scan_history", "ttp_json")? {
-        conn.execute("ALTER TABLE scan_history ADD COLUMN ttp_json TEXT", [])
-            .context("Failed to add ttp_json column")?;
-    }
-
-    if !column_exists(conn, "scan_history", "sandbox_json")? {
-        conn.execute("ALTER TABLE scan_history ADD COLUMN sandbox_json TEXT", [])
-            .context("Failed to add sandbox_json column")?;
-    }
-
-    Ok(())
+    migrate(conn)
 }
 
 fn column_exists(conn: &Connection, table: &str, column: &str) -> Result<bool> {
@@ -286,4 +309,63 @@ pub fn delete_scan(id: &str) -> Result<()> {
         anyhow::bail!("Scan with id '{}' not found", id);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn migrates_legacy_table_and_stamps_version() {
+        let conn = Connection::open_in_memory().unwrap();
+        // v1.2-era schema: only the core columns, no JSON report columns.
+        conn.execute_batch(
+            "CREATE TABLE scan_history (
+                id TEXT PRIMARY KEY,
+                repo_url TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                total_files INTEGER NOT NULL,
+                scanned_files INTEGER NOT NULL,
+                risk_score INTEGER NOT NULL,
+                total_matches INTEGER NOT NULL
+            );",
+        )
+        .unwrap();
+
+        ensure_schema(&conn).unwrap();
+
+        for column in [
+            "status",
+            "ai_analysis_json",
+            "triage_json",
+            "deobfuscation_json",
+            "emulation_json",
+            "ttp_json",
+            "sandbox_json",
+        ] {
+            assert!(
+                column_exists(&conn, "scan_history", column).unwrap(),
+                "missing column {}",
+                column
+            );
+        }
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, SCHEMA_VERSION);
+
+        // Running again must be a no-op.
+        ensure_schema(&conn).unwrap();
+    }
+
+    #[test]
+    fn fresh_database_gets_current_version() {
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, SCHEMA_VERSION);
+        assert!(column_exists(&conn, "scan_history", "status").unwrap());
+    }
 }
