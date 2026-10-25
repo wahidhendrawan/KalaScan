@@ -147,6 +147,11 @@
 
 ## Quick Start
 
+### Install (prebuilt binary)
+```bash
+curl -fsSL https://raw.githubusercontent.com/wahidhendrawan/KalaScan/main/install.sh | sh
+```
+
 ### Build & Run
 
 ```bash
