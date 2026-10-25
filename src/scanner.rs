@@ -135,7 +135,7 @@ pub fn build_rules() -> Vec<Rule> {
         },
         Rule {
             name: "Password Manager Access",
-            pattern: Regex::new(r"(?i)(?:passwords?\.txt|passwd|credentials\.dat|login\.json|\.npmrc|\.env)").unwrap(),
+            pattern: Regex::new(r#"(?i)(?:passwords?\.txt|passwd|credentials\.dat|login\.json|\.npmrc|(?:^|[\\/"'])[.]env\b)"#).unwrap(),
             severity: "high",
             description: "Credential file access detected",
             category: "file_access",
@@ -237,7 +237,7 @@ pub fn build_rules() -> Vec<Rule> {
         },
         Rule {
             name: "Dynamic Import/Load",
-            pattern: Regex::new(r#"(?i)(?:__import__\(|importlib|execScript|new Function|setTimeout\s*\()"#).unwrap(),
+            pattern: Regex::new(r#"(?i)(?:__import__\(|importlib|execScript|new Function)"#).unwrap(),
             severity: "medium",
             description: "Dynamic code loading — potential backdoor",
             category: "obfuscation",
@@ -386,6 +386,13 @@ pub fn build_rules() -> Vec<Rule> {
             severity: "medium",
             description: "Reading workspace files via VS Code API",
             category: "file_access",
+        },
+        Rule {
+            name: "Installed Extension Tampering",
+            pattern: Regex::new(r#"(?i)[\\/]\.vscode[\\/]extensions[\\/]"#).unwrap(),
+            severity: "critical",
+            description: "References another installed extension's directory — supply-chain tampering",
+            category: "supply_chain",
         },
         Rule {
             name: "VS Code Wildcard Activation",
@@ -590,7 +597,9 @@ fn scan_files(
             }
 
             for cap in rule.pattern.find_iter(&content) {
-                if line_has_ignore_marker(&content, cap.start()) {
+                if line_has_ignore_marker(&content, cap.start())
+                    || is_comment_only_line(&content, cap.start())
+                {
                     continue;
                 }
                 let line_num = content[..cap.start()].matches('\n').count() + 1;
@@ -629,6 +638,22 @@ fn line_has_ignore_marker(content: &str, start: usize) -> bool {
         .map(|i| start + i)
         .unwrap_or(content.len());
     content[line_start..line_end].contains("kalascan:ignore")
+}
+
+/// True when the match sits inside a comment (`//`, `#`, `/* ... */`).
+/// Commented-out code is not executed; flagging it was pure noise.
+fn is_comment_only_line(content: &str, start: usize) -> bool {
+    let line_start = content[..start].rfind('\n').map(|i| i + 1).unwrap_or(0);
+    let before = &content[line_start..start];
+    let trimmed = before.trim_start();
+    if trimmed.starts_with("//") || trimmed.starts_with('#') {
+        return true;
+    }
+    match (before.rfind("/*"), before.rfind("*/")) {
+        (Some(open), Some(close)) => open > close,
+        (Some(_), None) => true,
+        _ => false,
+    }
 }
 
 fn get_context(content: &str, start: usize, end: usize) -> String {
@@ -840,5 +865,54 @@ mod tests {
         assert!(eval
             .pattern
             .is_match("chrome.tabs.executeScript(tabId, { code: payload });"));
+    }
+
+    #[test]
+    fn test_password_manager_rule_ignores_env_property() {
+        let rules = build_rules();
+        let rule = rules
+            .iter()
+            .find(|r| r.name == "Password Manager Access")
+            .unwrap();
+        assert!(!rule.pattern.is_match("const home = process.env.HOME;"));
+        assert!(!rule.pattern.is_match("vscode_2.env.appRoot"));
+        assert!(rule.pattern.is_match(r#"fs.readFileSync(home + "/.env")"#));
+    }
+
+    #[test]
+    fn test_dynamic_import_rule_ignores_set_timeout() {
+        let rules = build_rules();
+        let rule = rules
+            .iter()
+            .find(|r| r.name == "Dynamic Import/Load")
+            .unwrap();
+        assert!(!rule.pattern.is_match("setTimeout(vscode.reload, 1000)"));
+        assert!(rule.pattern.is_match("__import__('os')"));
+    }
+
+    #[test]
+    fn test_installed_extension_tampering_rule() {
+        let rules = build_rules();
+        let rule = rules
+            .iter()
+            .find(|r| r.name == "Installed Extension Tampering")
+            .unwrap();
+        // Real malicious-api-extension sample
+        assert!(rule.pattern.is_match(
+            r#"let dir = homedir + "/.vscode/extensions/ecm3401.example-api-extension-0.0.1";"#
+        ));
+        assert!(rule
+            .pattern
+            .is_match(r"let dir = home + '\.vscode\extensions\x.y-1.0.0';"));
+    }
+
+    #[test]
+    fn test_commented_out_code_is_ignored() {
+        let content = "// exec(command, { name: \"X\" }, (err) => {});\n";
+        assert!(is_comment_only_line(content, 5)); // inside the comment
+        let real = "exec(command, { name: \"X\" }, (err) => {});\n";
+        assert!(!is_comment_only_line(real, 3));
+        let py = "# os.system('rm -rf /')\n";
+        assert!(is_comment_only_line(py, 4));
     }
 }
