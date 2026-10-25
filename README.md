@@ -153,11 +153,15 @@
 
 ### Install (prebuilt binary)
 ```bash
+# one-liner (linux x86_64/aarch64, macOS universal)
 curl -fsSL https://raw.githubusercontent.com/wahidhendrawan/KalaScan/main/install.sh | sh
+
+# or via Homebrew
+brew tap wahidhendrawan/kalascan
+brew trust wahidhendrawan/kalascan
+brew install kalascan
 ```
-The release repository is private, so the script needs a token (`gh auth token`
-is used automatically, or set `KALASCAN_GITHUB_TOKEN`). Installs to
-`/usr/local/bin`; override with `KALASCAN_INSTALL_DIR=/some/bin`.
+Installs to `/usr/local/bin`; override with `KALASCAN_INSTALL_DIR=/some/bin`.
 
 ### Build & Run
 
