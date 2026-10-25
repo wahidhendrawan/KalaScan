@@ -5,36 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>KalaScan — Local-First Security Scanner</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237c3aed'/%3E%3Cstop offset='1' stop-color='%2322d3ee'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23g)' d='M16 2l12 4.5v9.2C28 24 22.8 29 16 31 9.2 29 4 24 4 15.7V6.5L16 2z'/%3E%3Cpath fill='%2307080c' d='M14.2 21.3l-4.6-4.6 2-2 2.6 2.6 6.2-6.2 2 2z'/%3E%3C/svg%3E">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: { extend: {
-                fontFamily: {
-                    sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-                    mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
-                },
-                colors: {
-                    ink: { 950: '#07080c', 900: '#0b0d13', 800: '#12151f', 700: '#1b1f2c' },
-                    brand: { 400: '#a78bfa', 500: '#8b5cf6', 600: '#7c3aed' },
-                    aqua: { 400: '#22d3ee', 500: '#06b6d4' },
-                },
-                keyframes: {
-                    float: { '0%,100%': { transform: 'translate3d(0,0,0)' }, '50%': { transform: 'translate3d(0,-12px,0)' } },
-                    shimmer: { '0%': { backgroundPosition: '0% 50%' }, '100%': { backgroundPosition: '200% 50%' } },
-                    rise: { '0%': { opacity: '0', transform: 'translateY(10px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
-                },
-                animation: {
-                    float: 'float 9s ease-in-out infinite',
-                    shimmer: 'shimmer 6s linear infinite',
-                    rise: 'rise .4s cubic-bezier(.22,1,.36,1) both',
-                },
-            }}
-        };
-    </script>
+    <!-- Self-hosted Tailwind build (see tailwind.config.js); no CDN at runtime. -->
+    <link rel="stylesheet" href="/static/app.css">
     <style>
         :root { color-scheme: dark; }
         html, body { height: 100%; }
@@ -147,7 +119,7 @@
             <div class="flex items-center gap-2">
                 <span class="chip hidden sm:inline-flex"><span class="chip-dot bg-emerald-400"></span>Rust engine</span>
                 <span class="chip hidden sm:inline-flex"><span class="chip-dot bg-brand-400"></span>YARA + ATT&amp;CK</span>
-                <span class="chip hidden lg:inline-flex"><span class="chip-dot bg-aqua-400"></span>v1.6.0</span>
+                <span class="chip hidden lg:inline-flex"><span class="chip-dot bg-aqua-400"></span>v1.7.0</span>
                 <button onclick="openSettings()" class="rounded-lg border border-white/[.08] bg-white/[.03] p-2 text-slate-400 transition hover:text-white" title="Scan settings">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                 </button>
@@ -495,7 +467,7 @@
             </section>
 
             <footer class="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-white/[.06] pt-5 text-[10px] text-slate-600">
-                <span>KalaScan v1.6.0 · Rust + Axum</span>
+                <span>KalaScan v1.7.0 · Rust + Axum</span>
                 <span class="inline-flex items-center gap-1.5"><span class="h-1.5 w-1.5 rounded-full bg-rose-500/70"></span>Never execute untrusted code</span>
             </footer>
         </main>
@@ -561,7 +533,6 @@
                 llm_provider: document.getElementById('llm-provider').value,
                 llm_model: document.getElementById('llm-model').value,
                 llm_endpoint: document.getElementById('llm-endpoint').value,
-                llm_api_key: document.getElementById('llm-key').value,
                 ai_analysis_enabled: document.getElementById('ai-enabled').checked,
                 cve_enabled: document.getElementById('cve-enabled').checked,
                 deep_triage_enabled: document.getElementById('deep-triage-enabled').checked,
@@ -576,10 +547,15 @@
             if (!raw) return;
             try {
                 const s = JSON.parse(raw);
+                // Drop any key persisted by older versions of the UI.
+                if (s.llm_api_key) {
+                    localStorage.removeItem('kalascan_settings');
+                    delete s.llm_api_key;
+                    localStorage.setItem('kalascan_settings', JSON.stringify(s));
+                }
                 if (s.llm_provider) document.getElementById('llm-provider').value = s.llm_provider;
                 toggleProvider();
                 if (s.llm_model) document.getElementById('llm-model').value = s.llm_model;
-                if (s.llm_api_key) document.getElementById('llm-key').value = s.llm_api_key;
                 if (s.ai_analysis_enabled !== undefined) document.getElementById('ai-enabled').checked = s.ai_analysis_enabled;
                 if (s.cve_enabled !== undefined) document.getElementById('cve-enabled').checked = s.cve_enabled;
                 if (s.deep_triage_enabled !== undefined) document.getElementById('deep-triage-enabled').checked = s.deep_triage_enabled;
@@ -618,7 +594,7 @@
             }
             container.innerHTML = list.map(s => {
                 const ts = (s.timestamp || '').replace('T',' ').substring(0,19);
-                const running = s.status === 'running';
+                const pending = s.status === 'running' || s.status === 'queued';
                 return `<div class="sidebar-item ${s.id === currentResultId ? 'active' : ''} px-3 py-2.5" data-id="${s.id}" onclick="viewResult('${s.id}')">
                     <div class="flex items-start justify-between gap-2">
                         <div class="min-w-0 flex-1">
@@ -627,7 +603,7 @@
                             <div class="mt-1 flex items-center gap-2">
                                 <span class="text-[11px] font-bold ${scoreClass(s.risk_score)}">${s.risk_score}</span>
                                 <span class="text-[9px] text-slate-600">${s.total_matches} hit</span>
-                                ${running ? '<span class="text-[9px] text-brand-400">running…</span>' : ''}
+                                ${pending ? '<span class="text-[9px] text-brand-400">' + (s.status === 'queued' ? 'queued…' : 'running…') + '</span>' : ''}
                             </div>
                         </div>
                         <div class="actions flex shrink-0 gap-0.5 pt-0.5">
@@ -761,12 +737,15 @@
                 currentResultId = id;
                 await pollScan(id, { onDone: async () => { finish(); await loadResult(id); await loadHistory(); }, onFail: fail, onProgress: (p) => {
                     if (p > progress) { progress = p; pb.style.width = p + '%'; pp.textContent = Math.round(p) + '%'; }
+                }, onStatus: (status) => {
+                    if (status === 'running') { pt.textContent = 'Fetching and scanning source files…'; ph.textContent = 'Scanning'; }
                 }});
             } catch (err) { fail(err.message); }
         });
 
         async function pollScan(id, cb) {
             const start = Date.now();
+            let delay = 500;
             while (Date.now() - start < 30 * 60 * 1000) {
                 try {
                     const r = await fetch(API + '/api/scan/' + encodeURIComponent(id) + '/status');
@@ -776,9 +755,11 @@
                         if ((j.status || '').startsWith('failed')) { cb.onFail(j.status); return; }
                         cb.onDone(); return;
                     }
+                    if (j.status) cb.onStatus(j.status);
                 } catch(_) {}
                 cb.onProgress(88);
-                await new Promise(res => setTimeout(res, 1500));
+                await new Promise(res => setTimeout(res, delay));
+                delay = Math.min(3000, Math.round(delay * 1.5));
             }
             cb.onFail('Timed out waiting for scan');
         }
