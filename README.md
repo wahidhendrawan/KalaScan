@@ -151,6 +151,9 @@
 ```bash
 curl -fsSL https://raw.githubusercontent.com/wahidhendrawan/KalaScan/main/install.sh | sh
 ```
+The release repository is private, so the script needs a token (`gh auth token`
+is used automatically, or set `KALASCAN_GITHUB_TOKEN`). Installs to
+`/usr/local/bin`; override with `KALASCAN_INSTALL_DIR=/some/bin`.
 
 ### Build & Run
 
