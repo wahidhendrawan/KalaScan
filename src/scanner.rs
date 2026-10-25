@@ -606,8 +606,13 @@ fn scan_files(
             }
         }
 
-        // Advanced entropy, invisible zero-width, Trojan Source, homoglyphs
-        let entropy_matches = crate::entropy::scan_advanced_obfuscation(rel_path, &content);
+        // Advanced entropy, invisible zero-width, Trojan Source, homoglyphs.
+        // Guarded: a panic here must not drop the other files in this chunk
+        // (a UTF-8 slicing bug used to do exactly that).
+        let entropy_matches = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            crate::entropy::scan_advanced_obfuscation(rel_path, &content)
+        }))
+        .unwrap_or_default();
         matches.extend(entropy_matches);
 
         // YARA rules matching
