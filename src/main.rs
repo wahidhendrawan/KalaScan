@@ -348,10 +348,10 @@ async fn start_web_server(addr: &str) -> anyhow::Result<()> {
         .route("/openapi.yaml", get(openapi_spec))
         .route("/static/app.css", get(app_css))
         // axum's 2 MiB default rejects real .vsix uploads with a dropped
-        // connection (the browser only sees "Failed to fetch").
-        .layer(axum::extract::DefaultBodyLimit::max(
-            env_u32("KALASCAN_MAX_UPLOAD_MB", 256) as usize * 1024 * 1024,
-        ))
+        // connection (the browser only sees "Failed to fetch"). Cap at the
+        // vsix archive guard (1 GiB) instead; KALASCAN_MAX_UPLOAD_MB=0 disables
+        // the body limit entirely.
+        .layer(upload_body_limit())
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             security_headers,
@@ -889,6 +889,13 @@ async fn sbom_endpoint(
         sbom,
     )
         .into_response()
+}
+
+fn upload_body_limit() -> axum::extract::DefaultBodyLimit {
+    match env_u32("KALASCAN_MAX_UPLOAD_MB", 1024) {
+        0 => axum::extract::DefaultBodyLimit::disable(),
+        mb => axum::extract::DefaultBodyLimit::max(mb as usize * 1024 * 1024),
+    }
 }
 
 async fn app_css() -> impl IntoResponse {
