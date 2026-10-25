@@ -1,5 +1,6 @@
 mod ai_analyzer;
 mod attack;
+mod baseline;
 mod cli;
 mod cve;
 mod db;
@@ -35,6 +36,7 @@ use tracing::{error, info};
 struct AppState {
     tera: Arc<Tera>,
     scans: Arc<Mutex<Vec<ScanResult>>>,
+    token: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,6 +63,20 @@ pub struct ScanRequest {
     pub sandbox: bool,
     #[serde(default)]
     pub sandbox_image: Option<String>,
+    /// Only report findings absent from `baseline` (CI new-findings mode)
+    #[serde(default)]
+    pub new_only: bool,
+    /// Baseline JSON path; when set the current findings are also re-recorded
+    #[serde(default)]
+    pub baseline: Option<String>,
+    /// Path-glob ignore file (default: .kalascanignore when present)
+    #[serde(default)]
+    pub ignore: Option<String>,
+    /// Scan only files changed vs `base_ref` (PR mode)
+    #[serde(default)]
+    pub changed_only: bool,
+    #[serde(default)]
+    pub base_ref: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -121,6 +137,11 @@ async fn main() -> anyhow::Result<()> {
             format,
             fail_on_risk,
             output,
+            new_only,
+            baseline,
+            ignore,
+            changed_only,
+            base_ref,
             ai,
             llm_provider,
             llm_model,
@@ -135,6 +156,7 @@ async fn main() -> anyhow::Result<()> {
             sandbox,
             sandbox_image,
         }) => {
+            let baseline_path = baseline.clone();
             let req = ScanRequest {
                 repo_url: target,
                 llm_provider,
@@ -150,8 +172,13 @@ async fn main() -> anyhow::Result<()> {
                 emulate,
                 sandbox,
                 sandbox_image: Some(sandbox_image),
+                new_only,
+                baseline: baseline.map(|p| p.to_string_lossy().to_string()),
+                ignore: ignore.map(|p| p.to_string_lossy().to_string()),
+                changed_only,
+                base_ref: Some(base_ref),
             };
-            run_cli_scan(req, format, fail_on_risk, output).await?;
+            run_cli_scan(req, format, fail_on_risk, output, baseline_path).await?;
         }
         Some(Commands::Serve { addr }) => {
             start_web_server(&addr).await?;
@@ -168,7 +195,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn start_web_server(addr: &str) -> anyhow::Result<()> {
-    info!("KalaScan v1.5.0 starting Web UI on http://{}", addr);
+    info!("KalaScan v1.6.0 starting Web UI on http://{}", addr);
 
     // Initialize DB
     if let Err(e) = db::init_db() {
@@ -180,9 +207,22 @@ async fn start_web_server(addr: &str) -> anyhow::Result<()> {
         e
     })?;
 
+    let token = std::env::var("KALASCAN_TOKEN")
+        .ok()
+        .filter(|t| !t.trim().is_empty());
+    if token.is_some() {
+        info!("API bearer-token authentication enabled (KALASCAN_TOKEN)");
+    } else if !is_loopback(addr) {
+        error!(
+            "Bound to non-loopback address {} without KALASCAN_TOKEN — API is unauthenticated",
+            addr
+        );
+    }
+
     let state = AppState {
         tera: Arc::new(tera),
         scans: Arc::new(Mutex::new(Vec::new())),
+        token,
     };
 
     let app = Router::new()
@@ -191,10 +231,15 @@ async fn start_web_server(addr: &str) -> anyhow::Result<()> {
         .route("/api/scan", post(api_scan))
         .route("/api/scan/upload", post(api_scan_upload))
         .route("/api/results/{id}", get(get_result))
+        .route("/api/scan/{id}/status", get(scan_status))
         .route("/api/history", get(history))
         .route("/api/report/{id}/{format}", get(report))
         .route("/api/scan/{id}", delete(delete_scan))
         .route("/results/{id}", get(results_page))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ))
         .layer(CorsLayer::permissive())
         .with_state(state);
 
@@ -205,11 +250,66 @@ async fn start_web_server(addr: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn is_loopback(addr: &str) -> bool {
+    let host = addr.rsplit_once(':').map(|(h, _)| h).unwrap_or(addr);
+    matches!(host, "127.0.0.1" | "localhost" | "[::1]" | "::1")
+}
+
+/// Enforce bearer auth when `KALASCAN_TOKEN` is set.
+async fn auth_middleware(
+    State(state): State<AppState>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    if let Err((status, msg)) = check_auth(&state, req.headers()) {
+        return (
+            status,
+            Json(serde_json::json!({ "success": false, "error": msg })),
+        )
+            .into_response();
+    }
+    next.run(req).await
+}
+
+fn check_auth(
+    state: &AppState,
+    headers: &axum::http::HeaderMap,
+) -> Result<(), (StatusCode, String)> {
+    let Some(expected) = state.token.as_deref() else {
+        return Ok(());
+    };
+    let provided = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .unwrap_or_default();
+    // Constant-time-ish comparison
+    let expected = expected.as_bytes();
+    let provided = provided.as_bytes();
+    let mut diff = expected.len() ^ provided.len();
+    for i in 0..expected.len() {
+        diff |= (expected[i] ^ *provided.get(i).unwrap_or(&0)) as usize;
+    }
+    if diff == 0 {
+        Ok(())
+    } else {
+        Err((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()))
+    }
+}
+
 async fn root(State(state): State<AppState>) -> Result<Html<String>, (StatusCode, String)> {
     let mut ctx = tera::Context::new();
     // Load scans from DB for initial render
     let scan_list = db::list_scans(100).unwrap_or_default();
     ctx.insert("scans", &scan_list);
+    // Embed as raw JSON for the client-side history list. Escape `<`/`&`/`>` so a
+    // crafted repo URL cannot break out of the `<script>` block.
+    let scans_json = serde_json::to_string(&scan_list)
+        .unwrap_or_else(|_| "[]".to_string())
+        .replace('<', "\\u003c")
+        .replace('>', "\\u003e")
+        .replace('&', "\\u0026");
+    ctx.insert("scans_json", &scans_json);
     match state.tera.render("index.html", &ctx) {
         Ok(html) => Ok(Html(html)),
         Err(e) => {
@@ -222,62 +322,130 @@ async fn root(State(state): State<AppState>) -> Result<Html<String>, (StatusCode
     }
 }
 
+fn pending_scan(id: &str, target: &str) -> ScanResult {
+    ScanResult {
+        id: id.to_string(),
+        repo_url: target.to_string(),
+        timestamp: chrono::Utc::now().to_rfc3339(),
+        total_files: 0,
+        scanned_files: 0,
+        total_matches: 0,
+        risk_score: 0,
+        ai_analysis: None,
+        rule_matches: Vec::new(),
+        triage: None,
+        deobfuscation: None,
+        emulation: None,
+        ttp: None,
+        sandbox: None,
+        status: "running".to_string(),
+    }
+}
+
+async fn store_result(state: &AppState, result: ScanResult) {
+    if let Err(e) = db::save_scan(&result) {
+        error!("Failed to save scan to DB: {}", e);
+    }
+    let mut scans = state.scans.lock().await;
+    if let Some(slot) = scans.iter_mut().find(|s| s.id == result.id) {
+        *slot = result;
+    } else {
+        scans.push(result);
+    }
+}
+
+fn spawn_scan(state: AppState, req: ScanRequest, id: String) {
+    tokio::spawn(async move {
+        match execute_scan_with_id(req, id.clone()).await {
+            Ok(result) => store_result(&state, result).await,
+            Err(e) => {
+                error!("Scan {} failed: {}", id, e);
+                let mut failed = pending_scan(&id, "");
+                {
+                    let scans = state.scans.lock().await;
+                    if let Some(prev) = scans.iter().find(|s| s.id == id) {
+                        failed.repo_url = prev.repo_url.clone();
+                    }
+                }
+                failed.status = format!("failed: {}", e);
+                store_result(&state, failed).await;
+            }
+        }
+    });
+}
+
 async fn start_scan(
     State(state): State<AppState>,
     Json(req): Json<ScanRequest>,
 ) -> impl IntoResponse {
-    match run_scan(req, &state).await {
-        Ok(result) => {
-            // Persist to DB
-            if let Err(e) = db::save_scan(&result) {
-                error!("Failed to save scan to DB: {}", e);
-            }
-            let mut scans = state.scans.lock().await;
-            let id = result.id.clone();
-            scans.push(result);
-
-            Json(serde_json::json!({
-                "success": true,
-                "result_id": id
-            }))
-            .into_response()
-        }
-        Err(e) => {
-            error!("Scan failed: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "success": false,
-                    "error": e.to_string()
-                })),
-            )
-                .into_response()
-        }
+    let id = uuid::Uuid::new_v4().to_string();
+    {
+        let mut scans = state.scans.lock().await;
+        scans.push(pending_scan(&id, &req.repo_url));
     }
+    spawn_scan(state, req, id.clone());
+
+    Json(serde_json::json!({
+        "success": true,
+        "result_id": id,
+        "status": "running"
+    }))
+    .into_response()
 }
 
 async fn api_scan(
     State(state): State<AppState>,
     Json(req): Json<ScanRequest>,
 ) -> impl IntoResponse {
-    let result = run_scan(req, &state).await;
-    match result {
-        Ok(r) => {
-            if let Err(e) = db::save_scan(&r) {
-                error!("Failed to save scan to DB: {}", e);
-            }
-            Json(serde_json::json!({
-                "success": true,
-                "result": r
-            }))
-            .into_response()
-        }
+    let id = uuid::Uuid::new_v4().to_string();
+    {
+        let mut scans = state.scans.lock().await;
+        scans.push(pending_scan(&id, &req.repo_url));
+    }
+    spawn_scan(state, req, id.clone());
+
+    Json(serde_json::json!({
+        "success": true,
+        "result_id": id,
+        "status": "running"
+    }))
+    .into_response()
+}
+
+async fn scan_status(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
+    if let Some(result) = state
+        .scans
+        .lock()
+        .await
+        .iter()
+        .find(|r| r.id == id)
+        .cloned()
+    {
+        let done = result.status != "running";
+        return Json(serde_json::json!({
+            "success": true,
+            "status": result.status,
+            "done": done,
+            "result": if done { Some(result) } else { None }
+        }))
+        .into_response();
+    }
+    match db::get_scan(&id) {
+        Ok(Some(result)) => Json(serde_json::json!({
+            "success": true,
+            "status": result.status,
+            "done": true,
+            "result": result
+        }))
+        .into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "success": false, "error": "Scan not found" })),
+        )
+            .into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({
-                "success": false,
-                "error": e.to_string()
-            })),
+            Json(serde_json::json!({ "success": false, "error": e.to_string() })),
         )
             .into_response(),
     }
@@ -355,11 +523,20 @@ async fn report(Path((id, format)): Path<(String, String)>) -> impl IntoResponse
                 )
                     .into_response()
             }
+            "sarif" => {
+                let content = export::export_sarif(&result);
+                (
+                    StatusCode::OK,
+                    [("content-type", "application/sarif+json; charset=utf-8")],
+                    content,
+                )
+                    .into_response()
+            }
             _ => (
                 StatusCode::BAD_REQUEST,
                 Json(serde_json::json!({
                     "success": false,
-                    "error": "Invalid format. Use 'md' or 'html'"
+                    "error": "Invalid format. Use 'md', 'html' or 'sarif'"
                 })),
             )
                 .into_response(),
@@ -540,23 +717,18 @@ async fn api_scan_upload(
         }
     };
 
-    let scan_id = uuid::Uuid::new_v4().to_string();
-    let timestamp = chrono::Utc::now().to_rfc3339();
+    // Unpacking is blocking I/O + archive parsing; keep it off the async workers.
+    let display_name = file_name.clone();
+    let unpacked = tokio::task::spawn_blocking(move || {
+        let tmp_dir = tempfile::tempdir()?;
+        let scan_dir = vsix::extract_zip(std::io::Cursor::new(bytes), tmp_dir.path())?;
+        Ok::<_, anyhow::Error>((tmp_dir, scan_dir))
+    })
+    .await;
 
-    let tmp_dir = match tempfile::tempdir() {
-        Ok(d) => d,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "success": false, "error": e.to_string() })),
-            )
-                .into_response();
-        }
-    };
-
-    let scan_dir = match vsix::extract_zip(std::io::Cursor::new(bytes), tmp_dir.path()) {
-        Ok(dir) => dir,
-        Err(e) => {
+    let (tmp_dir, scan_dir) = match unpacked {
+        Ok(Ok(v)) => v,
+        Ok(Err(e)) => {
             return (
                 StatusCode::BAD_REQUEST,
                 Json(serde_json::json!({
@@ -566,127 +738,79 @@ async fn api_scan_upload(
             )
                 .into_response();
         }
-    };
-
-    let (total_files, scanned_files, mut rule_matches) = scanner::scan_directory(&scan_dir);
-
-    // Check dependency manifests for CVEs via OSV API when enabled
-    if check_cve {
-        let pkgs = cve::extract_manifest_packages(&scan_dir);
-        if !pkgs.is_empty() {
-            let cve_matches = cve::check_vulnerabilities(&pkgs).await;
-            rule_matches.extend(cve_matches);
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": format!("Unpack task failed: {}", e)
+                })),
+            )
+                .into_response();
         }
-    }
-
-    let triage_report = triage::analyze_directory(&scan_dir, &rule_matches, deep_triage).await;
-    let deobfuscation_report = if deobfuscate {
-        Some(deobfuscate::analyze_directory(&scan_dir))
-    } else {
-        None
     };
-    let emulation_report = if emulate {
-        Some(emulate::analyze_triage(&scan_dir, &triage_report))
-    } else {
-        None
-    };
-
-    let sandbox_report = if sandbox {
-        let config = sandbox::SandboxConfig {
-            image: sandbox_image.unwrap_or_else(|| "kalascan-sandbox:latest".to_string()),
-            ..Default::default()
-        };
-        Some(sandbox::analyze_triage(&scan_dir, &triage_report, &config).await)
-    } else {
-        None
-    };
-
-    let ttp_report = ttp::build(
-        &rule_matches,
-        Some(&triage_report),
-        deobfuscation_report.as_ref(),
-        emulation_report.as_ref(),
-        sandbox_report.as_ref(),
-    );
-
-    let ai_result = if ai_analysis_enabled && !rule_matches.is_empty() {
-        let context_snippets: Vec<String> = rule_matches
-            .iter()
-            .map(|m| {
-                format!(
-                    "File: {}\nLine {}: {}\nContext: {}",
-                    m.file_path, m.line_number, m.matched_pattern, m.context
-                )
-            })
-            .collect();
-
-        let combined_prompt = context_snippets.join("\n\n---\n\n");
-        ai_analyzer::analyze_with_llm(
-            &llm_provider,
-            &llm_model,
-            &llm_api_key,
-            &llm_endpoint,
-            &combined_prompt,
-        )
-        .await
-        .ok()
-    } else {
-        None
+    let req = ScanRequest {
+        repo_url: format!("vsix://{}", display_name),
+        llm_provider,
+        llm_model,
+        llm_api_key,
+        llm_endpoint,
+        ai_analysis_enabled,
+        check_cve: Some(check_cve),
+        yara_dir: None,
+        git_history: false,
+        deep_triage,
+        deobfuscate,
+        emulate,
+        sandbox,
+        sandbox_image,
+        new_only: false,
+        baseline: None,
+        ignore: None,
+        changed_only: false,
+        base_ref: None,
     };
 
-    let risk_score = calculate_risk_score(
-        &rule_matches,
-        &ai_result,
-        Some(&triage_report),
-        deobfuscation_report.as_ref(),
-        emulation_report.as_ref(),
-        sandbox_report.as_ref(),
-        Some(&ttp_report),
-    );
-
-    let result = ScanResult {
-        id: scan_id.clone(),
-        repo_url: format!("vsix://{}", file_name),
-        timestamp,
-        total_files,
-        scanned_files,
-        total_matches: rule_matches.len(),
-        risk_score,
-        ai_analysis: ai_result,
-        rule_matches,
-        triage: Some(triage_report),
-        deobfuscation: deobfuscation_report,
-        emulation: emulation_report,
-        ttp: Some(ttp_report),
-        sandbox: sandbox_report,
-        status: "completed".to_string(),
-    };
-
-    if let Err(e) = db::save_scan(&result) {
-        error!("Failed to save scan to DB: {}", e);
-    }
+    let scan_id = uuid::Uuid::new_v4().to_string();
     {
         let mut scans = state.scans.lock().await;
-        scans.push(result.clone());
+        scans.push(pending_scan(&scan_id, &req.repo_url));
     }
+    let task_state = state.clone();
+    let task_id = scan_id.clone();
+    // The temp dir must outlive the scan task; move it into the task.
+    tokio::spawn(async move {
+        let result = execute_scan_in(req, scan_dir, task_id.clone(), Some(tmp_dir)).await;
+        match result {
+            Ok(r) => store_result(&task_state, r).await,
+            Err(e) => {
+                error!("Upload scan {} failed: {}", task_id, e);
+                let _ = tokio::time::timeout(std::time::Duration::from_secs(1), async {
+                    let mut scans = task_state.scans.lock().await;
+                    if let Some(slot) = scans.iter_mut().find(|s| s.id == task_id) {
+                        slot.status = format!("failed: {}", e);
+                    }
+                })
+                .await;
+            }
+        }
+    });
 
     Json(serde_json::json!({
         "success": true,
         "result_id": scan_id,
-        "result": result
+        "status": "running"
     }))
     .into_response()
 }
 
-async fn run_scan(req: ScanRequest, _state: &AppState) -> anyhow::Result<ScanResult> {
-    execute_scan(req).await
+async fn execute_scan(req: ScanRequest) -> anyhow::Result<ScanResult> {
+    let id = uuid::Uuid::new_v4().to_string();
+    execute_scan_with_id(req, id).await
 }
 
-async fn execute_scan(req: ScanRequest) -> anyhow::Result<ScanResult> {
+async fn execute_scan_with_id(req: ScanRequest, id: String) -> anyhow::Result<ScanResult> {
     info!("Starting scan for: {}", req.repo_url);
-
-    let scan_id = uuid::Uuid::new_v4().to_string();
-    let timestamp = chrono::Utc::now().to_rfc3339();
 
     let tmp_dir = tempfile::tempdir()?;
     let target_dir = tmp_dir.path().join("source");
@@ -706,6 +830,7 @@ async fn execute_scan(req: ScanRequest) -> anyhow::Result<ScanResult> {
         if !req.git_history {
             clone_cmd.arg("--depth").arg("1");
         }
+        // Never expose credentials in logs; strip any userinfo from the URL.
         let clone_output = clone_cmd
             .arg(&req.repo_url)
             .arg(&target_dir)
@@ -724,15 +849,41 @@ async fn execute_scan(req: ScanRequest) -> anyhow::Result<ScanResult> {
         target_dir
     };
 
+    execute_scan_in(req, scan_dir, id, Some(tmp_dir)).await
+}
+
+async fn execute_scan_in(
+    req: ScanRequest,
+    scan_dir: std::path::PathBuf,
+    scan_id: String,
+    _tmp_guard: Option<tempfile::TempDir>,
+) -> anyhow::Result<ScanResult> {
+    let timestamp = chrono::Utc::now().to_rfc3339();
+    let repo_url = req.repo_url.clone();
+
     info!(
         "Source ready at {:?}. Running static + YARA + entropy scan...",
         scan_dir
     );
 
+    // Phase 1: optional changed-only filter (PR mode)
+    let changed_files = if req.changed_only && !vsix::is_vsix_target(&repo_url) {
+        let base = req.base_ref.as_deref().unwrap_or("origin/main");
+        info!("Collecting files changed vs {}...", base);
+        git_changed_files(&scan_dir, base).await
+    } else {
+        None
+    };
+
     // Phase 2: Static rule + YARA + Entropy check
-    let custom_yara = req.yara_dir.as_ref().map(std::path::Path::new);
-    let (total_files, scanned_files, mut rule_matches) =
-        scanner::scan_directory_with_yara(&scan_dir, custom_yara);
+    let custom_yara = req.yara_dir.clone().map(std::path::PathBuf::from);
+    let scan_path = scan_dir.clone();
+    let changed_clone = changed_files.clone();
+    let (total_files, scanned_files, mut rule_matches) = tokio::task::spawn_blocking(move || {
+        scanner::scan_directory_filtered(&scan_path, custom_yara.as_deref(), changed_clone.as_ref())
+    })
+    .await
+    .map_err(|e| anyhow::anyhow!("Scanner task failed: {}", e))?;
 
     // Phase 2b: Dependency CVE check via OSV API if enabled
     if req.check_cve.unwrap_or(true) {
@@ -745,11 +896,39 @@ async fn execute_scan(req: ScanRequest) -> anyhow::Result<ScanResult> {
     }
 
     // Phase 2c: Full git commit history scan
-    if req.git_history && !is_extension {
+    if req.git_history && !vsix::is_vsix_target(&repo_url) {
         info!("Scanning full git commit history at {:?}...", scan_dir);
         let history_matches = git_history::scan_git_history(&scan_dir).await;
         info!("Git history scan found {} matches", history_matches.len());
         rule_matches.extend(history_matches);
+    }
+
+    // Phase 2d: baseline / ignore filtering (CI mode)
+    let ignore_path = req
+        .ignore
+        .as_ref()
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from(".kalascanignore"));
+    let ignore_set = baseline::IgnoreSet::load(&ignore_path);
+    if !ignore_set.is_empty() {
+        info!("Applying ignore rules from {:?}", ignore_path);
+    }
+    let baseline_set = match req.baseline.as_ref() {
+        Some(p) if req.new_only => {
+            let set = baseline::load_baseline(std::path::Path::new(p))?;
+            info!("Loaded {} baselined findings from {}", set.len(), p);
+            Some(set)
+        }
+        _ => None,
+    };
+    let total_before_filter = rule_matches.len();
+    rule_matches = baseline::apply_filters(rule_matches, &ignore_set, baseline_set.as_ref());
+    if total_before_filter != rule_matches.len() {
+        info!(
+            "Filtered {} findings (ignored/baselined); {} remain",
+            total_before_filter - rule_matches.len(),
+            rule_matches.len()
+        );
     }
 
     info!(
@@ -846,7 +1025,7 @@ async fn execute_scan(req: ScanRequest) -> anyhow::Result<ScanResult> {
 
     let result = ScanResult {
         id: scan_id.clone(),
-        repo_url: req.repo_url,
+        repo_url,
         timestamp,
         total_files,
         scanned_files,
@@ -867,18 +1046,100 @@ async fn execute_scan(req: ScanRequest) -> anyhow::Result<ScanResult> {
     Ok(result)
 }
 
+/// Resolve the set of files changed between `base_ref` and HEAD inside a clone.
+/// Returns `None` on any failure so callers fall back to a full scan.
+async fn git_changed_files(
+    repo: &std::path::Path,
+    base_ref: &str,
+) -> Option<std::collections::HashSet<std::path::PathBuf>> {
+    // Try to make the base ref available in shallow clones. Ignore failures:
+    // the ref may already exist locally.
+    let remote_ref = base_ref.strip_prefix("origin/").unwrap_or(base_ref);
+    let fetched = tokio::process::Command::new("git")
+        .arg("-C")
+        .arg(repo)
+        .args(["fetch", "--depth", "1", "origin", remote_ref])
+        .output()
+        .await;
+
+    let run_diff = |range: &str| {
+        let repo = repo.to_path_buf();
+        let range = range.to_string();
+        async move {
+            tokio::process::Command::new("git")
+                .arg("-C")
+                .arg(repo)
+                .args(["diff", "--name-only", &range])
+                .output()
+                .await
+                .ok()
+        }
+    };
+
+    let range = format!("{}...HEAD", base_ref);
+    let output = run_diff(&range).await?;
+    // Shallow-clone fallback: diff against the freshly fetched FETCH_HEAD.
+    let output = if output.status.success() {
+        output
+    } else if fetched.as_ref().map_or(false, |f| f.status.success()) {
+        run_diff("FETCH_HEAD...HEAD").await?
+    } else {
+        output
+    };
+    if !output.status.success() {
+        info!(
+            "git diff against {} failed; falling back to full scan",
+            base_ref
+        );
+        return None;
+    }
+
+    let changed: std::collections::HashSet<std::path::PathBuf> =
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .map(std::path::PathBuf::from)
+            .collect();
+
+    if changed.is_empty() {
+        info!("No changed files vs {}; nothing to scan", base_ref);
+        return None;
+    }
+    info!("Restricting scan to {} changed files", changed.len());
+    Some(changed)
+}
+
 async fn run_cli_scan(
     req: ScanRequest,
     format: String,
     fail_on_risk: Option<u8>,
     output: Option<std::path::PathBuf>,
+    baseline_out: Option<std::path::PathBuf>,
 ) -> anyhow::Result<()> {
+    let new_only = req.new_only;
     let result = execute_scan(req).await?;
+
+    // `--new-only` merges into the baseline so prior fingerprints survive;
+    // a plain `--baseline` run records the current findings (overwrite).
+    if let Some(path) = baseline_out {
+        if new_only {
+            baseline::merge_baseline(&path, &result.rule_matches)?;
+        } else {
+            baseline::save_baseline(&path, &result.rule_matches)?;
+        }
+        eprintln!(
+            "Baseline updated at {} ({} findings)",
+            path.display(),
+            result.rule_matches.len()
+        );
+    }
 
     let output_content = match format.to_lowercase().as_str() {
         "json" => serde_json::to_string_pretty(&result)?,
         "md" | "markdown" => export::export_markdown(&result),
         "html" => export::export_html(&result),
+        "sarif" => export::export_sarif(&result),
         _ => format_cli_text(&result),
     };
 

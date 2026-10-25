@@ -5,7 +5,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/rust-1.95+-orange?logo=rust" />
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" />
-  <img src="https://img.shields.io/badge/tests-82%20passed-brightgreen" />
+  <img src="https://img.shields.io/badge/tests-85%20passed-brightgreen" />
   <img src="https://img.shields.io/badge/docker-ready-2496ED?logo=docker" />
 </p>
 
@@ -79,7 +79,24 @@
 ### Standalone CLI Subcommands (CI/CD Gates)
 - Run headless scans in terminal or automated pipelines without starting the web server
 - Configurable quality gates via `--fail-on-risk <SCORE>` (exits with code 1 if risk threshold is exceeded)
-- Multiple export formats: `--format <text|json|md|html>` and `--output <FILE>`
+- Multiple export formats: `--format <text|json|md|html|sarif>` and `--output <FILE>`
+
+### CI Workflow Features (v1.6)
+- **SARIF 2.1.0 output** (`--format sarif`) for GitHub Code Scanning, with stable partial fingerprints per finding
+- **Baselines** — `--baseline <FILE>` records known findings; `--new-only` reports only findings that are not yet baselined
+- **Path suppression** — `.kalascanignore` (or `--ignore <FILE>`) accepts globs such as `src/generated/*` and `*.min.js`
+- **Inline suppression** — add `kalascan:ignore` on a line, or `kalascan:ignore-file` anywhere in a file
+- **Changed-files scanning** — `--changed-only --base-ref origin/main` restricts the scan to files touched by the PR
+- **Raw JSON** is unaffected: the async web API and CLI `json` format still return every finding
+
+### API Authentication
+- Set `KALASCAN_TOKEN` to require `Authorization: Bearer <token>` on all routes
+- When bound to a non-loopback address without a token, KalaScan logs a prominent warning at startup
+
+### Async Web Scans
+- `POST /scan` and `POST /api/scan` return `{ "success": true, "result_id": "...", "status": "running" }` immediately
+- Poll `GET /api/scan/{id}/status`; it returns `done: true` plus the full result when the job finishes
+- Upload (`POST /api/scan/upload`) follows the same contract; archive unpacking runs on a blocking thread and scanning runs as a background task
 
 ### AI Deep Analysis
 - **Multi-Provider LLM Support**: Ollama (local), OpenAI, DeepSeek, 9Router (local proxy), or any OpenAI-compatible custom endpoint
@@ -132,7 +149,60 @@ kalascan scan ./suspicious.vsix --deobfuscate --emulate --format html -o deep-re
 # Opt-in Docker sandbox execution (requires Docker + kalascan-sandbox image)
 docker build -t kalascan-sandbox:latest sandbox
 kalascan scan ./suspicious.vsix --sandbox --format json -o sandbox-report.json
+
+# SARIF report for GitHub Code Scanning
+kalascan scan https://github.com/user/repo.git --format sarif -o kalascan.sarif
+
+# Baseline: record known findings, then report only new ones in CI
+kalascan scan https://github.com/user/repo.git --baseline .kalascan.baseline.json
+kalascan scan https://github.com/user/repo.git \
+  --baseline .kalascan.baseline.json --new-only --format sarif -o kalascan.sarif
+
+# Restrict a PR scan to changed files
+kalascan scan https://github.com/user/repo.git --changed-only --base-ref origin/main
 ```
+
+Suppress known noise with a `.kalascanignore` file in the working directory:
+
+```gitignore
+# path globs, one per line
+src/generated/*
+*.min.js
+vendor/**
+```
+
+Or inline in the scanned code: `eval(payload) // kalascan:ignore` (single line) and
+`kalascan:ignore-file` (whole file).
+
+### GitHub Action
+
+```yaml
+name: security
+on: [pull_request]
+permissions:
+  contents: read
+  security-events: write
+jobs:
+  kalascan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: wahidhendrawan/KalaScan@v1.6.0
+        with:
+          target: https://github.com/${{ github.repository }}.git
+          fail_on_risk: "60"
+```
+
+The action installs KalaScan, writes `kalascan.sarif`, and uploads it to GitHub Code Scanning.
+
+### Securing the Web UI
+
+```bash
+KALASCAN_TOKEN=change-me kalascan serve --addr 0.0.0.0:3000
+```
+
+All requests then need `Authorization: Bearer change-me`.
 
 ## Architecture
 
@@ -155,16 +225,19 @@ KalaScan/
 │   ├── ai_analyzer.rs     # Ollama / OpenAI / DeepSeek / 9Router integration
 │   ├── db.rs              # SQLite scan history persistence
 │   ├── git_history.rs     # Commit history scanner
-│   └── export.rs          # Markdown + HTML report generator
+│   ├── baseline.rs        # Finding fingerprints, baselines & .kalascanignore
+│   └── export.rs          # Markdown + HTML + SARIF report generator
 ├── templates/
 │   ├── index.html         # Dashboard with drag-and-drop upload & scan form
-│   └── result.html        # Detail view with risk gauge & findings table
+│   └── result.html        # Redirect shim to the single-page result view
 ├── .github/workflows/
 │   ├── ci.yml             # Rust build + test
+│   ├── release.yml        # Cross-platform binary upload on tags
 │   ├── security.yml       # Gitleaks + Trivy container scan
 │   ├── dependabot-auto-merge.yml
 │   ├── dependency-review.yml
 │   └── docker.yml         # Multi-arch build + push to ghcr.io
+├── action.yml             # Composite GitHub Action (SARIF → Code Scanning)
 ├── sandbox/
 │   └── Dockerfile         # Minimal strace-enabled sandbox runtime image
 ├── Dockerfile             # Multi-stage Rust container build
@@ -196,7 +269,7 @@ KalaScan/
 ## Development
 
 ```bash
-# Run tests (82 tests)
+# Run tests (85 tests)
 cargo test
 
 # Build release binary
@@ -212,6 +285,7 @@ KALASCAN_ADDR=0.0.0.0:8080 cargo run --release
 ## CI/CD
 
 - **CI**: `cargo check` → `cargo test` → `cargo build --release`
+- **Release**: tagged `v*` builds upload cross-platform `kalascan` binaries via `.github/workflows/release.yml`
 - **Security**: Gitleaks (secret detection) + Trivy (vuln + secret + misconfig scan)
 - **Docker**: Multi-stage build published to `ghcr.io/wahidhendrawan/kalascan` on push to main
 - **Dependency Review**: Audits dependency changes on PRs

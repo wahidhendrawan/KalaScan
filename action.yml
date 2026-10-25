@@ -1,0 +1,58 @@
+name: "KalaScan"
+
+description: "Scan a repository or IDE package for malware and upload SARIF results to GitHub Code Scanning"
+
+inputs:
+  target:
+    description: "Repository URL, marketplace URL, or local package path to scan"
+    required: true
+  fail_on_risk:
+    description: "Exit non-zero when the risk score is at or above this threshold (0-100)"
+    required: false
+    default: "60"
+  yara_dir:
+    description: "Directory of custom YARA rules"
+    required: false
+  changed_only:
+    description: "Scan only files changed against base_ref (fast PR scans)"
+    required: false
+    default: "false"
+  base_ref:
+    description: "Git ref used as the diff base for changed_only"
+    required: false
+    default: "origin/main"
+
+runs:
+  using: composite
+  steps:
+    - name: Install KalaScan
+      run: |
+        set -euo pipefail
+        if ! command -v kalascan >/dev/null 2>&1; then
+          cargo install --git https://github.com/wahidhendrawan/KalaScan --tag v1.6.0
+        fi
+      shell: bash
+
+    - name: Scan target
+      env:
+        TARGET: ${{ inputs.target }}
+        FAIL_ON_RISK: ${{ inputs.fail_on_risk }}
+        YARA_DIR: ${{ inputs.yara_dir }}
+        CHANGED_ONLY: ${{ inputs.changed_only }}
+        BASE_REF: ${{ inputs.base_ref }}
+      run: |
+        set -euo pipefail
+        args=(scan "$TARGET" --format sarif --output kalascan.sarif --fail-on-risk "$FAIL_ON_RISK")
+        if [ -n "$YARA_DIR" ]; then args+=(--yara-dir "$YARA_DIR"); fi
+        if [ "$CHANGED_ONLY" = "true" ]; then args+=(--changed-only --base-ref "$BASE_REF"); fi
+        kalascan "${args[@]}"
+      shell: bash
+
+    - name: Upload SARIF
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: kalascan.sarif
+
+branding:
+  icon: shield
+  color: purple
