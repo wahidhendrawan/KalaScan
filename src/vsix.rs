@@ -139,7 +139,7 @@ async fn resolve_openvsx_download(url_str: &str) -> anyhow::Result<String> {
     let metadata_url = format!("https://open-vsx.org/api/{}/{}/latest", namespace, name);
 
     let client = reqwest::Client::builder()
-        .user_agent("KalaScan-Security-Scanner/1.5.0")
+        .user_agent("KalaScan-Security-Scanner/1.6.0")
         .build()?;
 
     let metadata: OpenVsxMetadata = client
@@ -186,7 +186,7 @@ async fn resolve_jetbrains_download(url_str: &str) -> anyhow::Result<String> {
     );
 
     let client = reqwest::Client::builder()
-        .user_agent("KalaScan-Security-Scanner/1.5.0")
+        .user_agent("KalaScan-Security-Scanner/1.6.0")
         .build()?;
 
     let updates: Vec<JetBrainsUpdate> = client
@@ -210,9 +210,26 @@ async fn resolve_jetbrains_download(url_str: &str) -> anyhow::Result<String> {
     ))
 }
 
+/// Zip-bomb guards: cap archive size, entry count, per-entry and total uncompressed bytes.
+/// These are trust-boundary limits for untrusted packages (.vsix/.zip/.jar/.crx).
+const MAX_ARCHIVE_BYTES: u64 = 1024 * 1024 * 1024; // 1 GiB compressed input
+const MAX_ENTRIES: usize = 10_000;
+const MAX_TOTAL_UNCOMPRESSED: u64 = 512 * 1024 * 1024; // 512 MiB
+const MAX_SINGLE_UNCOMPRESSED: u64 = 128 * 1024 * 1024; // 128 MiB per entry
+
 pub fn extract_zip<R: Read + Seek>(mut reader: R, dest_dir: &Path) -> anyhow::Result<PathBuf> {
     let mut buffer = Vec::new();
-    reader.read_to_end(&mut buffer)?;
+    reader
+        .by_ref()
+        .take(MAX_ARCHIVE_BYTES + 1)
+        .read_to_end(&mut buffer)?;
+    if buffer.len() as u64 > MAX_ARCHIVE_BYTES {
+        anyhow::bail!(
+            "Archive too large ({} bytes > {} MiB limit)",
+            buffer.len(),
+            MAX_ARCHIVE_BYTES / (1024 * 1024)
+        );
+    }
 
     // Check for Chrome CRX magic bytes (Cr24 = 0x43, 0x72, 0x32, 0x34)
     let is_crx = buffer.starts_with(b"Cr24");
@@ -231,8 +248,33 @@ pub fn extract_zip<R: Read + Seek>(mut reader: R, dest_dir: &Path) -> anyhow::Re
 
     let mut archive = ZipArchive::new(Cursor::new(zip_bytes))?;
 
+    if archive.len() > MAX_ENTRIES {
+        anyhow::bail!(
+            "Archive contains too many files ({} > {} limit)",
+            archive.len(),
+            MAX_ENTRIES
+        );
+    }
+
+    let mut total_uncompressed: u64 = 0;
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)?;
+        let size = file.size();
+        if size > MAX_SINGLE_UNCOMPRESSED {
+            anyhow::bail!(
+                "Archive entry '{}' is too large ({} bytes > {} MiB limit)",
+                file.name(),
+                size,
+                MAX_SINGLE_UNCOMPRESSED / (1024 * 1024)
+            );
+        }
+        total_uncompressed = total_uncompressed.saturating_add(size);
+        if total_uncompressed > MAX_TOTAL_UNCOMPRESSED {
+            anyhow::bail!(
+                "Archive expands beyond {} MiB limit",
+                MAX_TOTAL_UNCOMPRESSED / (1024 * 1024)
+            );
+        }
         let outpath = match file.enclosed_name() {
             Some(path) => dest_dir.join(path),
             None => continue, // Prevent zip-slip
@@ -247,7 +289,16 @@ pub fn extract_zip<R: Read + Seek>(mut reader: R, dest_dir: &Path) -> anyhow::Re
                 }
             }
             let mut outfile = File::create(&outpath)?;
-            std::io::copy(&mut file, &mut outfile)?;
+            // Defensive re-check against misreported entry sizes; take() caps the copy.
+            let mut limited = std::io::Read::by_ref(&mut file).take(MAX_SINGLE_UNCOMPRESSED + 1);
+            std::io::copy(&mut limited, &mut outfile)?;
+            if limited.limit() == 0 {
+                anyhow::bail!(
+                    "Archive entry '{}' exceeds {} MiB limit",
+                    outpath.display(),
+                    MAX_SINGLE_UNCOMPRESSED / (1024 * 1024)
+                );
+            }
         }
     }
 

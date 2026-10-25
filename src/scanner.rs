@@ -476,15 +476,12 @@ pub fn get_extension(filename: &str) -> &str {
     ""
 }
 
-/// Scan directory for malicious patterns.
-/// Returns (total_files, scanned_files, matches).
-pub fn scan_directory<P: AsRef<Path>>(dir: P) -> (usize, usize, Vec<RuleMatch>) {
-    scan_directory_with_yara(dir, None)
-}
-
-pub fn scan_directory_with_yara<P: AsRef<Path>>(
+/// Scan directory, optionally restricted to `changed` repo-relative paths
+/// (used by `--changed-only` for PR scans).
+pub fn scan_directory_filtered<P: AsRef<Path>>(
     dir: P,
     custom_yara_dir: Option<&Path>,
+    changed: Option<&std::collections::HashSet<std::path::PathBuf>>,
 ) -> (usize, usize, Vec<RuleMatch>) {
     let rules = build_rules();
     let yara_engine = crate::yara_engine::YaraEngine::new(custom_yara_dir);
@@ -538,6 +535,18 @@ pub fn scan_directory_with_yara<P: AsRef<Path>>(
             .to_string_lossy()
             .to_string();
 
+        // `--changed-only` filter: skip files not in the changed set
+        if let Some(changed) = changed {
+            if !changed.contains(std::path::Path::new(&rel_path)) {
+                continue;
+            }
+        }
+
+        // Whole-file inline suppression marker
+        if content.contains("kalascan:ignore-file") {
+            continue;
+        }
+
         let ext = get_extension(&filename);
 
         for rule in &rules {
@@ -546,6 +555,9 @@ pub fn scan_directory_with_yara<P: AsRef<Path>>(
             }
 
             for cap in rule.pattern.find_iter(&content) {
+                if line_has_ignore_marker(&content, cap.start()) {
+                    continue;
+                }
                 let line_num = content[..cap.start()].matches('\n').count() + 1;
                 let context = get_context(&content, cap.start(), cap.end());
 
@@ -569,6 +581,15 @@ pub fn scan_directory_with_yara<P: AsRef<Path>>(
     }
 
     (total_files, scanned_files, matches)
+}
+
+fn line_has_ignore_marker(content: &str, start: usize) -> bool {
+    let line_start = content[..start].rfind('\n').map(|i| i + 1).unwrap_or(0);
+    let line_end = content[start..]
+        .find('\n')
+        .map(|i| start + i)
+        .unwrap_or(content.len());
+    content[line_start..line_end].contains("kalascan:ignore")
 }
 
 fn get_context(content: &str, start: usize, end: usize) -> String {

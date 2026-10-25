@@ -1,6 +1,6 @@
 [package]
 name = "kalascan"
-version = "1.5.0"
+version = "1.6.0"
 edition = "2021"
 description = "Security & Malware Scanner for Git Repositories and IDE Extensions (VS Code, Open VSX, JetBrains, Browser CRX) using RegEx, YARA, Entropy, deep static binary triage, recursive deobfuscation, safe static emulation, TTP/ATT&CK coverage, opt-in Docker sandboxing, and AI deep analysis."
 authors = ["Wahid Hendrawan"]
