@@ -490,7 +490,7 @@ pub fn scan_directory_filtered<P: AsRef<Path>>(
     let yara_engine = crate::yara_engine::YaraEngine::new(custom_yara_dir);
     let mut matches = Vec::new();
     let mut total_files = 0usize;
-    let mut scanned_files = 0usize;
+    let mut targets: Vec<(String, String, std::path::PathBuf)> = Vec::new();
 
     let skip_dirs: &[&str] = &[
         ".git",
@@ -503,6 +503,8 @@ pub fn scan_directory_filtered<P: AsRef<Path>>(
         ".venv",
     ];
 
+    // Phase 1: collect candidate files (same order as the old single pass,
+    // so results stay deterministic).
     for entry in WalkDir::new(dir.as_ref()).into_iter().filter_entry(|e| {
         let name = e.file_name().to_string_lossy();
         !e.path().is_dir() || !skip_dirs.contains(&name.as_ref())
@@ -523,14 +525,6 @@ pub fn scan_directory_filtered<P: AsRef<Path>>(
             continue;
         }
 
-        scanned_files += 1;
-
-        // Read up to 1MB
-        let content = match std::fs::read_to_string(entry.path()) {
-            Ok(c) if c.len() <= 1_048_576 => c,
-            _ => continue,
-        };
-
         let rel_path = entry
             .path()
             .strip_prefix(dir.as_ref())
@@ -545,15 +539,53 @@ pub fn scan_directory_filtered<P: AsRef<Path>>(
             }
         }
 
+        targets.push((rel_path, filename, entry.path().to_path_buf()));
+    }
+    let scanned_files = targets.len();
+
+    // Phase 2: scan candidate files in parallel (chunks preserve order,
+    // so concatenating the chunk results equals the sequential output).
+    let workers = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4)
+        .min(16);
+    let chunk_size = targets.len().div_ceil(workers).max(1);
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = targets
+            .chunks(chunk_size)
+            .map(|chunk| scope.spawn(|| scan_files(chunk, &rules, &yara_engine)))
+            .collect();
+        for handle in handles {
+            matches.extend(handle.join().unwrap_or_default());
+        }
+    });
+
+    (total_files, scanned_files, matches)
+}
+
+/// Scan one chunk of `(rel_path, filename, abs_path)` targets.
+fn scan_files(
+    targets: &[(String, String, std::path::PathBuf)],
+    rules: &[Rule],
+    yara_engine: &crate::yara_engine::YaraEngine,
+) -> Vec<RuleMatch> {
+    let mut matches = Vec::new();
+    for (rel_path, filename, abs_path) in targets {
+        // Read up to 1MB
+        let content = match std::fs::read_to_string(abs_path) {
+            Ok(c) if c.len() <= 1_048_576 => c,
+            _ => continue,
+        };
+
         // Whole-file inline suppression marker
         if content.contains("kalascan:ignore-file") {
             continue;
         }
 
-        let ext = get_extension(&filename);
+        let ext = get_extension(filename);
 
-        for rule in &rules {
-            if !rule.applies_to(ext, &filename) {
+        for rule in rules {
+            if !rule.applies_to(ext, filename) {
                 continue;
             }
 
@@ -575,15 +607,14 @@ pub fn scan_directory_filtered<P: AsRef<Path>>(
         }
 
         // Advanced entropy, invisible zero-width, Trojan Source, homoglyphs
-        let entropy_matches = crate::entropy::scan_advanced_obfuscation(&rel_path, &content);
+        let entropy_matches = crate::entropy::scan_advanced_obfuscation(rel_path, &content);
         matches.extend(entropy_matches);
 
         // YARA rules matching
-        let yara_matches = yara_engine.scan_data(&rel_path, content.as_bytes());
+        let yara_matches = yara_engine.scan_data(rel_path, content.as_bytes());
         matches.extend(yara_matches);
     }
-
-    (total_files, scanned_files, matches)
+    matches
 }
 
 fn line_has_ignore_marker(content: &str, start: usize) -> bool {
@@ -622,6 +653,34 @@ fn get_context(content: &str, start: usize, end: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_scan_directory_filtered_parallel_is_deterministic() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("a.py"),
+            "discord.com/api/webhooks/123456789012345678/ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrst\n",
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("b.py"), "eval('x')\n").unwrap();
+
+        let (total, scanned, mut first) = scan_directory_filtered(dir.path(), None, None);
+        let (_, _, mut second) = scan_directory_filtered(dir.path(), None, None);
+
+        let key = |m: &RuleMatch| {
+            (
+                m.file_path.clone(),
+                m.line_number,
+                m.matched_pattern.clone(),
+            )
+        };
+        first.sort_by_key(key);
+        second.sort_by_key(key);
+        assert_eq!(first, second);
+        assert_eq!(total, 2);
+        assert_eq!(scanned, 2);
+        assert!(!first.is_empty());
+    }
 
     #[test]
     fn test_discord_webhook_rule() {

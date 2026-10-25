@@ -129,7 +129,7 @@ pub struct ScanRequest {
     pub base_ref: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RuleMatch {
     pub file_path: String,
     pub line_number: usize,
@@ -241,6 +241,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Some(Commands::Rules { name }) => {
             run_rules_command(name)?;
+        }
+        Some(Commands::Sbom { path, output }) => {
+            run_sbom_command(&path, output.as_deref())?;
         }
         None => {
             let addr = cli.addr.unwrap_or_else(|| {
@@ -1587,6 +1590,29 @@ fn run_user_command(action: UserAction) -> anyhow::Result<()> {
                 std::process::exit(2);
             }
         }
+    }
+    Ok(())
+}
+
+fn run_sbom_command(
+    path: &std::path::Path,
+    output: Option<&std::path::Path>,
+) -> anyhow::Result<()> {
+    if !path.is_dir() {
+        anyhow::bail!("{} is not a directory", path.display());
+    }
+    let packages = cve::extract_manifest_packages(path);
+    let sbom = export::export_cyclonedx(&packages, path);
+    match output {
+        Some(out) => {
+            std::fs::write(out, &sbom)?;
+            println!(
+                "SBOM written to {} ({} components)",
+                out.display(),
+                packages.len()
+            );
+        }
+        None => println!("{}", sbom),
     }
     Ok(())
 }

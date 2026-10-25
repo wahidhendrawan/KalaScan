@@ -123,6 +123,15 @@ pub enum Commands {
         /// Rule name (or unique substring) to explain; omit to list all rules
         name: Option<String>,
     },
+    /// Emit a CycloneDX SBOM of the dependencies declared in a directory
+    Sbom {
+        /// Directory to inspect (package.json, Cargo.lock, requirements.txt, ...)
+        path: PathBuf,
+
+        /// Write the SBOM here instead of stdout
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
 }
 
 #[derive(Subcommand, Debug)]

@@ -11,7 +11,7 @@ use std::path::Path;
 use std::sync::LazyLock;
 use walkdir::WalkDir;
 
-const ENGINE: &str = "kalascan-deobfuscation/1.8.0";
+const ENGINE: &str = concat!("kalascan-deobfuscation/", env!("CARGO_PKG_VERSION"));
 const MAX_FILES: usize = 10_000;
 const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_ARTIFACTS: usize = 200;
