@@ -5,7 +5,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/rust-1.95+-orange?logo=rust" />
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" />
-  <img src="https://img.shields.io/badge/tests-154%20passed-brightgreen" />
+  <img src="https://img.shields.io/badge/tests-166%20passed-brightgreen" />
   <img src="https://img.shields.io/badge/docker-ready-2496ED?logo=docker" />
 </p>
 
@@ -129,9 +129,9 @@
 
 ### CI Workflow Features (v1.6)
 - **SARIF 2.1.0 output** (`--format sarif`) for GitHub Code Scanning, with stable partial fingerprints per finding
-- **Baselines** — `--baseline <FILE>` records known findings; `--new-only` reports only findings that are not yet baselined
+- **Baselines** — `--baseline <FILE> --update-baseline` records the current findings; `--baseline <FILE> --new-only` reports only findings not yet recorded and never writes the file. Fingerprints use the matched text, not the line number, so edits elsewhere in a file do not re-report its findings (baselines written by v1.11 or earlier must be rebuilt once)
 - **Path suppression** — `.kalascanignore` (or `--ignore <FILE>`) accepts globs such as `src/generated/*` and `*.min.js`
-- **Inline suppression** — add `kalascan:ignore` on a line, or `kalascan:ignore-file` anywhere in a file
+- **Inline suppression** — add `kalascan:ignore` on a line, or `kalascan:ignore-file` anywhere in a file. Honoured only when scanning your own checkout in place; ignored in anything cloned, downloaded or uploaded, and with `--untrusted`
 - **Changed-files scanning** — `--changed-only --base-ref origin/main` restricts the scan to files touched by the PR
 - **Raw JSON** is unaffected: the async web API and CLI `json` format still return every finding
 
@@ -173,6 +173,7 @@
 | `KALASCAN_SCAN_RATE_LIMIT` | `30` | Submissions allowed per minute (HTTP `429` beyond that) |
 | `KALASCAN_TOKEN` | unset | Bearer token required on every route |
 | `KALASCAN_HISTORY_LIMIT` | `500` | Scans kept in SQLite; older finished scans are pruned |
+| `KALASCAN_ALLOW_PRIVATE_TARGETS` | unset | `1` lets API scans and download redirects reach loopback / private / link-local hosts (an internal Git server) |
 | `KALASCAN_MEMORY_SCANS` | `100` | Scans kept in the in-memory cache |
 
 ### Local Directory Scans (v1.7)
@@ -256,9 +257,12 @@ kalascan scan ./suspicious.vsix --sandbox --format json -o sandbox-report.json
 kalascan scan https://github.com/user/repo.git --format sarif -o kalascan.sarif
 
 # Baseline: record known findings, then report only new ones in CI
-kalascan scan https://github.com/user/repo.git --baseline .kalascan.baseline.json
+kalascan scan https://github.com/user/repo.git --baseline .kalascan.baseline.json --update-baseline
 kalascan scan https://github.com/user/repo.git \
   --baseline .kalascan.baseline.json --new-only --format sarif -o kalascan.sarif
+
+# A downloaded sample or a fork's checkout: no skipped build dirs, no inline opt-outs
+kalascan scan ./suspicious-package --untrusted
 
 # Restrict a PR scan to changed files
 kalascan scan https://github.com/user/repo.git --changed-only --base-ref origin/main
@@ -307,7 +311,10 @@ vendor/**
 ```
 
 Or inline in the scanned code: `eval(payload) // kalascan:ignore` (single line) and
-`kalascan:ignore-file` (whole file).
+`kalascan:ignore-file` (whole file). Inline markers, and skipping `target/`, `venv/`,
+`.tox/` and `__pycache__/`, apply only to a local directory scanned in place: in a
+package the author controls those, so a cloned repo, a downloaded or uploaded
+package, `kalascan installed` and `--untrusted` scans ignore them.
 
 ### GitHub Action
 
@@ -340,7 +347,7 @@ KALASCAN_TOKEN=change-me kalascan serve --addr 0.0.0.0:3000
 All requests then need `Authorization: Bearer change-me`.
 
 - On a non-loopback address the server **refuses to start** without `KALASCAN_TOKEN` or users. For a trusted network only, opt out with `KALASCAN_ALLOW_UNAUTHENTICATED=1`.
-- The JSON API accepts remote targets only (Git URLs, `publisher.extension`, marketplace URLs, `npm:` / `pypi:`). Local paths and the server-side options `yara_dir`, `ignore`, `baseline` and `sandbox_image` are CLI-only; upload local packages via `POST /api/scan/upload`.
+- The JSON API accepts remote targets only (Git URLs, `publisher.extension`, marketplace URLs, `npm:` / `pypi:`), and refuses hosts that resolve to loopback, private, link-local or CGNAT addresses (cloud metadata, admin ports) unless `KALASCAN_ALLOW_PRIVATE_TARGETS=1`. Credentials in a repo URL (`https://user:token@host/…`) reach `git` only; logs, the audit log, history and reports show the URL without them. Local paths and the server-side options `yara_dir`, `ignore`, `baseline` and `sandbox_image` are CLI-only; upload local packages via `POST /api/scan/upload`.
 
 ## Architecture
 

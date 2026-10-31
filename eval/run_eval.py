@@ -67,7 +67,8 @@ def scan(sample, args):
             else:
                 target = path
         out = os.path.join(tmp, "result.json")
-        cmd = [args.kalascan, "scan", target, "--format", "json", "--output", out, *args.flag]
+        # --untrusted: extracted samples are someone else's code, not a checkout.
+        cmd = [args.kalascan, "scan", target, "--untrusted", "--format", "json", "--output", out, *args.flag]
         try:
             proc = subprocess.run(cmd, capture_output=True, text=True, timeout=args.timeout)
         except subprocess.TimeoutExpired:

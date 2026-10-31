@@ -1026,9 +1026,23 @@
         }
 
         /* ── Reports & delete ── */
-        function downloadReport(id, format) {
+        // Fetched with the bearer token, then saved: window.open sent no
+        // Authorization header, so every export failed on a protected server.
+        async function downloadReport(id, format) {
             if (!id) return;
-            window.open(API + '/api/report/' + encodeURIComponent(id) + '/' + format, '_blank');
+            try {
+                const r = await apiFetch(API + '/api/report/' + encodeURIComponent(id) + '/' + format);
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const url = URL.createObjectURL(await r.blob());
+                const ext = { junit: 'xml', github: 'txt', text: 'txt', markdown: 'md' }[format] || format;
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'kalascan-' + id.slice(0, 8) + '.' + ext;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 10000);
+            } catch (err) { alert('Report download failed: ' + err.message); }
         }
 
         async function deleteScan(id) {
@@ -1047,6 +1061,8 @@
 
         /* ── Boot ── */
         renderHistory(scans);
+        // A protected server ships the page without history; ask the API.
+        if (!scans.length) loadHistory();
         const pendingResult = new URLSearchParams(location.search).get('result');
         if (pendingResult) { currentResultId = pendingResult; loadResult(pendingResult); }
         window.addEventListener('scroll', hideSidebarOnScroll);

