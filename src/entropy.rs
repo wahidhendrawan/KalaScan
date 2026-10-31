@@ -105,12 +105,10 @@ fn has_hidden_zero_width(line: &str) -> bool {
     })
 }
 
+/// Runs on script and manifest files only (`scanner::is_critical_file`);
+/// prose never reaches it.
 pub fn scan_advanced_obfuscation(file_path: &str, content: &str) -> Vec<RuleMatch> {
     let mut matches = Vec::new();
-
-    // Skip scanning markdown or text files for entropy/homoglyphs to reduce noise
-    let is_doc =
-        file_path.ends_with(".md") || file_path.ends_with(".txt") || file_path.ends_with(".rst");
 
     for (line_idx, line) in content.lines().enumerate() {
         let line_num = line_idx + 1;
@@ -144,10 +142,6 @@ pub fn scan_advanced_obfuscation(file_path: &str, content: &str) -> Vec<RuleMatc
                 severity: "high".to_string(),
                 context: line.chars().take(120).collect(),
             });
-        }
-
-        if is_doc {
-            continue;
         }
 
         // 3. Detect Confusable Homoglyphs in Code: one word mixing ASCII letters

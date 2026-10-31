@@ -157,7 +157,7 @@ async fn openai_analyze(
         code_snippets
     );
 
-    let body = serde_json::json!({
+    let mut body = serde_json::json!({
         "model": model,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -167,6 +167,11 @@ async fn openai_analyze(
         "max_tokens": 1024,
         "response_format": {"type": "json_object"}
     });
+    // JSON mode only where it is known to work: 9Router and other keyless
+    // proxies forward to many backends, some of which reject it.
+    if !require_key {
+        body.as_object_mut().map(|o| o.remove("response_format"));
+    }
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(120))
@@ -178,24 +183,8 @@ async fn openai_analyze(
     if !key.is_empty() {
         req = req.header("Authorization", format!("Bearer {}", key));
     }
-    // Remove response_format if the provider doesn't support it (e.g. 9Router via many backends)
-    let body_no_json_mode = serde_json::json!({
-        "model": model,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt}
-        ],
-        "temperature": 0.1,
-        "max_tokens": 1024
-    });
-    let final_body = if require_key {
-        &body
-    } else {
-        &body_no_json_mode
-    };
-
     let resp = req
-        .json(final_body)
+        .json(&body)
         .send()
         .await
         .map_err(|e| anyhow::anyhow!("OpenAI API connection failed: {}", e))?;
@@ -278,30 +267,7 @@ fn parse_ai_response(text: &str) -> anyhow::Result<AiAnalysis> {
         if let Some(inner) = content_str {
             // Try to parse the inner content as our JSON
             match serde_json::from_str::<Value>(inner) {
-                Ok(inner_val) => AiAnalysis {
-                    is_malicious: inner_val["is_malicious"].as_bool().unwrap_or(false),
-                    risk_score: inner_val["risk_score"].as_u64().unwrap_or(0) as u8,
-                    malware_type: inner_val["malware_type"]
-                        .as_str()
-                        .unwrap_or("None")
-                        .to_string(),
-                    threat_summary: inner_val["threat_summary"]
-                        .as_str()
-                        .unwrap_or("No threat summary provided")
-                        .to_string(),
-                    suspicious_lines: inner_val["suspicious_lines"]
-                        .as_array()
-                        .map(|a| {
-                            a.iter()
-                                .filter_map(|v| v.as_str().map(String::from))
-                                .collect()
-                        })
-                        .unwrap_or_default(),
-                    recommendation: inner_val["recommendation"]
-                        .as_str()
-                        .unwrap_or("Safe")
-                        .to_string(),
-                },
+                Ok(inner_val) => analysis_from(&inner_val),
                 Err(_) => {
                     // Inner content isn't JSON — return raw fields
                     AiAnalysis {
@@ -316,30 +282,36 @@ fn parse_ai_response(text: &str) -> anyhow::Result<AiAnalysis> {
             }
         } else {
             // Direct JSON (no chat completion wrapper)
-            AiAnalysis {
-                is_malicious: val["is_malicious"].as_bool().unwrap_or(false),
-                risk_score: val["risk_score"].as_u64().unwrap_or(0) as u8,
-                malware_type: val["malware_type"].as_str().unwrap_or("None").to_string(),
-                threat_summary: val["threat_summary"]
-                    .as_str()
-                    .unwrap_or("No threat summary provided")
-                    .to_string(),
-                suspicious_lines: val["suspicious_lines"]
-                    .as_array()
-                    .map(|a| {
-                        a.iter()
-                            .filter_map(|v| v.as_str().map(String::from))
-                            .collect()
-                    })
-                    .unwrap_or_default(),
-                recommendation: val["recommendation"].as_str().unwrap_or("Safe").to_string(),
-            }
+            analysis_from(&val)
         }
     } else {
         return Err(anyhow::anyhow!("Failed to parse AI response: {}", json_str));
     };
 
     Ok(analysis)
+}
+
+/// The model's verdict object. `risk_score` is clamped: `as u8` wrapped 300
+/// to 44, so an out-of-range answer could lower a score.
+fn analysis_from(val: &Value) -> AiAnalysis {
+    AiAnalysis {
+        is_malicious: val["is_malicious"].as_bool().unwrap_or(false),
+        risk_score: val["risk_score"].as_u64().unwrap_or(0).min(100) as u8,
+        malware_type: val["malware_type"].as_str().unwrap_or("None").to_string(),
+        threat_summary: val["threat_summary"]
+            .as_str()
+            .unwrap_or("No threat summary provided")
+            .to_string(),
+        suspicious_lines: val["suspicious_lines"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default(),
+        recommendation: val["recommendation"].as_str().unwrap_or("Safe").to_string(),
+    }
 }
 
 #[cfg(test)]
@@ -388,5 +360,13 @@ mod tests {
         let result = parse_ai_response(text).unwrap();
         assert!(!result.is_malicious);
         assert_eq!(result.risk_score, 0);
+    }
+
+    #[test]
+    fn out_of_range_score_is_clamped_in_both_shapes() {
+        let direct = r#"{"is_malicious": true, "risk_score": 300}"#;
+        assert_eq!(parse_ai_response(direct).unwrap().risk_score, 100);
+        let wrapped = r#"{"choices":[{"message":{"content":"{\"is_malicious\": true, \"risk_score\": 1000}"}}]}"#;
+        assert_eq!(parse_ai_response(wrapped).unwrap().risk_score, 100);
     }
 }

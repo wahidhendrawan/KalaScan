@@ -4,7 +4,8 @@ info:
   description: |
     Local Git repository & IDE extension security and malware scanner.
     Async scan API: submit, then poll the status endpoint until `done`.
-  version: 1.8.0
+  # Filled in with the binary's version when served at /openapi.yaml.
+  version: __VERSION__
 servers:
   - url: http://127.0.0.1:3000
 security:
@@ -62,6 +63,8 @@ paths:
                 file: { type: string, format: binary }
                 llm_provider: { type: string }
                 llm_model: { type: string }
+                llm_api_key: { type: string, description: "Never persisted with queued scans" }
+                llm_endpoint: { type: string }
                 ai_analysis_enabled: { type: boolean }
                 check_cve: { type: boolean }
                 deep_triage: { type: boolean }
@@ -153,12 +156,7 @@ paths:
         "401": { description: Missing or invalid bearer token }
   /api/audit:
     get:
-      summary: Append-only audit log (admin only)
-      parameters:
-        - name: limit
-          in: query
-          required: false
-          schema: { type: integer, default: 100 }
+      summary: Append-only audit log (admin only), newest 200 entries
       responses:
         "200":
           description: Audit entries
