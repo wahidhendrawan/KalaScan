@@ -1,3 +1,6 @@
 # False positives / test mock credentials in scanner source
 46bad50b7dbaea1edd9c00038627de84c0cb4def:src/export.rs:generic-api-key:387
 147dce32f2203319a57ec3a35e18a91f3bd97d6e:src/scanner.rs:aws-access-token:498
+# Rule examples in rules/builtin.toml (KS-EXF-017/018), replaced by low-entropy ones in the next commit
+64d3e5c0df3d38cf3c7dd5955e0bc3d70b3400c3:rules/builtin.toml:gitlab-pat:808
+64d3e5c0df3d38cf3c7dd5955e0bc3d70b3400c3:rules/builtin.toml:jwt:817
