@@ -16,3 +16,6 @@
 # Temp
 /tmp/
 *.tmp
+
+# Local scan history (created at runtime)
+kalascan.db*
