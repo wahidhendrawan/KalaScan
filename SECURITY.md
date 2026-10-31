@@ -6,8 +6,8 @@ Only the latest release gets security fixes.
 
 | Version | Supported |
 |---|---|
-| 1.10.x | yes |
-| < 1.10 | no |
+| 1.11.x | yes |
+| < 1.11 | no |
 
 ## Reporting a vulnerability
 
