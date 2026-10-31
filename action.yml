@@ -26,10 +26,11 @@ runs:
   using: composite
   steps:
     - name: Install KalaScan
+      # Build the same revision as the action ref, not a hard-coded tag.
       run: |
         set -euo pipefail
         if ! command -v kalascan >/dev/null 2>&1; then
-          cargo install --git https://github.com/wahidhendrawan/KalaScan --tag v1.8.0
+          cargo install --locked --path "$GITHUB_ACTION_PATH"
         fi
       shell: bash
 
@@ -49,6 +50,8 @@ runs:
       shell: bash
 
     - name: Upload SARIF
+      # Upload even when the risk gate failed the scan step, so the findings show.
+      if: always() && hashFiles('kalascan.sarif') != ''
       uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
       with:
         sarif_file: kalascan.sarif
