@@ -172,15 +172,277 @@ pub fn parse_requirements_txt(content: &str, file_name: &str) -> Vec<DependencyP
     packages
 }
 
+/// Most-downloaded packages, the usual typo-squat targets.
+/// shortcut: hand-picked top names; swap for a generated top-N list if misses show up.
+const POPULAR_NPM: &[&str] = &[
+    "react",
+    "react-dom",
+    "lodash",
+    "express",
+    "axios",
+    "chalk",
+    "commander",
+    "debug",
+    "moment",
+    "request",
+    "webpack",
+    "typescript",
+    "eslint",
+    "prettier",
+    "jquery",
+    "vue",
+    "cross-env",
+    "dotenv",
+    "colors",
+    "uuid",
+    "yargs",
+    "inquirer",
+    "body-parser",
+    "mongoose",
+    "socket.io",
+    "babel-core",
+    "node-fetch",
+    "electron",
+    "discord.js",
+    "ethers",
+    "web3",
+    "jsonwebtoken",
+    "bcrypt",
+    "nodemailer",
+    "puppeteer",
+    "redux",
+    "next",
+    "glob",
+    "rimraf",
+    "mkdirp",
+    "semver",
+    "minimist",
+    "async",
+    "bluebird",
+    "underscore",
+    "classnames",
+    "coffee-script",
+];
+const POPULAR_PYPI: &[&str] = &[
+    "requests",
+    "urllib3",
+    "numpy",
+    "pandas",
+    "boto3",
+    "botocore",
+    "setuptools",
+    "django",
+    "flask",
+    "pyyaml",
+    "cryptography",
+    "pillow",
+    "colorama",
+    "beautifulsoup4",
+    "selenium",
+    "matplotlib",
+    "scipy",
+    "tensorflow",
+    "torch",
+    "openai",
+    "python-dateutil",
+    "jinja2",
+    "click",
+    "pytest",
+    "paramiko",
+    "pycryptodome",
+    "discord.py",
+    "web3",
+    "httpx",
+    "aiohttp",
+    "asyncio",
+    "pynacl",
+];
+
+/// Real packages that happen to sit one edit from a popular name.
+const KNOWN_NEIGHBORS: &[&str] = &[
+    "preact",
+    "color",
+    "ether",
+    "chalk-cli",
+    "requests-oauthlib",
+    "tslint",
+    "rsync",
+];
+
+/// Dependencies one edit (or one swap of neighbours) away from a popular
+/// package they are not. Names under 6 chars are skipped: `vue`/`vuex`,
+/// `async`/`rsync`, `eslint`/`tslint` style pairs are mostly all real.
+pub fn typosquat_matches(packages: &[DependencyPackage]) -> Vec<RuleMatch> {
+    packages
+        .iter()
+        .filter_map(|p| {
+            let popular = match p.ecosystem.as_str() {
+                "npm" => POPULAR_NPM,
+                "PyPI" => POPULAR_PYPI,
+                _ => return None,
+            };
+            let name = p.name.to_lowercase();
+            if name.len() < 6
+                || popular.contains(&name.as_str())
+                || KNOWN_NEIGHBORS.contains(&name.as_str())
+            {
+                return None;
+            }
+            let target = popular
+                .iter()
+                .find(|t| t.len() >= 6 && edit_distance(&name, t) == 1)?;
+            Some(RuleMatch {
+                file_path: p.manifest_file.clone(),
+                line_number: 1,
+                matched_pattern: format!("Typo-squat Suspect: {} (looks like {})", p.name, target),
+                severity: "high".to_string(),
+                context: format!(
+                    "Dependency '{}' is one edit away from the popular package '{}'",
+                    p.name, target
+                ),
+            })
+        })
+        .collect()
+}
+
+/// Optimal-string-alignment distance: Levenshtein plus adjacent swaps
+/// (`asyncoi` → `asyncio` is one edit, the classic typo-squat).
+fn edit_distance(a: &str, b: &str) -> usize {
+    let (a, b): (Vec<char>, Vec<char>) = (a.chars().collect(), b.chars().collect());
+    let mut d = vec![vec![0usize; b.len() + 1]; a.len() + 1];
+    for (i, row) in d.iter_mut().enumerate() {
+        row[0] = i;
+    }
+    for (j, cell) in d[0].iter_mut().enumerate() {
+        *cell = j;
+    }
+    for i in 1..=a.len() {
+        for j in 1..=b.len() {
+            let cost = (a[i - 1] != b[j - 1]) as usize;
+            d[i][j] = (d[i - 1][j] + 1)
+                .min(d[i][j - 1] + 1)
+                .min(d[i - 1][j - 1] + cost);
+            if i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1] {
+                d[i][j] = d[i][j].min(d[i - 2][j - 2] + 1);
+            }
+        }
+    }
+    d[a.len()][b.len()]
+}
+
+/// The scanned package's own identity: a typo-squatted name, or a version
+/// like 99.0.0 / 999.9.9 that exists only to outrank a private package of
+/// the same name (dependency confusion).
+pub fn own_package_matches(root: &Path) -> Vec<RuleMatch> {
+    let Some(own) = own_package(root) else {
+        return Vec::new();
+    };
+    let mut out = typosquat_matches(std::slice::from_ref(&own));
+    for m in &mut out {
+        m.context = m
+            .context
+            .replacen("Dependency", "This package's own name", 1);
+    }
+    let major: u64 = own
+        .version
+        .split(|c: char| !c.is_ascii_digit())
+        .next()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0);
+    // CalVer (2026.4.1, as ms-python ships) is a year, not a land grab.
+    if major >= 99 && !(1990..=2100).contains(&major) {
+        out.push(RuleMatch {
+            file_path: own.manifest_file.clone(),
+            line_number: 1,
+            matched_pattern: crate::correlate::DEP_CONFUSION_VERSION.to_string(),
+            severity: "medium".to_string(),
+            context: format!(
+                "{}@{}: an implausibly high version is how dependency-confusion packages win resolution",
+                own.name, own.version
+            ),
+        });
+    }
+    out
+}
+
+/// A VS Code extension root: package.json with `engines.vscode`.
+pub fn is_vscode_extension(root: &Path) -> bool {
+    std::fs::read_to_string(root.join("package.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+        .is_some_and(|v| v["engines"]["vscode"].is_string())
+}
+
+fn own_package(root: &Path) -> Option<DependencyPackage> {
+    let read = |f: &str| std::fs::read_to_string(root.join(f)).ok();
+    let pkg = |name: &str, version: &str, ecosystem: &str, file: &str| DependencyPackage {
+        name: name.trim().to_string(),
+        version: version.trim().to_string(),
+        ecosystem: ecosystem.to_string(),
+        manifest_file: file.to_string(),
+    };
+    if let Some(json) = read("package.json") {
+        let v: serde_json::Value = serde_json::from_str(&json).ok()?;
+        return Some(pkg(
+            v["name"].as_str()?,
+            v["version"].as_str().unwrap_or("0"),
+            "npm",
+            "package.json",
+        ));
+    }
+    if let Some(info) = read("PKG-INFO") {
+        let field = |k: &str| info.lines().find_map(|l| l.strip_prefix(k));
+        return Some(pkg(
+            field("Name: ")?,
+            field("Version: ").unwrap_or("0"),
+            "PyPI",
+            "PKG-INFO",
+        ));
+    }
+    let setup = read("setup.py")?;
+    let field = |k: &str| {
+        let re = regex::Regex::new(&format!(r#"\b{}\s*=\s*['"]([^'"]+)['"]"#, k)).ok()?;
+        Some(re.captures(&setup)?[1].to_string())
+    };
+    Some(pkg(
+        &field("name")?,
+        &field("version").unwrap_or_default(),
+        "PyPI",
+        "setup.py",
+    ))
+}
+
 /// Query OSV (Open Source Vulnerabilities) API for known vulnerabilities
 pub async fn check_vulnerabilities(packages: &[DependencyPackage]) -> Vec<RuleMatch> {
     if packages.is_empty() {
         return Vec::new();
     }
 
-    // Limit batch size to max 100 packages to keep request responsive
-    let batch: Vec<DependencyPackage> = packages.iter().take(100).cloned().collect();
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_secs(8))
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
 
+    // OSV accepts up to 1000 queries per batch; the old `take(100)` silently
+    // dropped the rest of any real Cargo.lock / package tree.
+    let mut matches = Vec::new();
+    for batch in packages.chunks(OSV_BATCH_LIMIT) {
+        if let Some(results) = query_batch(&client, batch).await {
+            matches.extend(osv_matches(batch, results));
+        }
+    }
+    matches
+}
+
+const OSV_BATCH_LIMIT: usize = 1000;
+
+async fn query_batch(
+    client: &reqwest::Client,
+    batch: &[DependencyPackage],
+) -> Option<Vec<OsvQueryResult>> {
     let queries: Vec<OsvSingleQuery> = batch
         .iter()
         .map(|p| OsvSingleQuery {
@@ -194,14 +456,6 @@ pub async fn check_vulnerabilities(packages: &[DependencyPackage]) -> Vec<RuleMa
 
     let payload = OsvBatchQuery { queries };
 
-    let client = match reqwest::Client::builder()
-        .timeout(Duration::from_secs(8))
-        .build()
-    {
-        Ok(c) => c,
-        Err(_) => return Vec::new(),
-    };
-
     let resp = match client
         .post("https://api.osv.dev/v1/querybatch")
         .json(&payload)
@@ -211,59 +465,175 @@ pub async fn check_vulnerabilities(packages: &[DependencyPackage]) -> Vec<RuleMa
         Ok(r) => r,
         Err(e) => {
             warn!("Failed to query OSV vulnerability API: {}", e);
-            return Vec::new();
+            return None;
         }
     };
 
-    let batch_res: OsvBatchResponse = match resp.json().await {
-        Ok(res) => res,
+    match resp.json::<OsvBatchResponse>().await {
+        Ok(res) => res.results,
         Err(e) => {
             warn!("Failed to decode OSV API response: {}", e);
-            return Vec::new();
-        }
-    };
-
-    let mut matches = Vec::new();
-    if let Some(results) = batch_res.results {
-        for (idx, result) in results.into_iter().enumerate() {
-            if let Some(vulns) = result.vulns {
-                if let Some(pkg) = batch.get(idx) {
-                    for v in vulns {
-                        let summary = v
-                            .summary
-                            .or(v.details)
-                            .unwrap_or_else(|| "Known vulnerability detected".to_string());
-
-                        let short_summary = if summary.chars().count() > 140 {
-                            format!("{}...", summary.chars().take(140).collect::<String>())
-                        } else {
-                            summary
-                        };
-
-                        info!("OSV CVE Match: {} in {}@{}", v.id, pkg.name, pkg.version);
-
-                        matches.push(RuleMatch {
-                            file_path: pkg.manifest_file.clone(),
-                            line_number: 1,
-                            matched_pattern: format!(
-                                "Known Vulnerability: {} in {}@{}",
-                                v.id, pkg.name, pkg.version
-                            ),
-                            severity: "high".to_string(),
-                            context: short_summary,
-                        });
-                    }
-                }
-            }
+            None
         }
     }
+}
 
+/// Turn OSV results (index-aligned with `batch`) into findings. `MAL-*`
+/// advisories are known malicious packages, so they are malware evidence,
+/// not dependency hygiene.
+fn osv_matches(batch: &[DependencyPackage], results: Vec<OsvQueryResult>) -> Vec<RuleMatch> {
+    let mut matches = Vec::new();
+    for (result, pkg) in results.into_iter().zip(batch) {
+        for v in result.vulns.unwrap_or_default() {
+            let malicious = v.id.starts_with("MAL-");
+            let summary = v.summary.or(v.details).unwrap_or_else(|| {
+                if malicious {
+                    "Package is listed as malicious in the OSV database".to_string()
+                } else {
+                    "Known vulnerability detected".to_string()
+                }
+            });
+
+            let short_summary = if summary.chars().count() > 140 {
+                format!("{}...", summary.chars().take(140).collect::<String>())
+            } else {
+                summary
+            };
+
+            info!("OSV CVE Match: {} in {}@{}", v.id, pkg.name, pkg.version);
+
+            let (label, severity) = if malicious {
+                ("Malicious Package", "critical")
+            } else {
+                ("Known Vulnerability", "high")
+            };
+            matches.push(RuleMatch {
+                file_path: pkg.manifest_file.clone(),
+                line_number: 1,
+                matched_pattern: format!("{}: {} in {}@{}", label, v.id, pkg.name, pkg.version),
+                severity: severity.to_string(),
+                context: short_summary,
+            });
+        }
+    }
     matches
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_typosquat_matches() {
+        let json = r#"{"dependencies": {"crossenv": "1.0.0", "cross-env": "7.0.3", "vuex": "4.0.0", "preact": "10.0.0", "expresss": "1.0.0"}}"#;
+        let found: Vec<String> = typosquat_matches(&parse_package_json(json, "package.json"))
+            .into_iter()
+            .map(|m| m.matched_pattern)
+            .collect();
+        assert_eq!(
+            found,
+            vec![
+                "Typo-squat Suspect: crossenv (looks like cross-env)".to_string(),
+                "Typo-squat Suspect: expresss (looks like express)".to_string(),
+            ]
+        );
+        let py = parse_requirements_txt("reqeusts==1.0\nrequest==2.0\nrequests==2.31\n", "r.txt");
+        let py_found: Vec<_> = typosquat_matches(&py)
+            .into_iter()
+            .map(|m| m.matched_pattern)
+            .collect();
+        // `reqeusts` is a swap of neighbours: one edit under OSA distance.
+        assert_eq!(
+            py_found,
+            vec![
+                "Typo-squat Suspect: reqeusts (looks like requests)".to_string(),
+                "Typo-squat Suspect: request (looks like requests)".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_own_package_identity() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"name": "ebay-tester", "version": "999.9.9", "scripts": {"preinstall": "node index.js"}}"#,
+        )
+        .unwrap();
+        let names: Vec<String> = own_package_matches(dir.path())
+            .into_iter()
+            .map(|m| m.matched_pattern)
+            .collect();
+        assert_eq!(
+            names,
+            vec![crate::correlate::DEP_CONFUSION_VERSION.to_string()]
+        );
+
+        let py = tempfile::tempdir().unwrap();
+        std::fs::write(
+            py.path().join("PKG-INFO"),
+            "Metadata-Version: 2.1\nName: asyncoi\nVersion: 0.1\n",
+        )
+        .unwrap();
+        let names: Vec<String> = own_package_matches(py.path())
+            .into_iter()
+            .map(|m| m.matched_pattern)
+            .collect();
+        assert_eq!(
+            names,
+            vec!["Typo-squat Suspect: asyncoi (looks like asyncio)".to_string()]
+        );
+
+        let setup = tempfile::tempdir().unwrap();
+        std::fs::write(
+            setup.path().join("setup.py"),
+            "setup(name='manda-tu-cv-a-secureit',\n      version='88.88.88')",
+        )
+        .unwrap();
+        assert!(own_package_matches(setup.path()).is_empty(), "88 < 99");
+
+        let calver = tempfile::tempdir().unwrap();
+        std::fs::write(
+            calver.path().join("package.json"),
+            r#"{"name": "vscode-pylance", "version": "2026.4.1", "engines": {"vscode": "^1.90.0"}}"#,
+        )
+        .unwrap();
+        assert!(own_package_matches(calver.path()).is_empty(), "CalVer year");
+        assert!(is_vscode_extension(calver.path()));
+        assert!(!is_vscode_extension(dir.path()));
+        assert_eq!(edit_distance("asyncoi", "asyncio"), 1);
+        assert_eq!(edit_distance("lodash", "lodahs"), 1);
+        assert_eq!(edit_distance("kitten", "sitting"), 3);
+    }
+
+    #[test]
+    fn test_malicious_package_advisory_is_critical() {
+        let pkgs = parse_requirements_txt("evilpkg==1.0\nrequests==2.25.1\n", "requirements.txt");
+        let vuln = |id: &str| OsvVuln {
+            id: id.to_string(),
+            summary: None,
+            details: None,
+        };
+        let results = vec![
+            OsvQueryResult {
+                vulns: Some(vec![vuln("MAL-2024-1234")]),
+            },
+            OsvQueryResult {
+                vulns: Some(vec![vuln("GHSA-j8r2-6x86-q33q")]),
+            },
+        ];
+        let matches = osv_matches(&pkgs, results);
+        assert_eq!(matches.len(), 2);
+        assert_eq!(
+            matches[0].matched_pattern,
+            "Malicious Package: MAL-2024-1234 in evilpkg@1.0"
+        );
+        assert_eq!(matches[0].severity, "critical");
+        assert!(matches[1]
+            .matched_pattern
+            .starts_with("Known Vulnerability: GHSA-"));
+        assert_eq!(matches[1].severity, "high");
+    }
 
     #[test]
     fn test_parse_package_json() {

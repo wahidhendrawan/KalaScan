@@ -45,6 +45,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ScanAccepted" }
+        "400": { description: "Local path target, or a CLI-only field (yara_dir, rules_file, ignore, baseline, sandbox_image)" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "429": { $ref: "#/components/responses/RateLimited" }
@@ -189,23 +190,24 @@ components:
       type: object
       required: [repo_url, llm_provider, llm_model]
       properties:
-        repo_url: { type: string, description: "Git URL, marketplace URL, or local directory path" }
+        repo_url: { type: string, description: "Git URL (https/ssh), marketplace URL, publisher.extension[@version], npm:name[@version] or pypi:name[==version]. Local paths are CLI-only; upload packages via /api/scan/upload" }
         llm_provider: { type: string, default: ollama }
         llm_model: { type: string, default: llama3 }
         llm_api_key: { type: string, description: "Never persisted with queued scans" }
         llm_endpoint: { type: string }
         ai_analysis_enabled: { type: boolean }
         check_cve: { type: boolean }
-        yara_dir: { type: string }
+        yara_dir: { type: string, description: "CLI-only; rejected by the API" }
+        rules_file: { type: string, description: "CLI-only; rejected by the API" }
         git_history: { type: boolean }
         deep_triage: { type: boolean }
         deobfuscate: { type: boolean }
         emulate: { type: boolean }
         sandbox: { type: boolean }
-        sandbox_image: { type: string }
+        sandbox_image: { type: string, description: "CLI-only; rejected by the API" }
         new_only: { type: boolean }
-        baseline: { type: string }
-        ignore: { type: string }
+        baseline: { type: string, description: "CLI-only; rejected by the API" }
+        ignore: { type: string, description: "CLI-only; rejected by the API" }
         changed_only: { type: boolean }
         base_ref: { type: string }
     ScanAccepted:
@@ -259,3 +261,13 @@ components:
         sandbox: { type: object, nullable: true }
         status: { type: string }
         duration_ms: { type: integer, nullable: true }
+        iocs:
+          type: array
+          description: External URLs / public IPs referenced by the scanned code
+          items:
+            type: object
+            properties:
+              kind: { type: string, enum: [url, ip] }
+              value: { type: string }
+              host: { type: string }
+              files: { type: array, items: { type: string } }

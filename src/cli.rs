@@ -27,7 +27,7 @@ pub enum Commands {
     },
     /// Scan a Git repository, IDE extension, or local package in headless CLI mode
     Scan {
-        /// Target URL (Git repo, VS Code / Open VSX / JetBrains marketplace) or local file path (.vsix, .zip, .jar, .crx)
+        /// Target URL (Git repo, VS Code / Open VSX / JetBrains marketplace), registry package (npm:name[@ver], pypi:name[==ver]) or local file path (.vsix, .zip, .jar, .crx)
         target: String,
 
         /// Output format: text, json, md, html, sarif, csv, junit, github
@@ -90,6 +90,10 @@ pub enum Commands {
         #[arg(long)]
         yara_dir: Option<PathBuf>,
 
+        /// Extra RegEx rules (TOML, same format as rules/builtin.toml); examples are validated on load
+        #[arg(long)]
+        rules: Option<PathBuf>,
+
         /// Scan full git commit history (only applies to Git repositories)
         #[arg(long)]
         git_history: bool,
@@ -132,6 +136,44 @@ pub enum Commands {
         /// Write the SBOM here instead of stdout
         #[arg(short, long)]
         output: Option<PathBuf>,
+    },
+    /// Audit the IDE (VS Code, Cursor, Windsurf, VSCodium) and browser (Chrome, Edge, Brave) extensions installed on this machine
+    Installed {
+        /// Output format: text or json
+        #[arg(short, long, default_value = "text")]
+        format: String,
+
+        /// Only list extensions at or above this risk score
+        #[arg(long, default_value_t = 0)]
+        min_risk: u8,
+
+        /// Exit 1 if any extension scores at or above this risk
+        #[arg(long)]
+        fail_on_risk: Option<u8>,
+
+        /// Extensions scanned in parallel
+        #[arg(long, default_value_t = 4)]
+        jobs: usize,
+    },
+    /// Compare two versions of a package or extension and list capabilities the new one adds
+    Diff {
+        /// Old version (any scan target, e.g. npm:pkg@1.0.0, publisher.ext@1.2.0, old.vsix)
+        old: String,
+
+        /// New version
+        new: String,
+
+        /// Output format: text or json
+        #[arg(short, long, default_value = "text")]
+        format: String,
+
+        /// Exit 1 if a new capability is at or above this severity (critical, high, medium, low)
+        #[arg(long)]
+        fail_on_new: Option<String>,
+
+        /// Also diff known dependency vulnerabilities (OSV, network)
+        #[arg(long)]
+        cve: bool,
     },
 }
 
