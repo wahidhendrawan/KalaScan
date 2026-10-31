@@ -4,6 +4,10 @@ services:
     container_name: kalascan
     ports:
       - "3000:3000"
+    environment:
+      # Required: the server refuses to start on 0.0.0.0 without auth.
+      # Run e.g. `KALASCAN_TOKEN=$(openssl rand -hex 32) docker compose up -d`.
+      - KALASCAN_TOKEN=${KALASCAN_TOKEN:?set KALASCAN_TOKEN (openssl rand -hex 32)}
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"

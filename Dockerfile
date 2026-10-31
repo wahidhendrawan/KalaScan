@@ -19,8 +19,9 @@ RUN mkdir -p src templates && \
 COPY src/ src/
 COPY templates/ templates/
 COPY static/ static/
-# openapi.yaml, templates and app.css are embedded with include_str!,
-# so they must exist before compiling.
+COPY rules/ rules/
+# openapi.yaml, templates, app.css and rules/builtin.toml are embedded with
+# include_str!, so they must exist before compiling.
 COPY openapi.yaml ./
 
 RUN touch src/main.rs src/scanner.rs src/ai_analyzer.rs && \

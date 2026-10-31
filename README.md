@@ -5,7 +5,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/rust-1.95+-orange?logo=rust" />
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" />
-  <img src="https://img.shields.io/badge/tests-98%20passed-brightgreen" />
+  <img src="https://img.shields.io/badge/tests-144%20passed-brightgreen" />
   <img src="https://img.shields.io/badge/docker-ready-2496ED?logo=docker" />
 </p>
 
@@ -22,7 +22,9 @@
   - **Open VSX**: Open-source registry URLs (`open-vsx.org/extension/<namespace>/<name>`)
   - **JetBrains**: IntelliJ / PyCharm / WebStorm plugin archives (`.jar`, `.zip`)
   - **Chrome / Browser**: Extension packages (`.crx`, `.zip`) with `manifest.json` permission checks
-- **Safe Unpacking** — automated extraction with zip-slip path traversal guards, targeting runtime payloads (`extension/`, `META-INF/`)
+  - **npm / PyPI**: registry packages by name — `npm:express`, `npm:@scope/name@1.2.3`, `pypi:requests==2.31.0` (wheel preferred, sdist fallback)
+- **Safe Unpacking** — automated extraction with zip-slip path traversal guards, targeting runtime payloads (`extension/`, `META-INF/`); `.tgz` / `.tar.gz` drop symlinks and `../` entries under the same size limits
+- **Bundled `node_modules/` is scanned** — in a VSIX/CRX it is shipped, executed code
 - **IDE Malware Rules**:
   - VS Code session token theft (`getSession`), clipboard harvesting (`clipboard.readText`), unauthorized workspace file access (`findFiles`), wildcard startup activations (`*`, `onStartupFinished`)
   - JetBrains dynamic class loading (`URLClassLoader`, `DexClassLoader`), process execution (`ProcessBuilder`, `Runtime.getRuntime().exec`), reflection tampering (`Method.invoke`, `Field.setAccessible`), raw sockets
@@ -31,6 +33,8 @@
 ### YARA Rules Engine (`yara-x`)
 - Built-in pure-Rust YARA rule compilation for generic reverse shells, crypto drainers, and Discord webhook stealers
 - Support for loading custom user YARA rules from a directory via `--yara-dir <PATH>`
+- YARA runs on every file as raw bytes (binaries, `.node`, `.wasm`, `.pyc`, …), not only scripts; prose docs (`.md`, `.txt`, `.rst`) are skipped
+- Files are read up to 4 MiB; larger script files are still scanned up to that cap and reported as `Oversized File (partially scanned)`. Non-UTF-8 bytes no longer make a file unreadable
 
 ### Deep Static Binary Triage (v1.3)
 - **Binary Metadata** — detects PE, ELF, Mach-O, Java class, WebAssembly, archives, and scripts; extracts SHA-256, architecture, bitness, entrypoint, sections, and imports
@@ -68,13 +72,55 @@
 
 ### Entropy & Advanced Obfuscation Analysis
 - **Shannon Entropy Analysis**: Scans string literals for high-entropy blobs (> 5.2 entropy on tokens >= 60 chars) indicating encrypted ciphers or packed scripts
-- **Invisible Zero-Width Character Detection**: Uncovers hidden unicode steganography (`\u{200B}`, `\u{200C}`, `\u{200D}`, `\u{FEFF}`)
+- **Invisible Zero-Width Character Detection**: Uncovers hidden unicode steganography (`\u{200B}`, `\u{200C}`, `\u{200D}`, `\u{FEFF}`) wedged between ASCII word characters; emoji ZWJ sequences and Persian/Indic ZWNJ are ordinary text
 - **Trojan Source Detection (CVE-2021-42574)**: Flags dangerous Bi-Directional override characters disguised as comments
-- **Homoglyph Spoofing Detection**: Catches Cyrillic lookalikes mixed into Latin code identifiers
+- **Homoglyph Spoofing Detection**: Catches a single identifier mixing Latin letters with Cyrillic lookalikes (localised UI strings are not flagged)
+
+### Behaviour Chains (correlation)
+- Individual hits are weak evidence; KalaScan correlates them into chains, each scored as two critical signals. File-level chain parts must sit within 4 KB of each other (bundlers put a whole extension in one file); package-level chains only combine evidence inside one package, never across bundled `node_modules` deps:
+  - **`Chain: Credential Exfiltration`** — a credential source (browser stores, wallets, seed phrases, VS Code sessions, cookies) next to an exfiltration sink (webhook, Telegram, request-capture service, raw-IP URL, or a network call)
+  - **`Chain: Download and Execute`** — a remote executable / script download or a `curl … | sh` / `irm … | iex` cradle next to a process start (official installer hosts such as `astral.sh` or `dl.google.com` excluded)
+  - **`Chain: Reverse Shell`** — a raw socket and a process whose stdio is piped into it
+  - **`Chain: Drop and Execute Binary`** — `chmod +x` next to a detached spawn
+  - **`Chain: Obfuscated Process Execution`** — javascript-obfuscator (`_0x…`) output that spawns processes
+  - **`Chain: Install-time Exfiltration` / `Install-time Payload Execution`** — an npm install script or `setup.py` hook (custom `cmdclass`, shell calls) together with an exfil channel, host recon + HTTP, an encoded PowerShell blob, a base64/zlib stager or a download (not for VS Code extensions, whose package.json scripts never run on install)
+  - **`Chain: Reconnaissance Beacon`** — hostname/username collection plus a request-capture service (`webhook.site`, `*.oast.fun`, …), raw-IP URL or chat webhook
+  - **`Chain: Remote File Write via Local Server`** — an HTTP listener with an upload route plus a **zip slip** extractor. Zip slip is found by variable-level taint tracking: archive entry name → path → `writeFile` / `open(…, 'wb')` with no `..` / prefix check on that same variable; `tarfile.extractall` without `filter=` counts too
+- **Typo-squat detection** — dependencies (and the package's own name) one edit or one swapped pair away from a popular npm/PyPI package (`crossenv` → `cross-env`, `asyncoi` → `asyncio`), offline, on every scan
+- **Dependency-confusion versions** — a package versioned `99.0.0`, `999.9.9`, … (CalVer years excluded)
+
+### Publisher & Listing Reputation (VS Code extensions)
+- **Offline**, from the extension's own package.json (works on a .vsix long after the marketplace removed it): invisible characters in the name or publisher (`Solidity\u200b`) and look-alike publishers (`juanbIanco` for `juanblanco`) are scored like a chain; brand use by a non-owner (`"Error Lens Ultra"` by `GitlensPro`) is reported
+- **Online**, for `publisher.extension` targets: unverified publisher, fewer than 1,000 installs, first published less than 30 days ago (informational)
+
+### Version Diff (update hijacks)
+- `kalascan diff <old> <new>` scans both versions and lists the capabilities only the new one has; `--fail-on-new high` exits 1 for CI dependency/extension bump gates
+- Works with any target: `npm:pkg@1.0.0`, `pypi:pkg==1.0`, `publisher.ext@1.2.0`, local `.vsix` / directories
+
+### Installed Extension Audit
+- `kalascan installed` finds VS Code, Insiders, VSCodium, Cursor and Windsurf extensions plus Chrome / Edge / Brave / Chromium extensions on this machine and scans each one offline, in place, highest risk first (`--min-risk`, `--fail-on-risk`, `--format json`)
+
+### Indicators of Compromise
+- Every scan lists the external URLs and public IPs the code refers to (`iocs` in JSON, an INDICATORS section in text), skipping documentation/registry hosts
+- Set `URLHAUS_AUTH_KEY` (abuse.ch) to check each URL exactly against URLhaus; a listed URL is a critical `Known Malicious URL (URLhaus)` finding
+
+### Rules as Data
+- Built-in RegEx rules live in [`rules/builtin.toml`](rules/builtin.toml) with stable ids (`KS-EXF-001`, …), severity, scope and `matches` / `ignores` examples that are verified every time the rules load
+- `--rules my-rules.toml` adds your own rules in the same format (CLI only); a rule that fails its own examples aborts the scan with the reason
+- `kalascan rules` lists ids; `kalascan rules KS-SUP-009` explains one
+
+### Detection Quality
+- [`eval/`](eval/README.md) holds a labelled corpus (DataDog malicious-package samples + popular clean packages and extensions) and the harness that measures it. Current: **58% recall on the held-out malicious split (65% on the tuning split), 0 false positives across 61 clean packages/extensions**; CI fails a PR that makes any clean sample cross risk 50
+
+### GitHub Actions Workflow Checks
+- **Pwn request** (critical) — `pull_request_target` that checks out the PR head (`ref: ${{ github.event.pull_request.head.sha }}`)
+- **Script injection** (high) — attacker-controlled contexts (`github.event.issue.title`, `…pull_request.body`, `github.head_ref`, …) interpolated into `run:` / `script:` blocks
+- **Unpinned third-party actions** (low) — `uses: owner/action@v1` instead of a full commit SHA
 
 ### Dependency CVE Audit (OSV API)
 - Automatically inspects project manifests: `package.json` (npm), `Cargo.lock` (Rust), and `requirements.txt` (Python)
-- Batch queries the official [OSV (Open Source Vulnerabilities)](https://osv.dev/) database for known security advisories
+- Batch queries the official [OSV (Open Source Vulnerabilities)](https://osv.dev/) database for known security advisories (1000 packages per request, no truncation)
+- OSV `MAL-*` advisories (known malicious packages) are reported as critical `Malicious Package` findings and scored as malware evidence, not dependency hygiene
 
 ### Standalone CLI Subcommands (CI/CD Gates)
 - Run headless scans in terminal or automated pipelines without starting the web server
@@ -224,13 +270,29 @@ kalascan scan . --format csv -o kalascan.csv
 
 # CycloneDX SBOM from lockfiles and manifests (no network calls)
 kalascan sbom . -o sbom.json
+
+# Registry packages by name
+kalascan scan npm:express@4.17.1
+kalascan scan pypi:requests==2.31.0
+
+# What did the new version add? (fails on a new high/critical capability)
+kalascan diff npm:some-lib@1.4.0 npm:some-lib@1.4.1 --fail-on-new high
+kalascan diff publisher.ext@2.0.0 publisher.ext@2.1.0
+
+# Audit the extensions installed on this machine
+kalascan installed --min-risk 30
+
+# Extra rules, threat intel
+kalascan scan . --rules ./org-rules.toml
+URLHAUS_AUTH_KEY=... kalascan scan ./suspicious.vsix
 ```
 
 #### Run with Docker
 ```bash
-docker run --rm -p 3000:3000 ghcr.io/wahidhendrawan/kalascan:latest
+docker run --rm -p 3000:3000 -e KALASCAN_TOKEN="$(openssl rand -hex 32)" ghcr.io/wahidhendrawan/kalascan:latest
+# or: KALASCAN_TOKEN=... docker compose up -d
 ```
-Images are published for `linux/amd64` and `linux/arm64`.
+Images are published for `linux/amd64` and `linux/arm64`. The container listens on `0.0.0.0`, so a token (or users) is required; see [Securing the Web UI](#securing-the-web-ui).
 
 ### Scan performance
 - Files are scanned in parallel across available CPU cores (up to 16 workers); findings keep deterministic order
@@ -277,6 +339,9 @@ KALASCAN_TOKEN=change-me kalascan serve --addr 0.0.0.0:3000
 
 All requests then need `Authorization: Bearer change-me`.
 
+- On a non-loopback address the server **refuses to start** without `KALASCAN_TOKEN` or users. For a trusted network only, opt out with `KALASCAN_ALLOW_UNAUTHENTICATED=1`.
+- The JSON API accepts remote targets only (Git URLs, `publisher.extension`, marketplace URLs, `npm:` / `pypi:`). Local paths and the server-side options `yara_dir`, `ignore`, `baseline` and `sandbox_image` are CLI-only; upload local packages via `POST /api/scan/upload`.
+
 ## Architecture
 
 ```
@@ -284,10 +349,17 @@ KalaScan/
 ├── src/
 │   ├── main.rs            # Axum web server, scan orchestrator & CLI router
 │   ├── cli.rs             # Clap CLI subcommand argument parser
-│   ├── vsix.rs            # VSIX, Open VSX, JetBrains & CRX extraction
-│   ├── scanner.rs         # 50+ RegEx rules, WalkDir scanner, file filter
+│   ├── vsix.rs            # VSIX, Open VSX, JetBrains, CRX, npm & PyPI extraction
+│   ├── scanner.rs         # Rule loader (rules/builtin.toml), WalkDir scanner, file filter
 │   ├── yara_engine.rs     # YARA rules engine (yara-x) & custom rule loader
 │   ├── entropy.rs         # Shannon entropy, Zero-Width, Trojan Source, Homoglyphs
+│   ├── correlate.rs       # Behaviour chains (exfil, download+exec, install-time, beacons)
+│   ├── zipslip.rs         # Variable-level taint tracking for archive extraction
+│   ├── workflow.rs        # GitHub Actions checks (pwn request, script injection)
+│   ├── reputation.rs      # Listing spoofing, look-alike publishers, marketplace stats
+│   ├── iocs.rs            # URL / IP indicator extraction, URLhaus lookups
+│   ├── diff.rs            # Version diff (new capabilities)
+│   ├── installed.rs       # Installed IDE / browser extension discovery
 │   ├── attack.rs          # MITRE ATT&CK technique mapping
 │   ├── triage.rs          # Deep static binary triage (goblin, capa/FLOSS/DIE)
 │   ├── deobfuscate.rs     # Recursive decoding chains & recovered payloads
@@ -302,6 +374,9 @@ KalaScan/
 │   ├── git_history.rs     # Commit history scanner
 │   ├── baseline.rs        # Finding fingerprints, baselines & .kalascanignore
 │   └── export.rs          # MD + HTML + SARIF + CSV + JUnit + GitHub export
+├── rules/
+│   └── builtin.toml       # Built-in RegEx rules with ids and verified examples
+├── eval/                  # Labelled corpus + detection-quality harness
 ├── templates/
 │   ├── index.html         # Dashboard with drag-and-drop upload & scan form
 │   └── result.html        # Redirect shim to the single-page result view
@@ -311,6 +386,7 @@ KalaScan/
 │   ├── security.yml       # Gitleaks + Trivy container scan
 │   ├── dependabot-auto-merge.yml
 │   ├── dependency-review.yml
+│   ├── eval.yml           # False-positive gate on the clean corpus
 │   └── docker.yml         # Multi-arch build + push to ghcr.io
 ├── action.yml             # Composite GitHub Action (SARIF → Code Scanning)
 ├── sandbox/
@@ -339,13 +415,17 @@ KalaScan/
 | **Dependency CVEs** | Known exploited vulnerabilities in `package.json`, `Cargo.lock`, and `requirements.txt` via OSV database |
 | **IDE & Extension Malware** | VS Code session/token theft (`getSession`), clipboard snooping (`clipboard.readText`), workspace file exfiltration (`findFiles`), wildcard auto-activation (`*`, `onStartupFinished`), browser extension `<all_urls>` / `debugger` permissions |
 | **Ransomware** | File encryption functions (`fernet.encrypt`), shadow copy deletion (`vssadmin`), encrypted extensions, ransom note text |
-| **Supply Chain** | npm `postinstall`/`preinstall` scripts, typo-squatted package names, remote script download (`curl|sh`), hidden directory installs |
+| **Supply Chain** | npm `postinstall`/`preinstall` scripts, `setup.py` install hooks and stagers, typo-squatted package names (edit distance), dependency-confusion versions, remote executable downloads, `curl … \| sh` / `irm … \| iex` cradles, OSV `MAL-*` malicious packages |
+| **Recon & C2** | Host/user collection, IP-lookup services, request-capture / OAST / tunnel services, raw-IP URLs, raw sockets, local HTTP servers with upload routes |
 
 ## Development
 
 ```bash
-# Run tests (98 tests)
+# Run tests
 cargo test
+
+# Measure detection quality on the labelled corpus (see eval/README.md)
+python3 eval/run_eval.py --only clean
 
 # Build release binary
 cargo build --release
@@ -367,6 +447,8 @@ KALASCAN_ADDR=0.0.0.0:8080 cargo run --release
 - **Security**: Gitleaks (secret detection) + Trivy (vuln + secret + misconfig scan)
 - **Docker**: Multi-stage build published to `ghcr.io/wahidhendrawan/kalascan` on push to main
 - **Dependency Review**: Audits dependency changes on PRs
+- **Detection eval**: scans the clean corpus on PRs touching `src/` or `eval/`; any clean sample at risk ≥ 50 fails the build
+- All third-party actions are pinned to commit SHAs; Dependabot keeps them current
 
 ## License
 

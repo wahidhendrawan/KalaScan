@@ -90,6 +90,7 @@ const TECHNIQUE_TABLE: &[(&str, &str, &str)] = &[
         "Compromise Software Supply Chain",
         "Initial Access",
     ),
+    ("T1203", "Exploitation for Client Execution", "Execution"),
     ("T1204", "User Execution", "Execution"),
     ("T1204.002", "Malicious File", "Execution"),
     ("T1205", "Traffic Signaling", "Command and Control"),
@@ -200,8 +201,21 @@ fn add(out: &mut Vec<AttackTechnique>, id: &str) {
     }
 }
 
+/// Short alphanumeric keywords must be whole words: as substrings, `etw`
+/// matched "n*etw*ork" and mapped every network rule to Impair Defenses.
 fn contains_any(haystack: &str, needles: &[&str]) -> bool {
-    needles.iter().any(|needle| haystack.contains(needle))
+    needles.iter().any(|needle| {
+        if needle.len() > 4 || !needle.chars().all(|c| c.is_ascii_alphanumeric()) {
+            return haystack.contains(needle);
+        }
+        let bytes = haystack.as_bytes();
+        haystack.match_indices(needle).any(|(i, _)| {
+            let before = i.checked_sub(1).map(|j| bytes[j]);
+            let after = bytes.get(i + needle.len()).copied();
+            !before.is_some_and(|b| b.is_ascii_alphanumeric())
+                && !after.is_some_and(|b| b.is_ascii_alphanumeric())
+        })
+    })
 }
 
 pub fn map_text(text: &str) -> Vec<AttackTechnique> {
@@ -314,9 +328,26 @@ pub fn map_text(text: &str) -> Vec<AttackTechnique> {
         add(&mut out, "T1490");
     }
 
-    if contains_any(&text, &["post-install", "typo-squatting", "supply chain"]) {
+    if contains_any(
+        &text,
+        &[
+            "post-install",
+            "typo-squat",
+            "supply chain",
+            "malicious package",
+        ],
+    ) {
         add(&mut out, "T1195.002");
         add(&mut out, "T1546");
+    }
+
+    if contains_any(&text, &["zip slip", "remote file write"]) {
+        add(&mut out, "T1203");
+    }
+
+    // A compromised CI job poisons every artifact it builds.
+    if contains_any(&text, &["github actions"]) {
+        add(&mut out, "T1195.002");
     }
 
     if contains_any(&text, &["remote script", "url fetch", "download"]) {
@@ -413,6 +444,10 @@ pub fn map_text(text: &str) -> Vec<AttackTechnique> {
 
     if contains_any(&text, &["phishing", "spearphish"]) {
         add(&mut out, "T1566");
+    }
+
+    if contains_any(&text, &["impersonation", "name spoofing"]) {
+        add(&mut out, "T1036.005");
     }
 
     if contains_any(&text, &["masquerad"]) {
@@ -591,6 +626,25 @@ mod tests {
             .map(|t| t.id)
             .collect();
         assert!(ids.contains(&"T1552".to_string()));
+    }
+
+    #[test]
+    fn short_keywords_match_whole_words_only() {
+        let ids =
+            |name: &str| -> Vec<String> { map_text(name).into_iter().map(|t| t.id).collect() };
+        assert!(!ids("local network server").contains(&"T1562".to_string()));
+        assert!(ids("patches etw and amsi").contains(&"T1562".to_string()));
+    }
+
+    #[test]
+    fn maps_new_supply_chain_findings() {
+        let ids =
+            |name: &str| -> Vec<String> { map_rule(name, "").into_iter().map(|t| t.id).collect() };
+        assert!(ids("Typo-squat Suspect: crossenv (looks like cross-env)")
+            .contains(&"T1195.002".to_string()));
+        assert!(ids("Malicious Package: MAL-2024-1 in evil@1.0").contains(&"T1195.002".to_string()));
+        assert!(ids("Chain: Remote File Write via Local Server").contains(&"T1203".to_string()));
+        assert_eq!(lookup("T1203").unwrap().tactic, "Execution");
     }
 
     #[test]

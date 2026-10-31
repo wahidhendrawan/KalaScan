@@ -3,20 +3,27 @@ mod attack;
 mod auth;
 mod baseline;
 mod cli;
+mod correlate;
 mod cve;
 mod db;
 mod deobfuscate;
+mod diff;
 mod emulate;
 mod entropy;
 mod export;
 mod git_history;
+mod installed;
+mod iocs;
 mod metrics;
+mod reputation;
 mod sandbox;
 mod scanner;
 mod triage;
 mod ttp;
 mod vsix;
+mod workflow;
 mod yara_engine;
+mod zipslip;
 
 use axum::{
     extract::{Extension, Multipart, Path, Query, State},
@@ -106,6 +113,9 @@ pub struct ScanRequest {
     pub check_cve: Option<bool>,
     #[serde(default)]
     pub yara_dir: Option<String>,
+    /// Extra RegEx rules TOML (CLI-only, like yara_dir)
+    #[serde(default)]
+    pub rules_file: Option<String>,
     #[serde(default)]
     pub git_history: bool,
     #[serde(default)]
@@ -178,6 +188,9 @@ pub struct ScanResult {
     /// Wall-clock duration of the scan, when it ran to completion.
     #[serde(default)]
     pub duration_ms: Option<u64>,
+    /// External URLs / IPs the scanned code refers to.
+    #[serde(default)]
+    pub iocs: Vec<iocs::Ioc>,
 }
 
 #[tokio::main]
@@ -207,6 +220,7 @@ async fn main() -> anyhow::Result<()> {
             llm_endpoint,
             cve,
             yara_dir,
+            rules,
             git_history,
             deep_triage,
             deobfuscate,
@@ -224,6 +238,7 @@ async fn main() -> anyhow::Result<()> {
                 ai_analysis_enabled: ai,
                 check_cve: Some(cve),
                 yara_dir: yara_dir.map(|p| p.to_string_lossy().to_string()),
+                rules_file: rules.map(|p| p.to_string_lossy().to_string()),
                 git_history,
                 deep_triage,
                 deobfuscate,
@@ -246,6 +261,23 @@ async fn main() -> anyhow::Result<()> {
         }
         Some(Commands::Rules { name }) => {
             run_rules_command(name)?;
+        }
+        Some(Commands::Installed {
+            format,
+            min_risk,
+            fail_on_risk,
+            jobs,
+        }) => {
+            run_installed_command(&format, min_risk, fail_on_risk, jobs).await?;
+        }
+        Some(Commands::Diff {
+            old,
+            new,
+            format,
+            fail_on_new,
+            cve,
+        }) => {
+            run_diff_command(&old, &new, &format, fail_on_new.as_deref(), cve).await?;
         }
         Some(Commands::Sbom { path, output }) => {
             run_sbom_command(&path, output.as_deref())?;
@@ -305,9 +337,18 @@ async fn start_web_server(addr: &str) -> anyhow::Result<()> {
     if token.is_none() && user_count == 0 {
         if is_loopback(addr) {
             info!("No auth configured (loopback only)");
-        } else {
+        } else if std::env::var("KALASCAN_ALLOW_UNAUTHENTICATED").as_deref() == Ok("1") {
             error!(
-                "Bound to non-loopback address {} without users or KALASCAN_TOKEN — API is unauthenticated",
+                "Bound to non-loopback address {} without users or KALASCAN_TOKEN — API is unauthenticated (KALASCAN_ALLOW_UNAUTHENTICATED=1)",
+                addr
+            );
+        } else {
+            // Anyone who can reach the port could queue scans and read every
+            // result; refuse instead of logging a line nobody reads.
+            anyhow::bail!(
+                "Refusing to serve on non-loopback address {} without auth. Set KALASCAN_TOKEN \
+                 (or add users with `kalascan user add`), or set KALASCAN_ALLOW_UNAUTHENTICATED=1 \
+                 if this network is trusted",
                 addr
             );
         }
@@ -553,6 +594,7 @@ fn pending_scan(id: &str, target: &str) -> ScanResult {
         sandbox: None,
         status: "queued".to_string(),
         duration_ms: None,
+        iocs: Vec::new(),
     }
 }
 
@@ -701,11 +743,48 @@ async fn begin_scan(
 }
 
 /// Shared submit path for both JSON and form endpoints.
+/// API callers must not reach the server's own filesystem or config: local
+/// paths are scanned in place (their contents come back as finding context),
+/// and yara_dir / ignore / baseline / sandbox_image name server-side files or
+/// images. Those stay CLI-only; local packages go through the upload route.
+fn validate_api_request(req: &ScanRequest) -> Result<(), String> {
+    let t = req.repo_url.trim();
+    let remote = ["https://", "http://", "ssh://", "git@"]
+        .iter()
+        .any(|p| t.starts_with(p));
+    let marketplace_id = vsix::parse_marketplace_id(t).is_some();
+    if !(remote || marketplace_id || vsix::parse_package_target(t).is_some()) {
+        return Err(
+            "Target must be a remote URL, publisher.extension id, npm:/pypi: package; \
+             upload local packages via /api/scan/upload"
+                .to_string(),
+        );
+    }
+    let server_paths = [
+        ("yara_dir", req.yara_dir.is_some()),
+        ("rules_file", req.rules_file.is_some()),
+        ("ignore", req.ignore.is_some()),
+        ("baseline", req.baseline.is_some()),
+        ("sandbox_image", req.sandbox_image.is_some()),
+    ];
+    if let Some((field, _)) = server_paths.iter().find(|(_, set)| *set) {
+        return Err(format!("'{}' is CLI-only", field));
+    }
+    Ok(())
+}
+
 async fn scan_accepted(
     state: &AppState,
     req: ScanRequest,
     actor: &str,
 ) -> axum::response::Response {
+    if let Err(error) = validate_api_request(&req) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "success": false, "error": error })),
+        )
+            .into_response();
+    }
     let id = match begin_scan(state, &req, actor).await {
         Ok(id) => id,
         Err(resp) => return resp,
@@ -1141,7 +1220,6 @@ async fn api_scan_upload(
     let mut deobfuscate = false;
     let mut emulate = false;
     let mut sandbox = false;
-    let mut sandbox_image: Option<String> = None;
 
     while let Ok(Some(field)) = multipart.next_field().await {
         let name = field.name().unwrap_or_default().to_string();
@@ -1196,13 +1274,9 @@ async fn api_scan_upload(
             if let Ok(val) = field.text().await {
                 sandbox = val == "true" || val == "1" || val == "on";
             }
-        } else if name == "sandbox_image" {
-            if let Ok(val) = field.text().await {
-                if !val.trim().is_empty() {
-                    sandbox_image = Some(val);
-                }
-            }
         }
+        // `sandbox_image` is CLI-only: an API caller must not pick which
+        // image the host's Docker daemon runs (see validate_api_request).
     }
 
     let bytes = match file_bytes {
@@ -1260,12 +1334,13 @@ async fn api_scan_upload(
         ai_analysis_enabled,
         check_cve: Some(check_cve),
         yara_dir: None,
+        rules_file: None,
         git_history: false,
         deep_triage,
         deobfuscate,
         emulate,
         sandbox,
-        sandbox_image,
+        sandbox_image: None,
         new_only: false,
         baseline: None,
         ignore: None,
@@ -1328,7 +1403,9 @@ async fn execute_scan_with_id(req: ScanRequest, id: String) -> anyhow::Result<Sc
             clone_cmd.arg("--depth").arg("1");
         }
         // Never expose credentials in logs; strip any userinfo from the URL.
+        // `--`: a repo_url like `--upload-pack=<cmd>` must never parse as an option.
         let clone_output = clone_cmd
+            .arg("--")
             .arg(&req.repo_url)
             .arg(&target_dir)
             .output()
@@ -1374,23 +1451,55 @@ async fn execute_scan_in(
 
     // Phase 2: Static rule + YARA + Entropy check
     let custom_yara = req.yara_dir.clone().map(std::path::PathBuf::from);
+    // Fail the scan on a broken rules file rather than silently matching nothing.
+    let extra_rules = match &req.rules_file {
+        Some(path) => scanner::load_rules_file(std::path::Path::new(path))?,
+        None => Vec::new(),
+    };
     let scan_path = scan_dir.clone();
     let changed_clone = changed_files.clone();
     let (total_files, scanned_files, mut rule_matches) = tokio::task::spawn_blocking(move || {
-        scanner::scan_directory_filtered(&scan_path, custom_yara.as_deref(), changed_clone.as_ref())
+        scanner::scan_directory_filtered(
+            &scan_path,
+            custom_yara.as_deref(),
+            &extra_rules,
+            changed_clone.as_ref(),
+        )
     })
     .await
     .map_err(|e| anyhow::anyhow!("Scanner task failed: {}", e))?;
 
-    // Phase 2b: Dependency CVE check via OSV API if enabled
-    if req.check_cve.unwrap_or(true) {
-        let pkgs = cve::extract_manifest_packages(&scan_dir);
-        if !pkgs.is_empty() {
-            info!("Auditing {} manifest packages with OSV API...", pkgs.len());
-            let cve_matches = cve::check_vulnerabilities(&pkgs).await;
-            rule_matches.extend(cve_matches);
+    // Phase 2b: offline typo-squat check, then dependency CVEs via OSV if enabled
+    let pkgs = cve::extract_manifest_packages(&scan_dir);
+    rule_matches.extend(cve::typosquat_matches(&pkgs));
+    rule_matches.extend(cve::own_package_matches(&scan_dir));
+    rule_matches.extend(reputation::identity_matches(&scan_dir));
+    if let Some((publisher, name, _)) = vsix::parse_marketplace_id(&repo_url) {
+        rule_matches.extend(reputation::marketplace_matches(publisher, name).await);
+    }
+
+    // IOCs, and exact-URL threat intel when an abuse.ch key is configured.
+    let ioc_dir = scan_dir.clone();
+    let iocs = tokio::task::spawn_blocking(move || iocs::extract(&ioc_dir))
+        .await
+        .unwrap_or_default();
+    if let Ok(key) = std::env::var("URLHAUS_AUTH_KEY") {
+        if !key.trim().is_empty() && !iocs.is_empty() {
+            info!("Checking {} IOCs against URLhaus...", iocs.len().min(100));
+            rule_matches.extend(iocs::urlhaus_matches(&iocs, key.trim()).await);
         }
     }
+    if req.check_cve.unwrap_or(true) && !pkgs.is_empty() {
+        info!("Auditing {} manifest packages with OSV API...", pkgs.len());
+        let cve_matches = cve::check_vulnerabilities(&pkgs).await;
+        rule_matches.extend(cve_matches);
+    }
+
+    // Cross-file chains, once every current-tree finding is in (history hits
+    // are old snapshots and must not complete a chain).
+    let chains =
+        correlate::correlate_package_with(&rule_matches, !cve::is_vscode_extension(&scan_dir));
+    rule_matches.extend(chains);
 
     // Phase 2c: Full git commit history scan
     if req.git_history && !vsix::is_vsix_target(&repo_url) {
@@ -1536,6 +1645,7 @@ async fn execute_scan_in(
         sandbox: sandbox_report,
         status: "completed".to_string(),
         duration_ms: None,
+        iocs,
     };
 
     info!("Scan complete. ID: {}", scan_id);
@@ -1549,6 +1659,13 @@ async fn git_changed_files(
     repo: &std::path::Path,
     base_ref: &str,
 ) -> Option<std::collections::HashSet<std::path::PathBuf>> {
+    // base_ref comes from the API request and is passed to `git fetch` / `git
+    // diff` as a positional arg; `--upload-pack=<cmd>` would run a command.
+    if base_ref.starts_with('-') {
+        warn!("Rejected base_ref {:?}: looks like a git option", base_ref);
+        return None;
+    }
+
     // Try to make the base ref available in shallow clones. Ignore failures:
     // the ref may already exist locally.
     let remote_ref = base_ref.strip_prefix("origin/").unwrap_or(base_ref);
@@ -1696,6 +1813,138 @@ fn run_sbom_command(
     Ok(())
 }
 
+async fn run_installed_command(
+    format: &str,
+    min_risk: u8,
+    fail_on_risk: Option<u8>,
+    jobs: usize,
+) -> anyhow::Result<()> {
+    let home = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .ok_or_else(|| anyhow::anyhow!("cannot locate the home directory"))?;
+    let found = installed::discover(std::path::Path::new(&home));
+    eprintln!("Scanning {} installed extensions...", found.len());
+
+    let permits = Arc::new(tokio::sync::Semaphore::new(jobs.max(1)));
+    let mut tasks = tokio::task::JoinSet::new();
+    for ext in found {
+        let permits = permits.clone();
+        tasks.spawn(async move {
+            let _permit = permits.acquire_owned().await;
+            // Offline and in place: no OSV calls, nothing copied or executed.
+            let req: ScanRequest = serde_json::from_value(serde_json::json!({
+                "repo_url": ext.path.to_string_lossy(),
+                "check_cve": false,
+            }))
+            .expect("static request");
+            (ext, execute_scan(req).await)
+        });
+    }
+    let mut rows = Vec::new();
+    while let Some(joined) = tasks.join_next().await {
+        let (ext, result) = joined?;
+        match result {
+            Ok(r) => rows.push((ext, r)),
+            Err(e) => eprintln!("  failed {}: {}", ext.path.display(), e),
+        }
+    }
+    rows.sort_by(|a, b| {
+        b.1.risk_score
+            .cmp(&a.1.risk_score)
+            .then(a.0.name.cmp(&b.0.name))
+    });
+
+    let strong = |r: &ScanResult| -> Vec<String> {
+        let mut names: Vec<String> = r
+            .rule_matches
+            .iter()
+            .filter(|m| {
+                m.severity == "critical" || m.matched_pattern.starts_with(correlate::CHAIN_PREFIX)
+            })
+            .map(|m| m.matched_pattern.clone())
+            .collect();
+        names.sort();
+        names.dedup();
+        names
+    };
+    let shown: Vec<_> = rows
+        .iter()
+        .filter(|(_, r)| r.risk_score >= min_risk)
+        .collect();
+    if format == "json" {
+        let out: Vec<_> = shown
+            .iter()
+            .map(|(ext, r)| {
+                serde_json::json!({
+                    "app": ext.app,
+                    "extension": ext.name,
+                    "path": ext.path,
+                    "risk_score": r.risk_score,
+                    "critical": strong(r),
+                })
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&out)?);
+    } else {
+        println!(
+            "{:>4}  {:<16} {:<48} CRITICAL FINDINGS",
+            "RISK", "APP", "EXTENSION"
+        );
+        for (ext, r) in &shown {
+            println!(
+                "{:>4}  {:<16} {:<48} {}",
+                r.risk_score,
+                ext.app,
+                ext.name,
+                strong(r).join(", ")
+            );
+        }
+    }
+    if let Some(threshold) = fail_on_risk {
+        if rows.iter().any(|(_, r)| r.risk_score >= threshold) {
+            std::process::exit(1);
+        }
+    }
+    Ok(())
+}
+
+async fn run_diff_command(
+    old: &str,
+    new: &str,
+    format: &str,
+    fail_on_new: Option<&str>,
+    cve: bool,
+) -> anyhow::Result<()> {
+    let request = |target: &str| -> anyhow::Result<ScanRequest> {
+        Ok(serde_json::from_value(serde_json::json!({
+            "repo_url": target,
+            "check_cve": cve,
+        }))?)
+    };
+    // Sequential: both may download from the same registry.
+    let old_result = execute_scan(request(old)?).await?;
+    let new_result = execute_scan(request(new)?).await?;
+    let d = diff::diff(&old_result, &new_result);
+    match format {
+        "json" => println!("{}", serde_json::to_string_pretty(&d)?),
+        _ => print!("{}", diff::format_text(&d)),
+    }
+    if let Some(threshold) = fail_on_new {
+        if !["critical", "high", "medium", "low"].contains(&threshold) {
+            anyhow::bail!("--fail-on-new must be critical, high, medium or low");
+        }
+        let limit = diff::severity_rank(threshold);
+        if d.new_capabilities
+            .iter()
+            .any(|c| diff::severity_rank(&c.severity) <= limit)
+        {
+            eprintln!("New capability at or above '{}' severity", threshold);
+            std::process::exit(1);
+        }
+    }
+    Ok(())
+}
+
 fn run_rules_command(name: Option<String>) -> anyhow::Result<()> {
     let rules = scanner::build_rules();
     match name {
@@ -1703,13 +1952,13 @@ fn run_rules_command(name: Option<String>) -> anyhow::Result<()> {
             let q = query.to_lowercase();
             let matches: Vec<_> = rules
                 .iter()
-                .filter(|r| r.name.to_lowercase().contains(&q))
+                .filter(|r| r.name.to_lowercase().contains(&q) || r.id.to_lowercase() == q)
                 .collect();
             match matches.as_slice() {
                 [rule] => {
                     println!(
-                        "Rule: {}  [{}, {}]",
-                        rule.name, rule.severity, rule.category
+                        "Rule: {} {}  [{}, {}]",
+                        rule.id, rule.name, rule.severity, rule.category
                     );
                     println!("Ruleset: {}", scanner::RULESET_VERSION);
                     println!();
@@ -1736,8 +1985,8 @@ fn run_rules_command(name: Option<String>) -> anyhow::Result<()> {
         None => {
             println!("Ruleset version: {}", scanner::RULESET_VERSION);
             println!(
-                "{:8}  {:<34} {:<14} DESCRIPTION",
-                "SEVERITY", "RULE", "CATEGORY"
+                "{:<11} {:8}  {:<34} {:<14} DESCRIPTION",
+                "ID", "SEVERITY", "RULE", "CATEGORY"
             );
             for r in rules.iter() {
                 let desc = if r.description.len() > 50 {
@@ -1746,8 +1995,8 @@ fn run_rules_command(name: Option<String>) -> anyhow::Result<()> {
                     r.description.to_string()
                 };
                 println!(
-                    "{:8}  {:<34} {:<14} {}",
-                    r.severity, r.name, r.category, desc
+                    "{:<11} {:8}  {:<34} {:<14} {}",
+                    r.id, r.severity, r.name, r.category, desc
                 );
             }
         }
@@ -2061,6 +2310,25 @@ fn format_cli_text(result: &ScanResult) -> String {
         }
     }
 
+    if !result.iocs.is_empty() {
+        out.push_str("------------------------------------------------------------\n");
+        out.push_str(&format!(
+            "INDICATORS ({} external URLs / IPs):\n",
+            result.iocs.len()
+        ));
+        for ioc in result.iocs.iter().take(30) {
+            out.push_str(&format!(
+                "  [{}] {}  ({})\n",
+                ioc.kind,
+                ioc.value,
+                ioc.files.join(", ")
+            ));
+        }
+        if result.iocs.len() > 30 {
+            out.push_str("  … see --format json for the full list\n");
+        }
+    }
+
     out.push_str("============================================================\n");
     out
 }
@@ -2088,6 +2356,17 @@ fn calculate_risk_score(
         }
         if m.matched_pattern.starts_with("Known Vulnerability:") {
             cve += 1;
+            continue;
+        }
+        // A chain is two corroborating hard signals by construction. Listing
+        // spoofs (invisible characters, look-alike publisher) have no benign
+        // reading at all, so they weigh the same.
+        if m.matched_pattern.starts_with(correlate::CHAIN_PREFIX)
+            || m.matched_pattern == reputation::INVISIBLE_NAME
+            || m.matched_pattern == reputation::PUBLISHER_LOOKALIKE
+            || m.matched_pattern == iocs::URLHAUS_HIT
+        {
+            critical += 2;
             continue;
         }
         match m.severity.as_str() {
@@ -2126,6 +2405,140 @@ fn calculate_risk_score(
     });
 
     (static_score + cve_score + dynamic_score + ai_score).min(100) as u8
+}
+
+#[cfg(test)]
+mod api_validation_tests {
+    use super::*;
+
+    fn req(repo_url: &str, extra: serde_json::Value) -> ScanRequest {
+        let mut v = serde_json::json!({ "repo_url": repo_url });
+        v.as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        serde_json::from_value(v).unwrap()
+    }
+
+    #[test]
+    fn api_accepts_remote_targets_only() {
+        for ok in [
+            "https://github.com/user/repo",
+            "git@github.com:user/repo.git",
+            "ms-python.python",
+            "npm:express@4.17.1",
+            "pypi:requests",
+            "https://open-vsx.org/extension/ns/name",
+        ] {
+            assert!(
+                validate_api_request(&req(ok, serde_json::json!({}))).is_ok(),
+                "{}",
+                ok
+            );
+        }
+        for bad in [
+            "/",
+            "/root/.ssh",
+            "./",
+            "..",
+            "src",
+            "file:///etc",
+            "evil.vsix",
+            "/tmp/x.zip",
+            "--upload-pack=x",
+        ] {
+            assert!(
+                validate_api_request(&req(bad, serde_json::json!({}))).is_err(),
+                "{}",
+                bad
+            );
+        }
+    }
+
+    #[test]
+    fn api_rejects_server_side_paths() {
+        for field in [
+            "yara_dir",
+            "rules_file",
+            "ignore",
+            "baseline",
+            "sandbox_image",
+        ] {
+            let r = req(
+                "https://github.com/a/b",
+                serde_json::json!({ field: "/etc" }),
+            );
+            assert_eq!(
+                validate_api_request(&r).unwrap_err(),
+                format!("'{}' is CLI-only", field)
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod git_injection_tests {
+    use super::*;
+
+    fn git(dir: &std::path::Path, args: &[&str]) {
+        let ok = std::process::Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args(args)
+            .output()
+            .unwrap()
+            .status
+            .success();
+        assert!(ok, "git {:?} failed", args);
+    }
+
+    /// A clone with a real `origin`, so an injected `--upload-pack` would run.
+    fn repo_with_origin() -> (tempfile::TempDir, std::path::PathBuf) {
+        let tmp = tempfile::tempdir().unwrap();
+        let origin = tmp.path().join("origin");
+        std::fs::create_dir(&origin).unwrap();
+        git(&origin, &["init", "-q"]);
+        std::fs::write(origin.join("a.txt"), "x").unwrap();
+        git(&origin, &["add", "."]);
+        git(
+            &origin,
+            &[
+                "-c",
+                "user.name=t",
+                "-c",
+                "user.email=t@t",
+                "commit",
+                "-qm",
+                "init",
+            ],
+        );
+        git(tmp.path(), &["clone", "-q", "origin", "clone"]);
+        let clone = tmp.path().join("clone");
+        (tmp, clone)
+    }
+
+    #[tokio::test]
+    async fn base_ref_cannot_inject_git_options() {
+        let (tmp, clone) = repo_with_origin();
+        let marker = tmp.path().join("pwned");
+        let evil = format!("--upload-pack=touch {}", marker.display());
+        assert!(git_changed_files(&clone, &evil).await.is_none());
+        assert!(!marker.exists(), "injected --upload-pack ran");
+    }
+
+    #[tokio::test]
+    async fn repo_url_cannot_inject_git_options() {
+        let tmp = tempfile::tempdir().unwrap();
+        let marker = tmp.path().join("pwned");
+        let req: ScanRequest = serde_json::from_value(serde_json::json!({
+            "repo_url": format!("--upload-pack=touch {}", marker.display()),
+            "ai_analysis_enabled": false,
+            "llm_provider": "ollama",
+            "llm_model": "llama3"
+        }))
+        .unwrap();
+        assert!(execute_scan(req).await.is_err());
+        assert!(!marker.exists(), "injected --upload-pack ran");
+    }
 }
 
 #[cfg(test)]
@@ -2202,6 +2615,34 @@ mod risk_score_tests {
         ];
         let score = calculate_risk_score(&matches, &benign_ai(), None, None, None, None);
         assert!(score >= 40, "malware chain scored {}", score);
+    }
+
+    #[test]
+    fn malicious_package_scores_as_critical_not_hygiene() {
+        let vuln = vec![hit(
+            "requirements.txt",
+            "Known Vulnerability: GHSA-x in requests@2.25.1",
+            "high",
+        )];
+        let mal = vec![hit(
+            "requirements.txt",
+            "Malicious Package: MAL-2024-1 in evilpkg@1.0",
+            "critical",
+        )];
+        assert_eq!(
+            calculate_risk_score(&vuln, &None, None, None, None, None),
+            1
+        );
+        assert_eq!(
+            calculate_risk_score(&mal, &None, None, None, None, None),
+            35
+        );
+    }
+
+    #[test]
+    fn listing_spoof_alone_is_high_risk() {
+        let m = vec![hit("package.json", reputation::INVISIBLE_NAME, "critical")];
+        assert_eq!(calculate_risk_score(&m, &None, None, None, None, None), 70);
     }
 
     #[test]

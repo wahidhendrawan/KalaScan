@@ -66,12 +66,15 @@ pub fn build(
     let mut techniques: BTreeMap<String, TtpTechnique> = BTreeMap::new();
 
     for rule_match in rule_matches {
-        let text = format!(
-            "{} {} {}",
-            rule_match.matched_pattern, rule_match.context, rule_match.severity
-        );
+        // Map the rule name only. The context is surrounding source code, and
+        // words in it ("service", "schedule", "registry") turned every bundle
+        // into Windows Service / Scheduled Task / Run Keys. Low findings are
+        // hygiene hints, not observed behaviour.
+        if rule_match.severity == "low" {
+            continue;
+        }
         let source = format!("rule:{}", rule_match.matched_pattern);
-        for technique in attack::map_text(&text) {
+        for technique in attack::map_text(&rule_match.matched_pattern) {
             record(&mut techniques, technique, &source, &rule_match.severity);
         }
     }
@@ -276,6 +279,26 @@ mod tests {
         assert_eq!(powershell.observations, 2);
         assert!(powershell.sources.len() >= 2);
         assert_eq!(powershell.severity, "high");
+    }
+
+    #[test]
+    fn surrounding_code_does_not_invent_techniques() {
+        // Real noise: a Vue bundle line mentioning services and schedulers.
+        let rule_matches = vec![RuleMatch {
+            file_path: "dist/app.js".into(),
+            line_number: 1,
+            matched_pattern: "Dynamic Import/Load".into(),
+            severity: "medium".into(),
+            context: "registerService(scheduler, registry.startup, persistence)".into(),
+        }];
+        let report = build(&rule_matches, None, None, None, None);
+        for id in ["T1543", "T1543.003", "T1053.005", "T1547.001"] {
+            assert!(
+                !report.techniques.iter().any(|t| t.id == id),
+                "{} from context",
+                id
+            );
+        }
     }
 
     #[test]
