@@ -63,6 +63,11 @@ pub enum Commands {
         #[arg(long)]
         untrusted: bool,
 
+        /// Also report hard-coded credentials (208 gitleaks patterns, medium severity),
+        /// including in config files such as .env and *.yml
+        #[arg(long)]
+        secrets: bool,
+
         /// Only scan files changed against --base-ref (fast PR scans)
         #[arg(long)]
         changed_only: bool,
@@ -119,7 +124,7 @@ pub enum Commands {
         #[arg(long)]
         emulate: bool,
 
-        /// Execute compatible ELF samples in an isolated Docker sandbox
+        /// Execute compatible ELF samples and trace install hooks (npm scripts, setup.py, .pth) in an isolated Docker sandbox
         #[arg(long)]
         sandbox: bool,
 
@@ -163,6 +168,36 @@ pub enum Commands {
         /// Extensions scanned in parallel
         #[arg(long, default_value_t = 4)]
         jobs: usize,
+    },
+    /// Scan every dependency a lockfile pins (package-lock.json, poetry.lock, Pipfile.lock, requirements.txt)
+    Deps {
+        /// Directory holding the lockfile(s)
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Output format: text or json
+        #[arg(short, long, default_value = "text")]
+        format: String,
+
+        /// Also scan development dependencies
+        #[arg(long)]
+        include_dev: bool,
+
+        /// Only list packages at or above this risk score
+        #[arg(long, default_value_t = 0)]
+        min_risk: u8,
+
+        /// Exit 1 if any package scores at or above this risk
+        #[arg(long)]
+        fail_on_risk: Option<u8>,
+
+        /// Packages scanned in parallel
+        #[arg(long, default_value_t = 4)]
+        jobs: usize,
+
+        /// Stop after this many packages (each one is downloaded)
+        #[arg(long, default_value_t = 500)]
+        max: usize,
     },
     /// Compare two versions of a package or extension and list capabilities the new one adds
     Diff {

@@ -5,7 +5,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/rust-1.95+-orange?logo=rust" />
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" />
-  <img src="https://img.shields.io/badge/tests-172%20passed-brightgreen" />
+  <img src="https://img.shields.io/badge/tests-190%20passed-brightgreen" />
   <img src="https://img.shields.io/badge/docker-ready-2496ED?logo=docker" />
 </p>
 
@@ -32,7 +32,8 @@
 
 ### YARA Rules Engine (`yara-x`)
 - Built-in pure-Rust YARA rule compilation for generic reverse shells, crypto drainers, and Discord webhook stealers
-- Support for loading custom user YARA rules from a directory via `--yara-dir <PATH>`
+- Support for loading custom user YARA rules from a directory via `--yara-dir <PATH>`; `include "x.meta"` resolves against that directory, rules may test the external variable `ecosystem` (`npm`, `pypi`, `extension`, or empty), and `meta: path_include = "*.py,*/setup.py"` limits a rule to matching files (GuardDog's conventions, so its rule sets load as they are)
+- Two of [GuardDog](https://github.com/DataDog/guarddog)'s rules ship in the binary (Apache-2.0, see [`rules/yara/guarddog`](rules/yara/guarddog/README.md)): `chr()`-built code passed to `exec`/`eval`, and code that publishes itself to npm/PyPI with a stolen token
 - YARA runs on every file as raw bytes (binaries, `.node`, `.wasm`, `.pyc`, …), not only scripts; prose docs (`.md`, `.txt`, `.rst`) are skipped
 - Files are read up to 4 MiB; larger script files are still scanned up to that cap and reported as `Oversized File (partially scanned)`. Non-UTF-8 bytes no longer make a file unreadable
 
@@ -68,6 +69,7 @@
 - **ATT&CK Enrichment** — maps sandbox indicators into the unified TTP report and risk score
 - **Graceful Fallback** — if Docker or the sandbox image is unavailable, the scan continues with a clear note; samples are never executed on the host
 - **Runtime Requirement** — the KalaScan process needs access to a Docker daemon; when running KalaScan itself in a container, mount the Docker socket or run the CLI on the host
+- **Install-hook Tracing** — with `--sandbox`, npm `preinstall`/`install`/`postinstall` scripts, `setup.py install` and `.pth` startup hooks run under strace in the same container, with bait credentials planted in `$HOME` (`~/.ssh/id_rsa`, `~/.aws/credentials`, `~/.npmrc`, `~/.git-credentials`, `~/.config/gh/hosts.yml`, `~/.env`). Opening one is a critical `Chain: Install-time Credential Access (sandbox)`; existence checks (`stat`) don't count, relative opens (`cd ~; cat .npmrc`) do. The rest of the install trace is reported but not scored: benign installs run shells, chmod and fetch prebuilt binaries. The image has node and python, no npm/git/gh, so nothing legitimate reads the bait. Dependencies are not installed, so a hook that needs them fails early
 - **Build the Image** — `docker build -t kalascan-sandbox:latest sandbox`
 
 ### Entropy & Advanced Obfuscation Analysis
@@ -75,6 +77,7 @@
 - **Invisible Zero-Width Character Detection**: Uncovers hidden unicode steganography (`\u{200B}`, `\u{200C}`, `\u{200D}`, `\u{FEFF}`) wedged between ASCII word characters; emoji ZWJ sequences and Persian/Indic ZWNJ are ordinary text
 - **Trojan Source Detection (CVE-2021-42574)**: Flags dangerous Bi-Directional override characters disguised as comments
 - **Homoglyph Spoofing Detection**: Catches a single identifier mixing Latin letters with Cyrillic lookalikes (localised UI strings are not flagged)
+- **javascript-obfuscator String Tables**: a file flagged as obfuscator.io output has its string array decoded (plain, `\x` escapes, or the obfuscator's base64 alphabet; `splitStrings` pieces are searched as they are) and checked for a file read + secret path + upload (`Chain: Obfuscated Credential Theft`) or a shell + download cradle (`Chain: Obfuscated Download and Execute`). The `rc4` encoding is not decoded
 
 ### Behaviour Chains (correlation)
 - Individual hits are weak evidence; KalaScan correlates them into chains, each scored as two critical signals. File-level chain parts must sit within 4 KB of each other (bundlers put a whole extension in one file); package-level chains only combine evidence inside one package, never across bundled `node_modules` deps:
@@ -91,7 +94,15 @@
 
 ### Publisher & Listing Reputation (VS Code extensions)
 - **Offline**, from the extension's own package.json (works on a .vsix long after the marketplace removed it): invisible characters in the name or publisher (`Solidity\u200b`) and look-alike publishers (`juanbIanco` for `juanblanco`) are scored like a chain, and so is a repackaged copy: an extension whose `repository` is one of the 2,000 most-installed extensions' source but whose publisher is not ([`rules/popular_extensions.tsv`](rules/popular_extensions.tsv), regenerate with `python3 rules/gen_popular_extensions.py`); brand use by a non-owner (`"Error Lens Ultra"` by `GitlensPro`) is reported
+- An extension whose `repository` lives under an AI vendor's GitHub org (`anthropics`, `openai`, `google-gemini`, `mistralai`, `deepseek-ai`, `moonshotai`, `xai-org`) but is published by someone else is scored like a chain (`AI Vendor Repository Under Another Publisher`): the fake Claude/ChatGPT extension pattern. A general org check was tried and dropped: vendors publish under many accounts (58 false positives in 8,000 extensions)
 - **Online**, for `publisher.extension` targets: unverified publisher, fewer than 1,000 installs, first published less than 30 days ago (informational)
+
+### Registry Metadata (npm, PyPI)
+For `npm:` and `pypi:` targets, what the registry says about the scanned version:
+- **`npm Manifest Confusion`** (critical, scored like a chain) — the tarball's package.json has install scripts or dependencies that the registry's metadata (what npmjs.com shows) does not
+- **`Install Script Added in This Version`** (high) — the previous release of the same major had no install script; **`New Dependencies in This Version`** (low) lists dependencies it didn't have
+- **`npm Provenance Dropped`** (high) — the previous release carried a provenance attestation, this one doesn't (the usual trace of a stolen token used outside CI)
+- **`Maintainer Email Domain Unregistered`** (high) — a maintainer's email domain no longer exists, so anyone can register it and reset the account password. Checked with a DNS-over-HTTPS query to Cloudflare (`cloudflare-dns.com`), which therefore sees the domain names; big mail providers are skipped
 
 ### Version Diff (update hijacks)
 - `kalascan diff <old> <new>` scans both versions and lists the capabilities only the new one has; `--fail-on-new high` exits 1 for CI dependency/extension bump gates
@@ -110,12 +121,18 @@
 - `kalascan rules` lists ids; `kalascan rules KS-SUP-009` explains one
 
 ### Detection Quality
-- [`eval/`](eval/README.md) holds a labelled corpus (DataDog malicious-package samples + popular clean packages and extensions) and the harness that measures it. Current: **78 of 100 malicious samples caught (26 of the 28 never used for tuning), 0 false positives across 227 clean packages/extensions** (the first run on 161 new clean samples found 5%, since fixed; see the eval README); CI fails a PR that makes any clean sample cross risk 50
+- [`eval/`](eval/README.md) holds a labelled corpus (DataDog malicious-package samples + popular clean packages and extensions) and the harness that measures it. Current: **81 of 100 malicious samples caught (26 of the 27 never used for tuning), 0 false positives across 227 clean packages/extensions** (the first run on 161 new clean samples found 5%, since fixed; see the eval README); CI fails a PR that makes any clean sample cross risk 50
 
 ### GitHub Actions Workflow Checks
 - **Pwn request** (critical) — `pull_request_target` that checks out the PR head (`ref: ${{ github.event.pull_request.head.sha }}`)
 - **Script injection** (high) — attacker-controlled contexts (`github.event.issue.title`, `…pull_request.body`, `github.head_ref`, …) interpolated into `run:` / `script:` blocks
 - **Unpinned third-party actions** (low) — `uses: owner/action@v1` instead of a full commit SHA
+
+### Lockfile Audit
+- `kalascan deps [PATH]` reads `package-lock.json` (v1-v3), `poetry.lock`, `Pipfile.lock` and pinned `requirements.txt` lines, then downloads and scans each exact locked version, highest risk first. Dev dependencies are skipped unless `--include-dev`; `--jobs` (default 4), `--max` (default 500), `--min-risk`, `--fail-on-risk`, `--format text|json`. Git, file and link dependencies are skipped
+
+### Secret Scanning (opt-in)
+- `--secrets` adds 208 credential patterns converted from [gitleaks](https://github.com/gitleaks/gitleaks) (MIT; [`rules/secrets.toml`](rules/secrets.toml), regenerate with `python3 rules/gen_secret_rules.py > rules/secrets.toml`), including their entropy thresholds and keyword prefilters, and also scans config files (`.env`, `*.yml`, `*.json`, `.npmrc`, …). A hard-coded token is a leak, not malware: these findings are medium and never join a chain. Rules that need a gitleaks allowlist to stay accurate are left out
 
 ### Dependency CVE Audit (OSV API)
 - Automatically inspects project manifests: `package.json` (npm), `Cargo.lock` (Rust), and `requirements.txt` (Python)
@@ -252,6 +269,8 @@ kalascan scan ./suspicious.vsix --deobfuscate --emulate --format html -o deep-re
 # Opt-in Docker sandbox execution (requires Docker + kalascan-sandbox image)
 docker build -t kalascan-sandbox:latest sandbox
 kalascan scan ./suspicious.vsix --sandbox --format json -o sandbox-report.json
+# ...also runs a package's install hooks against bait credentials
+kalascan scan npm:some-package@1.0.0 --sandbox
 
 # SARIF report for GitHub Code Scanning
 kalascan scan https://github.com/user/repo.git --format sarif -o kalascan.sarif
@@ -285,6 +304,12 @@ kalascan diff publisher.ext@2.0.0 publisher.ext@2.1.0
 
 # Audit the extensions installed on this machine
 kalascan installed --min-risk 30
+
+# Scan every locked dependency version (package-lock.json, poetry.lock, Pipfile.lock, requirements.txt)
+kalascan deps . --min-risk 30 --fail-on-risk 70
+
+# Also report hard-coded credentials (gitleaks patterns)
+kalascan scan . --secrets
 
 # Extra rules, threat intel
 kalascan scan . --rules ./org-rules.toml
