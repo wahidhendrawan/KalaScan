@@ -29,7 +29,7 @@ pub(crate) fn open_db() -> Result<Connection> {
 }
 
 /// Schema version applied by `migrate`. Bump when adding a migration step.
-const SCHEMA_VERSION: i64 = 3;
+const SCHEMA_VERSION: i64 = 4;
 
 pub fn init_db() -> Result<()> {
     let conn = open_db()?;
@@ -122,6 +122,15 @@ fn migrate(conn: &Connection) -> Result<()> {
         conn.execute_batch("PRAGMA user_version = 3")?;
     }
 
+    if current < 4 {
+        // v4: indicators of compromise extracted per scan.
+        if !column_exists(conn, "scan_history", "iocs_json")? {
+            conn.execute("ALTER TABLE scan_history ADD COLUMN iocs_json TEXT", [])
+                .context("Failed to add iocs_json column")?;
+        }
+        conn.execute_batch("PRAGMA user_version = 4")?;
+    }
+
     Ok(())
 }
 
@@ -196,10 +205,11 @@ pub fn save_scan(result: &ScanResult) -> Result<()> {
         .as_ref()
         .map(serde_json::to_string)
         .transpose()?;
+    let iocs_json = serde_json::to_string(&result.iocs)?;
 
     conn.execute(
-        "INSERT INTO scan_history (id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, ai_analysis_json, rule_matches_json, triage_json, deobfuscation_json, emulation_json, ttp_json, sandbox_json, request_json, duration_ms)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
+        "INSERT INTO scan_history (id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, ai_analysis_json, rule_matches_json, triage_json, deobfuscation_json, emulation_json, ttp_json, sandbox_json, request_json, duration_ms, iocs_json)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
          ON CONFLICT(id) DO UPDATE SET
             status = excluded.status,
             total_files = excluded.total_files,
@@ -213,6 +223,7 @@ pub fn save_scan(result: &ScanResult) -> Result<()> {
             emulation_json = excluded.emulation_json,
             ttp_json = excluded.ttp_json,
             sandbox_json = excluded.sandbox_json,
+            iocs_json = excluded.iocs_json,
             duration_ms = COALESCE(excluded.duration_ms, scan_history.duration_ms)",
         rusqlite::params![
             result.id,
@@ -232,6 +243,7 @@ pub fn save_scan(result: &ScanResult) -> Result<()> {
             sandbox_json,
             Option::<String>::None,
             result.duration_ms.map(|d| d as i64),
+            iocs_json,
         ],
     )
     .context("Failed to insert scan result")?;
@@ -310,7 +322,7 @@ pub fn get_scan(id: &str) -> Result<Option<ScanResult>> {
     ensure_schema(&conn)?;
     let mut stmt = conn
         .prepare(
-            "SELECT id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, ai_analysis_json, rule_matches_json, triage_json, deobfuscation_json, emulation_json, ttp_json, sandbox_json, duration_ms
+            "SELECT id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, ai_analysis_json, rule_matches_json, triage_json, deobfuscation_json, emulation_json, ttp_json, sandbox_json, duration_ms, iocs_json
              FROM scan_history WHERE id = ?1",
         )
         .context("Failed to prepare get_scan statement")?;
@@ -354,6 +366,10 @@ pub fn get_scan(id: &str) -> Result<Option<ScanResult>> {
                 _ => None,
             };
             let duration_ms: Option<i64> = row.get(15)?;
+            let iocs: Vec<crate::iocs::Ioc> = row
+                .get::<_, Option<String>>(16)?
+                .and_then(|j| serde_json::from_str(&j).ok())
+                .unwrap_or_default();
 
             Ok(Some(ScanResult {
                 id: row.get(0)?,
@@ -372,6 +388,7 @@ pub fn get_scan(id: &str) -> Result<Option<ScanResult>> {
                 ttp,
                 sandbox,
                 duration_ms: duration_ms.map(|d| d as u64),
+                iocs,
             }))
         }
         None => Ok(None),
@@ -556,6 +573,7 @@ mod tests {
         // v3 additions
         assert!(column_exists(&conn, "scan_history", "request_json").unwrap());
         assert!(column_exists(&conn, "scan_history", "duration_ms").unwrap());
+        assert!(column_exists(&conn, "scan_history", "iocs_json").unwrap());
         let users: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='users'",

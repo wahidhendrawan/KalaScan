@@ -1797,6 +1797,7 @@ mod tests {
             ],
             status: "completed".into(),
             duration_ms: None,
+            iocs: Vec::new(),
         }
     }
 

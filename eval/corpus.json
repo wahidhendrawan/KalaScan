@@ -1,0 +1,971 @@
+{
+ "_comment": "Labelled corpus for eval/run_eval.py. 'dataset' paths are relative to a checkout of github.com/DataDog/malicious-software-packages-dataset (fetch with eval/fetch_malicious.sh). Clean targets are fetched from public registries. 'split': rules were tuned on 'dev'; report 'holdout' for an honest estimate.",
+ "samples": [
+  {
+   "target": "samples/ide_extensions/malicious_intent/Puglight.discoverito/0.0.1.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/JuanRiseETH.solidit/1.0.2.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/seHunt-20241016.seHunt-20241016/0.0.1.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/sanchuan.kimi-coding-copilot/1.0.12.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/QuantumCodeLabs.dracula-pro-theme/1.0.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/Bobronium.darcula-from-pycharm/0.9.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/ab-498.cppformat/1.0.8.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/BenjaminFriedl.lexica-img-fix/0.0.1.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/JohnGaffney.blankebesxstnion/1.0.2.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/NotToTest.NotToTest/0.0.1.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/VitalikButerin-EthFoundation.blan-co/0.0.8.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/JuanFBlanco.awswhh/0.0.7.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/garytyler.darcula-pycharm/1.0.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/GitlensPro.error-lens-ultra-pro/2.0.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/EthCompiler.among-eth/1.0.2.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/cweijamysq.sync-settings-vscode/0.18.2.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/eamodas.shiny-vscode/1.3.2.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/AutoMind.automindX/1.0.1.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/OzzyDev777.csharp-editor-pro/2.0.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/JuanFranBlanco.solidit-vscode/0.0.1.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/CSF-RED.CSF-RED/0.0.1.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/juanbIanco.soli989/0.0.189.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/csvmech.csvrainbow/3.3.1.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/rafaelrenanpacheco.darcula-theme/1.18.1.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/GitlensPro.peacock-workspace-colorizer/2.0.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/npm/malicious_intent/yunxohang6/9.9.9/2025-12-26-yunxohang6-v9.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/npm/malicious_intent/irma-lutis51-riris/1.3.2/2024-05-16-irma-lutis51-riris-v1.3.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/npm/malicious_intent/tailwindcss-forms-component/1.2.1/2026-02-12-tailwindcss-forms-component-v1.2.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/npm/malicious_intent/hydration-ui-cls/1.0.0/2026-08-25-hydration-ui-cls-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/npm/malicious_intent/sdk-ethers/5.6.9/2025-08-19-sdk-ethers-v5.6.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ebay-tester/999.9.9/2025-01-23-ebay-tester-v999.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/npm/malicious_intent/apple-internal-security-library-v99/100.0.1/2026-04-30-apple-internal-security-library-v99-v100.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@mosfe@beam-plugin-s3plus/0.1.16/2024-04-17-@mosfe_beam-plugin-s3plus-v0.1.16.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/npm/malicious_intent/llmstash/1.0.0/2026-02-23-llmstash-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chai-as-validated/2.3.2/2025-11-26-chai-as-validated-v2.3.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/npm/malicious_intent/sirens-lament/202.0.0/2026-04-30-sirens-lament-v202.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/npm/malicious_intent/libsignal-yazxzcode/1.0.0/2025-12-30-libsignal-yazxzcode-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/npm/malicious_intent/node-log-stream/1.0.12/2025-07-30-node-log-stream-v1.0.12.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/npm/malicious_intent/playwright-1.47/10.1.8/2024-12-09-playwright-1.47-v10.1.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/npm/malicious_intent/gita-semur11-apidev/3.1.1/2024-05-07-gita-semur11-apidev-v3.1.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@posthog@rrweb/0.0.31/2025-11-24-@posthog_rrweb-v0.0.31.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@mistralai@mistralai-azure/1.7.1/2026-05-11-@mistralai_mistralai-azure-v1.7.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@nexe@logger/0.1.3/2025-09-14-@nexe_logger-v0.1.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@nativescript-community@ui-collectionview/6.0.6/2025-09-15-@nativescript-community_ui-collectionview-v6.0.6.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@uipath@integrationservice-tool/1.0.2/2026-05-11-@uipath_integrationservice-tool-v1.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/ml-linear-regression-lib/1.1.3/2024-05-16-ml-linear-regression-lib-v1.1.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/lofter/1.0/2023-05-13-lofter-v1.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/crypto-pygame/10.14.7/2023-05-20-crypto-pygame-v10.14.7.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/pypiion/0.1.1/2025-07-04-pypiion-v0.1.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/selfcvstrpong/6.28/2023-02-27-selfcvstrpong-v6.28.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/grandslam/2022-11-16-grandslam.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/esqmaskgrandcc/6.23/2023-02-27-esqmaskgrandcc-v6.23.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/asyncoi/2022-12-19-asyncoi.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/openfermionpyscaf/94.6/2024-11-13-openfermionpyscaf-v94.6.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/builderknower/0.1.1/2024-06-13-builderknower-v0.1.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/ixosmonitoring/99.0.0/2026-04-11-ixosmonitoring-v99.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/manda-tu-cv-a-secureit/2022-11-28-manda-tu-cv-a-secureit.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/tppingcpuget/6.36/2023-02-27-tppingcpuget-v6.36.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/cryostar/912.6/2024-11-07-cryostar-v912.6.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/robloxpinreader/2022-11-08-robloxpinreader.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev"
+  },
+  {
+   "target": "npm:express@4.21.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "npm:lodash@4.17.21",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "npm:axios@1.7.9",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "npm:chalk@5.4.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "npm:commander@13.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "npm:dotenv@16.4.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "npm:jsonwebtoken@9.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "npm:puppeteer@24.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "npm:esbuild@0.24.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "npm:sharp@0.33.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "npm:electron@34.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "npm:node-fetch@3.3.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "npm:ws@8.18.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "npm:multer@1.4.5-lts.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "npm:adm-zip@0.5.16",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "pypi:requests==2.32.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "pypi:flask==3.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "pypi:paramiko==3.5.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "pypi:cryptography==44.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "pypi:pyyaml==6.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "pypi:boto3==1.36.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "pypi:selenium==4.28.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "pypi:pip==24.3.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "pypi:setuptools==75.8.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "pypi:httpx==0.28.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "esbenp.prettier-vscode",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "dbaeumer.vscode-eslint",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "eamodio.gitlens",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "ritwickdey.LiveServer",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "formulahendry.code-runner",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "redhat.vscode-yaml",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "golang.go",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "ms-azuretools.vscode-docker",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "streetsidesoftware.code-spell-checker",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "christian-kohler.path-intellisense",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/QuantumCodeLabs.ai-code-explainer/1.0.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/embeddteam.embedded-cortex-debug/1.14.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/wlnxingdev.free-senltig/17.6.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/WhenSunset.chatgpt-china/9.5.3.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/QuantumCodeLabs.qoodo-ai-assistant/1.0.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/VSAnalysistest.codegpt-helper/0.0.2.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/ovixcodes.basedpyright-vscode/1.34.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/BlockchainIndustries.hardhat-toolkit/0.0.1.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/siffat-ahmed.ai-autocomplete-siffat-ahmed/0.1.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/ab-498.cppplayground/1.0.42.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/SFRA-FAKA.sfra-toolkit/0.0.2.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/GitlensPro.gitlens-monocharged/1.0.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/GitlensPro.codebeauty-formatter/2.0.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/EtherFoundation.vs-ranket/1.1.1.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/embeddteam.embedded-build-analyzer/1.1.3.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/npm/malicious_intent/gleb-js/1.2.0/2026-03-23-gleb-js-v1.2.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/npm/malicious_intent/api-umbrella-admin-ui/99.99.99/2025-12-28-api-umbrella-admin-ui-v99.99.99.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/npm/malicious_intent/vulnerable-dependency/10.0.0/2025-03-21-vulnerable-dependency-v10.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/npm/malicious_intent/1uniswapinterface/1.1.2/2025-09-18-1uniswapinterface-v1.1.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/npm/malicious_intent/spex-node-client/6.5.3/2024-11-20-spex-node-client-v6.5.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/npm/malicious_intent/react-tediter/1.4.3/2025-09-25-react-tediter-v1.4.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/npm/malicious_intent/graph-studio-billing-contracts/0.0.1/2024-11-23-graph-studio-billing-contracts-v0.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/npm/malicious_intent/estree-util/1.0.0/2025-12-01-estree-util-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/npm/malicious_intent/redirect-p8ris1/1.0.0/2025-09-24-redirect-p8ris1-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/npm/malicious_intent/enormous_llama_z3n/4.2.2/2024-07-06-enormous_llama_z3n-v4.2.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@asyncapi@python-paho-template/0.2.14/2025-11-24-@asyncapi_python-paho-template-v0.2.14.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@toptal@picasso-tailwind/3.1.0/2025-07-20-@toptal_picasso-tailwind-v3.1.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@voiceflow@dtos-interact/1.40.2/2025-11-24-@voiceflow_dtos-interact-v1.40.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/npm/compromised_lib/ngx-toastr/19.0.1/2025-09-15-ngx-toastr-v19.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@ensdomains@test-utils/1.3.1/2025-11-24-@ensdomains_test-utils-v1.3.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/libedgetstudy/5.70/2023-02-27-libedgetstudy-v5.70.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/py-pynvidiasplit/6.8/2023-02-27-py-pynvidiasplit-v6.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/databaselooks/0.0.4/2026-04-07-databaselooks-v0.0.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/typing-extension/95.6/2024-11-15-typing-extension-v95.6.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/ttat-api-test/0.2.0/2024-08-23-ttat-api-test-v0.2.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/urllibinstaller/2022-11-08-urllibinstaller.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/next-vit/912.6/2024-11-08-next-vit-v912.6.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/request-supporter/1.0/2023-04-23-request-supporter-v1.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/tpstrlibhydra/1.64/2023-02-27-tpstrlibhydra-v1.64.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/0.1.1/2024-09-19-artifact-lab-3-package-4c04b1a2-v0.1.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:docopt==0.6.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:termcolor==1.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:jieba==0.42.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:wget==3.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:pyperclip==1.8.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:pycrypto==2.6.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:nodemon@3.1.9",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:webpack-dev-server@5.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:node-pty@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:bcrypt@5.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:sqlite3@5.1.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "WakaTime.vscode-wakatime",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "ms-vscode-remote.remote-ssh",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "vscjava.vscode-java-debug",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "ms-vscode.live-server",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "hediet.vscode-drawio",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "ms-python.vscode-python-envs",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "ms-vscode-remote.remote-containers",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "ms-python.vscode-pylance",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "oderwat.indent-rainbow",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "ericadamski.carbon-now-sh",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "redhat.ansible",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "ms-python.debugpy",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "humao.rest-client",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "ms-toolsai.jupyter-renderers",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "bradlc.vscode-tailwindcss",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  }
+ ]
+}

