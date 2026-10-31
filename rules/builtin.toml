@@ -48,7 +48,7 @@ category = "exfiltration"
 description = "AWS Access Key ID detected — credential leak"
 # Word boundaries: AKIA-shaped runs inside base64 blobs are not keys.
 pattern = '''(?-u:\b)AKIA[0-9A-Z]{16}(?-u:\b)'''
-matches = ['''AKIA1234567890123456''', '''key = "AKIAQ3EGRZ7MXKXH4L5N"''']
+matches = ['''AKIA1234567890123456''', '''key = "AKIAXXXXXXXXXXXXXXXX"''']
 ignores = ['''fGh0AKIAAAB0AAAAAAAAAKMAa''']
 
 [[rule]]
@@ -805,7 +805,8 @@ severity = "high"
 category = "exfiltration"
 description = "GitLab personal access token"
 pattern = '''(?-u:\b)glpat-[A-Za-z0-9_-]{20,}'''
-matches = ['''glpat-abcdefghijklmnopqrstuvwx''']
+# Low-entropy examples: realistic-looking ones trip the repo's own gitleaks gate.
+matches = ['''glpat-xxxxxxxxxxxxxxxxxxxx''']
 
 [[rule]]
 id = "KS-EXF-018"
@@ -814,7 +815,7 @@ severity = "high"
 category = "exfiltration"
 description = "Hard-coded JSON Web Token"
 pattern = '''(?-u:\b)eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}'''
-matches = ['''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U''']
+matches = ['''eyJxxxxxxxxxxxxxxxxxxxx.eyJxxxxxxxxxxxxxxxxxxxx.xxxxxxxxxxxx''']
 
 [[rule]]
 id = "KS-EXF-019"
