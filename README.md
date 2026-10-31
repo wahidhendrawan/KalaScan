@@ -117,7 +117,17 @@ For `npm:` and `pypi:` targets, what the registry says about the scanned version
 
 ### Rules as Data
 - Built-in RegEx rules live in [`rules/builtin.toml`](rules/builtin.toml) with stable ids (`KS-EXF-001`, …), severity, scope and `matches` / `ignores` examples that are verified every time the rules load
-- `--rules my-rules.toml` adds your own rules in the same format (CLI only); a rule that fails its own examples aborts the scan with the reason
+- `--rules my-rules.toml` adds your own rules in the same format (CLI only); a rule that fails its own examples aborts the scan with the reason. `id`, `name`, `severity` (`critical|high|medium|low`), `category`, `description` and `pattern` are required:
+  ```toml
+  [[rule]]
+  id = "ORG-001"
+  name = "Internal Upload Host"
+  severity = "high"
+  category = "custom"
+  description = "Upload to a host outside the company"
+  pattern = '''https?://paste\.example\.net/'''
+  matches = ['''fetch("https://paste.example.net/up")''']
+  ```
 - `kalascan rules` lists ids; `kalascan rules KS-SUP-009` explains one
 
 ### Detection Quality
@@ -129,7 +139,7 @@ For `npm:` and `pypi:` targets, what the registry says about the scanned version
 - **Unpinned third-party actions** (low) — `uses: owner/action@v1` instead of a full commit SHA
 
 ### Lockfile Audit
-- `kalascan deps [PATH]` reads `package-lock.json` (v1-v3), `poetry.lock`, `Pipfile.lock` and pinned `requirements.txt` lines, then downloads and scans each exact locked version, highest risk first. Dev dependencies are skipped unless `--include-dev`; `--jobs` (default 4), `--max` (default 500), `--min-risk`, `--fail-on-risk`, `--format text|json`. Git, file and link dependencies are skipped
+- `kalascan deps [PATH]` reads `package-lock.json` (v1-v3), `poetry.lock`, `Pipfile.lock` and pinned `requirements.txt` lines, then downloads and scans each exact locked version, highest risk first. Dev dependencies are skipped unless `--include-dev`; `--jobs` (default 4), `--max` (default 500), `--min-risk`, `--fail-on-risk`, `--format text|json`. Git, file and link dependencies are skipped. Other lockfiles (`yarn.lock`, `pnpm-lock.yaml`, `Cargo.lock`, …) are not read yet; a directory with none of the supported ones exits with an error
 
 ### Secret Scanning (opt-in)
 - `--secrets` adds 208 credential patterns converted from [gitleaks](https://github.com/gitleaks/gitleaks) (MIT; [`rules/secrets.toml`](rules/secrets.toml), regenerate with `python3 rules/gen_secret_rules.py > rules/secrets.toml`), including their entropy thresholds and keyword prefilters, and also scans config files (`.env`, `*.yml`, `*.json`, `.npmrc`, …). A hard-coded token is a leak, not malware: these findings are medium and never join a chain. Rules that need a gitleaks allowlist to stay accurate are left out
@@ -283,8 +293,9 @@ kalascan scan https://github.com/user/repo.git \
 # A downloaded sample or a fork's checkout: no skipped build dirs, no inline opt-outs
 kalascan scan ./suspicious-package --untrusted
 
-# Restrict a PR scan to changed files
-kalascan scan https://github.com/user/repo.git --changed-only --base-ref origin/main
+# Restrict a PR scan to changed files (in a checkout of the PR branch;
+# a cloned URL is the default branch, so nothing differs and everything is scanned)
+kalascan scan . --changed-only --base-ref origin/main
 
 # CI annotations (GitHub Actions) and machine-readable test reports
 kalascan scan . --format github
@@ -355,13 +366,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: wahidhendrawan/KalaScan@v1.11.0
+      - uses: wahidhendrawan/KalaScan@v1.12.0
         with:
-          target: https://github.com/${{ github.repository }}.git
+          target: .
           fail_on_risk: "60"
 ```
 
-The action installs KalaScan, writes `kalascan.sarif`, and uploads it to GitHub Code Scanning.
+The action builds KalaScan from the same ref with `cargo install` (a few minutes; skipped when `kalascan` is already on `PATH`), scans the checked-out PR code, writes `kalascan.sarif`, and uploads it to GitHub Code Scanning, also when `fail_on_risk` fails the job.
 
 ### Securing the Web UI
 
