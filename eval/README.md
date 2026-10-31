@@ -23,13 +23,15 @@ Results at threshold 50:
 
 | split | malicious recall | clean false positives |
 |---|---|---|
-| dev | 48/60 (80%) | 0/62 |
-| holdout | 26/40 (65%) | 0/165 |
+| dev | 52/72 (72%) | 0/62 |
+| holdout | 26/28 (93%) | 0/165 |
 
-By ecosystem: PyPI 84%, npm 83%, IDE extensions 60%. Before this work the dev split scored 1/60, and marketplace-id scans failed outright.
+The holdout split has shrunk to 28 malicious samples: every sample that was read while writing a rule moves to `dev`, so 93% is a small-sample number. Add fresh malicious samples to `holdout` before trusting it again.
+
+By ecosystem: PyPI 92%, npm 89%, IDE extensions 60%. Before this work the dev split scored 1/60, and marketplace-id scans failed outright.
 
 The 60 extensions installed on the maintainer's machine (`kalascan installed`) also all score below 30. Ten of them were false positives during development and are now in the clean `dev` split.
 
 **Honest false-positive number.** When the clean set grew from 66 to 227 samples (161 new ones in `holdout`, untouched by tuning), the first run flagged **9 of the 176 holdout clean samples (5%)**: greedy regexes (`powershell .* -enc` across a minified line, `bcdedit` inside base64), `~/.ethereum/geth.ipc` read as a wallet, a bidi character used as a regex range, official `curl … | sh` installers (gh.io, antigravity.google, nvm) and firebase-tools chmodding one file while spawning another. Those rules were fixed and the 12 samples looked at moved to `dev`; the remaining 165 holdout clean samples score below 50. Expect the real rate on unseen packages to sit somewhere between the two numbers.
 
-What still gets through: malicious themes with no code (impersonation only, unless the name uses invisible characters or a look-alike publisher), payloads inside native binaries, code that builds its C2 host at runtime (`(Object+'').split(' ')[0]+"."+…`), verbatim copies of extensions outside the top 2,000 (copies of popular ones are caught through their `repository` field), install scripts that patch another package in `node_modules`, and typo-squats with no code (the name match alone scores 5).
+What still gets through (22 samples): forks of legitimate extensions republished with a changed API endpoint or compile server, so the user's code goes to a personal host (chatgpt-china, cppplayground, cortex-debug fork: 9 samples, nothing in the code is malicious on its own); themes and hello-world extensions whose only offence is the listing (5); javascript-obfuscator string-array stealers whose `readFileSync`/`post`/`.env` live inside the decoder table (gleb-js, vs-ranket: 2); phishing redirect packages (`window.location = 'https://…'`: 2); typo-squats with no code; an install script that patches a sibling package in `node_modules`; code that builds its C2 host at runtime.

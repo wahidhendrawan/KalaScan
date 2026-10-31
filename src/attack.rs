@@ -321,6 +321,8 @@ pub fn map_text(text: &str) -> Vec<AttackTechnique> {
             "base64",
             "b64",
             "hex encoding",
+            "hex string",
+            "hex-encoded",
             "xor decode",
             "encoded command",
             "long encoded",
@@ -721,6 +723,8 @@ mod tests {
             ("Shell Process Start", "T1059"),
             ("Repackaged Copy of Popular Extension", "T1036.005"),
             ("Shell Profile Modification", "T1546.004"),
+            ("Download Cradle (fetch then eval)", "T1105"),
+            ("Chain: Obfuscated Reconnaissance", "T1082"),
         ] {
             assert!(
                 ids(name).contains(&expected.to_string()),
