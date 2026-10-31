@@ -76,6 +76,14 @@ pub struct Rule {
     pub category: String,
     /// File names this rule never runs on (e.g. npm metadata in package.json).
     pub exclude_files: Vec<String>,
+    /// Minimum Shannon entropy of the secret part of a match (gitleaks rules):
+    /// `AKIAXXXXXXXXXXXXXXXX` in docs is not a key.
+    pub entropy: Option<f64>,
+    /// Capture group holding the secret; 0 = group 1 when the pattern has one.
+    pub secret_group: usize,
+    /// Lower-case words one of which must occur in the file before the regex
+    /// runs. Cheap prefilter for large rule sets.
+    pub keywords: Vec<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -97,6 +105,12 @@ struct RuleDef {
     ignores: Vec<String>,
     #[serde(default)]
     exclude_files: Vec<String>,
+    #[serde(default)]
+    entropy: Option<f64>,
+    #[serde(default)]
+    secret_group: usize,
+    #[serde(default)]
+    keywords: Vec<String>,
 }
 
 const SEVERITIES: &[&str] = &["critical", "high", "medium", "low"];
@@ -130,6 +144,9 @@ pub fn parse_rules(toml_text: &str) -> anyhow::Result<Vec<Rule>> {
                     i
                 );
             }
+            if d.entropy.is_some_and(|e| !(0.0..=8.0).contains(&e)) {
+                anyhow::bail!("rule {}: entropy must be between 0 and 8", d.id);
+            }
             Ok(Rule {
                 id: d.id,
                 name: d.name,
@@ -138,6 +155,9 @@ pub fn parse_rules(toml_text: &str) -> anyhow::Result<Vec<Rule>> {
                 description: d.description,
                 category: d.category,
                 exclude_files: d.exclude_files,
+                entropy: d.entropy,
+                secret_group: d.secret_group,
+                keywords: d.keywords.iter().map(|k| k.to_lowercase()).collect(),
             })
         })
         .collect()
@@ -152,6 +172,85 @@ pub fn load_rules_file(path: &Path) -> anyhow::Result<Vec<Rule>> {
 static BUILTIN_RULES: std::sync::LazyLock<Vec<Rule>> = std::sync::LazyLock::new(|| {
     parse_rules(include_str!("../rules/builtin.toml")).expect("rules/builtin.toml is valid")
 });
+
+static SECRET_RULES: std::sync::LazyLock<Vec<Rule>> = std::sync::LazyLock::new(|| {
+    parse_rules(include_str!("../rules/secrets.toml")).expect("rules/secrets.toml is valid")
+});
+
+/// The gitleaks-derived secret rules (`--secrets`), see rules/gen_secret_rules.py.
+pub fn secret_rules() -> Vec<Rule> {
+    SECRET_RULES.clone()
+}
+
+/// Config files that never get the code rules but may hold credentials.
+fn is_config_file(filename: &str) -> bool {
+    let lower = filename.to_ascii_lowercase();
+    lower.starts_with(".env")
+        || [
+            ".npmrc",
+            ".pypirc",
+            ".netrc",
+            ".git-credentials",
+            "credentials",
+            ".dockercfg",
+        ]
+        .contains(&lower.as_str())
+        || [
+            ".json",
+            ".yml",
+            ".yaml",
+            ".toml",
+            ".ini",
+            ".cfg",
+            ".conf",
+            ".properties",
+            ".xml",
+            ".tf",
+            ".tfvars",
+            ".hcl",
+            ".gradle",
+            ".plist",
+            ".env",
+        ]
+        .iter()
+        .any(|ext| lower.ends_with(ext))
+}
+
+/// Byte spans where `rule` fires in `content`: keyword prefilter, regex,
+/// then the optional entropy gate on the secret.
+fn rule_spans(
+    rule: &Rule,
+    content: &str,
+    lower: &std::cell::OnceCell<String>,
+) -> Vec<(usize, usize)> {
+    if !rule.keywords.is_empty() {
+        let lower = lower.get_or_init(|| content.to_ascii_lowercase());
+        if !rule.keywords.iter().any(|k| lower.contains(k.as_str())) {
+            return Vec::new();
+        }
+    }
+    let Some(min) = rule.entropy else {
+        return rule
+            .pattern
+            .find_iter(content)
+            .map(|m| (m.start(), m.end()))
+            .collect();
+    };
+    rule.pattern
+        .captures_iter(content)
+        .filter_map(|c| {
+            let whole = c.get(0)?;
+            let group = if rule.secret_group > 0 {
+                rule.secret_group
+            } else {
+                1
+            };
+            let secret = c.get(group).unwrap_or(whole);
+            (crate::entropy::calculate_entropy(secret.as_str().as_bytes()) >= min)
+                .then_some((whole.start(), whole.end()))
+        })
+        .collect()
+}
 
 impl Rule {
     pub fn applies_to(&self, ext: &str, filename: &str) -> bool {
@@ -173,6 +272,11 @@ impl Rule {
         }
         if self.category == "npm_hook" {
             return filename == "package.json";
+        }
+        if self.category == "secret" {
+            return CRITICAL_EXTENSIONS.contains(&ext)
+                || CRITICAL_FILENAMES.contains(&filename)
+                || is_config_file(filename);
         }
         true
     }
@@ -304,11 +408,12 @@ pub fn scan_directory_filtered<P: AsRef<Path>>(
         .clamp(1, 16)
         .min(targets.len().max(1));
     let next = std::sync::atomic::AtomicUsize::new(0);
+    let ecosystem = ecosystem_of(dir.as_ref());
     let mut per_file: Vec<(usize, Vec<RuleMatch>)> = std::thread::scope(|scope| {
         let handles: Vec<_> = (0..workers)
             .map(|_| {
                 scope.spawn(|| {
-                    let mut yara = yara_engine.scanner();
+                    let mut yara = yara_engine.scanner(ecosystem);
                     let mut done = Vec::new();
                     loop {
                         let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -332,6 +437,22 @@ pub fn scan_directory_filtered<P: AsRef<Path>>(
     let matches = per_file.into_iter().flat_map(|(_, m)| m).collect();
 
     (total_files, scanned_files, matches)
+}
+
+/// What a scanned tree is, for YARA rules that test `ecosystem`.
+fn ecosystem_of(root: &Path) -> &'static str {
+    if crate::cve::is_vscode_extension(root) {
+        "extension"
+    } else if root.join("package.json").is_file() {
+        "npm"
+    } else if ["setup.py", "pyproject.toml", "PKG-INFO", "setup.cfg"]
+        .iter()
+        .any(|f| root.join(f).is_file())
+    {
+        "pypi"
+    } else {
+        ""
+    }
 }
 
 struct Target {
@@ -430,6 +551,23 @@ fn scan_bytes(
                 &String::from_utf8_lossy(bytes),
             ));
         }
+        // `--secrets`: config files get the secret rules and nothing else.
+        if is_config_file(filename) && rules.iter().any(|r| r.category == "secret") {
+            let content = String::from_utf8_lossy(bytes);
+            let lower = std::cell::OnceCell::new();
+            let newlines: Vec<usize> = content.match_indices('\n').map(|(i, _)| i).collect();
+            for rule in rules.iter().filter(|r| r.category == "secret") {
+                for (start, end) in rule_spans(rule, &content, &lower) {
+                    out.push(RuleMatch {
+                        file_path: rel_path.clone(),
+                        line_number: newlines.partition_point(|&i| i < start) + 1,
+                        matched_pattern: rule.name.to_string(),
+                        severity: rule.severity.to_string(),
+                        context: get_context(&content, start, end),
+                    });
+                }
+            }
+        }
         return out;
     }
 
@@ -474,35 +612,37 @@ fn scan_bytes(
         std::collections::HashSet::new()
     };
     let ext = get_extension(filename);
+    let lower = std::cell::OnceCell::new();
 
     for rule in rules {
         if !rule.applies_to(ext, filename) {
             continue;
         }
 
-        for cap in rule.pattern.find_iter(&content) {
-            let line = line_of(cap.start());
+        for (start, end) in rule_spans(rule, &content, &lower) {
+            let text = &content[start..end];
+            let line = line_of(start);
             if ignored_lines.contains(&line)
-                || is_comment_only_line(&content, line_start(line), cap.start())
+                || is_comment_only_line(&content, line_start(line), start)
             {
                 continue;
             }
             let is_ip_rule = rule.name == "Hardcoded IP Address" || rule.name == IP_URL;
-            let ip_text = cap.as_str().rsplit('/').next().unwrap_or_default();
+            let ip_text = text.rsplit('/').next().unwrap_or_default();
             if is_ip_rule && !is_public_ipv4(ip_text) {
                 continue;
             }
             let is_download_rule = rule.name == REMOTE_BINARY || rule.name == DOWNLOAD_CRADLE;
-            if is_download_rule && is_vendor_download(cap.as_str()) {
+            if is_download_rule && is_vendor_download(text) {
                 continue;
             }
-            offsets.push(cap.start());
+            offsets.push(start);
             matches.push(RuleMatch {
                 file_path: rel_path.clone(),
                 line_number: line + 1,
                 matched_pattern: rule.name.to_string(),
                 severity: rule.severity.to_string(),
-                context: get_context(&content, cap.start(), cap.end()),
+                context: get_context(&content, start, end),
             });
         }
     }
@@ -520,8 +660,16 @@ fn scan_bytes(
         ));
     }
     let chains = crate::correlate::correlate_file(rel_path, &content, &matches, &offsets);
+    // javascript-obfuscator hides every API name in a string table.
+    let obfuscated = matches.iter().any(|m| m.matched_pattern == OBFUSCATOR_IO);
     out.extend(matches);
     out.extend(chains);
+    if obfuscated {
+        out.extend(crate::obfuscator::chains(
+            rel_path,
+            &crate::obfuscator::string_table(&content),
+        ));
+    }
     out
 }
 
@@ -998,6 +1146,39 @@ mod tests {
         };
         assert_eq!(line("b64decode + exec Chain"), Some(2));
         assert_eq!(line(DOWNLOAD_CRADLE), Some(4));
+    }
+
+    #[test]
+    fn secret_rules_load_and_gate_on_entropy_keywords_and_config_files() {
+        let rules = secret_rules();
+        assert!(rules.len() > 200, "{} secret rules", rules.len());
+        assert!(rules
+            .iter()
+            .all(|r| r.category == "secret" && r.severity == "medium"));
+
+        // Built at runtime so this file never holds a token-shaped literal
+        // (the repository's own gitleaks gate would flag it).
+        let token = format!("{}_{}", "npm", "a8Kd2Lq9Zx4Vb7Nm3Pw6Rt1Yc5Hs0Ju8Ge2F");
+        let dull = format!("{}_{}", "npm", "x".repeat(36));
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(".env"), format!("NPM_TOKEN={}\n", token)).unwrap();
+        std::fs::write(dir.path().join("docs.yml"), format!("token: {}\n", dull)).unwrap();
+        std::fs::write(dir.path().join("a.js"), format!("const t = '{}';\n", token)).unwrap();
+
+        let with = scan_directory_filtered(dir.path(), None, &rules, None, false).2;
+        let hit = |file: &str| {
+            with.iter()
+                .any(|m| m.file_path == file && m.matched_pattern == "Secret: npm-access-token")
+        };
+        assert!(hit(".env"), "config files get the secret rules");
+        assert!(hit("a.js"));
+        assert!(!hit("docs.yml"), "xxxx… is below the entropy gate");
+
+        // Without --secrets, config files are not read for regex rules at all.
+        let without = scan_directory_filtered(dir.path(), None, &[], None, false).2;
+        assert!(!without
+            .iter()
+            .any(|m| m.matched_pattern.starts_with("Secret: ")));
     }
 
     #[test]

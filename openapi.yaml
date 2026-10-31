@@ -203,6 +203,7 @@ components:
         emulate: { type: boolean }
         sandbox: { type: boolean }
         sandbox_image: { type: string, description: "CLI-only; rejected by the API" }
+        secrets: { type: boolean, description: "Also report hard-coded credentials (gitleaks patterns, medium severity)" }
         new_only: { type: boolean }
         baseline: { type: string, description: "CLI-only; rejected by the API" }
         ignore: { type: string, description: "CLI-only; rejected by the API" }
