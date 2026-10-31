@@ -1777,7 +1777,7 @@ async fn git_changed_files(
             .collect();
 
     if changed.is_empty() {
-        info!("No changed files vs {}; nothing to scan", base_ref);
+        info!("No changed files vs {}; scanning all files", base_ref);
         return None;
     }
     info!("Restricting scan to {} changed files", changed.len());
