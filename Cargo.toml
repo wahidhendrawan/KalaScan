@@ -16,7 +16,6 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 regex = "1"
 walkdir = "2"
 tempfile = "3"
-tera = "1"
 uuid = { version = "1", features = ["v4"] }
 tower-http = { version = "0.6", features = ["fs", "cors"] }
 anyhow = "1"
