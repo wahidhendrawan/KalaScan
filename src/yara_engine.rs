@@ -91,39 +91,52 @@ impl YaraEngine {
         }
     }
 
-    /// Scan a buffer/file data with YARA rules and return findings as RuleMatch
-    pub fn scan_data(&self, file_path: &str, data: &[u8]) -> Vec<RuleMatch> {
-        let mut matches = Vec::new();
-        let rules = match &self.rules {
-            Some(r) => r,
-            None => return matches,
-        };
-
-        let mut scanner = yara_x::Scanner::new(rules);
-        if let Ok(scan_results) = scanner.scan(data) {
-            for rule in scan_results.matching_rules() {
-                let rule_id = rule.identifier();
-                let severity = match rule_id {
-                    "ReverseShellGeneric" | "DiscordWebhookStealer" => "critical",
-                    "CryptoDrainerGeneric" => "high",
-                    _ => "medium",
-                };
-
-                let matched_desc = format!("YARA Rule: {}", rule_id);
-                let context = format!("Matched YARA rule {} in {}", rule_id, file_path);
-
-                matches.push(RuleMatch {
-                    file_path: file_path.to_string(),
-                    line_number: 1,
-                    matched_pattern: matched_desc,
-                    severity: severity.to_string(),
-                    context,
-                });
-            }
-        }
-
-        matches
+    /// A scanner to reuse across files. Building one instantiates a wasm
+    /// module, which used to happen once per scanned file.
+    pub fn scanner(&self) -> Option<yara_x::Scanner<'_>> {
+        self.rules.as_ref().map(yara_x::Scanner::new)
     }
+
+    /// Scan a buffer/file data with YARA rules and return findings as RuleMatch
+    #[cfg(test)]
+    pub fn scan_data(&self, file_path: &str, data: &[u8]) -> Vec<RuleMatch> {
+        self.scanner()
+            .map(|mut s| scan_with(&mut s, file_path, data))
+            .unwrap_or_default()
+    }
+}
+
+/// Run `scanner` over `data`. Severity comes from the rule's
+/// `meta: severity`; custom rules used to be forced to "medium".
+pub fn scan_with(
+    scanner: &mut yara_x::Scanner<'_>,
+    file_path: &str,
+    data: &[u8],
+) -> Vec<RuleMatch> {
+    let Ok(scan_results) = scanner.scan(data) else {
+        return Vec::new();
+    };
+    scan_results
+        .matching_rules()
+        .map(|rule| {
+            let rule_id = rule.identifier();
+            let severity = rule
+                .metadata()
+                .find_map(|(key, value)| match value {
+                    yara_x::MetaValue::String(s) if key == "severity" => Some(s.to_lowercase()),
+                    _ => None,
+                })
+                .filter(|s| ["critical", "high", "medium", "low"].contains(&s.as_str()))
+                .unwrap_or_else(|| "medium".to_string());
+            RuleMatch {
+                file_path: file_path.to_string(),
+                line_number: 1,
+                matched_pattern: format!("YARA Rule: {}", rule_id),
+                severity,
+                context: format!("Matched YARA rule {} in {}", rule_id, file_path),
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -150,5 +163,23 @@ mod tests {
         assert!(findings
             .iter()
             .any(|f| f.matched_pattern.contains("DiscordWebhookStealer")));
+    }
+
+    #[test]
+    fn severity_comes_from_rule_meta_and_scanner_is_reusable() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("custom.yar"),
+            "rule CustomDropper { meta: severity = \"critical\" strings: $a = \"evil-dropper\" condition: $a }\n\
+             rule NoMeta { strings: $a = \"plain-marker\" condition: $a }",
+        )
+        .unwrap();
+        let engine = YaraEngine::new(Some(dir.path()));
+        let mut scanner = engine.scanner().unwrap();
+        let first = scan_with(&mut scanner, "a.js", b"x evil-dropper y");
+        let second = scan_with(&mut scanner, "b.js", b"plain-marker");
+        assert_eq!(first[0].severity, "critical");
+        assert_eq!(second[0].severity, "medium");
+        assert_eq!(second[0].file_path, "b.js");
     }
 }

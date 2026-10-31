@@ -505,10 +505,9 @@ fn md_cell(value: &str) -> String {
 // GitHub Code Scanning compatible output. Upload with `actions/upload-sarif`.
 
 pub fn export_sarif(result: &ScanResult) -> String {
-    use crate::baseline::fingerprint;
-
     let mut sorted = result.rule_matches.clone();
     sorted.sort_by_key(|m| severity_sort_key(&m.severity));
+    let ids = crate::baseline::fingerprints(&sorted);
 
     let mut rules: Vec<serde_json::Value> = Vec::new();
     let mut rule_indices: std::collections::HashMap<String, usize> =
@@ -526,7 +525,7 @@ pub fn export_sarif(result: &ScanResult) -> String {
     }
 
     let mut results: Vec<serde_json::Value> = Vec::new();
-    for m in &sorted {
+    for (m, id) in sorted.iter().zip(&ids) {
         results.push(serde_json::json!({
             "ruleId": rule_id(&m.matched_pattern),
             "ruleIndex": rule_indices.get(&m.matched_pattern).copied().unwrap_or(0),
@@ -538,7 +537,8 @@ pub fn export_sarif(result: &ScanResult) -> String {
                     "region": { "startLine": m.line_number }
                 }
             }],
-            "partialFingerprints": { "kalascan/v1": fingerprint(m) },
+            // v2: line numbers no longer part of the id (see baseline.rs).
+            "partialFingerprints": { "kalascan/v2": id },
         }));
     }
 
@@ -2001,7 +2001,7 @@ mod tests {
             let location = &result["locations"][0]["physicalLocation"];
             assert!(location["artifactLocation"]["uri"].as_str().is_some());
             assert!(location["region"]["startLine"].as_u64().is_some());
-            assert!(result["partialFingerprints"]["kalascan/v1"]
+            assert!(result["partialFingerprints"]["kalascan/v2"]
                 .as_str()
                 .is_some_and(|s| !s.is_empty()));
         }

@@ -1,4 +1,4 @@
-use crate::scanner::{build_rules, get_extension, is_critical_file};
+use crate::scanner::{build_rules, get_context, get_extension, is_critical_file};
 use crate::RuleMatch;
 use std::path::Path;
 use tokio::process::Command;
@@ -21,8 +21,14 @@ pub async fn scan_git_history(repo_path: &Path) -> Vec<RuleMatch> {
     };
 
     let entries = parse_git_log(&log_output);
+    // HEAD's files are the current tree, already scanned: reporting them
+    // again under `<hash>:` doubled every finding.
+    let head = git(repo_path, &["rev-parse", "HEAD"])
+        .await
+        .map(|h| h.trim().to_string())
+        .unwrap_or_default();
 
-    for (commit_hash, files) in &entries {
+    for (commit_hash, files) in entries.iter().filter(|(hash, _)| *hash != head) {
         for file in files {
             let lower_file = file.to_lowercase();
             if !is_critical_file(&lower_file) {
@@ -37,6 +43,7 @@ pub async fn scan_git_history(repo_path: &Path) -> Vec<RuleMatch> {
             };
 
             let history_file_path = format!("{}:{}", commit_hash, file);
+            let newlines: Vec<usize> = content.match_indices('\n').map(|(i, _)| i).collect();
 
             for rule in &rules {
                 if !rule.applies_to(ext, file) {
@@ -44,12 +51,11 @@ pub async fn scan_git_history(repo_path: &Path) -> Vec<RuleMatch> {
                 }
 
                 for cap in rule.pattern.find_iter(&content) {
-                    let line_num = content[..cap.start()].matches('\n').count() + 1;
                     let context = get_context(&content, cap.start(), cap.end());
 
                     matches.push(RuleMatch {
                         file_path: history_file_path.clone(),
-                        line_number: line_num,
+                        line_number: newlines.partition_point(|&i| i < cap.start()) + 1,
                         matched_pattern: rule.name.to_string(),
                         severity: rule.severity.to_string(),
                         context,
@@ -62,24 +68,48 @@ pub async fn scan_git_history(repo_path: &Path) -> Vec<RuleMatch> {
     matches
 }
 
-/// Run `git log --diff-filter=AM --name-only --format=COMMIT:%H`
-async fn get_commits_with_files(repo_path: &Path) -> Option<String> {
+/// `git -C <repo> <args>` stdout, `None` on failure. kill_on_drop: a scan
+/// that times out must not leave git running.
+async fn git_bytes(repo_path: &Path, args: &[&str]) -> Option<Vec<u8>> {
     let output = Command::new("git")
         .arg("-C")
         .arg(repo_path)
-        .arg("log")
-        .arg("--diff-filter=AM")
-        .arg("--name-only")
-        .arg("--format=COMMIT:%H")
+        .args(args)
+        .kill_on_drop(true)
         .output()
         .await
         .ok()?;
+    output.status.success().then_some(output.stdout)
+}
 
-    if !output.status.success() {
-        return None;
+async fn git(repo_path: &Path, args: &[&str]) -> Option<String> {
+    String::from_utf8(git_bytes(repo_path, args).await?).ok()
+}
+
+/// The tree path of a finding: history hits are named `<40-hex hash>:<path>`.
+/// The risk score counts one (file, rule) pair once, and the same line seen
+/// in five commits is still one finding.
+pub fn tree_path(file_path: &str) -> &str {
+    match file_path.split_once(':') {
+        Some((hash, path)) if hash.len() == 40 && hash.bytes().all(|b| b.is_ascii_hexdigit()) => {
+            path
+        }
+        _ => file_path,
     }
+}
 
-    String::from_utf8(output.stdout).ok()
+/// Run `git log --diff-filter=AM --name-only --format=COMMIT:%H`
+async fn get_commits_with_files(repo_path: &Path) -> Option<String> {
+    git(
+        repo_path,
+        &[
+            "log",
+            "--diff-filter=AM",
+            "--name-only",
+            "--format=COMMIT:%H",
+        ],
+    )
+    .await
 }
 
 /// Parse git log output.
@@ -133,20 +163,8 @@ async fn get_file_at_commit(
     file_path: &str,
 ) -> Option<String> {
     let spec = format!("{}:{}", commit_hash, file_path);
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(repo_path)
-        .arg("show")
-        .arg(&spec)
-        .output()
-        .await
-        .ok()?;
-
-    if !output.status.success() {
-        return None; // deleted or binary at this commit
-    }
-
-    let content = String::from_utf8(output.stdout).ok()?;
+    // `None`: deleted or binary at this commit
+    let content = git(repo_path, &["show", &spec]).await?;
 
     // Binary content contains null bytes
     if content.contains('\0') {
@@ -159,32 +177,6 @@ async fn get_file_at_commit(
     }
 
     Some(content)
-}
-
-/// Extract context lines around a match (max 200 chars), same style as scanner.rs.
-fn get_context(content: &str, start: usize, end: usize) -> String {
-    let before = content[..start]
-        .rsplit('\n')
-        .take(3)
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    let matched = &content[start..end];
-    let after = content[end..]
-        .split('\n')
-        .take(3)
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    let mut ctx = format!("{}\n>>> {} <<<\n{}", before, matched, after);
-    if ctx.len() > 200 {
-        ctx.truncate(200);
-        ctx.push_str("...");
-    }
-    ctx
 }
 
 #[cfg(test)]
@@ -228,6 +220,21 @@ mod tests {
         // "line1\nline2\nbadstuff\nline4\nline5": "badstuff" at bytes [12, 20)
         let ctx = get_context("line1\nline2\nbadstuff\nline4\nline5", 12, 20);
         assert!(ctx.contains(">>> badstuff <<<"), "context: {:?}", ctx);
+    }
+
+    #[test]
+    fn test_tree_path() {
+        let hash = "031a028c1f4e2b7d9a0c3e5f7a9b1d3f5e7a9c1b";
+        assert_eq!(tree_path(&format!("{}:src/a.js", hash)), "src/a.js");
+        assert_eq!(tree_path("src/a.js"), "src/a.js");
+        assert_eq!(tree_path("C:/repo/a.js"), "C:/repo/a.js");
+    }
+
+    #[test]
+    fn test_get_context_multibyte_does_not_panic() {
+        let text = format!("{}中中中中中\neval(x)", "a".repeat(196));
+        let at = text.find("eval").unwrap();
+        assert!(get_context(&text, at, at + 5).contains(">>> eval( <<<"));
     }
 
     #[test]

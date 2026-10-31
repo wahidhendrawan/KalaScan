@@ -10,7 +10,7 @@
 //! tainted name counts. Move to a real parser (tree-sitter) if this misses.
 
 use regex::Regex;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
 static SOURCES: LazyLock<Vec<Regex>> = LazyLock::new(|| {
@@ -83,16 +83,22 @@ pub fn find(content: &str) -> Option<usize> {
     if tainted.is_empty() {
         return None;
     }
-    // Propagate to a fixpoint (bounded: each pass adds at least one name).
-    for _ in 0..assignments.len() {
-        let before = tainted.len();
-        for (lhs, rhs) in &assignments {
-            if tainted.iter().any(|t| mentions(rhs, t)) {
-                tainted.insert(lhs.clone());
-            }
+    // Propagate: an assignment whose right side names a tainted variable
+    // taints its left side. Indexed by identifier, so this is linear in the
+    // code size; rescanning every assignment per pass took 54 s on one
+    // minified bundle, where single-letter names taint almost everything.
+    let mut readers: HashMap<&str, Vec<&str>> = HashMap::new();
+    for (lhs, rhs) in &assignments {
+        for name in identifiers(rhs) {
+            readers.entry(name).or_default().push(lhs);
         }
-        if tainted.len() == before {
-            break;
+    }
+    let mut queue: Vec<String> = tainted.iter().cloned().collect();
+    while let Some(name) = queue.pop() {
+        for lhs in readers.get(name.as_str()).into_iter().flatten() {
+            if tainted.insert(lhs.to_string()) {
+                queue.push(lhs.to_string());
+            }
         }
     }
 
@@ -107,22 +113,33 @@ pub fn find(content: &str) -> Option<usize> {
     }
     SINK.captures_iter(content).find_map(|c| {
         let args = c.get(1).unwrap();
-        tainted
-            .iter()
-            .any(|t| mentions(args.as_str(), t))
+        identifiers(args.as_str())
+            .any(|name| tainted.contains(name))
             .then(|| line_of(content, args.start()))
     })
 }
 
-/// `name` as a whole identifier inside `text`.
-fn mentions(text: &str, name: &str) -> bool {
+/// Whole identifiers in `text`, skipping properties: in `x.name`, `name` is
+/// not the variable `name`.
+fn identifiers(text: &str) -> impl Iterator<Item = &str> {
     let is_ident = |b: u8| b.is_ascii_alphanumeric() || b == b'_' || b == b'$';
     let bytes = text.as_bytes();
-    text.match_indices(name).any(|(i, _)| {
-        let before = i.checked_sub(1).map(|j| bytes[j]);
-        let after = bytes.get(i + name.len()).copied();
-        // `x.name` is a property, not the variable `name`.
-        !before.is_some_and(|b| is_ident(b) || b == b'.') && !after.is_some_and(is_ident)
+    let mut i = 0;
+    std::iter::from_fn(move || {
+        while i < bytes.len() {
+            if !is_ident(bytes[i]) {
+                i += 1;
+                continue;
+            }
+            let start = i;
+            while i < bytes.len() && is_ident(bytes[i]) {
+                i += 1;
+            }
+            if start == 0 || bytes[start - 1] != b'.' {
+                return Some(&text[start..i]);
+            }
+        }
+        None
     })
 }
 
@@ -133,6 +150,19 @@ fn line_of(content: &str, offset: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn minified_bundle_is_linear_and_still_found() {
+        // One line, 30k chained assignments: the old fixpoint took ~54 s.
+        let mut code = String::from("var e=zip.getEntry(x);var v0=e.entryName;");
+        for i in 1..30_000 {
+            code.push_str(&format!("var v{}=v{}+{};", i, i - 1, i));
+        }
+        code.push_str("fs.writeFileSync(v29999,data);");
+        let started = std::time::Instant::now();
+        assert_eq!(find(&code), Some(1));
+        assert!(started.elapsed().as_secs() < 5, "{:?}", started.elapsed());
+    }
 
     #[test]
     fn real_rainbow_fart_extractor_is_a_slip() {
