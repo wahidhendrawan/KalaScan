@@ -26,12 +26,14 @@ trap 'rm -rf "$tmp"' EXIT
 
 echo "downloading $base/$asset"
 curl -fsSL "$base/$asset" -o "$tmp/$asset"
-if curl -fsSL "$base/$asset.sha256" -o "$tmp/$asset.sha256" 2>/dev/null; then
-  if command -v sha256sum >/dev/null 2>&1; then
-    (cd "$tmp" && sha256sum -c "$asset.sha256" >/dev/null)
-  elif command -v shasum >/dev/null 2>&1; then
-    (cd "$tmp" && shasum -a 256 -c "$asset.sha256" >/dev/null)
-  fi
+# The release publishes kalascan-<target>.sha256, listing the .tar.gz.
+curl -fsSL "$base/kalascan-$target.sha256" -o "$tmp/sum"
+if command -v sha256sum >/dev/null 2>&1; then
+  (cd "$tmp" && sha256sum -c sum >/dev/null)
+elif command -v shasum >/dev/null 2>&1; then
+  (cd "$tmp" && shasum -a 256 -c sum >/dev/null)
+else
+  echo "need sha256sum or shasum to verify the download" >&2; exit 1
 fi
 
 tar -xzf "$tmp/$asset" -C "$tmp"
