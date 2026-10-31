@@ -63,6 +63,8 @@ pub const ACCOUNT_ENUM: &str = "Account Enumeration Command";
 pub const AI_BASE_URL: &str = "AI API Base URL Override";
 pub const SHELL_PROFILE: &str = "Shell Profile Modification";
 pub const NPM_PUBLISH: &str = "npm Publish from Code";
+pub const FETCH_EVAL: &str = "Download Cradle (fetch then eval)";
+pub const HEX_API: &str = "Hex-Encoded API Name";
 
 #[derive(Clone, Debug)]
 pub struct Rule {
@@ -168,6 +170,9 @@ impl Rule {
         // Code in setup.py runs at `pip install` time; elsewhere these calls are ordinary.
         if self.category == "install_hook" {
             return filename == "setup.py";
+        }
+        if self.category == "npm_hook" {
+            return filename == "package.json";
         }
         true
     }
@@ -775,6 +780,8 @@ mod tests {
             AI_BASE_URL,
             SHELL_PROFILE,
             NPM_PUBLISH,
+            FETCH_EVAL,
+            HEX_API,
             "Hardcoded IP Address",
             "Post-Install Script",
             "URL Fetch Command",
@@ -795,6 +802,7 @@ mod tests {
             "file_write",
             "recon",
             "install_hook",
+            "npm_hook",
         ];
         for r in &rules {
             assert!(
