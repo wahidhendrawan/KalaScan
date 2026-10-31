@@ -90,6 +90,7 @@ const TECHNIQUE_TABLE: &[(&str, &str, &str)] = &[
         "Compromise Software Supply Chain",
         "Initial Access",
     ),
+    ("T1203", "Exploitation for Client Execution", "Execution"),
     ("T1204", "User Execution", "Execution"),
     ("T1204.002", "Malicious File", "Execution"),
     ("T1205", "Traffic Signaling", "Command and Control"),
@@ -314,9 +315,26 @@ pub fn map_text(text: &str) -> Vec<AttackTechnique> {
         add(&mut out, "T1490");
     }
 
-    if contains_any(&text, &["post-install", "typo-squatting", "supply chain"]) {
+    if contains_any(
+        &text,
+        &[
+            "post-install",
+            "typo-squat",
+            "supply chain",
+            "malicious package",
+        ],
+    ) {
         add(&mut out, "T1195.002");
         add(&mut out, "T1546");
+    }
+
+    if contains_any(&text, &["zip slip", "remote file write"]) {
+        add(&mut out, "T1203");
+    }
+
+    // A compromised CI job poisons every artifact it builds.
+    if contains_any(&text, &["github actions"]) {
+        add(&mut out, "T1195.002");
     }
 
     if contains_any(&text, &["remote script", "url fetch", "download"]) {
@@ -591,6 +609,17 @@ mod tests {
             .map(|t| t.id)
             .collect();
         assert!(ids.contains(&"T1552".to_string()));
+    }
+
+    #[test]
+    fn maps_new_supply_chain_findings() {
+        let ids =
+            |name: &str| -> Vec<String> { map_rule(name, "").into_iter().map(|t| t.id).collect() };
+        assert!(ids("Typo-squat Suspect: crossenv (looks like cross-env)")
+            .contains(&"T1195.002".to_string()));
+        assert!(ids("Malicious Package: MAL-2024-1 in evil@1.0").contains(&"T1195.002".to_string()));
+        assert!(ids("Chain: Remote File Write via Local Server").contains(&"T1203".to_string()));
+        assert_eq!(lookup("T1203").unwrap().tactic, "Execution");
     }
 
     #[test]

@@ -80,6 +80,19 @@ pub fn is_confusable_homoglyph(c: char) -> bool {
 }
 
 /// Scan file content for high-entropy blobs, invisible characters, Trojan Source, and homoglyphs.
+/// A zero-width char with ASCII word chars on both sides hides inside a token
+/// (`pass​word`). ZWJ in emoji, ZWNJ in Persian/Indic text and codepage
+/// tables in iconv bundles are ordinary text.
+fn has_hidden_zero_width(line: &str) -> bool {
+    let chars: Vec<char> = line.chars().collect();
+    let is_word = |c: Option<&char>| c.is_some_and(|c| c.is_ascii_alphanumeric() || *c == '_');
+    chars.iter().enumerate().any(|(i, &c)| {
+        is_zero_width_char(c)
+            && is_word(i.checked_sub(1).and_then(|p| chars.get(p)))
+            && is_word(chars.get(i + 1))
+    })
+}
+
 pub fn scan_advanced_obfuscation(file_path: &str, content: &str) -> Vec<RuleMatch> {
     let mut matches = Vec::new();
 
@@ -103,13 +116,13 @@ pub fn scan_advanced_obfuscation(file_path: &str, content: &str) -> Vec<RuleMatc
         }
 
         // 2. Detect Invisible Zero-Width Characters (ignore BOM at line 1 col 1)
-        let has_zero_width = if line_num == 1 && line.starts_with('\u{FEFF}') {
-            line[3..].chars().any(is_zero_width_char)
+        let body = if line_num == 1 {
+            line.strip_prefix('\u{FEFF}').unwrap_or(line)
         } else {
-            line.chars().any(is_zero_width_char)
+            line
         };
 
-        if has_zero_width {
+        if has_hidden_zero_width(body) {
             matches.push(RuleMatch {
                 file_path: file_path.to_string(),
                 line_number: line_num,
@@ -124,12 +137,16 @@ pub fn scan_advanced_obfuscation(file_path: &str, content: &str) -> Vec<RuleMatc
             continue;
         }
 
-        // 3. Detect Confusable Homoglyphs in Code
-        // Look for lines containing ASCII letters mixed with Cyrillic lookalikes
-        let has_ascii_alpha = line.chars().any(|c| c.is_ascii_alphabetic());
-        let has_homoglyph = line.chars().any(is_confusable_homoglyph);
+        // 3. Detect Confusable Homoglyphs in Code: one word mixing ASCII letters
+        // with Cyrillic lookalikes. Per word, not per line: a Russian UI string
+        // next to Latin code is localisation, not spoofing.
+        let spoofed_word = line
+            .split(|c: char| !(c.is_alphanumeric() || c == '_' || c == '$'))
+            .any(|w| {
+                w.chars().any(|c| c.is_ascii_alphabetic()) && w.chars().any(is_confusable_homoglyph)
+            });
 
-        if has_ascii_alpha && has_homoglyph {
+        if spoofed_word {
             matches.push(RuleMatch {
                 file_path: file_path.to_string(),
                 line_number: line_num,
@@ -228,6 +245,23 @@ mod tests {
         assert!(matches
             .iter()
             .any(|m| m.matched_pattern.contains("Homoglyph")));
+    }
+
+    #[test]
+    fn test_ordinary_unicode_text_is_not_flagged() {
+        // Emoji ZWJ sequence, Persian ZWNJ, and a Russian UI string beside Latin code.
+        let content = "const fam = \"👨\u{200D}👩\u{200D}👧\";\n\
+                       const fa = \"می\u{200C}خواهم\";\n\
+                       const msg = t(\"Сохранить файл\");";
+        let matches = scan_advanced_obfuscation("i18n.js", content);
+        assert!(
+            !matches
+                .iter()
+                .any(|m| m.matched_pattern.contains("Zero-Width")
+                    || m.matched_pattern.contains("Homoglyph")),
+            "{:?}",
+            matches
+        );
     }
 
     #[test]

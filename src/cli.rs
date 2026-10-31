@@ -27,7 +27,7 @@ pub enum Commands {
     },
     /// Scan a Git repository, IDE extension, or local package in headless CLI mode
     Scan {
-        /// Target URL (Git repo, VS Code / Open VSX / JetBrains marketplace) or local file path (.vsix, .zip, .jar, .crx)
+        /// Target URL (Git repo, VS Code / Open VSX / JetBrains marketplace), registry package (npm:name[@ver], pypi:name[==ver]) or local file path (.vsix, .zip, .jar, .crx)
         target: String,
 
         /// Output format: text, json, md, html, sarif, csv, junit, github

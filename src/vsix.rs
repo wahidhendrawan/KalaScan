@@ -19,9 +19,121 @@ struct JetBrainsUpdate {
     file: String,
 }
 
+#[derive(Deserialize)]
+struct NpmVersion {
+    dist: NpmDist,
+}
+
+#[derive(Deserialize)]
+struct NpmDist {
+    tarball: String,
+}
+
+#[derive(Deserialize)]
+struct PypiRelease {
+    urls: Vec<PypiFile>,
+}
+
+#[derive(Deserialize)]
+struct PypiFile {
+    packagetype: String,
+    url: String,
+}
+
+/// Registry package target: `npm:name[@version]` or `pypi:name[==version]`.
+#[derive(Debug, PartialEq)]
+pub struct PackageTarget {
+    pub ecosystem: &'static str,
+    pub name: String,
+    pub version: Option<String>,
+}
+
+pub fn parse_package_target(target: &str) -> Option<PackageTarget> {
+    let t = target.trim();
+    let (ecosystem, name, version) = if let Some(spec) = t.strip_prefix("npm:") {
+        // `@scope/name@1.0`: the version `@` is never the leading scope `@`.
+        match spec.rfind('@').filter(|&i| i > 0) {
+            Some(i) => ("npm", &spec[..i], Some(&spec[i + 1..])),
+            None => ("npm", spec, None),
+        }
+    } else {
+        let spec = t.strip_prefix("pypi:")?;
+        match spec.split_once("==") {
+            Some((n, v)) => ("pypi", n, Some(v)),
+            None => ("pypi", spec, None),
+        }
+    };
+    // Names go into registry URLs: keep them to the registries' own charsets.
+    let valid = |s: &str, extra: &[char]| {
+        !s.is_empty()
+            && s.chars()
+                .all(|c| c.is_ascii_alphanumeric() || "-._".contains(c) || extra.contains(&c))
+    };
+    // `/` and `@` only in the npm `@scope/name` shape.
+    let bare = match name.strip_prefix('@') {
+        Some(scoped) if ecosystem == "npm" => match scoped.split_once('/') {
+            Some((scope, pkg)) if valid(scope, &[]) && valid(pkg, &[]) => pkg,
+            _ => return None,
+        },
+        _ => name,
+    };
+    if !valid(bare, &[]) || bare.starts_with('.') || version.is_some_and(|v| !valid(v, &['+'])) {
+        return None;
+    }
+    Some(PackageTarget {
+        ecosystem,
+        name: name.to_string(),
+        version: version.map(str::to_string),
+    })
+}
+
+async fn resolve_package_download(pkg: &PackageTarget) -> anyhow::Result<String> {
+    let client = reqwest::Client::builder()
+        .user_agent(concat!(
+            "KalaScan-Security-Scanner/",
+            env!("CARGO_PKG_VERSION")
+        ))
+        .build()?;
+    if pkg.ecosystem == "npm" {
+        let url = format!(
+            "https://registry.npmjs.org/{}/{}",
+            pkg.name.replace('/', "%2F"),
+            pkg.version.as_deref().unwrap_or("latest")
+        );
+        let meta: NpmVersion = client
+            .get(&url)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        return Ok(meta.dist.tarball);
+    }
+    let url = match &pkg.version {
+        Some(v) => format!("https://pypi.org/pypi/{}/{}/json", pkg.name, v),
+        None => format!("https://pypi.org/pypi/{}/json", pkg.name),
+    };
+    let meta: PypiRelease = client
+        .get(&url)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    // Wheels are what pip installs when one exists; the sdist is the fallback.
+    ["bdist_wheel", "sdist"]
+        .iter()
+        .find_map(|kind| meta.urls.iter().find(|f| f.packagetype == *kind))
+        .map(|f| f.url.clone())
+        .ok_or_else(|| anyhow::anyhow!("PyPI has no downloadable files for {}", pkg.name))
+}
+
 /// Detect if an input string is targeting a VS Code, Open VSX, JetBrains, or Chrome extension package
 pub fn is_vsix_target(target: &str) -> bool {
     let t = target.trim();
+    if parse_package_target(t).is_some() {
+        return true;
+    }
     if t.ends_with(".vsix") || t.ends_with(".zip") || t.ends_with(".jar") || t.ends_with(".crx") {
         return true;
     }
@@ -60,7 +172,9 @@ pub async fn unpack_extension(target: &str, dest_dir: &Path) -> anyhow::Result<P
     }
 
     // Resolve download URL based on target type
-    let download_url = if t.contains("marketplace.visualstudio.com") {
+    let download_url = if let Some(pkg) = parse_package_target(t) {
+        resolve_package_download(&pkg).await?
+    } else if t.contains("marketplace.visualstudio.com") {
         parse_marketplace_url(t)?
     } else if t.contains("open-vsx.org") {
         resolve_openvsx_download(t).await?
@@ -96,7 +210,54 @@ pub async fn unpack_extension(target: &str, dest_dir: &Path) -> anyhow::Result<P
     }
 
     let bytes = resp.bytes().await?;
+    if download_url.ends_with(".tgz") || download_url.ends_with(".tar.gz") {
+        return extract_tar_gz(&bytes, dest_dir);
+    }
     extract_zip(Cursor::new(bytes), dest_dir)
+}
+
+/// npm tarballs and PyPI sdists, under the same zip-bomb limits as `extract_zip`.
+pub fn extract_tar_gz(bytes: &[u8], dest_dir: &Path) -> anyhow::Result<PathBuf> {
+    if bytes.len() as u64 > MAX_ARCHIVE_BYTES {
+        anyhow::bail!("Archive too large ({} bytes)", bytes.len());
+    }
+    let mut archive = tar::Archive::new(flate2::read::GzDecoder::new(bytes));
+    let mut total_uncompressed: u64 = 0;
+    for (i, entry) in archive.entries()?.enumerate() {
+        let mut entry = entry?;
+        if i >= MAX_ENTRIES {
+            anyhow::bail!("Archive contains too many files (> {} limit)", MAX_ENTRIES);
+        }
+        // tar reads exactly the header size, so header sizes bound the output.
+        let size = entry.header().size()?;
+        if size > MAX_SINGLE_UNCOMPRESSED {
+            anyhow::bail!("Archive entry is too large ({} bytes)", size);
+        }
+        total_uncompressed = total_uncompressed.saturating_add(size);
+        if total_uncompressed > MAX_TOTAL_UNCOMPRESSED {
+            anyhow::bail!(
+                "Archive expands beyond {} MiB limit",
+                MAX_TOTAL_UNCOMPRESSED / (1024 * 1024)
+            );
+        }
+        // Links could point outside dest_dir; scanning needs regular files only.
+        if !matches!(
+            entry.header().entry_type(),
+            tar::EntryType::Regular | tar::EntryType::Directory
+        ) {
+            continue;
+        }
+        // unpack_in refuses `..` and absolute paths (returns false).
+        entry.unpack_in(dest_dir)?;
+    }
+
+    // npm packs into `package/`, sdists into `name-version/`: scan from there
+    // so the manifest sits at the root for the dependency checks.
+    let mut top = std::fs::read_dir(dest_dir)?.flatten();
+    match (top.next(), top.next()) {
+        (Some(only), None) if only.path().is_dir() => Ok(only.path()),
+        _ => Ok(dest_dir.to_path_buf()),
+    }
 }
 
 pub fn parse_marketplace_url(url_str: &str) -> anyhow::Result<String> {
@@ -402,5 +563,83 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let out = extract_zip(Cursor::new(crx), tmp.path()).unwrap();
         assert!(out.join("extension.js").is_file());
+    }
+
+    #[test]
+    fn test_parse_package_target() {
+        let p = |t| parse_package_target(t);
+        let pkg = |eco, name: &str, ver: Option<&str>| {
+            Some(PackageTarget {
+                ecosystem: eco,
+                name: name.to_string(),
+                version: ver.map(str::to_string),
+            })
+        };
+        assert_eq!(p("npm:express"), pkg("npm", "express", None));
+        assert_eq!(
+            p("npm:express@4.17.1"),
+            pkg("npm", "express", Some("4.17.1"))
+        );
+        assert_eq!(p("npm:@types/node"), pkg("npm", "@types/node", None));
+        assert_eq!(
+            p("npm:@types/node@20.1.0"),
+            pkg("npm", "@types/node", Some("20.1.0"))
+        );
+        assert_eq!(
+            p("pypi:requests==2.31.0"),
+            pkg("pypi", "requests", Some("2.31.0"))
+        );
+        assert_eq!(p("pypi:requests"), pkg("pypi", "requests", None));
+        // Must not smuggle anything into the registry URL.
+        assert!(p("npm:../../etc").is_none());
+        assert!(p("npm:a/b").is_none());
+        assert!(p("npm:@a/b/c").is_none());
+        assert!(p("pypi:a/b").is_none());
+        assert!(p("npm:a?b=c").is_none());
+        assert!(p("pypi:x==1#frag").is_none());
+        assert!(p("npm:").is_none());
+        assert!(p("express").is_none());
+        assert!(is_vsix_target("npm:express"));
+    }
+
+    fn tar_gz(entries: &[(&str, tar::EntryType, &[u8])]) -> Vec<u8> {
+        let mut out = Vec::new();
+        {
+            let gz = flate2::write::GzEncoder::new(&mut out, flate2::Compression::fast());
+            let mut builder = tar::Builder::new(gz);
+            for (name, kind, data) in entries {
+                let mut header = tar::Header::new_old();
+                // Raw name bytes: set_path() would refuse the `..` we want to test.
+                header.as_old_mut().name[..name.len()].copy_from_slice(name.as_bytes());
+                header.set_entry_type(*kind);
+                header.set_size(data.len() as u64);
+                if *kind == tar::EntryType::Symlink {
+                    header.set_link_name("/etc/passwd").unwrap();
+                }
+                header.set_mode(0o644);
+                header.set_cksum();
+                builder.append(&header, *data).unwrap();
+            }
+            builder.into_inner().unwrap().finish().unwrap();
+        }
+        out
+    }
+
+    #[test]
+    fn test_extract_tar_gz_is_contained() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dest = tmp.path().join("dest");
+        std::fs::create_dir(&dest).unwrap();
+        let archive = tar_gz(&[
+            ("package/package.json", tar::EntryType::Regular, b"{}"),
+            ("package/index.js", tar::EntryType::Regular, b"eval(x)"),
+            ("package/link", tar::EntryType::Symlink, b""),
+            ("../escape.txt", tar::EntryType::Regular, b"pwned"),
+        ]);
+        let root = extract_tar_gz(&archive, &dest).unwrap();
+        assert_eq!(root, dest.join("package"));
+        assert!(root.join("index.js").is_file());
+        assert!(!root.join("link").exists());
+        assert!(!tmp.path().join("escape.txt").exists());
     }
 }
