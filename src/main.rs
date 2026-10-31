@@ -2359,11 +2359,13 @@ fn calculate_risk_score(
             continue;
         }
         // A chain is two corroborating hard signals by construction. Listing
-        // spoofs (invisible characters, look-alike publisher) have no benign
+        // spoofs (invisible characters, look-alike publisher, a popular
+        // extension's repository under a stranger's name) have no benign
         // reading at all, so they weigh the same.
         if m.matched_pattern.starts_with(correlate::CHAIN_PREFIX)
             || m.matched_pattern == reputation::INVISIBLE_NAME
             || m.matched_pattern == reputation::PUBLISHER_LOOKALIKE
+            || m.matched_pattern == reputation::REPACKAGED_COPY
             || m.matched_pattern == iocs::URLHAUS_HIT
         {
             critical += 2;
