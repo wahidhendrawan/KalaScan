@@ -323,7 +323,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: wahidhendrawan/KalaScan@v1.8.0
+      - uses: wahidhendrawan/KalaScan@v1.11.0
         with:
           target: https://github.com/${{ github.repository }}.git
           fail_on_risk: "60"
