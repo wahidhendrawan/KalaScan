@@ -5,7 +5,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/rust-1.95+-orange?logo=rust" />
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" />
-  <img src="https://img.shields.io/badge/tests-98%20passed-brightgreen" />
+  <img src="https://img.shields.io/badge/tests-126%20passed-brightgreen" />
   <img src="https://img.shields.io/badge/docker-ready-2496ED?logo=docker" />
 </p>
 
@@ -22,7 +22,9 @@
   - **Open VSX**: Open-source registry URLs (`open-vsx.org/extension/<namespace>/<name>`)
   - **JetBrains**: IntelliJ / PyCharm / WebStorm plugin archives (`.jar`, `.zip`)
   - **Chrome / Browser**: Extension packages (`.crx`, `.zip`) with `manifest.json` permission checks
-- **Safe Unpacking** — automated extraction with zip-slip path traversal guards, targeting runtime payloads (`extension/`, `META-INF/`)
+  - **npm / PyPI**: registry packages by name — `npm:express`, `npm:@scope/name@1.2.3`, `pypi:requests==2.31.0` (wheel preferred, sdist fallback)
+- **Safe Unpacking** — automated extraction with zip-slip path traversal guards, targeting runtime payloads (`extension/`, `META-INF/`); `.tgz` / `.tar.gz` drop symlinks and `../` entries under the same size limits
+- **Bundled `node_modules/` is scanned** — in a VSIX/CRX it is shipped, executed code
 - **IDE Malware Rules**:
   - VS Code session token theft (`getSession`), clipboard harvesting (`clipboard.readText`), unauthorized workspace file access (`findFiles`), wildcard startup activations (`*`, `onStartupFinished`)
   - JetBrains dynamic class loading (`URLClassLoader`, `DexClassLoader`), process execution (`ProcessBuilder`, `Runtime.getRuntime().exec`), reflection tampering (`Method.invoke`, `Field.setAccessible`), raw sockets
@@ -31,6 +33,8 @@
 ### YARA Rules Engine (`yara-x`)
 - Built-in pure-Rust YARA rule compilation for generic reverse shells, crypto drainers, and Discord webhook stealers
 - Support for loading custom user YARA rules from a directory via `--yara-dir <PATH>`
+- YARA runs on every file as raw bytes (binaries, `.node`, `.wasm`, `.pyc`, …), not only scripts; prose docs (`.md`, `.txt`, `.rst`) are skipped
+- Files are read up to 4 MiB; larger script files are still scanned up to that cap and reported as `Oversized File (partially scanned)`. Non-UTF-8 bytes no longer make a file unreadable
 
 ### Deep Static Binary Triage (v1.3)
 - **Binary Metadata** — detects PE, ELF, Mach-O, Java class, WebAssembly, archives, and scripts; extracts SHA-256, architecture, bitness, entrypoint, sections, and imports
@@ -68,13 +72,26 @@
 
 ### Entropy & Advanced Obfuscation Analysis
 - **Shannon Entropy Analysis**: Scans string literals for high-entropy blobs (> 5.2 entropy on tokens >= 60 chars) indicating encrypted ciphers or packed scripts
-- **Invisible Zero-Width Character Detection**: Uncovers hidden unicode steganography (`\u{200B}`, `\u{200C}`, `\u{200D}`, `\u{FEFF}`)
+- **Invisible Zero-Width Character Detection**: Uncovers hidden unicode steganography (`\u{200B}`, `\u{200C}`, `\u{200D}`, `\u{FEFF}`) wedged between ASCII word characters; emoji ZWJ sequences and Persian/Indic ZWNJ are ordinary text
 - **Trojan Source Detection (CVE-2021-42574)**: Flags dangerous Bi-Directional override characters disguised as comments
-- **Homoglyph Spoofing Detection**: Catches Cyrillic lookalikes mixed into Latin code identifiers
+- **Homoglyph Spoofing Detection**: Catches a single identifier mixing Latin letters with Cyrillic lookalikes (localised UI strings are not flagged)
+
+### Behaviour Chains (correlation)
+- Individual hits are weak evidence; KalaScan correlates them into chains, each scored as two critical signals:
+  - **`Chain: Credential Exfiltration`** — a credential source (browser stores, wallets, SSH keys, VS Code sessions, cookies) plus an exfiltration sink (webhook, Telegram, raw socket, or a network call) in the same file
+  - **`Chain: Download and Execute`** — a remote script download plus a process/eval executor in the same file
+  - **`Chain: Remote File Write via Local Server`** — an HTTP listener with an upload route anywhere in the package plus a **zip slip** extractor (archive entries written with no `..`/prefix check). This is the drive-by RCE pattern seen in real VS Code extensions
+- **Typo-squat detection** — dependencies one edit away from a popular npm/PyPI package (`crossenv` → `cross-env`), offline, on every scan
+
+### GitHub Actions Workflow Checks
+- **Pwn request** (critical) — `pull_request_target` that checks out the PR head (`ref: ${{ github.event.pull_request.head.sha }}`)
+- **Script injection** (high) — attacker-controlled contexts (`github.event.issue.title`, `…pull_request.body`, `github.head_ref`, …) interpolated into `run:` / `script:` blocks
+- **Unpinned third-party actions** (low) — `uses: owner/action@v1` instead of a full commit SHA
 
 ### Dependency CVE Audit (OSV API)
 - Automatically inspects project manifests: `package.json` (npm), `Cargo.lock` (Rust), and `requirements.txt` (Python)
-- Batch queries the official [OSV (Open Source Vulnerabilities)](https://osv.dev/) database for known security advisories
+- Batch queries the official [OSV (Open Source Vulnerabilities)](https://osv.dev/) database for known security advisories (1000 packages per request, no truncation)
+- OSV `MAL-*` advisories (known malicious packages) are reported as critical `Malicious Package` findings and scored as malware evidence, not dependency hygiene
 
 ### Standalone CLI Subcommands (CI/CD Gates)
 - Run headless scans in terminal or automated pipelines without starting the web server
@@ -284,10 +301,12 @@ KalaScan/
 ├── src/
 │   ├── main.rs            # Axum web server, scan orchestrator & CLI router
 │   ├── cli.rs             # Clap CLI subcommand argument parser
-│   ├── vsix.rs            # VSIX, Open VSX, JetBrains & CRX extraction
+│   ├── vsix.rs            # VSIX, Open VSX, JetBrains, CRX, npm & PyPI extraction
 │   ├── scanner.rs         # 50+ RegEx rules, WalkDir scanner, file filter
 │   ├── yara_engine.rs     # YARA rules engine (yara-x) & custom rule loader
 │   ├── entropy.rs         # Shannon entropy, Zero-Width, Trojan Source, Homoglyphs
+│   ├── correlate.rs       # Behaviour chains (exfil, download+exec, zip slip RCE)
+│   ├── workflow.rs        # GitHub Actions checks (pwn request, script injection)
 │   ├── attack.rs          # MITRE ATT&CK technique mapping
 │   ├── triage.rs          # Deep static binary triage (goblin, capa/FLOSS/DIE)
 │   ├── deobfuscate.rs     # Recursive decoding chains & recovered payloads

@@ -3,6 +3,7 @@ mod attack;
 mod auth;
 mod baseline;
 mod cli;
+mod correlate;
 mod cve;
 mod db;
 mod deobfuscate;
@@ -16,6 +17,7 @@ mod scanner;
 mod triage;
 mod ttp;
 mod vsix;
+mod workflow;
 mod yara_engine;
 
 use axum::{
@@ -1328,7 +1330,9 @@ async fn execute_scan_with_id(req: ScanRequest, id: String) -> anyhow::Result<Sc
             clone_cmd.arg("--depth").arg("1");
         }
         // Never expose credentials in logs; strip any userinfo from the URL.
+        // `--`: a repo_url like `--upload-pack=<cmd>` must never parse as an option.
         let clone_output = clone_cmd
+            .arg("--")
             .arg(&req.repo_url)
             .arg(&target_dir)
             .output()
@@ -1382,14 +1386,13 @@ async fn execute_scan_in(
     .await
     .map_err(|e| anyhow::anyhow!("Scanner task failed: {}", e))?;
 
-    // Phase 2b: Dependency CVE check via OSV API if enabled
-    if req.check_cve.unwrap_or(true) {
-        let pkgs = cve::extract_manifest_packages(&scan_dir);
-        if !pkgs.is_empty() {
-            info!("Auditing {} manifest packages with OSV API...", pkgs.len());
-            let cve_matches = cve::check_vulnerabilities(&pkgs).await;
-            rule_matches.extend(cve_matches);
-        }
+    // Phase 2b: offline typo-squat check, then dependency CVEs via OSV if enabled
+    let pkgs = cve::extract_manifest_packages(&scan_dir);
+    rule_matches.extend(cve::typosquat_matches(&pkgs));
+    if req.check_cve.unwrap_or(true) && !pkgs.is_empty() {
+        info!("Auditing {} manifest packages with OSV API...", pkgs.len());
+        let cve_matches = cve::check_vulnerabilities(&pkgs).await;
+        rule_matches.extend(cve_matches);
     }
 
     // Phase 2c: Full git commit history scan
@@ -1549,6 +1552,13 @@ async fn git_changed_files(
     repo: &std::path::Path,
     base_ref: &str,
 ) -> Option<std::collections::HashSet<std::path::PathBuf>> {
+    // base_ref comes from the API request and is passed to `git fetch` / `git
+    // diff` as a positional arg; `--upload-pack=<cmd>` would run a command.
+    if base_ref.starts_with('-') {
+        warn!("Rejected base_ref {:?}: looks like a git option", base_ref);
+        return None;
+    }
+
     // Try to make the base ref available in shallow clones. Ignore failures:
     // the ref may already exist locally.
     let remote_ref = base_ref.strip_prefix("origin/").unwrap_or(base_ref);
@@ -2090,6 +2100,11 @@ fn calculate_risk_score(
             cve += 1;
             continue;
         }
+        // A chain is two corroborating hard signals by construction.
+        if m.matched_pattern.starts_with(correlate::CHAIN_PREFIX) {
+            critical += 2;
+            continue;
+        }
         match m.severity.as_str() {
             "critical" => critical += 1,
             "high" => high += 1,
@@ -2126,6 +2141,72 @@ fn calculate_risk_score(
     });
 
     (static_score + cve_score + dynamic_score + ai_score).min(100) as u8
+}
+
+#[cfg(test)]
+mod git_injection_tests {
+    use super::*;
+
+    fn git(dir: &std::path::Path, args: &[&str]) {
+        let ok = std::process::Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args(args)
+            .output()
+            .unwrap()
+            .status
+            .success();
+        assert!(ok, "git {:?} failed", args);
+    }
+
+    /// A clone with a real `origin`, so an injected `--upload-pack` would run.
+    fn repo_with_origin() -> (tempfile::TempDir, std::path::PathBuf) {
+        let tmp = tempfile::tempdir().unwrap();
+        let origin = tmp.path().join("origin");
+        std::fs::create_dir(&origin).unwrap();
+        git(&origin, &["init", "-q"]);
+        std::fs::write(origin.join("a.txt"), "x").unwrap();
+        git(&origin, &["add", "."]);
+        git(
+            &origin,
+            &[
+                "-c",
+                "user.name=t",
+                "-c",
+                "user.email=t@t",
+                "commit",
+                "-qm",
+                "init",
+            ],
+        );
+        git(tmp.path(), &["clone", "-q", "origin", "clone"]);
+        let clone = tmp.path().join("clone");
+        (tmp, clone)
+    }
+
+    #[tokio::test]
+    async fn base_ref_cannot_inject_git_options() {
+        let (tmp, clone) = repo_with_origin();
+        let marker = tmp.path().join("pwned");
+        let evil = format!("--upload-pack=touch {}", marker.display());
+        assert!(git_changed_files(&clone, &evil).await.is_none());
+        assert!(!marker.exists(), "injected --upload-pack ran");
+    }
+
+    #[tokio::test]
+    async fn repo_url_cannot_inject_git_options() {
+        let tmp = tempfile::tempdir().unwrap();
+        let marker = tmp.path().join("pwned");
+        let req: ScanRequest = serde_json::from_value(serde_json::json!({
+            "repo_url": format!("--upload-pack=touch {}", marker.display()),
+            "ai_analysis_enabled": false,
+            "llm_provider": "ollama",
+            "llm_model": "llama3"
+        }))
+        .unwrap();
+        assert!(execute_scan(req).await.is_err());
+        assert!(!marker.exists(), "injected --upload-pack ran");
+    }
 }
 
 #[cfg(test)]
@@ -2202,6 +2283,28 @@ mod risk_score_tests {
         ];
         let score = calculate_risk_score(&matches, &benign_ai(), None, None, None, None);
         assert!(score >= 40, "malware chain scored {}", score);
+    }
+
+    #[test]
+    fn malicious_package_scores_as_critical_not_hygiene() {
+        let vuln = vec![hit(
+            "requirements.txt",
+            "Known Vulnerability: GHSA-x in requests@2.25.1",
+            "high",
+        )];
+        let mal = vec![hit(
+            "requirements.txt",
+            "Malicious Package: MAL-2024-1 in evilpkg@1.0",
+            "critical",
+        )];
+        assert_eq!(
+            calculate_risk_score(&vuln, &None, None, None, None, None),
+            1
+        );
+        assert_eq!(
+            calculate_risk_score(&mal, &None, None, None, None, None),
+            35
+        );
     }
 
     #[test]
