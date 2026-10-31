@@ -581,7 +581,7 @@
    "target": "samples/ide_extensions/malicious_intent/embeddteam.embedded-cortex-debug/1.14.0.vsix",
    "label": "malicious",
    "source": "dataset",
-   "split": "holdout"
+   "split": "dev"
   },
   {
    "target": "samples/ide_extensions/malicious_intent/wlnxingdev.free-senltig/17.6.0.vsix",
@@ -593,7 +593,7 @@
    "target": "samples/ide_extensions/malicious_intent/WhenSunset.chatgpt-china/9.5.3.vsix",
    "label": "malicious",
    "source": "dataset",
-   "split": "holdout"
+   "split": "dev"
   },
   {
    "target": "samples/ide_extensions/malicious_intent/QuantumCodeLabs.qoodo-ai-assistant/1.0.0.vsix",
@@ -617,7 +617,7 @@
    "target": "samples/ide_extensions/malicious_intent/BlockchainIndustries.hardhat-toolkit/0.0.1.vsix",
    "label": "malicious",
    "source": "dataset",
-   "split": "holdout"
+   "split": "dev"
   },
   {
    "target": "samples/ide_extensions/malicious_intent/siffat-ahmed.ai-autocomplete-siffat-ahmed/0.1.0.vsix",
@@ -629,13 +629,13 @@
    "target": "samples/ide_extensions/malicious_intent/ab-498.cppplayground/1.0.42.vsix",
    "label": "malicious",
    "source": "dataset",
-   "split": "holdout"
+   "split": "dev"
   },
   {
    "target": "samples/ide_extensions/malicious_intent/SFRA-FAKA.sfra-toolkit/0.0.2.vsix",
    "label": "malicious",
    "source": "dataset",
-   "split": "holdout"
+   "split": "dev"
   },
   {
    "target": "samples/ide_extensions/malicious_intent/GitlensPro.gitlens-monocharged/1.0.0.vsix",
@@ -653,7 +653,7 @@
    "target": "samples/ide_extensions/malicious_intent/EtherFoundation.vs-ranket/1.1.1.vsix",
    "label": "malicious",
    "source": "dataset",
-   "split": "holdout"
+   "split": "dev"
   },
   {
    "target": "samples/ide_extensions/malicious_intent/embeddteam.embedded-build-analyzer/1.1.3.vsix",
@@ -665,7 +665,7 @@
    "target": "samples/npm/malicious_intent/gleb-js/1.2.0/2026-03-23-gleb-js-v1.2.0.zip",
    "label": "malicious",
    "source": "dataset",
-   "split": "holdout"
+   "split": "dev"
   },
   {
    "target": "samples/npm/malicious_intent/api-umbrella-admin-ui/99.99.99/2025-12-28-api-umbrella-admin-ui-v99.99.99.zip",
@@ -683,7 +683,7 @@
    "target": "samples/npm/malicious_intent/1uniswapinterface/1.1.2/2025-09-18-1uniswapinterface-v1.1.2.zip",
    "label": "malicious",
    "source": "dataset",
-   "split": "holdout"
+   "split": "dev"
   },
   {
    "target": "samples/npm/malicious_intent/spex-node-client/6.5.3/2024-11-20-spex-node-client-v6.5.3.zip",
@@ -707,13 +707,13 @@
    "target": "samples/npm/malicious_intent/estree-util/1.0.0/2025-12-01-estree-util-v1.0.0.zip",
    "label": "malicious",
    "source": "dataset",
-   "split": "holdout"
+   "split": "dev"
   },
   {
    "target": "samples/npm/malicious_intent/redirect-p8ris1/1.0.0/2025-09-24-redirect-p8ris1-v1.0.0.zip",
    "label": "malicious",
    "source": "dataset",
-   "split": "holdout"
+   "split": "dev"
   },
   {
    "target": "samples/npm/malicious_intent/enormous_llama_z3n/4.2.2/2024-07-06-enormous_llama_z3n-v4.2.2.zip",
@@ -767,7 +767,7 @@
    "target": "samples/pypi/malicious_intent/databaselooks/0.0.4/2026-04-07-databaselooks-v0.0.4.zip",
    "label": "malicious",
    "source": "dataset",
-   "split": "holdout"
+   "split": "dev"
   },
   {
    "target": "samples/pypi/malicious_intent/typing-extension/95.6/2024-11-15-typing-extension-v95.6.zip",
@@ -797,7 +797,7 @@
    "target": "samples/pypi/malicious_intent/request-supporter/1.0/2023-04-23-request-supporter-v1.0.zip",
    "label": "malicious",
    "source": "dataset",
-   "split": "holdout"
+   "split": "dev"
   },
   {
    "target": "samples/pypi/malicious_intent/tpstrlibhydra/1.64/2023-02-27-tpstrlibhydra-v1.64.zip",
