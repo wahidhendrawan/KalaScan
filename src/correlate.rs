@@ -175,8 +175,10 @@ pub fn correlate_file(
         }
     }
 
-    if let Some((_, chmod, spawn)) = near(&[MAKE_EXECUTABLE], &[DETACHED_SPAWN]) {
-        out.push(chain(rel_path, DROP_EXECUTE, chmod, spawn));
+    if let Some((at, chmod, spawn)) = near(&[MAKE_EXECUTABLE], &[DETACHED_SPAWN]) {
+        if spawns_chmod_target(content, at) {
+            out.push(chain(rel_path, DROP_EXECUTE, chmod, spawn));
+        }
     }
 
     // Code fetched over the network and handed `require`.
@@ -224,6 +226,28 @@ pub fn correlate_file(
         }
     }
     out
+}
+
+/// `chmodSync(target, …)`: the variable a JS chmod makes executable.
+static CHMOD_TARGET: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^chmod(?:Sync)?\(\s*([\w$.]+)\s*,").unwrap());
+
+/// Whether the file made executable at `at` is the one launched nearby.
+/// firebase-tools chmods a user-supplied emulator path and spawns something
+/// else; a dropper chmods `binaryPath` and spawns `binaryPath`. Shell and
+/// Python chmod forms have no JS target to compare, so they still chain.
+fn spawns_chmod_target(content: &str, at: usize) -> bool {
+    let Some(target) = content
+        .get(at..)
+        .and_then(|rest| CHMOD_TARGET.captures(rest))
+        .map(|c| regex::escape(&c[1]))
+    else {
+        return true;
+    };
+    Regex::new(&format!(
+        r"\b(?:spawn|spawnSync|execFile|execFileSync|fork)\(\s*{target}\b"
+    ))
+    .is_ok_and(|launch| launch.is_match(around(content, at)))
 }
 
 /// The `NEAR`-byte neighbourhood of `at`, clamped to char boundaries.
@@ -486,6 +510,25 @@ mod tests {
             names(&correlate_file("i.mjs", "", &m, &[])),
             vec![DROP_EXECUTE]
         );
+    }
+
+    #[test]
+    fn drop_execute_needs_the_chmodded_file_to_be_spawned() {
+        let m = [
+            hit("index.mjs", MAKE_EXECUTABLE, 5),
+            hit("index.mjs", DETACHED_SPAWN, 9),
+        ];
+        // hydration-ui-cls: chmod binaryPath, spawn binaryPath.
+        let dropper = "fs.chmodSync(binaryPath, 0o755);\nconst p = cp.spawn(binaryPath, [], { detached: true });";
+        let at = dropper.find("chmodSync").unwrap();
+        assert_eq!(
+            names(&correlate_file("index.mjs", dropper, &m, &[at, 60])),
+            vec![DROP_EXECUTE]
+        );
+        // firebase-tools: chmod a user path override, spawn the configured binary.
+        let emulator = "const o = { detached: true }; spawn(command.binary, args, o);\nfs.chmodSync(pathOverride, 0o755);";
+        let at = emulator.find("chmodSync").unwrap();
+        assert!(correlate_file("x.js", emulator, &m, &[at, 10]).is_empty());
     }
 
     #[test]

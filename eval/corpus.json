@@ -996,6 +996,972 @@
    "label": "clean",
    "source": "remote",
    "split": "dev"
+  },
+  {
+   "target": "npm:react@19.3.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:vue@3.5.44",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:typescript@7.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:eslint@10.14.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:prettier@3.9.10",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:webpack@5.112.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:vite@8.3.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:next@16.4.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:@anthropic-ai/claude-code@2.1.316",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:@anthropic-ai/sdk@1.3.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:openai@7.47.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:playwright@1.64.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:cypress@16.2.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:husky@9.1.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:node-gyp@13.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:prebuild-install@7.1.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:better-sqlite3@13.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:canvas@3.2.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:@swc/core@1.16.21",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:turbo@2.11.10",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:pm2@7.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "npm:socket.io@4.8.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:mongoose@9.11.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:pg@8.23.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:ioredis@6.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:nodemailer@10.3.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:passport@0.7.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:bcryptjs@3.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:crypto-js@4.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:ethers@6.17.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:web3@4.16.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "npm:@solana/web3.js@3.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:keytar@7.9.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:clipboardy@5.3.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:open@11.0.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:execa@10.2.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:cross-spawn@7.0.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:shelljs@0.10.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:got@16.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:form-data@4.0.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:tar@7.5.22",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:unzipper@0.12.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:archiver@8.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:jszip@3.10.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:extract-zip@2.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:chokidar@6.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:fs-extra@11.4.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:inquirer@14.2.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:yargs@18.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:ngrok@5.0.0-beta.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "npm:localtunnel@2.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:http-proxy@1.18.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:@sentry/node@11.10.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:posthog-node@5.61.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:systeminformation@5.33.19",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:node-machine-id@1.1.12",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:public-ip@8.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:internal-ip@9.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:ps-list@9.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:find-process@2.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:node-notifier@12.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:firebase-tools@15.34.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "npm:aws-cdk@2.1147.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:@google/gemini-cli@0.66.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "npm:@openai/codex@0.166.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:@modelcontextprotocol/sdk@1.32.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:javascript-obfuscator@5.9.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:terser@5.51.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:uglify-js@3.19.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:core-js@3.51.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "npm:electron-builder@26.18.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:numpy==2.5.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:pandas==3.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:django==6.1.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:fastapi==0.162.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:uvicorn==0.54.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:sqlalchemy==2.1.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:pydantic==2.14.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:celery==5.6.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:scrapy==2.19.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:beautifulsoup4==4.15.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:lxml==6.1.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:pillow==13.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:transformers==5.22.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:anthropic==2.3.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:openai==3.42.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:langchain==1.4.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:pyinstaller==6.22.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:psutil==7.2.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:keyring==25.7.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:pycryptodome==4.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:pynacl==1.6.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:web3==8.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "pypi:ansible-core==2.21.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:fabric==3.2.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:invoke==3.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:pexpect==4.9.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:sh==2.4.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:docker==7.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:kubernetes==37.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:google-cloud-storage==3.17.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:azure-identity==1.27.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:pyautogui==0.9.54",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:pynput==1.8.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:mss==10.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:python-dotenv==1.2.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:gitpython==3.2.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:sentry-sdk==2.73.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:rich==15.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:click==8.5.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:tqdm==4.70.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:poetry==2.5.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:virtualenv==21.15.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:black==26.10.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:ruff==0.17.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:uv==0.13.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:aiohttp==3.14.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:websockets==17.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:pyarmor==9.2.8",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pypi:nuitka==4.3.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "ms-python.python",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "ms-toolsai.jupyter",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "github.copilot",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "github.copilot-chat",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "github.vscode-pull-request-github",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "rust-lang.rust-analyzer",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "vscodevim.vim",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "pkief.material-icon-theme",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "dracula-theme.theme-dracula",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "ms-vscode.powershell",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "hashicorp.terraform",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "ms-kubernetes-tools.vscode-kubernetes-tools",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "mongodb.mongodb-vscode",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "ms-mssql.mssql",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "cweijan.vscode-mysql-client2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "rangav.vscode-thunder-client",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "ms-vscode.makefile-tools",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "twxs.cmake",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "ms-dotnettools.csharp",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "redhat.java",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "svelte.svelte-vscode",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "vue.volar",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "prisma.prisma",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "denoland.vscode-deno",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "continue.continue",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "saoudrizwan.claude-dev",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "anthropic.claude-code",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "usernamehw.errorlens",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "johnpapa.vscode-peacock",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "gruntfuggly.todo-tree",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "wallabyjs.quokka-vscode",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "alefragnani.project-manager",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "shardulm94.trailing-spaces",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "editorconfig.editorconfig",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "ms-vsliveshare.vsliveshare",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "mechatroner.rainbow-csv",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "zokugun.sync-settings",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "posit.shiny",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "ms-vscode.cpptools",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev"
+  },
+  {
+   "target": "ms-vscode.hexeditor",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
+  },
+  {
+   "target": "ms-vscode.vscode-typescript-next",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout"
   }
  ]
 }

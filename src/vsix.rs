@@ -440,15 +440,10 @@ pub fn extract_zip<R: Read + Seek>(mut reader: R, dest_dir: &Path) -> anyhow::Re
     let mut total_uncompressed: u64 = 0;
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)?;
-        let size = file.size();
-        if size > MAX_SINGLE_UNCOMPRESSED {
-            anyhow::bail!(
-                "Archive entry '{}' is too large ({} bytes > {} MiB limit)",
-                String::from_utf8_lossy(file.name_raw()),
-                size,
-                MAX_SINGLE_UNCOMPRESSED / (1024 * 1024)
-            );
-        }
+        // A bigger entry is truncated, not fatal: the scanner reads only the
+        // first 4 MiB of any file and flags it as oversized. Claude Code ships
+        // a 270 MB native binary, which used to make the whole VSIX unscannable.
+        let size = file.size().min(MAX_SINGLE_UNCOMPRESSED);
         total_uncompressed = total_uncompressed.saturating_add(size);
         if total_uncompressed > MAX_TOTAL_UNCOMPRESSED {
             anyhow::bail!(
@@ -470,16 +465,11 @@ pub fn extract_zip<R: Read + Seek>(mut reader: R, dest_dir: &Path) -> anyhow::Re
                 }
             }
             let mut outfile = File::create(&outpath)?;
-            // Defensive re-check against misreported entry sizes; take() caps the copy.
-            let mut limited = std::io::Read::by_ref(&mut file).take(MAX_SINGLE_UNCOMPRESSED + 1);
-            std::io::copy(&mut limited, &mut outfile)?;
-            if limited.limit() == 0 {
-                anyhow::bail!(
-                    "Archive entry '{}' exceeds {} MiB limit",
-                    outpath.display(),
-                    MAX_SINGLE_UNCOMPRESSED / (1024 * 1024)
-                );
-            }
+            // take() also caps entries whose header lies about their size.
+            std::io::copy(
+                &mut std::io::Read::by_ref(&mut file).take(MAX_SINGLE_UNCOMPRESSED),
+                &mut outfile,
+            )?;
         }
     }
 
