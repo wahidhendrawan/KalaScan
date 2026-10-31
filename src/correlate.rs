@@ -7,10 +7,10 @@
 
 use crate::scanner::{
     ACCOUNT_ENUM, AI_BASE_URL, ARCHIVE_EXTRACTION, DETACHED_SPAWN, DOWNLOAD_CRADLE, ESCAPED_EVAL,
-    EXFIL_SERVICE, FUNCTION_REQUIRE, HOST_RECON, INSTALL_HOOK_OVERRIDE, IP_LOOKUP, IP_URL,
-    LOCAL_SERVER, MAKE_EXECUTABLE, NPM_PUBLISH, OBFUSCATOR_IO, RAW_SOCKET, REMOTE_BINARY,
-    SEED_ACCESS, SETUP_PY_EXEC, SETUP_PY_STAGER, SHELL_PROFILE, SHELL_START, SIDELOAD,
-    UPLOAD_HANDLER,
+    EXFIL_SERVICE, FETCH_EVAL, FUNCTION_REQUIRE, HEX_API, HOST_RECON, INSTALL_HOOK_OVERRIDE,
+    IP_LOOKUP, IP_URL, LOCAL_SERVER, MAKE_EXECUTABLE, NPM_PUBLISH, OBFUSCATOR_IO, RAW_SOCKET,
+    REMOTE_BINARY, SEED_ACCESS, SETUP_PY_EXEC, SETUP_PY_STAGER, SHELL_PROFILE, SHELL_START,
+    SIDELOAD, UPLOAD_HANDLER,
 };
 use crate::RuleMatch;
 use regex::Regex;
@@ -33,6 +33,7 @@ pub const EXTENSION_SIDELOAD: &str = "Chain: Extension Side-loading";
 pub const SYSTEM_DISCOVERY: &str = "Chain: System Discovery";
 pub const AI_TRAFFIC_HIJACK: &str = "Chain: AI API Traffic Hijack";
 pub const NPM_SPAM: &str = "Chain: Registry Spam Publisher";
+pub const OBFUSCATED_RECON: &str = "Chain: Obfuscated Reconnaissance";
 /// Emitted by `cve::own_package_matches` for versions like 99.0.0 / 999.9.9.
 pub const DEP_CONFUSION_VERSION: &str = "Dependency Confusion Version";
 
@@ -74,7 +75,12 @@ const SOFT_SINKS: &[&str] = &[
     RAW_SOCKET,
 ];
 
-const DOWNLOADERS: &[&str] = &["Remote Script Download", REMOTE_BINARY, DOWNLOAD_CRADLE];
+const DOWNLOADERS: &[&str] = &[
+    "Remote Script Download",
+    REMOTE_BINARY,
+    DOWNLOAD_CRADLE,
+    FETCH_EVAL,
+];
 
 /// Second-stage loaders: decode, fetch or hide a payload before running it.
 const STAGERS: &[&str] = &[
@@ -86,6 +92,8 @@ const STAGERS: &[&str] = &[
     REMOTE_BINARY,
     // Not SHELL_START: `cmd /c` is in every Windows build script (node-pty).
     OBFUSCATOR_IO,
+    FETCH_EVAL,
+    HEX_API,
 ];
 
 /// Signals that code runs when the package is installed.
@@ -208,8 +216,15 @@ pub fn correlate_file(
 
     // File-wide on purpose: javascript-obfuscator output is a property of the
     // whole file, and legitimate extensions are minified, not obfuscated.
-    if let (Some(obf), Some(ex)) = (has(&[OBFUSCATOR_IO, ESCAPED_EVAL]), has(EXECUTORS)) {
+    if let (Some(obf), Some(ex)) = (has(&[OBFUSCATOR_IO, ESCAPED_EVAL, HEX_API]), has(EXECUTORS)) {
         out.push(chain(rel_path, OBFUSCATED_EXEC, obf, ex));
+    }
+
+    // Host identity gathered by code that hides its API names: the hex-decoded
+    // `axios.post` to a C2 never shows up as a sink, but the recon does.
+    // Not OBFUSCATOR_IO: Live Share ships obfuscated code that reads os.hostname.
+    if let (Some(obf), Some(recon)) = (has(&[HEX_API, ESCAPED_EVAL]), has(&[HOST_RECON])) {
+        out.push(chain(rel_path, OBFUSCATED_RECON, obf, recon));
     }
 
     if has(&[ARCHIVE_EXTRACTION]).is_some() {
@@ -719,6 +734,36 @@ mod tests {
             vec![NPM_SPAM]
         );
         assert!(correlate_file("release.js", "exec('npm publish')", &m, &[]).is_empty());
+    }
+
+    #[test]
+    fn fetch_then_eval_is_download_execute_and_an_install_stager() {
+        let m = [
+            hit("install.js", FETCH_EVAL, 8),
+            hit("install.js", "eval() Usage", 12),
+        ];
+        assert_eq!(
+            names(&correlate_file("install.js", "", &m, &[100, 180])),
+            vec![DOWNLOAD_EXECUTE]
+        );
+        let pkg = vec![
+            hit("package.json", "Post-Install Script", 4),
+            hit("install.js", FETCH_EVAL, 8),
+        ];
+        assert_eq!(names(&correlate_package(&pkg)), vec![INSTALL_PAYLOAD]);
+    }
+
+    #[test]
+    fn hex_decoded_strings_plus_host_recon_is_a_chain() {
+        let m = [
+            hit("writer.js", HEX_API, 20),
+            hit("writer.js", HOST_RECON, 24),
+        ];
+        assert_eq!(
+            names(&correlate_file("writer.js", "", &m, &[])),
+            vec![OBFUSCATED_RECON]
+        );
+        assert!(correlate_file("w.js", "", &m[1..], &[]).is_empty());
     }
 
     #[test]
