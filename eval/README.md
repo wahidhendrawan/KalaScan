@@ -23,11 +23,13 @@ Results at threshold 50:
 
 | split | malicious recall | clean false positives |
 |---|---|---|
-| dev | 47/60 (78%) | 0/50 |
-| holdout | 25/40 (62%) | 0/16 |
+| dev | 48/60 (80%) | 0/62 |
+| holdout | 26/40 (65%) | 0/165 |
 
-By ecosystem: PyPI 84%, npm 83%, IDE extensions 55%. Before this work the dev split scored 1/60, and marketplace-id scans failed outright.
+By ecosystem: PyPI 84%, npm 83%, IDE extensions 60%. Before this work the dev split scored 1/60, and marketplace-id scans failed outright.
 
 The 60 extensions installed on the maintainer's machine (`kalascan installed`) also all score below 30. Ten of them were false positives during development and are now in the clean `dev` split.
 
-What still gets through: malicious themes with no code (impersonation only, unless the name uses invisible characters or a look-alike publisher), payloads inside `.wasm` / native binaries, code that builds its C2 host at runtime (`(Object+'').split(' ')[0]+"."+…`), extensions republished verbatim under another publisher (the code is the original; only the listing is fake), install scripts that patch another package in `node_modules`, and typo-squats with no code (the name match alone scores 5).
+**Honest false-positive number.** When the clean set grew from 66 to 227 samples (161 new ones in `holdout`, untouched by tuning), the first run flagged **9 of the 176 holdout clean samples (5%)**: greedy regexes (`powershell .* -enc` across a minified line, `bcdedit` inside base64), `~/.ethereum/geth.ipc` read as a wallet, a bidi character used as a regex range, official `curl … | sh` installers (gh.io, antigravity.google, nvm) and firebase-tools chmodding one file while spawning another. Those rules were fixed and the 12 samples looked at moved to `dev`; the remaining 165 holdout clean samples score below 50. Expect the real rate on unseen packages to sit somewhere between the two numbers.
+
+What still gets through: malicious themes with no code (impersonation only, unless the name uses invisible characters or a look-alike publisher), payloads inside native binaries, code that builds its C2 host at runtime (`(Object+'').split(' ')[0]+"."+…`), verbatim copies of extensions outside the top 2,000 (copies of popular ones are caught through their `repository` field), install scripts that patch another package in `node_modules`, and typo-squats with no code (the name match alone scores 5).

@@ -5,7 +5,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/rust-1.95+-orange?logo=rust" />
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" />
-  <img src="https://img.shields.io/badge/tests-150%20passed-brightgreen" />
+  <img src="https://img.shields.io/badge/tests-154%20passed-brightgreen" />
   <img src="https://img.shields.io/badge/docker-ready-2496ED?logo=docker" />
 </p>
 
@@ -90,7 +90,7 @@
 - **Dependency-confusion versions** — a package versioned `99.0.0`, `999.9.9`, … (CalVer years excluded)
 
 ### Publisher & Listing Reputation (VS Code extensions)
-- **Offline**, from the extension's own package.json (works on a .vsix long after the marketplace removed it): invisible characters in the name or publisher (`Solidity\u200b`) and look-alike publishers (`juanbIanco` for `juanblanco`) are scored like a chain; brand use by a non-owner (`"Error Lens Ultra"` by `GitlensPro`) is reported
+- **Offline**, from the extension's own package.json (works on a .vsix long after the marketplace removed it): invisible characters in the name or publisher (`Solidity\u200b`) and look-alike publishers (`juanbIanco` for `juanblanco`) are scored like a chain, and so is a repackaged copy: an extension whose `repository` is one of the 2,000 most-installed extensions' source but whose publisher is not ([`rules/popular_extensions.tsv`](rules/popular_extensions.tsv), regenerate with `python3 rules/gen_popular_extensions.py`); brand use by a non-owner (`"Error Lens Ultra"` by `GitlensPro`) is reported
 - **Online**, for `publisher.extension` targets: unverified publisher, fewer than 1,000 installs, first published less than 30 days ago (informational)
 
 ### Version Diff (update hijacks)
@@ -110,7 +110,7 @@
 - `kalascan rules` lists ids; `kalascan rules KS-SUP-009` explains one
 
 ### Detection Quality
-- [`eval/`](eval/README.md) holds a labelled corpus (DataDog malicious-package samples + popular clean packages and extensions) and the harness that measures it. Current: **62% recall on the held-out malicious split (78% on the tuning split), 0 false positives across 66 clean packages/extensions**; CI fails a PR that makes any clean sample cross risk 50
+- [`eval/`](eval/README.md) holds a labelled corpus (DataDog malicious-package samples + popular clean packages and extensions) and the harness that measures it. Current: **65% recall on the held-out malicious split (80% on the tuning split), 0 false positives across 227 clean packages/extensions** (the first run on 161 new clean samples found 5%, since fixed; see the eval README); CI fails a PR that makes any clean sample cross risk 50
 
 ### GitHub Actions Workflow Checks
 - **Pwn request** (critical) — `pull_request_target` that checks out the PR head (`ref: ${{ github.event.pull_request.head.sha }}`)

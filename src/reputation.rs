@@ -5,8 +5,11 @@
 //! asks the VS Marketplace for install count, age and publisher verification.
 
 use crate::RuleMatch;
+use regex::Regex;
 use serde::Deserialize;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::sync::LazyLock;
 use std::time::Duration;
 
 pub const INVISIBLE_NAME: &str = "Extension Name Spoofing (invisible characters)";
@@ -15,6 +18,50 @@ pub const BRAND_IMPERSONATION: &str = "Possible Brand Impersonation";
 pub const UNVERIFIED_PUBLISHER: &str = "Unverified Publisher";
 pub const LOW_INSTALLS: &str = "Low Install Count";
 pub const RECENTLY_PUBLISHED: &str = "Recently Published Extension";
+pub const REPACKAGED_COPY: &str = "Repackaged Copy of Popular Extension";
+
+/// `repository -> [publisher.name]` for the most-installed extensions
+/// (rules/gen_popular_extensions.py). shortcut: a snapshot; regenerate when
+/// a clone of a newly popular extension slips through.
+static POPULAR_REPOS: LazyLock<HashMap<&'static str, Vec<&'static str>>> = LazyLock::new(|| {
+    let mut map: HashMap<_, Vec<_>> = HashMap::new();
+    for line in include_str!("../rules/popular_extensions.tsv").lines() {
+        if let Some((repo, ext)) = line.split_once('\t').filter(|_| !line.starts_with('#')) {
+            map.entry(repo).or_default().push(ext);
+        }
+    }
+    map
+});
+
+/// Every publisher in that list. Official publishers share monorepos
+/// (`ms-vscode` and `ms-vscode-remote` both ship vscode-remote-release).
+static POPULAR_REPO_PUBLISHERS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
+    POPULAR_REPOS
+        .values()
+        .flatten()
+        .filter_map(|ext| ext.split('.').next())
+        .collect()
+});
+
+static REPO_URL: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)(github\.com|gitlab\.com|bitbucket\.org)[/:]([\w.-]+)/([\w.-]+)").unwrap()
+});
+
+/// `git+https://github.com/Foo/bar.git#main` -> `github.com/foo/bar`; same
+/// normalisation as the generator. npm shorthand `foo/bar` means GitHub.
+fn repo_key(url: &str) -> Option<String> {
+    let url = url.trim().trim_start_matches("github:");
+    let caps = REPO_URL
+        .captures(url)
+        .map(|c| (c[1].to_string(), c[2].to_string(), c[3].to_string()));
+    let (host, owner, repo) = caps.or_else(|| {
+        let (owner, repo) = url.split_once('/')?;
+        (!url.contains(':') && !repo.contains('/'))
+            .then(|| ("github.com".into(), owner.into(), repo.into()))
+    })?;
+    let repo = repo.strip_suffix(".git").unwrap_or(&repo);
+    Some(format!("{}/{}/{}", host, owner, repo).to_lowercase())
+}
 
 /// Publishers of widely installed extensions (marketplace ids, lowercase).
 const POPULAR_PUBLISHERS: &[&str] = &[
@@ -155,6 +202,28 @@ pub fn identity_matches(root: &Path) -> Vec<RuleMatch> {
                 ),
             ));
             break;
+        }
+    }
+
+    // The code is the original's; only the listing is new (csvmech.csvrainbow
+    // republishing mechatroner/vscode_rainbow_csv).
+    let repository = pkg["repository"]["url"]
+        .as_str()
+        .or(pkg["repository"].as_str());
+    if let Some(key) = repository.and_then(repo_key) {
+        if let Some(owners) = POPULAR_REPOS.get(key.as_str()) {
+            if !POPULAR_REPO_PUBLISHERS.contains(publisher_lower.as_str()) {
+                out.push(finding(
+                    REPACKAGED_COPY,
+                    "critical",
+                    format!(
+                        "Declares {} as its source, which is {}, but is published by '{}'",
+                        key,
+                        owners.join(" / "),
+                        publisher
+                    ),
+                ));
+            }
         }
     }
     out
@@ -318,6 +387,60 @@ mod tests {
         let npm = tempfile::tempdir().unwrap();
         std::fs::write(npm.path().join("package.json"), r#"{"name":"gitlens-pro"}"#).unwrap();
         assert!(identity_matches(npm.path()).is_empty());
+    }
+
+    fn ext_with_repo(publisher: &str, repository: serde_json::Value) -> tempfile::TempDir {
+        let dir = ext(publisher, "CSV Rainbow");
+        let mut pkg: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(dir.path().join("package.json")).unwrap(),
+        )
+        .unwrap();
+        pkg["repository"] = repository;
+        std::fs::write(dir.path().join("package.json"), pkg.to_string()).unwrap();
+        dir
+    }
+
+    #[test]
+    fn repackaged_popular_extension() {
+        // Real sample: mechatroner's Rainbow CSV republished by csvmech.
+        let rainbow = "https://github.com/mechatroner/vscode_rainbow_csv";
+        assert_eq!(
+            names(&ext_with_repo("csvmech", serde_json::json!(rainbow))),
+            vec![REPACKAGED_COPY]
+        );
+        assert_eq!(
+            names(&ext_with_repo(
+                "csvmech",
+                serde_json::json!({"type": "git", "url": "git+https://github.com/Mechatroner/vscode_rainbow_csv.git"})
+            )),
+            vec![REPACKAGED_COPY]
+        );
+        // The real publisher, and an official sibling sharing a monorepo.
+        assert!(names(&ext_with_repo("mechatroner", serde_json::json!(rainbow))).is_empty());
+        assert!(names(&ext_with_repo(
+            "ms-vscode",
+            serde_json::json!("https://github.com/microsoft/vscode-remote-release")
+        ))
+        .is_empty());
+        // Someone's own repo.
+        assert!(names(&ext_with_repo(
+            "someone",
+            serde_json::json!("someone/csv-tools")
+        ))
+        .is_empty());
+    }
+
+    #[test]
+    fn repo_keys_normalise() {
+        let k = |s| repo_key(s).unwrap();
+        assert_eq!(
+            k("git+https://github.com/Foo/bar.git#main"),
+            "github.com/foo/bar"
+        );
+        assert_eq!(k("git@github.com:foo/bar.git"), "github.com/foo/bar");
+        assert_eq!(k("github:foo/bar"), "github.com/foo/bar");
+        assert_eq!(k("foo/bar"), "github.com/foo/bar");
+        assert_eq!(repo_key("https://example.com/foo"), None);
     }
 
     #[test]
