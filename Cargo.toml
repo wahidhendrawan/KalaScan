@@ -20,12 +20,12 @@ tera = "1"
 uuid = { version = "1", features = ["v4"] }
 tower-http = { version = "0.6", features = ["fs", "cors"] }
 anyhow = "1"
-zip = "2"
+zip = "9"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 url = "2"
 chrono = { version = "0.4", features = ["serde"] }
-rusqlite = { version = "0.31", features = ["bundled"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
 clap = { version = "4", features = ["derive", "env"] }
 yara-x = "1.22.0"
 goblin = "0.10.7"
@@ -35,4 +35,4 @@ base64 = "0.23.1"
 flate2 = "1.1.10"
 iced-x86 = "1.21.0"
 tar = { version = "0.4", default-features = false }
-toml = { version = "0.8", default-features = false, features = ["parse"] }
+toml = { version = "1.1", default-features = false, features = ["parse", "serde"] }

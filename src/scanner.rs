@@ -52,6 +52,13 @@ pub const INSTALL_HOOK_OVERRIDE: &str = "setup.py Install Hook Override";
 pub const SETUP_PY_EXEC: &str = "setup.py Install-time Execution";
 pub const SETUP_PY_STAGER: &str = "setup.py Payload Decode/Fetch";
 pub const DOWNLOAD_CRADLE: &str = "Download Cradle (fetch piped to interpreter)";
+pub const FUNCTION_REQUIRE: &str = "Function Constructor with require";
+pub const ESCAPED_EVAL: &str = "Escaped eval Payload";
+pub const SIDELOAD: &str = "VS Code Extension Side-loading";
+pub const ACCOUNT_ENUM: &str = "Account Enumeration Command";
+pub const AI_BASE_URL: &str = "AI API Base URL Override";
+pub const SHELL_PROFILE: &str = "Shell Profile Modification";
+pub const NPM_PUBLISH: &str = "npm Publish from Code";
 
 #[derive(Clone, Debug)]
 pub struct Rule {
@@ -620,6 +627,13 @@ mod tests {
             SETUP_PY_EXEC,
             SETUP_PY_STAGER,
             DOWNLOAD_CRADLE,
+            FUNCTION_REQUIRE,
+            ESCAPED_EVAL,
+            SIDELOAD,
+            ACCOUNT_ENUM,
+            AI_BASE_URL,
+            SHELL_PROFILE,
+            NPM_PUBLISH,
             "Hardcoded IP Address",
             "Post-Install Script",
             "URL Fetch Command",

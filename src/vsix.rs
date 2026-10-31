@@ -444,7 +444,7 @@ pub fn extract_zip<R: Read + Seek>(mut reader: R, dest_dir: &Path) -> anyhow::Re
         if size > MAX_SINGLE_UNCOMPRESSED {
             anyhow::bail!(
                 "Archive entry '{}' is too large ({} bytes > {} MiB limit)",
-                file.name(),
+                String::from_utf8_lossy(file.name_raw()),
                 size,
                 MAX_SINGLE_UNCOMPRESSED / (1024 * 1024)
             );
@@ -461,7 +461,7 @@ pub fn extract_zip<R: Read + Seek>(mut reader: R, dest_dir: &Path) -> anyhow::Re
             None => continue, // Prevent zip-slip
         };
 
-        if file.name().ends_with('/') {
+        if file.is_dir() {
             std::fs::create_dir_all(&outpath)?;
         } else {
             if let Some(p) = outpath.parent() {

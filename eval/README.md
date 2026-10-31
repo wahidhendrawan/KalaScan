@@ -23,11 +23,11 @@ Results at threshold 50:
 
 | split | malicious recall | clean false positives |
 |---|---|---|
-| dev | 39/60 (65%) | 0/45 |
-| holdout | 23/40 (58%) | 0/16 |
+| dev | 47/60 (78%) | 0/50 |
+| holdout | 25/40 (62%) | 0/16 |
 
-By ecosystem: PyPI 76%, npm 66%, IDE extensions 50%. Before this work the dev split scored 1/60, and marketplace-id scans failed outright.
+By ecosystem: PyPI 84%, npm 83%, IDE extensions 55%. Before this work the dev split scored 1/60, and marketplace-id scans failed outright.
 
 The 60 extensions installed on the maintainer's machine (`kalascan installed`) also all score below 30. Ten of them were false positives during development and are now in the clean `dev` split.
 
-What still gets through: malicious themes with no code (impersonation only, unless the name uses invisible characters or a look-alike publisher), payloads inside `.wasm` / native binaries, and code that builds its C2 host at runtime (`(Object+'').split(' ')[0]+"."+…`).
+What still gets through: malicious themes with no code (impersonation only, unless the name uses invisible characters or a look-alike publisher), payloads inside `.wasm` / native binaries, code that builds its C2 host at runtime (`(Object+'').split(' ')[0]+"."+…`), extensions republished verbatim under another publisher (the code is the original; only the listing is fake), install scripts that patch another package in `node_modules`, and typo-squats with no code (the name match alone scores 5).
