@@ -361,6 +361,10 @@ pub fn map_text(text: &str) -> Vec<AttackTechnique> {
             "install-time",
             "dependency confusion",
             "side-loading",
+            "manifest confusion",
+            "install script",
+            "provenance",
+            "email domain",
         ],
     ) {
         add(&mut out, "T1195.002");
@@ -505,7 +509,15 @@ pub fn map_text(text: &str) -> Vec<AttackTechnique> {
         add(&mut out, "T1566");
     }
 
-    if contains_any(&text, &["impersonation", "name spoofing", "repackaged"]) {
+    if contains_any(
+        &text,
+        &[
+            "impersonation",
+            "name spoofing",
+            "repackaged",
+            "vendor repository",
+        ],
+    ) {
         add(&mut out, "T1036.005");
     }
 
@@ -725,6 +737,9 @@ mod tests {
             ("Shell Profile Modification", "T1546.004"),
             ("Download Cradle (fetch then eval)", "T1105"),
             ("Chain: Obfuscated Reconnaissance", "T1082"),
+            ("Chain: Obfuscated Credential Theft", "T1552"),
+            ("Chain: Obfuscated Download and Execute", "T1105"),
+            ("Chain: Install-time Credential Access (sandbox)", "T1552"),
         ] {
             assert!(
                 ids(name).contains(&expected.to_string()),

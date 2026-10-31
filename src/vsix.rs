@@ -122,7 +122,7 @@ pub fn allow_private_targets() -> bool {
 
 /// One client for every registry and marketplace call. Bounded connect, idle
 /// and total time: a host serving 1 KB/s used to hang the CLI forever.
-fn http_client() -> anyhow::Result<reqwest::Client> {
+pub(crate) fn http_client() -> anyhow::Result<reqwest::Client> {
     // A public URL that redirects to a literal internal address is refused.
     // shortcut: hostnames that resolve internal after a redirect still pass;
     // a custom DNS resolver closes that if the server faces untrusted users.
