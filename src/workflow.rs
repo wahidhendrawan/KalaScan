@@ -10,6 +10,11 @@ use std::sync::LazyLock;
 pub const PWN_REQUEST: &str = "GitHub Actions Pwn Request (pull_request_target + PR checkout)";
 pub const SCRIPT_INJECTION: &str = "GitHub Actions Script Injection";
 pub const UNPINNED_ACTION: &str = "GitHub Actions Unpinned Third-Party Action";
+pub const SPOOFABLE_BOT_CHECK: &str = "GitHub Actions Spoofable Bot Check (github.actor)";
+
+/// `github.actor` is whoever last triggered the run, not the PR author.
+static ACTOR_BOT_CHECK: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"github\.actor\s*==\s*['\x22][\w-]+\[bot\]['\x22]").unwrap());
 
 /// Attacker-controlled contexts (GitHub Security Lab list).
 static UNTRUSTED_EXPR: LazyLock<Regex> = LazyLock::new(|| {
@@ -71,6 +76,9 @@ pub fn scan(rel_path: &str, content: &str) -> Vec<RuleMatch> {
         if pr_target && PR_HEAD_REF.is_match(line) {
             out.push(finding(n, PWN_REQUEST, "critical", line));
         }
+        if ACTOR_BOT_CHECK.is_match(line) {
+            out.push(finding(n, SPOOFABLE_BOT_CHECK, "medium", line));
+        }
         if let Some(c) = USES.captures(key) {
             let (owner, git_ref) = (&c[1], &c[2]);
             let pinned = git_ref.len() == 40 && git_ref.chars().all(|ch| ch.is_ascii_hexdigit());
@@ -125,6 +133,18 @@ jobs:
                 (15, SCRIPT_INJECTION.to_string()),
             ]
         );
+    }
+
+    #[test]
+    fn flags_actor_based_bot_check() {
+        let bad = "jobs:\n  m:\n    if: github.actor == 'dependabot[bot]'\n";
+        let good =
+            "jobs:\n  m:\n    if: github.event.pull_request.user.login == 'dependabot[bot]'\n";
+        assert_eq!(
+            scan(".github/workflows/m.yml", bad)[0].matched_pattern,
+            SPOOFABLE_BOT_CHECK
+        );
+        assert!(scan(".github/workflows/m.yml", good).is_empty());
     }
 
     #[test]

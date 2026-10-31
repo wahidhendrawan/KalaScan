@@ -231,7 +231,8 @@ pub async fn analyze_directory(dir: &Path, rule_matches: &[RuleMatch], deep: boo
     }
 
     for matched in rule_matches {
-        let techniques = attack::map_rule(&matched.matched_pattern, &matched.context);
+        // Rule name only: the context is surrounding source code (see ttp.rs).
+        let techniques = attack::map_rule(&matched.matched_pattern, "");
         if techniques.is_empty() && matched.severity != "critical" {
             continue;
         }

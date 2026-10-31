@@ -201,8 +201,21 @@ fn add(out: &mut Vec<AttackTechnique>, id: &str) {
     }
 }
 
+/// Short alphanumeric keywords must be whole words: as substrings, `etw`
+/// matched "n*etw*ork" and mapped every network rule to Impair Defenses.
 fn contains_any(haystack: &str, needles: &[&str]) -> bool {
-    needles.iter().any(|needle| haystack.contains(needle))
+    needles.iter().any(|needle| {
+        if needle.len() > 4 || !needle.chars().all(|c| c.is_ascii_alphanumeric()) {
+            return haystack.contains(needle);
+        }
+        let bytes = haystack.as_bytes();
+        haystack.match_indices(needle).any(|(i, _)| {
+            let before = i.checked_sub(1).map(|j| bytes[j]);
+            let after = bytes.get(i + needle.len()).copied();
+            !before.is_some_and(|b| b.is_ascii_alphanumeric())
+                && !after.is_some_and(|b| b.is_ascii_alphanumeric())
+        })
+    })
 }
 
 pub fn map_text(text: &str) -> Vec<AttackTechnique> {
@@ -433,6 +446,10 @@ pub fn map_text(text: &str) -> Vec<AttackTechnique> {
         add(&mut out, "T1566");
     }
 
+    if contains_any(&text, &["impersonation", "name spoofing"]) {
+        add(&mut out, "T1036.005");
+    }
+
     if contains_any(&text, &["masquerad"]) {
         add(&mut out, "T1036");
     }
@@ -609,6 +626,14 @@ mod tests {
             .map(|t| t.id)
             .collect();
         assert!(ids.contains(&"T1552".to_string()));
+    }
+
+    #[test]
+    fn short_keywords_match_whole_words_only() {
+        let ids =
+            |name: &str| -> Vec<String> { map_text(name).into_iter().map(|t| t.id).collect() };
+        assert!(!ids("local network server").contains(&"T1562".to_string()));
+        assert!(ids("patches etw and amsi").contains(&"T1562".to_string()));
     }
 
     #[test]

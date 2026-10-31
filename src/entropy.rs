@@ -103,8 +103,9 @@ pub fn scan_advanced_obfuscation(file_path: &str, content: &str) -> Vec<RuleMatc
     for (line_idx, line) in content.lines().enumerate() {
         let line_num = line_idx + 1;
 
-        // 1. Detect Trojan Source (CVE-2021-42574)
-        if line.chars().any(is_bidi_trojan_char) {
+        // 1. Detect Trojan Source (CVE-2021-42574). It fools a human reading
+        // the source, so minified lines (bundles carrying RTL tables) are out.
+        if line.len() <= 1000 && line.chars().any(is_bidi_trojan_char) {
             matches.push(RuleMatch {
                 file_path: file_path.to_string(),
                 line_number: line_num,

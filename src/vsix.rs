@@ -143,21 +143,25 @@ pub fn is_vsix_target(target: &str) -> bool {
     {
         return true;
     }
-    // Check if it's in `publisher.extension-name` format (e.g. `golang.go`, `ms-python.python`)
-    // Must contain exactly one dot, no slashes, no spaces, not starting with http/git
-    if !t.starts_with("http://") && !t.starts_with("https://") && !t.starts_with("git@") {
-        let parts: Vec<&str> = t.split('.').collect();
-        if parts.len() == 2
-            && !parts[0].is_empty()
-            && !parts[1].is_empty()
-            && !t.contains('/')
-            && !t.contains(' ')
-            && !t.ends_with(".git")
-        {
-            return true;
-        }
-    }
-    false
+    parse_marketplace_id(t).is_some()
+}
+
+/// `publisher.extension` or `publisher.extension@1.2.3` (VS Marketplace).
+pub fn parse_marketplace_id(target: &str) -> Option<(&str, &str, Option<&str>)> {
+    let (id, version) = match target.trim().rsplit_once('@') {
+        Some((id, v)) => (id, Some(v)),
+        None => (target.trim(), None),
+    };
+    let (publisher, name) = id.split_once('.')?;
+    let ok = |s: &str, extra: &str| {
+        !s.is_empty()
+            && s.chars()
+                .all(|c| c.is_ascii_alphanumeric() || extra.contains(c))
+    };
+    let archive =
+        ["vsix", "zip", "jar", "crx", "git"].contains(&name.to_ascii_lowercase().as_str());
+    (ok(publisher, "-_") && ok(name, "-_") && !archive && version.is_none_or(|v| ok(v, ".-")))
+        .then_some((publisher, name, version))
 }
 
 /// Download or extract a VSIX, Open VSX, JetBrains, CRX, or ZIP extension into destination directory
@@ -181,17 +185,17 @@ pub async fn unpack_extension(target: &str, dest_dir: &Path) -> anyhow::Result<P
     } else if t.contains("plugins.jetbrains.com") {
         resolve_jetbrains_download(t).await?
     } else if !t.starts_with("http://") && !t.starts_with("https://") {
-        let parts: Vec<&str> = t.split('.').collect();
-        if parts.len() == 2 {
-            format!(
-                "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/{}/vsextensions/{}/latest/vspackage",
-                parts[0], parts[1]
+        let (publisher, name, version) = parse_marketplace_id(t).ok_or_else(|| {
+            anyhow::anyhow!(
+                "Invalid extension identifier format. Expected publisher.name[@version]"
             )
-        } else {
-            return Err(anyhow::anyhow!(
-                "Invalid extension identifier format. Expected publisher.name"
-            ));
-        }
+        })?;
+        format!(
+            "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/{}/vsextensions/{}/{}/vspackage",
+            publisher,
+            name,
+            version.unwrap_or("latest")
+        )
     } else {
         t.to_string()
     };
@@ -212,6 +216,16 @@ pub async fn unpack_extension(target: &str, dest_dir: &Path) -> anyhow::Result<P
     let bytes = resp.bytes().await?;
     if download_url.ends_with(".tgz") || download_url.ends_with(".tar.gz") {
         return extract_tar_gz(&bytes, dest_dir);
+    }
+    // The VS Marketplace serves .vsix with `Content-Encoding: gzip`, and
+    // reqwest is built without decompression: every marketplace-id scan
+    // failed with "Could not find EOCD".
+    if bytes.starts_with(&[0x1f, 0x8b]) {
+        let mut vsix = Vec::new();
+        flate2::read::GzDecoder::new(&bytes[..])
+            .take(MAX_ARCHIVE_BYTES + 1)
+            .read_to_end(&mut vsix)?;
+        return extract_zip(Cursor::new(vsix), dest_dir);
     }
     extract_zip(Cursor::new(bytes), dest_dir)
 }
@@ -563,6 +577,29 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let out = extract_zip(Cursor::new(crx), tmp.path()).unwrap();
         assert!(out.join("extension.js").is_file());
+    }
+
+    #[test]
+    fn test_parse_marketplace_id() {
+        assert_eq!(
+            parse_marketplace_id("ms-python.python"),
+            Some(("ms-python", "python", None))
+        );
+        assert_eq!(
+            parse_marketplace_id("esbenp.prettier-vscode@10.4.0"),
+            Some(("esbenp", "prettier-vscode", Some("10.4.0")))
+        );
+        for bad in [
+            "evil.vsix",
+            "a.b.c",
+            "a/b.c",
+            "x.y@1.0?x",
+            ".x",
+            "user.repo.git",
+            "src",
+        ] {
+            assert_eq!(parse_marketplace_id(bad), None, "{}", bad);
+        }
     }
 
     #[test]

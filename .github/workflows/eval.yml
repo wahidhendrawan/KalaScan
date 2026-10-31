@@ -1,0 +1,23 @@
+name: Detection eval
+# False-positive gate: every clean package in eval/corpus.json must stay
+# below risk 50. Malicious samples are not fetched in CI (live malware);
+# measure recall locally with eval/fetch_malicious.sh + eval/run_eval.py.
+on:
+  pull_request:
+    paths: ["src/**", "eval/**", "Cargo.lock"]
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  false-positives:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - run: cargo build --release --locked
+      - name: Scan the clean corpus
+        run: python3 eval/run_eval.py --only clean --threshold 50 --max-fpr 0 --allow-errors --jobs 4

@@ -254,13 +254,24 @@ const POPULAR_PYPI: &[&str] = &[
     "web3",
     "httpx",
     "aiohttp",
+    "asyncio",
+    "pynacl",
 ];
 
 /// Real packages that happen to sit one edit from a popular name.
-const KNOWN_NEIGHBORS: &[&str] = &["preact", "color", "ether", "chalk-cli", "requests-oauthlib"];
+const KNOWN_NEIGHBORS: &[&str] = &[
+    "preact",
+    "color",
+    "ether",
+    "chalk-cli",
+    "requests-oauthlib",
+    "tslint",
+    "rsync",
+];
 
-/// Dependencies one edit away from a popular package they are not.
-/// Names under 5 chars are skipped: `vue`/`vuex`, `next`/`nest` are all real.
+/// Dependencies one edit (or one swap of neighbours) away from a popular
+/// package they are not. Names under 6 chars are skipped: `vue`/`vuex`,
+/// `async`/`rsync`, `eslint`/`tslint` style pairs are mostly all real.
 pub fn typosquat_matches(packages: &[DependencyPackage]) -> Vec<RuleMatch> {
     packages
         .iter()
@@ -271,7 +282,7 @@ pub fn typosquat_matches(packages: &[DependencyPackage]) -> Vec<RuleMatch> {
                 _ => return None,
             };
             let name = p.name.to_lowercase();
-            if name.len() < 5
+            if name.len() < 6
                 || popular.contains(&name.as_str())
                 || KNOWN_NEIGHBORS.contains(&name.as_str())
             {
@@ -279,7 +290,7 @@ pub fn typosquat_matches(packages: &[DependencyPackage]) -> Vec<RuleMatch> {
             }
             let target = popular
                 .iter()
-                .find(|t| t.len() >= 5 && levenshtein(&name, t) == 1)?;
+                .find(|t| t.len() >= 6 && edit_distance(&name, t) == 1)?;
             Some(RuleMatch {
                 file_path: p.manifest_file.clone(),
                 line_number: 1,
@@ -294,21 +305,111 @@ pub fn typosquat_matches(packages: &[DependencyPackage]) -> Vec<RuleMatch> {
         .collect()
 }
 
-fn levenshtein(a: &str, b: &str) -> usize {
-    let b: Vec<char> = b.chars().collect();
-    let mut prev: Vec<usize> = (0..=b.len()).collect();
-    for (i, ca) in a.chars().enumerate() {
-        let mut cur = vec![i + 1];
-        for (j, cb) in b.iter().enumerate() {
-            cur.push(
-                (prev[j] + (ca != *cb) as usize)
-                    .min(prev[j + 1] + 1)
-                    .min(cur[j] + 1),
-            );
-        }
-        prev = cur;
+/// Optimal-string-alignment distance: Levenshtein plus adjacent swaps
+/// (`asyncoi` → `asyncio` is one edit, the classic typo-squat).
+fn edit_distance(a: &str, b: &str) -> usize {
+    let (a, b): (Vec<char>, Vec<char>) = (a.chars().collect(), b.chars().collect());
+    let mut d = vec![vec![0usize; b.len() + 1]; a.len() + 1];
+    for (i, row) in d.iter_mut().enumerate() {
+        row[0] = i;
     }
-    prev[b.len()]
+    for (j, cell) in d[0].iter_mut().enumerate() {
+        *cell = j;
+    }
+    for i in 1..=a.len() {
+        for j in 1..=b.len() {
+            let cost = (a[i - 1] != b[j - 1]) as usize;
+            d[i][j] = (d[i - 1][j] + 1)
+                .min(d[i][j - 1] + 1)
+                .min(d[i - 1][j - 1] + cost);
+            if i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1] {
+                d[i][j] = d[i][j].min(d[i - 2][j - 2] + 1);
+            }
+        }
+    }
+    d[a.len()][b.len()]
+}
+
+/// The scanned package's own identity: a typo-squatted name, or a version
+/// like 99.0.0 / 999.9.9 that exists only to outrank a private package of
+/// the same name (dependency confusion).
+pub fn own_package_matches(root: &Path) -> Vec<RuleMatch> {
+    let Some(own) = own_package(root) else {
+        return Vec::new();
+    };
+    let mut out = typosquat_matches(std::slice::from_ref(&own));
+    for m in &mut out {
+        m.context = m
+            .context
+            .replacen("Dependency", "This package's own name", 1);
+    }
+    let major: u64 = own
+        .version
+        .split(|c: char| !c.is_ascii_digit())
+        .next()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0);
+    // CalVer (2026.4.1, as ms-python ships) is a year, not a land grab.
+    if major >= 99 && !(1990..=2100).contains(&major) {
+        out.push(RuleMatch {
+            file_path: own.manifest_file.clone(),
+            line_number: 1,
+            matched_pattern: crate::correlate::DEP_CONFUSION_VERSION.to_string(),
+            severity: "medium".to_string(),
+            context: format!(
+                "{}@{}: an implausibly high version is how dependency-confusion packages win resolution",
+                own.name, own.version
+            ),
+        });
+    }
+    out
+}
+
+/// A VS Code extension root: package.json with `engines.vscode`.
+pub fn is_vscode_extension(root: &Path) -> bool {
+    std::fs::read_to_string(root.join("package.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+        .is_some_and(|v| v["engines"]["vscode"].is_string())
+}
+
+fn own_package(root: &Path) -> Option<DependencyPackage> {
+    let read = |f: &str| std::fs::read_to_string(root.join(f)).ok();
+    let pkg = |name: &str, version: &str, ecosystem: &str, file: &str| DependencyPackage {
+        name: name.trim().to_string(),
+        version: version.trim().to_string(),
+        ecosystem: ecosystem.to_string(),
+        manifest_file: file.to_string(),
+    };
+    if let Some(json) = read("package.json") {
+        let v: serde_json::Value = serde_json::from_str(&json).ok()?;
+        return Some(pkg(
+            v["name"].as_str()?,
+            v["version"].as_str().unwrap_or("0"),
+            "npm",
+            "package.json",
+        ));
+    }
+    if let Some(info) = read("PKG-INFO") {
+        let field = |k: &str| info.lines().find_map(|l| l.strip_prefix(k));
+        return Some(pkg(
+            field("Name: ")?,
+            field("Version: ").unwrap_or("0"),
+            "PyPI",
+            "PKG-INFO",
+        ));
+    }
+    let setup = read("setup.py")?;
+    let field = |k: &str| {
+        let re = regex::Regex::new(&format!(r#"\b{}\s*=\s*['"]([^'"]+)['"]"#, k)).ok()?;
+        Some(re.captures(&setup)?[1].to_string())
+    };
+    Some(pkg(
+        &field("name")?,
+        &field("version").unwrap_or_default(),
+        "PyPI",
+        "setup.py",
+    ))
 }
 
 /// Query OSV (Open Source Vulnerabilities) API for known vulnerabilities
@@ -441,10 +542,68 @@ mod tests {
             .into_iter()
             .map(|m| m.matched_pattern)
             .collect();
+        // `reqeusts` is a swap of neighbours: one edit under OSA distance.
         assert_eq!(
             py_found,
-            vec!["Typo-squat Suspect: request (looks like requests)".to_string()]
+            vec![
+                "Typo-squat Suspect: reqeusts (looks like requests)".to_string(),
+                "Typo-squat Suspect: request (looks like requests)".to_string(),
+            ]
         );
+    }
+
+    #[test]
+    fn test_own_package_identity() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"name": "ebay-tester", "version": "999.9.9", "scripts": {"preinstall": "node index.js"}}"#,
+        )
+        .unwrap();
+        let names: Vec<String> = own_package_matches(dir.path())
+            .into_iter()
+            .map(|m| m.matched_pattern)
+            .collect();
+        assert_eq!(
+            names,
+            vec![crate::correlate::DEP_CONFUSION_VERSION.to_string()]
+        );
+
+        let py = tempfile::tempdir().unwrap();
+        std::fs::write(
+            py.path().join("PKG-INFO"),
+            "Metadata-Version: 2.1\nName: asyncoi\nVersion: 0.1\n",
+        )
+        .unwrap();
+        let names: Vec<String> = own_package_matches(py.path())
+            .into_iter()
+            .map(|m| m.matched_pattern)
+            .collect();
+        assert_eq!(
+            names,
+            vec!["Typo-squat Suspect: asyncoi (looks like asyncio)".to_string()]
+        );
+
+        let setup = tempfile::tempdir().unwrap();
+        std::fs::write(
+            setup.path().join("setup.py"),
+            "setup(name='manda-tu-cv-a-secureit',\n      version='88.88.88')",
+        )
+        .unwrap();
+        assert!(own_package_matches(setup.path()).is_empty(), "88 < 99");
+
+        let calver = tempfile::tempdir().unwrap();
+        std::fs::write(
+            calver.path().join("package.json"),
+            r#"{"name": "vscode-pylance", "version": "2026.4.1", "engines": {"vscode": "^1.90.0"}}"#,
+        )
+        .unwrap();
+        assert!(own_package_matches(calver.path()).is_empty(), "CalVer year");
+        assert!(is_vscode_extension(calver.path()));
+        assert!(!is_vscode_extension(dir.path()));
+        assert_eq!(edit_distance("asyncoi", "asyncio"), 1);
+        assert_eq!(edit_distance("lodash", "lodahs"), 1);
+        assert_eq!(edit_distance("kitten", "sitting"), 3);
     }
 
     #[test]
