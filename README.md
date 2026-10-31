@@ -5,7 +5,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/rust-1.95+-orange?logo=rust" />
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" />
-  <img src="https://img.shields.io/badge/tests-144%20passed-brightgreen" />
+  <img src="https://img.shields.io/badge/tests-150%20passed-brightgreen" />
   <img src="https://img.shields.io/badge/docker-ready-2496ED?logo=docker" />
 </p>
 
@@ -110,7 +110,7 @@
 - `kalascan rules` lists ids; `kalascan rules KS-SUP-009` explains one
 
 ### Detection Quality
-- [`eval/`](eval/README.md) holds a labelled corpus (DataDog malicious-package samples + popular clean packages and extensions) and the harness that measures it. Current: **58% recall on the held-out malicious split (65% on the tuning split), 0 false positives across 61 clean packages/extensions**; CI fails a PR that makes any clean sample cross risk 50
+- [`eval/`](eval/README.md) holds a labelled corpus (DataDog malicious-package samples + popular clean packages and extensions) and the harness that measures it. Current: **62% recall on the held-out malicious split (78% on the tuning split), 0 false positives across 66 clean packages/extensions**; CI fails a PR that makes any clean sample cross risk 50
 
 ### GitHub Actions Workflow Checks
 - **Pwn request** (critical) — `pull_request_target` that checks out the PR head (`ref: ${{ github.event.pull_request.head.sha }}`)
