@@ -38,14 +38,12 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tera::Tera;
 use tokio::sync::Mutex;
 use tower_http::cors::CorsLayer;
 use tracing::{error, info, warn};
 
 #[derive(Clone)]
 struct AppState {
-    tera: Arc<Tera>,
     scans: Arc<Mutex<Vec<ScanResult>>>,
     token: Option<String>,
     /// Caps how many scans run at once; the rest wait in the queue.
@@ -365,16 +363,6 @@ async fn start_web_server(addr: &str) -> anyhow::Result<()> {
         error!("Failed to init DB (running without persistence): {}", e);
     }
 
-    let mut tera = Tera::default();
-    tera.add_raw_template("index.html", include_str!("../templates/index.html"))
-        .and_then(|_| {
-            tera.add_raw_template("result.html", include_str!("../templates/result.html"))
-        })
-        .map_err(|e| {
-            error!("Failed to load templates: {}", e);
-            e
-        })?;
-
     let token = std::env::var("KALASCAN_TOKEN")
         .ok()
         .filter(|t| !t.trim().is_empty());
@@ -415,7 +403,6 @@ async fn start_web_server(addr: &str) -> anyhow::Result<()> {
     }
 
     let state = AppState {
-        tera: Arc::new(tera),
         scans: Arc::new(Mutex::new(Vec::new())),
         token,
         scan_slots: Arc::new(tokio::sync::Semaphore::new(
@@ -433,7 +420,7 @@ async fn start_web_server(addr: &str) -> anyhow::Result<()> {
 
     let app = Router::new()
         .route("/", get(root))
-        .route("/scan", post(start_scan))
+        .route("/scan", post(api_scan))
         .route("/api/scan", post(api_scan))
         .route("/api/scan/upload", post(api_scan_upload))
         .route("/api/results/{id}", get(get_result))
@@ -453,10 +440,7 @@ async fn start_web_server(addr: &str) -> anyhow::Result<()> {
         // vsix archive guard (1 GiB) instead; KALASCAN_MAX_UPLOAD_MB=0 disables
         // the body limit entirely.
         .layer(upload_body_limit())
-        .layer(axum::middleware::from_fn_with_state(
-            state.clone(),
-            security_headers,
-        ))
+        .layer(axum::middleware::from_fn(security_headers))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
@@ -559,27 +543,17 @@ fn authenticate_request(
         return Ok(None);
     }
     if let Some(expected) = state.token.as_deref() {
-        if constant_time_eq(token.as_bytes(), expected.as_bytes()) {
+        if auth::constant_time_eq(token.as_bytes(), expected.as_bytes()) {
             return Ok(Some(auth::Principal::legacy_admin()));
         }
     }
     Ok(auth::authenticate(token))
 }
 
-/// Length-independent, data-independent comparison (no early exit).
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
-    let mut diff = a.len() ^ b.len();
-    for i in 0..a.len().max(b.len()) {
-        diff |= (a.get(i).copied().unwrap_or(0) ^ b.get(i).copied().unwrap_or(0)) as usize;
-    }
-    diff == 0
-}
-
 /// Add hardening headers. Styles and scripts are self-hosted and inline, so
 /// `unsafe-inline` stays for those sources; the CSP's real job is blocking any
 /// third-party CDN or injected remote resource.
 async fn security_headers(
-    State(_state): State<AppState>,
     req: axum::extract::Request,
     next: axum::middleware::Next,
 ) -> axum::response::Response {
@@ -615,8 +589,9 @@ async fn security_headers(
     resp
 }
 
-async fn root(State(state): State<AppState>) -> Result<Html<String>, (StatusCode, String)> {
-    let mut ctx = tera::Context::new();
+/// The dashboard. Two placeholders, filled by plain substitution: a template
+/// engine (69 crates) for six values was not worth its compile time.
+async fn root(State(state): State<AppState>) -> Html<String> {
     // The page is served without auth; under auth the history comes from
     // /api/history once the browser has a token.
     let auth_enabled = state.token.is_some() || auth::any_users();
@@ -625,7 +600,6 @@ async fn root(State(state): State<AppState>) -> Result<Html<String>, (StatusCode
     } else {
         db::list_scans(100).unwrap_or_default()
     };
-    ctx.insert("scans", &scan_list);
     // Embed as raw JSON for the client-side history list. Escape `<`/`&`/`>` so a
     // crafted repo URL cannot break out of the `<script>` block.
     let scans_json = serde_json::to_string(&scan_list)
@@ -633,18 +607,12 @@ async fn root(State(state): State<AppState>) -> Result<Html<String>, (StatusCode
         .replace('<', "\\u003c")
         .replace('>', "\\u003e")
         .replace('&', "\\u0026");
-    ctx.insert("scans_json", &scans_json);
-    ctx.insert("version", env!("CARGO_PKG_VERSION"));
-    match state.tera.render("index.html", &ctx) {
-        Ok(html) => Ok(Html(html)),
-        Err(e) => {
-            error!("Template error: {}", e);
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Template error: {}", e),
-            ))
-        }
-    }
+    // Scan data goes in last, so text inside it is never substituted again.
+    Html(
+        include_str!("../templates/index.html")
+            .replace("__VERSION__", env!("CARGO_PKG_VERSION"))
+            .replace("__SCANS_JSON__", &scans_json),
+    )
 }
 
 fn pending_scan(id: &str, target: &str) -> ScanResult {
@@ -878,14 +846,6 @@ async fn scan_accepted(
     .into_response()
 }
 
-async fn start_scan(
-    State(state): State<AppState>,
-    Extension(principal): Extension<auth::Principal>,
-    Json(req): Json<ScanRequest>,
-) -> impl IntoResponse {
-    scan_accepted(&state, req, &principal.name).await
-}
-
 async fn api_scan(
     State(state): State<AppState>,
     Extension(principal): Extension<auth::Principal>,
@@ -1070,7 +1030,7 @@ async fn app_css() -> impl IntoResponse {
 async fn openapi_spec() -> impl IntoResponse {
     (
         [("content-type", "application/yaml; charset=utf-8")],
-        include_str!("../openapi.yaml"),
+        include_str!("../openapi.yaml").replace("__VERSION__", env!("CARGO_PKG_VERSION")),
     )
         .into_response()
 }
@@ -1248,17 +1208,14 @@ async fn delete_scan(
 
 /// Old result links: redirect into the dashboard, which loads the result over
 /// the authenticated API. Served without auth, so it reads no scan data.
-async fn results_page(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
-    let mut ctx = tera::Context::new();
-    ctx.insert("result_id", &id);
-    match state.tera.render("result.html", &ctx) {
-        Ok(html) => Html(html).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Template error: {}", e),
-        )
-            .into_response(),
+/// Scan ids are UUIDs; anything else is refused rather than escaped, so the
+/// id is safe in the page's URL, attribute and script contexts as it is.
+async fn results_page(Path(id): Path<String>) -> axum::response::Response {
+    if id.is_empty() || id.len() > 64 || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+    {
+        return StatusCode::NOT_FOUND.into_response();
     }
+    Html(include_str!("../templates/result.html").replace("__RESULT_ID__", &id)).into_response()
 }
 
 async fn api_scan_upload(
@@ -2135,12 +2092,10 @@ fn format_cli_text(result: &ScanResult) -> String {
     ));
     out.push_str(&format!("Total Matches: {}\n", result.total_matches));
 
-    let level = if result.risk_score >= 70 {
-        "🔴 HIGH RISK (Possible Malware)"
-    } else if result.risk_score >= 30 {
-        "🟡 WARNING (Suspicious)"
-    } else {
-        "🟢 SAFE"
+    let level = match export::risk_score_to_level(result.risk_score) {
+        "danger" => "🔴 HIGH RISK (Possible Malware)",
+        "warning" => "🟡 WARNING (Suspicious)",
+        _ => "🟢 SAFE",
     };
     out.push_str(&format!(
         "Risk Score:    {} / 100 [{}]\n",

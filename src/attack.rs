@@ -622,10 +622,6 @@ pub fn map_text(text: &str) -> Vec<AttackTechnique> {
     out
 }
 
-pub fn map_rule(name: &str, description: &str) -> Vec<AttackTechnique> {
-    map_text(&format!("{} {}", name, description))
-}
-
 pub fn from_capa_meta(meta: &serde_json::Value) -> Vec<AttackTechnique> {
     let mut out = Vec::new();
 
@@ -672,14 +668,14 @@ mod tests {
 
     #[test]
     fn maps_webhook_and_credential_rules() {
-        let ids: Vec<String> = map_rule("Discord Webhook", "data exfiltration")
+        let ids: Vec<String> = map_text("Discord Webhook data exfiltration")
             .into_iter()
             .map(|t| t.id)
             .collect();
         assert!(ids.contains(&"T1071".to_string()));
         assert!(ids.contains(&"T1041".to_string()));
 
-        let ids: Vec<String> = map_rule("SSH Key Access", "credential file access")
+        let ids: Vec<String> = map_text("SSH Key Access credential file access")
             .into_iter()
             .map(|t| t.id)
             .collect();
@@ -697,7 +693,7 @@ mod tests {
     #[test]
     fn maps_new_supply_chain_findings() {
         let ids =
-            |name: &str| -> Vec<String> { map_rule(name, "").into_iter().map(|t| t.id).collect() };
+            |name: &str| -> Vec<String> { map_text(name).into_iter().map(|t| t.id).collect() };
         assert!(ids("Typo-squat Suspect: crossenv (looks like cross-env)")
             .contains(&"T1195.002".to_string()));
         assert!(ids("Malicious Package: MAL-2024-1 in evil@1.0").contains(&"T1195.002".to_string()));
@@ -708,7 +704,7 @@ mod tests {
     #[test]
     fn every_chain_and_critical_yara_rule_maps_to_a_technique() {
         let ids =
-            |name: &str| -> Vec<String> { map_rule(name, "").into_iter().map(|t| t.id).collect() };
+            |name: &str| -> Vec<String> { map_text(name).into_iter().map(|t| t.id).collect() };
         for (name, expected) in [
             ("Chain: Drop and Execute Binary", "T1059"),
             ("Chain: Download and Execute", "T1105"),
