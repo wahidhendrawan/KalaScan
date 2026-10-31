@@ -6,9 +6,10 @@
 //! critical hits by the risk score.
 
 use crate::scanner::{
-    ARCHIVE_EXTRACTION, DETACHED_SPAWN, DOWNLOAD_CRADLE, EXFIL_SERVICE, HOST_RECON,
-    INSTALL_HOOK_OVERRIDE, IP_LOOKUP, IP_URL, LOCAL_SERVER, MAKE_EXECUTABLE, OBFUSCATOR_IO,
-    RAW_SOCKET, REMOTE_BINARY, SEED_ACCESS, SETUP_PY_EXEC, SETUP_PY_STAGER, SHELL_START,
+    ACCOUNT_ENUM, AI_BASE_URL, ARCHIVE_EXTRACTION, DETACHED_SPAWN, DOWNLOAD_CRADLE, ESCAPED_EVAL,
+    EXFIL_SERVICE, FUNCTION_REQUIRE, HOST_RECON, INSTALL_HOOK_OVERRIDE, IP_LOOKUP, IP_URL,
+    LOCAL_SERVER, MAKE_EXECUTABLE, NPM_PUBLISH, OBFUSCATOR_IO, RAW_SOCKET, REMOTE_BINARY,
+    SEED_ACCESS, SETUP_PY_EXEC, SETUP_PY_STAGER, SHELL_PROFILE, SHELL_START, SIDELOAD,
     UPLOAD_HANDLER,
 };
 use crate::RuleMatch;
@@ -27,6 +28,11 @@ pub const INSTALL_EXFIL: &str = "Chain: Install-time Exfiltration";
 pub const RECON_BEACON: &str = "Chain: Reconnaissance Beacon";
 pub const OBFUSCATED_EXEC: &str = "Chain: Obfuscated Process Execution";
 pub const INSTALL_PAYLOAD: &str = "Chain: Install-time Payload Execution";
+pub const REMOTE_CODE: &str = "Chain: Remote Code Execution";
+pub const EXTENSION_SIDELOAD: &str = "Chain: Extension Side-loading";
+pub const SYSTEM_DISCOVERY: &str = "Chain: System Discovery";
+pub const AI_TRAFFIC_HIJACK: &str = "Chain: AI API Traffic Hijack";
+pub const NPM_SPAM: &str = "Chain: Registry Spam Publisher";
 /// Emitted by `cve::own_package_matches` for versions like 99.0.0 / 999.9.9.
 pub const DEP_CONFUSION_VERSION: &str = "Dependency Confusion Version";
 
@@ -173,9 +179,34 @@ pub fn correlate_file(
         out.push(chain(rel_path, DROP_EXECUTE, chmod, spawn));
     }
 
+    // Code fetched over the network and handed `require`.
+    if let Some((_, f, dl)) = near(&[FUNCTION_REQUIRE], &["URL Fetch Command"]) {
+        out.push(chain(rel_path, REMOTE_CODE, f, dl));
+    }
+
+    if let Some((_, install, dl)) = near(&[SIDELOAD], &["URL Fetch Command"]) {
+        out.push(chain(rel_path, EXTENSION_SIDELOAD, install, dl));
+    }
+
+    // Release tools publish a fixed name and version; spam bots randomise them
+    // and republish in a loop.
+    if let Some(publish) = has(&[NPM_PUBLISH]) {
+        if content.contains("Math.random(") {
+            out.push(RuleMatch {
+                matched_pattern: NPM_SPAM.to_string(),
+                severity: "critical".to_string(),
+                context: format!(
+                    "npm publish (line {}) of a randomised package identity",
+                    publish.line_number
+                ),
+                ..publish.clone()
+            });
+        }
+    }
+
     // File-wide on purpose: javascript-obfuscator output is a property of the
     // whole file, and legitimate extensions are minified, not obfuscated.
-    if let (Some(obf), Some(ex)) = (has(&[OBFUSCATOR_IO]), has(EXECUTORS)) {
+    if let (Some(obf), Some(ex)) = (has(&[OBFUSCATOR_IO, ESCAPED_EVAL]), has(EXECUTORS)) {
         out.push(chain(rel_path, OBFUSCATED_EXEC, obf, ex));
     }
 
@@ -287,6 +318,21 @@ fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
         if let Some(sink) = beacon {
             out.push(chain(&recon.file_path, RECON_BEACON, recon, sink));
         }
+        // Hostname alone is telemetry; listing local accounts and privileges is not.
+        if let Some(enumerate) = first(&[ACCOUNT_ENUM]) {
+            out.push(chain(
+                &enumerate.file_path,
+                SYSTEM_DISCOVERY,
+                enumerate,
+                recon,
+            ));
+        }
+    }
+
+    // A third-party API endpoint persisted into the shell profile captures
+    // every later request, API key included.
+    if let (Some(url), Some(profile)) = (first(&[AI_BASE_URL]), first(&[SHELL_PROFILE])) {
+        out.push(chain(&url.file_path, AI_TRAFFIC_HIJACK, url, profile));
     }
     out
 }
@@ -560,6 +606,76 @@ mod tests {
             names(&correlate_file("ext.js", "", &m, &[])),
             vec![OBFUSCATED_EXEC]
         );
+    }
+
+    #[test]
+    fn fetched_code_given_require_is_remote_code() {
+        let m = [
+            hit("lib/caller.js", "URL Fetch Command", 18),
+            hit("lib/caller.js", FUNCTION_REQUIRE, 19),
+        ];
+        assert_eq!(
+            names(&correlate_file("lib/caller.js", "", &m, &[400, 450])),
+            vec![REMOTE_CODE]
+        );
+        // The constructor alone (template engines, codegen) is not.
+        assert!(correlate_file("t.js", "", &m[1..], &[0]).is_empty());
+    }
+
+    #[test]
+    fn downloaded_vsix_install_is_sideload() {
+        let m = [
+            hit("out/Api.js", "URL Fetch Command", 111),
+            hit("out/Api.js", SIDELOAD, 147),
+        ];
+        assert_eq!(
+            names(&correlate_file("out/Api.js", "", &m, &[100, 2000])),
+            vec![EXTENSION_SIDELOAD]
+        );
+    }
+
+    #[test]
+    fn escaped_eval_that_runs_code_is_obfuscated_exec() {
+        let m = [
+            hit("__init__.py", ESCAPED_EVAL, 3),
+            hit("__init__.py", "eval() Usage", 3),
+        ];
+        assert_eq!(
+            names(&correlate_file("__init__.py", "", &m, &[])),
+            vec![OBFUSCATED_EXEC]
+        );
+    }
+
+    #[test]
+    fn account_enumeration_plus_recon_is_discovery() {
+        let m = vec![
+            hit("extension.js", HOST_RECON, 6),
+            hit("extension.js", ACCOUNT_ENUM, 52),
+        ];
+        assert_eq!(names(&correlate_package(&m)), vec![SYSTEM_DISCOVERY]);
+        assert!(correlate_package(&m[..1]).is_empty());
+    }
+
+    #[test]
+    fn ai_base_url_in_shell_profile_is_hijack() {
+        let m = vec![
+            hit("bin/cli.js", AI_BASE_URL, 155),
+            hit("bin/cli.js", SHELL_PROFILE, 204),
+        ];
+        assert_eq!(names(&correlate_package(&m)), vec![AI_TRAFFIC_HIJACK]);
+        // A shell-completion installer touching .zshrc is not.
+        assert!(correlate_package(&m[1..]).is_empty());
+    }
+
+    #[test]
+    fn publishing_randomised_packages_is_spam() {
+        let m = [hit("auto.js", NPM_PUBLISH, 120)];
+        let spam = "data.name = `${pick()}-${Math.random()}`; exec('npm publish')";
+        assert_eq!(
+            names(&correlate_file("auto.js", spam, &m, &[])),
+            vec![NPM_SPAM]
+        );
+        assert!(correlate_file("release.js", "exec('npm publish')", &m, &[]).is_empty());
     }
 
     #[test]
