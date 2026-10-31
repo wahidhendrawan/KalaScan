@@ -79,6 +79,18 @@ pub fn is_confusable_homoglyph(c: char) -> bool {
     )
 }
 
+/// A bidi control that can reorder what a reviewer sees. As a range endpoint
+/// in a regex class (`[\u{2027}\u{202A}-\u{D7FF}]`, Continue's bundle) it
+/// is just a Unicode table.
+fn has_trojan_bidi(line: &str) -> bool {
+    let chars: Vec<char> = line.chars().collect();
+    chars.iter().enumerate().any(|(i, &c)| {
+        is_bidi_trojan_char(c)
+            && i.checked_sub(1).map(|p| chars[p]) != Some('-')
+            && chars.get(i + 1) != Some(&'-')
+    })
+}
+
 /// Scan file content for high-entropy blobs, invisible characters, Trojan Source, and homoglyphs.
 /// A zero-width char with ASCII word chars on both sides hides inside a token
 /// (`pass​word`). ZWJ in emoji, ZWNJ in Persian/Indic text and codepage
@@ -105,7 +117,7 @@ pub fn scan_advanced_obfuscation(file_path: &str, content: &str) -> Vec<RuleMatc
 
         // 1. Detect Trojan Source (CVE-2021-42574). It fools a human reading
         // the source, so minified lines (bundles carrying RTL tables) are out.
-        if line.len() <= 1000 && line.chars().any(is_bidi_trojan_char) {
+        if line.len() <= 1000 && has_trojan_bidi(line) {
             matches.push(RuleMatch {
                 file_path: file_path.to_string(),
                 line_number: line_num,
@@ -236,6 +248,14 @@ mod tests {
         assert!(matches
             .iter()
             .any(|m| m.matched_pattern.contains("Trojan Source")));
+    }
+
+    #[test]
+    fn test_bidi_regex_range_is_not_trojan_source() {
+        let content = "const r = /[!-\\[\u{2027}\u{202A}-\u{D7FF}]/;";
+        assert!(scan_advanced_obfuscation("index.js", content)
+            .iter()
+            .all(|m| !m.matched_pattern.contains("Trojan Source")));
     }
 
     #[test]
