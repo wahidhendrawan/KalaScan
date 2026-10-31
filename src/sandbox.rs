@@ -222,7 +222,10 @@ async fn docker_available() -> bool {
     matches!(
         timeout(
             Duration::from_secs(5),
-            Command::new("docker").arg("info").output()
+            Command::new("docker")
+                .arg("info")
+                .kill_on_drop(true)
+                .output()
         )
         .await,
         Ok(Ok(output)) if output.status.success()
@@ -235,6 +238,7 @@ async fn image_available(image: &str) -> bool {
             Duration::from_secs(10),
             Command::new("docker")
                 .args(["image", "inspect", image])
+                .kill_on_drop(true)
                 .output()
         )
         .await,
@@ -248,12 +252,15 @@ async fn run_sample(
     config: &SandboxConfig,
 ) -> Result<SandboxExecution, String> {
     let name = format!("kalascan-sandbox-{}", uuid::Uuid::new_v4());
+    // The sample's own output goes nowhere: stdout carries only the trace.
+    // Mixed in, a sample could print fake `connect(...)` lines that parsed as
+    // syscalls, or 2 MB of padding that pushed the real trace past the cap.
     let script = concat!(
         "set -eu; ",
         "cp /sample /tmp/sample; ",
         "chmod 700 /tmp/sample; ",
         "set +e; ",
-        "timeout 10 strace -f -qq -e trace=process,file,network,memory -s 200 -o /tmp/trace /tmp/sample; ",
+        "timeout 10 strace -f -qq -e trace=process,file,network,memory -s 200 -o /tmp/trace /tmp/sample >/dev/null 2>&1; ",
         "code=$?; ",
         "cat /tmp/trace 2>/dev/null || true; ",
         "exit $code"
@@ -306,33 +313,35 @@ async fn run_sample(
     let duration_ms = started.elapsed().as_millis() as u64;
 
     match result {
+        // The sample is bounded by `timeout 10` inside the container, so the
+        // outer timeout means Docker itself is stuck: an infrastructure
+        // failure, not sample behaviour worth risk points.
         Err(_) => {
-            let _ = Command::new("docker")
-                .args(["rm", "-f", &name])
-                .output()
-                .await;
-            Ok(build_execution(
-                binary,
-                None,
-                true,
-                duration_ms,
-                StraceAnalysis::default(),
+            let _ = timeout(
+                Duration::from_secs(10),
+                Command::new("docker")
+                    .args(["rm", "-f", &name])
+                    .kill_on_drop(true)
+                    .output(),
+            )
+            .await;
+            Err(format!(
+                "docker did not finish within {}s",
+                config.timeout.as_secs()
             ))
         }
         Ok(Err(error)) => Err(error.to_string()),
         Ok(Ok(output)) => {
             let exit_code = output.status.code();
             let timed_out = exit_code == Some(124);
-            let mut text = String::from_utf8_lossy(&output.stdout).to_string();
-            if !output.stderr.is_empty() {
-                text.push_str(&String::from_utf8_lossy(&output.stderr));
-            }
-            if text.len() > MAX_TRACE_BYTES {
-                text.truncate(MAX_TRACE_BYTES);
-            }
+            // Cut the bytes, then decode: `String::truncate` panics inside a
+            // multi-byte char.
+            let trace = &output.stdout[..output.stdout.len().min(MAX_TRACE_BYTES)];
+            let text = String::from_utf8_lossy(trace);
             let analysis = parse_strace(&text);
             if analysis.syscalls == 0 && !output.status.success() {
-                let detail = text.trim();
+                let detail = String::from_utf8_lossy(&output.stderr);
+                let detail = detail.trim();
                 if !detail.is_empty() {
                     return Err(truncate(detail, 300));
                 }

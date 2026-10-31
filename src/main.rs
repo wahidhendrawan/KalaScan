@@ -142,6 +142,62 @@ pub struct ScanRequest {
     pub changed_only: bool,
     #[serde(default)]
     pub base_ref: Option<String>,
+    /// A local directory holding someone else's code (`kalascan installed`).
+    /// Never read from the API: remote targets are untrusted by construction.
+    #[serde(skip)]
+    pub third_party: bool,
+}
+
+/// `https://user:token@host/x` -> `https://host/x`, also inside error text
+/// such as git's stderr. Scan targets are shown in logs, the audit log, the
+/// history table and every report.
+pub(crate) fn redact_credentials(text: &str) -> String {
+    static USERINFO: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/@\s]+@").unwrap()
+    });
+    USERINFO.replace_all(text, "$1").into_owned()
+}
+
+/// Host and port a remote target makes the server connect to.
+fn target_host(target: &str) -> Option<(String, u16)> {
+    let t = target.trim();
+    // scp-like `git@host:org/repo`
+    if let Some(rest) = t.strip_prefix("git@") {
+        let host = rest.split([':', '/']).next().filter(|h| !h.is_empty())?;
+        return Some((host.to_string(), 22));
+    }
+    let url = url::Url::parse(t).ok()?;
+    let host = url.host_str()?.trim_matches(['[', ']']).to_string();
+    Some((host, url.port_or_known_default().unwrap_or(22)))
+}
+
+/// API targets must not point the server at its own network: cloud
+/// metadata, admin ports, internal Git. The CLI is the operator's own tool
+/// and skips this. shortcut: checked once at submit; a host that re-resolves
+/// to an internal address before the clone (DNS rebinding) still passes.
+async fn check_target_host(target: &str) -> Result<(), String> {
+    if vsix::allow_private_targets() {
+        return Ok(());
+    }
+    let Some((host, port)) = target_host(target) else {
+        return Ok(()); // marketplace id or npm:/pypi: package: fixed public hosts
+    };
+    let addrs: Vec<std::net::IpAddr> = match host.parse() {
+        Ok(ip) => vec![ip],
+        // Unresolvable: the clone or download fails on its own.
+        Err(_) => tokio::net::lookup_host((host.as_str(), port))
+            .await
+            .map(|found| found.map(|a| a.ip()).collect())
+            .unwrap_or_default(),
+    };
+    if addrs.into_iter().any(vsix::is_internal_ip) {
+        return Err(format!(
+            "Target host '{}' is an internal address; set KALASCAN_ALLOW_PRIVATE_TARGETS=1 \
+             to scan internal servers",
+            host
+        ));
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -210,7 +266,9 @@ async fn main() -> anyhow::Result<()> {
             output,
             new_only,
             baseline,
+            update_baseline,
             ignore,
+            untrusted,
             changed_only,
             base_ref,
             ai,
@@ -228,7 +286,8 @@ async fn main() -> anyhow::Result<()> {
             sandbox,
             sandbox_image,
         }) => {
-            let baseline_path = baseline.clone();
+            // Written only on request: --new-only reads the baseline, never updates it.
+            let baseline_path = baseline.clone().filter(|_| update_baseline);
             let req = ScanRequest {
                 repo_url: target,
                 llm_provider,
@@ -250,6 +309,7 @@ async fn main() -> anyhow::Result<()> {
                 ignore: ignore.map(|p| p.to_string_lossy().to_string()),
                 changed_only,
                 base_ref: Some(base_ref),
+                third_party: untrusted,
             };
             run_cli_scan(req, format, fail_on_risk, output, baseline_path).await?;
         }
@@ -283,9 +343,9 @@ async fn main() -> anyhow::Result<()> {
             run_sbom_command(&path, output.as_deref())?;
         }
         None => {
-            let addr = cli.addr.unwrap_or_else(|| {
-                std::env::var("KALASCAN_ADDR").unwrap_or_else(|_| "0.0.0.0:3000".to_string())
-            });
+            // clap already reads KALASCAN_ADDR. Loopback like `serve`: 0.0.0.0
+            // made a bare `kalascan` refuse to start without auth.
+            let addr = cli.addr.unwrap_or_else(|| "127.0.0.1:3000".to_string());
             start_web_server(&addr).await?;
         }
     }
@@ -469,8 +529,13 @@ async fn auth_middleware(
 
 /// Liveness/readiness probes and the spec stay unauthenticated so health
 /// checks, Prometheus scrapers and API discovery work without credentials.
+/// The UI shell is public too: a browser navigation carries no bearer token,
+/// so `/` used to answer JSON 401 before the page could ask for one. It holds
+/// no data under auth (see `root`); everything else goes through `/api`.
 fn is_auth_exempt(path: &str) -> bool {
-    path == "/healthz"
+    path == "/"
+        || path.starts_with("/results/")
+        || path == "/healthz"
         || path == "/metrics"
         || path == "/openapi.yaml"
         || path.starts_with("/static/")
@@ -552,8 +617,14 @@ async fn security_headers(
 
 async fn root(State(state): State<AppState>) -> Result<Html<String>, (StatusCode, String)> {
     let mut ctx = tera::Context::new();
-    // Load scans from DB for initial render
-    let scan_list = db::list_scans(100).unwrap_or_default();
+    // The page is served without auth; under auth the history comes from
+    // /api/history once the browser has a token.
+    let auth_enabled = state.token.is_some() || auth::any_users();
+    let scan_list = if auth_enabled {
+        Vec::new()
+    } else {
+        db::list_scans(100).unwrap_or_default()
+    };
     ctx.insert("scans", &scan_list);
     // Embed as raw JSON for the client-side history list. Escape `<`/`&`/`>` so a
     // crafted repo URL cannot break out of the `<script>` block.
@@ -600,14 +671,16 @@ fn pending_scan(id: &str, target: &str) -> ScanResult {
 
 async fn store_result(state: &AppState, result: ScanResult) {
     // A deleted scan must stay deleted, even if its task finished afterwards.
-    // The pending row is written at submit time, so a missing row means the
-    // caller deleted it while the scan was running.
-    if let Ok(None) = db::get_scan(&result.id) {
-        info!("Scan {} was deleted; discarding result", result.id);
-        return;
-    }
-    if let Err(e) = db::save_scan(&result) {
-        error!("Failed to save scan to DB: {}", e);
+    // The pending row is written at submit time, so updating no row means the
+    // caller deleted it while the scan was running. One UPDATE, not a check
+    // and then an upsert: a DELETE landing between the two resurrected it.
+    match db::save_scan(&result) {
+        Ok(false) => {
+            info!("Scan {} was deleted; discarding result", result.id);
+            return;
+        }
+        Ok(true) => {}
+        Err(e) => error!("Failed to save scan to DB: {}", e),
     }
     let history_limit = env_u32("KALASCAN_HISTORY_LIMIT", 500);
     if let Err(e) = db::prune_scans(history_limit) {
@@ -656,7 +729,8 @@ where
             Ok(p) => p,
             Err(_) => return,
         };
-        metrics::scan_started();
+        // Dropped on every exit, abort included.
+        let _active = metrics::scan_started();
         {
             let mut scans = task_state.scans.lock().await;
             if let Some(slot) = scans.iter_mut().find(|s| s.id == task_id) {
@@ -728,17 +802,14 @@ async fn begin_scan(
     }
     let id = uuid::Uuid::new_v4().to_string();
     let timestamp = chrono::Utc::now().to_rfc3339();
-    state
-        .scans
-        .lock()
-        .await
-        .push(pending_scan(&id, &req.repo_url));
+    let shown = redact_credentials(&req.repo_url);
+    state.scans.lock().await.push(pending_scan(&id, &shown));
     // Persist the queued row (with the request) so a restart can resume it.
     if let Err(e) = db::save_pending(&id, req, &timestamp) {
         warn!("Failed to persist pending scan {}: {}", id, e);
     }
     metrics::scan_submitted();
-    auth::audit(actor, "scan.submit", Some(&id), Some(&req.repo_url));
+    auth::audit(actor, "scan.submit", Some(&id), Some(&shown));
     Ok(id)
 }
 
@@ -778,7 +849,11 @@ async fn scan_accepted(
     req: ScanRequest,
     actor: &str,
 ) -> axum::response::Response {
-    if let Err(error) = validate_api_request(&req) {
+    let checked = match validate_api_request(&req) {
+        Ok(()) => check_target_host(&req.repo_url).await,
+        Err(e) => Err(e),
+    };
+    if let Err(error) = checked {
         return (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({ "success": false, "error": error })),
@@ -789,7 +864,11 @@ async fn scan_accepted(
         Ok(id) => id,
         Err(resp) => return resp,
     };
-    info!("Queued scan {} for {}", id, req.repo_url);
+    info!(
+        "Queued scan {} for {}",
+        id,
+        redact_credentials(&req.repo_url)
+    );
     spawn_scan(state.clone(), req, id.clone()).await;
     Json(serde_json::json!({
         "success": true,
@@ -1167,32 +1246,11 @@ async fn delete_scan(
     }
 }
 
+/// Old result links: redirect into the dashboard, which loads the result over
+/// the authenticated API. Served without auth, so it reads no scan data.
 async fn results_page(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
-    let result = {
-        let scans = state.scans.lock().await;
-        scans.iter().find(|r| r.id == id).cloned()
-    };
-    let result = match result {
-        Some(result) => Some(result),
-        None => db::get_scan(&id).ok().flatten(),
-    };
-
     let mut ctx = tera::Context::new();
-    match result {
-        Some(r) => {
-            ctx.insert("has_result", &true);
-            let result_json = serde_json::to_string_pretty(&r).unwrap_or_default();
-            ctx.insert("result_json", &result_json);
-            ctx.insert("result", &r);
-        }
-        None => {
-            ctx.insert("has_result", &false);
-        }
-    }
-
-    let id_str = id.clone();
-    ctx.insert("result_id", &id_str);
-
+    ctx.insert("result_id", &id);
     match state.tera.render("result.html", &ctx) {
         Ok(html) => Html(html).into_response(),
         Err(e) => (
@@ -1297,7 +1355,7 @@ async fn api_scan_upload(
     let display_name = file_name.clone();
     let unpacked = tokio::task::spawn_blocking(move || {
         let tmp_dir = tempfile::tempdir()?;
-        let scan_dir = vsix::extract_zip(std::io::Cursor::new(bytes), tmp_dir.path())?;
+        let scan_dir = vsix::extract_zip(&bytes, tmp_dir.path())?;
         Ok::<_, anyhow::Error>((tmp_dir, scan_dir))
     })
     .await;
@@ -1346,6 +1404,7 @@ async fn api_scan_upload(
         ignore: None,
         changed_only: false,
         base_ref: None,
+        third_party: true,
     };
 
     let scan_id = match begin_scan(&state, &req, &principal.name).await {
@@ -1372,7 +1431,8 @@ async fn execute_scan(req: ScanRequest) -> anyhow::Result<ScanResult> {
 }
 
 async fn execute_scan_with_id(req: ScanRequest, id: String) -> anyhow::Result<ScanResult> {
-    info!("Starting scan for: {}", req.repo_url);
+    let shown = redact_credentials(&req.repo_url);
+    info!("Starting scan for: {}", shown);
 
     // A local directory is scanned in place (no clone, no temp dir). This keeps
     // PR scans fast and avoids a second clone when the caller already has a
@@ -1390,33 +1450,33 @@ async fn execute_scan_with_id(req: ScanRequest, id: String) -> anyhow::Result<Sc
 
     let is_extension = vsix::is_vsix_target(&req.repo_url);
     let scan_dir = if is_extension {
-        info!(
-            "Target detected as IDE Extension / Package: {}",
-            req.repo_url
-        );
+        info!("Target detected as IDE Extension / Package: {}", shown);
         vsix::unpack_extension(&req.repo_url, &target_dir).await?
     } else {
-        info!("Cloning {} to {:?}", req.repo_url, target_dir);
+        info!("Cloning {} to {:?}", shown, target_dir);
         let mut clone_cmd = tokio::process::Command::new("git");
         clone_cmd.arg("clone");
         if !req.git_history {
             clone_cmd.arg("--depth").arg("1");
         }
-        // Never expose credentials in logs; strip any userinfo from the URL.
-        // `--`: a repo_url like `--upload-pack=<cmd>` must never parse as an option.
+        // The raw URL (credentials included) goes to git only; logs and
+        // errors use `shown`. `--`: a repo_url like `--upload-pack=<cmd>`
+        // must never parse as an option. kill_on_drop: a timed-out or
+        // cancelled scan must not leave git cloning into a deleted temp dir.
         let clone_output = clone_cmd
             .arg("--")
             .arg(&req.repo_url)
             .arg(&target_dir)
+            .kill_on_drop(true)
             .output()
             .await
             .map_err(|e| anyhow::anyhow!("Git not found: {}. Install git: brew install git", e))?;
 
         if !clone_output.status.success() {
-            let stderr = String::from_utf8_lossy(&clone_output.stderr);
+            let stderr = redact_credentials(&String::from_utf8_lossy(&clone_output.stderr));
             return Err(anyhow::anyhow!(
                 "Git clone failed for {}: {}",
-                req.repo_url,
+                shown,
                 stderr
             ));
         }
@@ -1430,10 +1490,13 @@ async fn execute_scan_in(
     req: ScanRequest,
     scan_dir: std::path::PathBuf,
     scan_id: String,
-    _tmp_guard: Option<tempfile::TempDir>,
+    tmp_guard: Option<tempfile::TempDir>,
 ) -> anyhow::Result<ScanResult> {
     let timestamp = chrono::Utc::now().to_rfc3339();
-    let repo_url = req.repo_url.clone();
+    let repo_url = redact_credentials(&req.repo_url);
+    // The operator's own checkout, scanned in place. Anything cloned,
+    // downloaded or uploaded (it has a temp dir) is someone else's code.
+    let own_tree = tmp_guard.is_none() && !req.third_party;
 
     info!(
         "Source ready at {:?}. Running static + YARA + entropy scan...",
@@ -1464,6 +1527,7 @@ async fn execute_scan_in(
             custom_yara.as_deref(),
             &extra_rules,
             changed_clone.as_ref(),
+            own_tree,
         )
     })
     .await
@@ -1480,7 +1544,7 @@ async fn execute_scan_in(
 
     // IOCs, and exact-URL threat intel when an abuse.ch key is configured.
     let ioc_dir = scan_dir.clone();
-    let iocs = tokio::task::spawn_blocking(move || iocs::extract(&ioc_dir))
+    let iocs = tokio::task::spawn_blocking(move || iocs::extract(&ioc_dir, own_tree))
         .await
         .unwrap_or_default();
     if let Ok(key) = std::env::var("URLHAUS_AUTH_KEY") {
@@ -1673,6 +1737,7 @@ async fn git_changed_files(
         .arg("-C")
         .arg(repo)
         .args(["fetch", "--depth", "1", "origin", remote_ref])
+        .kill_on_drop(true)
         .output()
         .await;
 
@@ -1684,6 +1749,7 @@ async fn git_changed_files(
                 .arg("-C")
                 .arg(repo)
                 .args(["diff", "--name-only", &range])
+                .kill_on_drop(true)
                 .output()
                 .await
                 .ok()
@@ -1832,11 +1898,12 @@ async fn run_installed_command(
         tasks.spawn(async move {
             let _permit = permits.acquire_owned().await;
             // Offline and in place: no OSV calls, nothing copied or executed.
-            let req: ScanRequest = serde_json::from_value(serde_json::json!({
+            let mut req: ScanRequest = serde_json::from_value(serde_json::json!({
                 "repo_url": ext.path.to_string_lossy(),
                 "check_cve": false,
             }))
             .expect("static request");
+            req.third_party = true;
             (ext, execute_scan(req).await)
         });
     }
@@ -2011,17 +2078,11 @@ async fn run_cli_scan(
     output: Option<std::path::PathBuf>,
     baseline_out: Option<std::path::PathBuf>,
 ) -> anyhow::Result<()> {
-    let new_only = req.new_only;
     let result = execute_scan(req).await?;
 
-    // `--new-only` merges into the baseline so prior fingerprints survive;
-    // a plain `--baseline` run records the current findings (overwrite).
+    // `--update-baseline` (exclusive with --new-only, so these are all findings).
     if let Some(path) = baseline_out {
-        if new_only {
-            baseline::merge_baseline(&path, &result.rule_matches)?;
-        } else {
-            baseline::save_baseline(&path, &result.rule_matches)?;
-        }
+        baseline::save_baseline(&path, &result.rule_matches)?;
         eprintln!(
             "Baseline updated at {} ({} findings)",
             path.display(),
@@ -2351,7 +2412,9 @@ fn calculate_risk_score(
     let (mut critical, mut high, mut medium, mut cve) = (0u16, 0u16, 0u16, 0u16);
 
     for m in matches {
-        if !seen.insert((m.file_path.as_str(), m.matched_pattern.as_str())) {
+        // History hits (`<hash>:<path>`) count as the file they belong to.
+        let file = git_history::tree_path(&m.file_path);
+        if !seen.insert((file, m.matched_pattern.as_str())) {
             continue;
         }
         if m.matched_pattern.starts_with("Known Vulnerability:") {

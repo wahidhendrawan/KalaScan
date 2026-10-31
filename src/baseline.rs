@@ -1,8 +1,10 @@
 //! Finding suppression: stable fingerprints, baseline files, and `.kalascanignore` path globs.
 //!
 //! Baseline flow for CI:
-//!   1. `kalascan scan ... --baseline .kalascan.baseline.json` records every finding.
-//!   2. Next run with `--new-only` reports only findings absent from the baseline.
+//!   1. `kalascan scan ... --baseline F --update-baseline` records every finding.
+//!   2. `kalascan scan ... --baseline F --new-only` reports only findings absent
+//!      from the baseline and never writes it: accepting a finding is a
+//!      deliberate step 1, not a side effect of the run that reported it.
 //!
 //! Path globs in `.kalascanignore` are matched against repo-relative paths
 //! (`*` = any sequence, `?` = one char). Lines starting with `#` are comments.
@@ -14,15 +16,65 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::path::Path;
 
-/// Stable per-finding id: rule + file + line. Survives unrelated file edits.
-pub fn fingerprint(m: &RuleMatch) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(m.matched_pattern.as_bytes());
-    hasher.update(b"\0");
-    hasher.update(m.file_path.trim_start_matches("./").as_bytes());
-    hasher.update(b"\0");
-    hasher.update(m.line_number.to_string().as_bytes());
-    hex::encode(&hasher.finalize()[..16])
+/// Baseline file format. Version 1 keyed findings by line number.
+const BASELINE_VERSION: u64 = 2;
+
+/// The text a finding was found in: the matched line as the context shows
+/// it (`before\n>>> match <<<\nafter`), whitespace collapsed. Findings whose
+/// context has no marker (entropy, YARA) use the whole context.
+fn matched_text(context: &str) -> String {
+    let line = context.split_once("\n>>> ").and_then(|(before, rest)| {
+        let (matched, after) = rest.split_once(" <<<")?;
+        let left = before.rsplit('\n').next().unwrap_or_default();
+        let right = after.strip_prefix('\n').unwrap_or(after);
+        let right = right.split('\n').next().unwrap_or_default();
+        Some(format!("{}{}{}", left, matched, right))
+    });
+    line.as_deref()
+        .unwrap_or(context)
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Stable per-finding ids, aligned with `matches`: rule, file, matched text,
+/// and which occurrence of that text in the file it is (by line order). No
+/// line number: inserting a line above used to re-key every finding below
+/// it, so `--new-only` reported them all as new. The occurrence index keeps a
+/// second, newly added copy of a known line from hiding behind the first.
+pub fn fingerprints(matches: &[RuleMatch]) -> Vec<String> {
+    let keys: Vec<String> = matches
+        .iter()
+        .map(|m| {
+            format!(
+                "{}\0{}\0{}",
+                m.matched_pattern,
+                m.file_path.trim_start_matches("./"),
+                matched_text(&m.context)
+            )
+        })
+        .collect();
+    let mut order: Vec<usize> = (0..matches.len()).collect();
+    order.sort_by(|&a, &b| {
+        keys[a]
+            .cmp(&keys[b])
+            .then(matches[a].line_number.cmp(&matches[b].line_number))
+            .then(a.cmp(&b))
+    });
+    let mut out = vec![String::new(); matches.len()];
+    let mut occurrence = 0usize;
+    for (pos, &i) in order.iter().enumerate() {
+        occurrence = match pos.checked_sub(1).map(|p| order[p]) {
+            Some(prev) if keys[prev] == keys[i] => occurrence + 1,
+            _ => 0,
+        };
+        let mut hasher = Sha256::new();
+        hasher.update(keys[i].as_bytes());
+        hasher.update(b"\0");
+        hasher.update(occurrence.to_string().as_bytes());
+        out[i] = hex::encode(&hasher.finalize()[..16]);
+    }
+    out
 }
 
 pub struct IgnoreSet {
@@ -64,48 +116,37 @@ fn glob_to_regex(glob: &str) -> Result<Regex> {
     Regex::new(&out).context("invalid ignore pattern")
 }
 
-/// Read fingerprints from a baseline JSON file. Accepts either a bare array or
-/// `{ "fingerprints": [...] }`.
+/// Read fingerprints from a baseline JSON file written by `save_baseline`.
+/// An older file is refused rather than read: its line-number fingerprints
+/// match nothing, and every known finding would be reported as new.
 pub fn load_baseline(path: &Path) -> Result<BTreeSet<String>> {
     let content = std::fs::read_to_string(path)
         .with_context(|| format!("failed to read baseline {}", path.display()))?;
     let value: serde_json::Value = serde_json::from_str(&content)
         .with_context(|| format!("failed to parse baseline {}", path.display()))?;
-    let entries = match value {
-        serde_json::Value::Array(items) => items,
-        serde_json::Value::Object(obj) => obj
-            .get("fingerprints")
-            .and_then(|v| v.as_array())
-            .cloned()
-            .unwrap_or_default(),
-        _ => Vec::new(),
-    };
-    Ok(entries
+    if value.get("version").and_then(|v| v.as_u64()) != Some(BASELINE_VERSION) {
+        anyhow::bail!(
+            "baseline {} was written by an older KalaScan; rebuild it with \
+             `--baseline {} --update-baseline`",
+            path.display(),
+            path.display()
+        );
+    }
+    Ok(value
+        .get("fingerprints")
+        .and_then(|v| v.as_array())
         .into_iter()
+        .flatten()
         .filter_map(|v| v.as_str().map(str::to_string))
         .collect())
 }
 
 /// Write all current finding fingerprints as a baseline.
 pub fn save_baseline(path: &Path, matches: &[RuleMatch]) -> Result<()> {
-    let fingerprints: BTreeSet<String> = matches.iter().map(fingerprint).collect();
-    write_baseline(path, fingerprints)
-}
-
-/// Merge current findings into an existing baseline (union), preserving
-/// previously recorded fingerprints. Used so `--new-only --baseline` records
-/// the newly surfaced findings without dropping the old ones.
-pub fn merge_baseline(path: &Path, matches: &[RuleMatch]) -> Result<()> {
-    let mut fingerprints = load_baseline(path).unwrap_or_default();
-    fingerprints.extend(matches.iter().map(fingerprint));
-    write_baseline(path, fingerprints)
-}
-
-fn write_baseline(path: &Path, fingerprints: BTreeSet<String>) -> Result<()> {
     let payload = serde_json::json!({
-        "version": 1,
+        "version": BASELINE_VERSION,
         "tool": "kalascan",
-        "fingerprints": fingerprints,
+        "fingerprints": fingerprints(matches).into_iter().collect::<BTreeSet<_>>(),
     });
     std::fs::write(path, serde_json::to_string_pretty(&payload)?)
         .with_context(|| format!("failed to write baseline {}", path.display()))
@@ -117,10 +158,19 @@ pub fn apply_filters(
     ignore: &IgnoreSet,
     baseline: Option<&BTreeSet<String>>,
 ) -> Vec<RuleMatch> {
-    matches
+    let kept: Vec<RuleMatch> = matches
         .into_iter()
         .filter(|m| !ignore.is_ignored(&m.file_path))
-        .filter(|m| baseline.is_none_or(|b| !b.contains(&fingerprint(m))))
+        .collect();
+    let Some(baseline) = baseline else {
+        return kept;
+    };
+    // Fingerprints of the whole set: occurrence numbers depend on it.
+    let ids = fingerprints(&kept);
+    kept.into_iter()
+        .zip(ids)
+        .filter(|(_, id)| !baseline.contains(id))
+        .map(|(m, _)| m)
         .collect()
 }
 
@@ -129,29 +179,52 @@ mod tests {
     use super::*;
 
     fn m(rule: &str, file: &str, line: usize) -> RuleMatch {
+        at(rule, file, line, &format!("code line {}", line))
+    }
+
+    /// A finding whose matched line reads `line_text`, as the scanner formats it.
+    fn at(rule: &str, file: &str, line: usize, line_text: &str) -> RuleMatch {
         RuleMatch {
             file_path: file.to_string(),
             line_number: line,
             matched_pattern: rule.to_string(),
             severity: "high".to_string(),
-            context: String::new(),
+            context: format!("prev line\n{}\n>>> eval( <<<\nx)\nnext line", line_text),
         }
     }
 
     #[test]
-    fn fingerprint_is_stable_and_location_scoped() {
-        assert_eq!(
-            fingerprint(&m("eval", "src/a.js", 3)),
-            fingerprint(&m("eval", "src/a.js", 3))
+    fn fingerprint_survives_line_shifts_but_not_new_copies() {
+        let before = [at("eval", "src/a.js", 3, "run  =")];
+        // A line inserted above: same text, new line number.
+        let shifted = [at("eval", "src/a.js", 4, "run =")];
+        assert_eq!(fingerprints(&before), fingerprints(&shifted));
+        // Other rule or other text: other finding.
+        assert_ne!(
+            fingerprints(&before),
+            fingerprints(&[at("exec", "src/a.js", 3, "run =")])
         );
         assert_ne!(
-            fingerprint(&m("eval", "src/a.js", 3)),
-            fingerprint(&m("eval", "src/a.js", 4))
+            fingerprints(&before),
+            fingerprints(&[at("eval", "src/a.js", 3, "go =")])
         );
-        assert_ne!(
-            fingerprint(&m("eval", "src/a.js", 3)),
-            fingerprint(&m("exec", "src/a.js", 3))
-        );
+        // A second identical line is a new finding, not covered by the first.
+        let two = [
+            at("eval", "src/a.js", 3, "run ="),
+            at("eval", "src/a.js", 9, "run ="),
+        ];
+        let ids = fingerprints(&two);
+        assert_ne!(ids[0], ids[1]);
+        assert!(ids.contains(&fingerprints(&before)[0]));
+    }
+
+    #[test]
+    fn old_baselines_are_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("baseline.json");
+        std::fs::write(&path, r#"{"version":1,"fingerprints":["abc"]}"#).unwrap();
+        let err = load_baseline(&path).unwrap_err().to_string();
+        assert!(err.contains("--update-baseline"), "{}", err);
     }
 
     #[test]
@@ -184,17 +257,5 @@ mod tests {
         );
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].file_path, "src/b.js");
-    }
-
-    #[test]
-    fn merge_baseline_preserves_existing_fingerprints() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("baseline.json");
-        save_baseline(&path, &[m("eval", "src/a.js", 3)]).unwrap();
-
-        // A `--new-only` run surfaces a different finding; merging must keep both.
-        merge_baseline(&path, &[m("exec", "src/b.js", 10)]).unwrap();
-        let merged = load_baseline(&path).unwrap();
-        assert_eq!(merged.len(), 2);
     }
 }

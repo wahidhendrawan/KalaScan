@@ -38,6 +38,9 @@ COPY --from=builder /app/target/release/kalascan /usr/local/bin/kalascan
 
 WORKDIR /app
 EXPOSE 3000
+# The binary defaults to loopback; inside a container the port must be
+# reachable. Startup still refuses this without KALASCAN_TOKEN or users.
+ENV KALASCAN_ADDR=0.0.0.0:3000
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -sf http://127.0.0.1:3000/healthz || exit 1

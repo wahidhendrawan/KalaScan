@@ -175,7 +175,9 @@ fn column_exists(conn: &Connection, table: &str, column: &str) -> Result<bool> {
     Ok(false)
 }
 
-pub fn save_scan(result: &ScanResult) -> Result<()> {
+/// Record a finished scan over its pending row. `Ok(false)`: the row is gone
+/// (deleted while the scan ran), and nothing was written.
+pub fn save_scan(result: &ScanResult) -> Result<bool> {
     let conn = open_db()?;
     ensure_schema(&conn)?;
     let ai_json = result
@@ -207,48 +209,45 @@ pub fn save_scan(result: &ScanResult) -> Result<()> {
         .transpose()?;
     let iocs_json = serde_json::to_string(&result.iocs)?;
 
-    conn.execute(
-        "INSERT INTO scan_history (id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, ai_analysis_json, rule_matches_json, triage_json, deobfuscation_json, emulation_json, ttp_json, sandbox_json, request_json, duration_ms, iocs_json)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
-         ON CONFLICT(id) DO UPDATE SET
-            status = excluded.status,
-            total_files = excluded.total_files,
-            scanned_files = excluded.scanned_files,
-            risk_score = excluded.risk_score,
-            total_matches = excluded.total_matches,
-            ai_analysis_json = excluded.ai_analysis_json,
-            rule_matches_json = excluded.rule_matches_json,
-            triage_json = excluded.triage_json,
-            deobfuscation_json = excluded.deobfuscation_json,
-            emulation_json = excluded.emulation_json,
-            ttp_json = excluded.ttp_json,
-            sandbox_json = excluded.sandbox_json,
-            iocs_json = excluded.iocs_json,
-            duration_ms = COALESCE(excluded.duration_ms, scan_history.duration_ms)",
-        rusqlite::params![
-            result.id,
-            result.repo_url,
-            result.timestamp,
-            result.total_files as i64,
-            result.scanned_files as i64,
-            result.risk_score as i64,
-            result.total_matches as i64,
-            result.status,
-            ai_json,
-            rules_json,
-            triage_json,
-            deobfuscation_json,
-            emulation_json,
-            ttp_json,
-            sandbox_json,
-            Option::<String>::None,
-            result.duration_ms.map(|d| d as i64),
-            iocs_json,
-        ],
-    )
-    .context("Failed to insert scan result")?;
+    let updated = conn
+        .execute(
+            "UPDATE scan_history SET
+            status = ?2,
+            total_files = ?3,
+            scanned_files = ?4,
+            risk_score = ?5,
+            total_matches = ?6,
+            ai_analysis_json = ?7,
+            rule_matches_json = ?8,
+            triage_json = ?9,
+            deobfuscation_json = ?10,
+            emulation_json = ?11,
+            ttp_json = ?12,
+            sandbox_json = ?13,
+            iocs_json = ?14,
+            duration_ms = COALESCE(?15, duration_ms)
+         WHERE id = ?1",
+            rusqlite::params![
+                result.id,
+                result.status,
+                result.total_files as i64,
+                result.scanned_files as i64,
+                result.risk_score as i64,
+                result.total_matches as i64,
+                ai_json,
+                rules_json,
+                triage_json,
+                deobfuscation_json,
+                emulation_json,
+                ttp_json,
+                sandbox_json,
+                iocs_json,
+                result.duration_ms.map(|d| d as i64),
+            ],
+        )
+        .context("Failed to save scan result")?;
 
-    Ok(())
+    Ok(updated > 0)
 }
 
 /// Persist a queued scan together with the request needed to resume it.
@@ -258,15 +257,18 @@ pub fn save_scan(result: &ScanResult) -> Result<()> {
 pub fn save_pending(id: &str, req: &ScanRequest, timestamp: &str) -> Result<()> {
     let conn = open_db()?;
     ensure_schema(&conn)?;
-    // Never persist secrets with the queued request.
+    // Never persist secrets with the queued request. A repo URL that carried
+    // a token is stored without it, so a requeued private clone fails
+    // instead of the token sitting in the history table.
     let mut safe = req.clone();
     safe.llm_api_key = None;
+    safe.repo_url = crate::redact_credentials(&req.repo_url);
     let request_json = serde_json::to_string(&safe)?;
     conn.execute(
         "INSERT INTO scan_history (id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, rule_matches_json, request_json)
          VALUES (?1, ?2, ?3, 0, 0, 0, 0, 'queued', '[]', ?4)
          ON CONFLICT(id) DO UPDATE SET status = 'queued', request_json = excluded.request_json",
-        rusqlite::params![id, req.repo_url, timestamp, request_json],
+        rusqlite::params![id, safe.repo_url, timestamp, request_json],
     )
     .context("Failed to insert pending scan")?;
     Ok(())

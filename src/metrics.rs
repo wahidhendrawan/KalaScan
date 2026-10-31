@@ -24,13 +24,25 @@ pub fn scan_submitted() {
     SCANS_SUBMITTED.fetch_add(1, Ordering::Relaxed);
 }
 
-pub fn scan_started() {
+/// Counts one running scan until dropped. A drop guard, not paired calls:
+/// cancelling a still-queued scan used to decrement a scan that never started
+/// and drive the gauge negative.
+pub struct ActiveScan(());
+
+impl Drop for ActiveScan {
+    fn drop(&mut self) {
+        ACTIVE_SCANS.fetch_sub(1, Ordering::Relaxed);
+    }
+}
+
+#[must_use = "the scan counts as active only while the guard lives"]
+pub fn scan_started() -> ActiveScan {
     ACTIVE_SCANS.fetch_add(1, Ordering::Relaxed);
+    ActiveScan(())
 }
 
 /// Record completion. `ok` = scan produced a result; `matches` = rule hits.
 pub fn scan_finished(ok: bool, timed_out: bool, duration_ms: u64, matches: u64) {
-    ACTIVE_SCANS.fetch_sub(1, Ordering::Relaxed);
     if ok {
         SCANS_COMPLETED.fetch_add(1, Ordering::Relaxed);
         SCAN_DURATION_MS.fetch_add(duration_ms, Ordering::Relaxed);
@@ -44,8 +56,6 @@ pub fn scan_finished(ok: bool, timed_out: bool, duration_ms: u64, matches: u64) 
 }
 
 pub fn scan_cancelled() {
-    // Aborting drops the future, so the task never reaches `scan_finished`.
-    ACTIVE_SCANS.fetch_sub(1, Ordering::Relaxed);
     SCANS_CANCELLED.fetch_add(1, Ordering::Relaxed);
 }
 
@@ -134,12 +144,18 @@ mod tests {
     #[test]
     fn counters_and_gauges_render() {
         scan_submitted();
-        scan_started();
-        scan_finished(true, false, 250, 3);
-        scan_started();
-        scan_finished(false, false, 100, 0);
-        scan_started();
+        {
+            let _active = scan_started();
+            scan_finished(true, false, 250, 3);
+        }
+        {
+            let _active = scan_started();
+            scan_finished(false, false, 100, 0);
+        }
+        // Cancelled before it ever started: no guard, so no decrement.
         scan_cancelled();
+        // Cancelled while running: the aborted task drops its guard.
+        drop(scan_started());
 
         let text = render(1);
         assert!(text.contains("kalascan_scans_submitted_total 1"));

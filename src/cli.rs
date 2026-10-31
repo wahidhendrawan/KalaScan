@@ -42,17 +42,26 @@ pub enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
 
-        /// Only report findings absent from the baseline file (requires --baseline)
-        #[arg(long)]
+        /// Only report findings absent from the baseline file (requires --baseline); never writes it
+        #[arg(long, requires = "baseline")]
         new_only: bool,
 
-        /// Baseline JSON file of known findings; also rewritten with current findings when set
+        /// Baseline JSON file of known findings
         #[arg(long)]
         baseline: Option<PathBuf>,
+
+        /// Record every current finding in the --baseline file (overwrites it)
+        #[arg(long, requires = "baseline", conflicts_with = "new_only")]
+        update_baseline: bool,
 
         /// Path-glob ignore file (default: .kalascanignore in the working directory, if present)
         #[arg(long)]
         ignore: Option<PathBuf>,
+
+        /// A local directory holding someone else's code (a downloaded sample, a fork's
+        /// PR): scan build directories like target/ and venv/, ignore kalascan:ignore markers
+        #[arg(long)]
+        untrusted: bool,
 
         /// Only scan files changed against --base-ref (fast PR scans)
         #[arg(long)]

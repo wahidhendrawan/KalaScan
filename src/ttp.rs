@@ -79,11 +79,11 @@ pub fn build(
         }
     }
 
+    // Binary capabilities only. `triage.attack_techniques` is derived from
+    // these, and `source == "rule"` capabilities are the rule matches above:
+    // recording them again listed one match as three observations.
     if let Some(triage) = triage {
-        for technique in &triage.attack_techniques {
-            record(&mut techniques, technique.clone(), "triage", "medium");
-        }
-        for capability in &triage.capabilities {
+        for capability in triage.capabilities.iter().filter(|c| c.source != "rule") {
             let source = format!("capability:{}", capability.name);
             for technique in &capability.attack {
                 record(
@@ -266,8 +266,20 @@ mod tests {
             severity: "high".into(),
             context: "powershell -EncodedCommand ...".into(),
         }];
+        let capability = |source: &str| crate::triage::CapabilityFinding {
+            name: "PowerShell launcher".into(),
+            namespace: "capa".into(),
+            description: String::new(),
+            severity: "medium".into(),
+            source: source.into(),
+            file_path: "dropper.exe".into(),
+            attack: vec![technique("T1059.001", "PowerShell", "Execution")],
+        };
         let triage = TriageReport {
+            // Derived from the capabilities: must not count on its own.
             attack_techniques: vec![technique("T1059.001", "PowerShell", "Execution")],
+            // The rule match above, mirrored by triage: must not count again.
+            capabilities: vec![capability("capa"), capability("rule")],
             ..Default::default()
         };
         let report = build(&rule_matches, Some(&triage), None, None, None);
@@ -277,7 +289,7 @@ mod tests {
             .find(|item| item.id == "T1059.001")
             .unwrap();
         assert_eq!(powershell.observations, 2);
-        assert!(powershell.sources.len() >= 2);
+        assert_eq!(powershell.sources.len(), 2);
         assert_eq!(powershell.severity, "high");
     }
 
@@ -304,10 +316,18 @@ mod tests {
     #[test]
     fn orders_tactics_by_kill_chain() {
         let triage = TriageReport {
-            attack_techniques: vec![
-                technique("T1486", "Data Encrypted for Impact", "Impact"),
-                technique("T1059", "Command and Scripting Interpreter", "Execution"),
-            ],
+            capabilities: vec![crate::triage::CapabilityFinding {
+                name: "encrypt files and run shell".into(),
+                namespace: "capa".into(),
+                description: String::new(),
+                severity: "high".into(),
+                source: "capa".into(),
+                file_path: "x.exe".into(),
+                attack: vec![
+                    technique("T1486", "Data Encrypted for Impact", "Impact"),
+                    technique("T1059", "Command and Scripting Interpreter", "Execution"),
+                ],
+            }],
             ..Default::default()
         };
         let report = build(&[], Some(&triage), None, None, None);
