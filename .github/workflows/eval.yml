@@ -4,7 +4,7 @@ name: Detection eval
 # measure recall locally with eval/fetch_malicious.sh + eval/run_eval.py.
 on:
   pull_request:
-    paths: ["src/**", "eval/**", "Cargo.lock"]
+    paths: ["src/**", "rules/**", "eval/**", "Cargo.lock"]
   workflow_dispatch:
 permissions:
   contents: read
