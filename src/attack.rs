@@ -14,6 +14,11 @@ const TECHNIQUE_TABLE: &[(&str, &str, &str)] = &[
     ("T1005", "Data from Local System", "Collection"),
     ("T1008", "Fallback Channels", "Command and Control"),
     ("T1014", "Rootkit", "Defense Evasion"),
+    (
+        "T1016",
+        "System Network Configuration Discovery",
+        "Discovery",
+    ),
     ("T1021", "Remote Services", "Lateral Movement"),
     ("T1025", "Data from Removable Media", "Collection"),
     (
@@ -25,6 +30,7 @@ const TECHNIQUE_TABLE: &[(&str, &str, &str)] = &[
     ("T1027.009", "Embedded Payloads", "Defense Evasion"),
     ("T1027.010", "Command Obfuscation", "Defense Evasion"),
     ("T1027.013", "Encrypted/Encoded File", "Defense Evasion"),
+    ("T1033", "System Owner/User Discovery", "Discovery"),
     ("T1036", "Masquerading", "Defense Evasion"),
     (
         "T1036.005",
@@ -60,7 +66,9 @@ const TECHNIQUE_TABLE: &[(&str, &str, &str)] = &[
     ("T1071.001", "Web Protocols", "Command and Control"),
     ("T1071.004", "DNS", "Command and Control"),
     ("T1074", "Data Staged", "Collection"),
+    ("T1082", "System Information Discovery", "Discovery"),
     ("T1083", "File and Directory Discovery", "Discovery"),
+    ("T1087", "Account Discovery", "Discovery"),
     ("T1090", "Proxy", "Command and Control"),
     (
         "T1095",
@@ -117,6 +125,11 @@ const TECHNIQUE_TABLE: &[(&str, &str, &str)] = &[
     ("T1543.003", "Windows Service", "Persistence"),
     ("T1546", "Event Triggered Execution", "Persistence"),
     (
+        "T1546.004",
+        "Unix Shell Configuration Modification",
+        "Persistence",
+    ),
+    (
         "T1547.001",
         "Registry Run Keys / Startup Folder",
         "Persistence",
@@ -128,6 +141,7 @@ const TECHNIQUE_TABLE: &[(&str, &str, &str)] = &[
         "Credentials from Password Stores",
         "Credential Access",
     ),
+    ("T1557", "Adversary-in-the-Middle", "Credential Access"),
     ("T1560", "Archive Collected Data", "Collection"),
     ("T1560.001", "Archive via Utility", "Collection"),
     ("T1562", "Impair Defenses", "Defense Evasion"),
@@ -234,6 +248,8 @@ pub fn map_text(text: &str) -> Vec<AttackTechnique> {
             "c2 ",
             "raw socket",
             "reverse shell",
+            "reverseshell",
+            "malicious url",
         ],
     ) {
         add(&mut out, "T1071");
@@ -274,7 +290,10 @@ pub fn map_text(text: &str) -> Vec<AttackTechnique> {
         add(&mut out, "T1528");
     }
 
-    if contains_any(&text, &["wallet", "bitcoin", "financial", "crypto theft"]) {
+    if contains_any(
+        &text,
+        &["wallet", "bitcoin", "financial", "crypto theft", "drainer"],
+    ) {
         add(&mut out, "T1657");
     }
 
@@ -288,6 +307,7 @@ pub fn map_text(text: &str) -> Vec<AttackTechnique> {
             "classloading",
             "reflection",
             "scripting",
+            "function constructor",
         ],
     ) {
         add(&mut out, "T1059");
@@ -335,6 +355,10 @@ pub fn map_text(text: &str) -> Vec<AttackTechnique> {
             "typo-squat",
             "supply chain",
             "malicious package",
+            "install hook",
+            "install-time",
+            "dependency confusion",
+            "side-loading",
         ],
     ) {
         add(&mut out, "T1195.002");
@@ -352,6 +376,31 @@ pub fn map_text(text: &str) -> Vec<AttackTechnique> {
 
     if contains_any(&text, &["remote script", "url fetch", "download"]) {
         add(&mut out, "T1105");
+    }
+
+    if contains_any(&text, &["exfiltration"]) {
+        add(&mut out, "T1041");
+        if contains_any(&text, &["exfiltration service"]) {
+            add(&mut out, "T1567");
+        }
+    }
+
+    if contains_any(&text, &["reconnaissance", "system discovery", "ip lookup"]) {
+        add(&mut out, "T1082");
+        add(&mut out, "T1016");
+    }
+
+    if contains_any(&text, &["account enumeration", "system discovery"]) {
+        add(&mut out, "T1087");
+        add(&mut out, "T1033");
+    }
+
+    if contains_any(&text, &["shell profile"]) {
+        add(&mut out, "T1546.004");
+    }
+
+    if contains_any(&text, &["traffic hijack", "base url override"]) {
+        add(&mut out, "T1557");
     }
 
     if contains_any(&text, &["clipboard"]) {
@@ -372,6 +421,9 @@ pub fn map_text(text: &str) -> Vec<AttackTechnique> {
         &text,
         &[
             "process execution",
+            "execut",
+            "process start",
+            "process spawn",
             "subprocess",
             "os.system",
             "child_process",
@@ -428,7 +480,12 @@ pub fn map_text(text: &str) -> Vec<AttackTechnique> {
         add(&mut out, "T1562.001");
     }
 
-    if contains_any(&text, &["registry", "startup", "scheduled task", "service"]) {
+    // Not "registry" or "service": those named the npm registry and
+    // exfiltration services, which became Windows Run Keys / Services.
+    if contains_any(
+        &text,
+        &["startup", "scheduled task", "run key", "windows service"],
+    ) {
         add(&mut out, "T1547.001");
         add(&mut out, "T1053.005");
         add(&mut out, "T1543.003");
@@ -446,7 +503,7 @@ pub fn map_text(text: &str) -> Vec<AttackTechnique> {
         add(&mut out, "T1566");
     }
 
-    if contains_any(&text, &["impersonation", "name spoofing"]) {
+    if contains_any(&text, &["impersonation", "name spoofing", "repackaged"]) {
         add(&mut out, "T1036.005");
     }
 
@@ -462,7 +519,8 @@ pub fn map_text(text: &str) -> Vec<AttackTechnique> {
         add(&mut out, "T1070.004");
     }
 
-    if contains_any(&text, &["archive", "staging", "staged"]) {
+    // Not "archive": "Archive Extraction" is a zip-slip surface, not collection.
+    if contains_any(&text, &["staging", "staged"]) {
         add(&mut out, "T1560");
         add(&mut out, "T1074");
     }
@@ -645,6 +703,45 @@ mod tests {
         assert!(ids("Malicious Package: MAL-2024-1 in evil@1.0").contains(&"T1195.002".to_string()));
         assert!(ids("Chain: Remote File Write via Local Server").contains(&"T1203".to_string()));
         assert_eq!(lookup("T1203").unwrap().tactic, "Execution");
+    }
+
+    #[test]
+    fn every_chain_and_critical_yara_rule_maps_to_a_technique() {
+        let ids =
+            |name: &str| -> Vec<String> { map_rule(name, "").into_iter().map(|t| t.id).collect() };
+        for (name, expected) in [
+            ("Chain: Drop and Execute Binary", "T1059"),
+            ("Chain: Download and Execute", "T1105"),
+            ("Chain: Remote Code Execution", "T1059"),
+            ("Chain: Install-time Exfiltration", "T1041"),
+            ("Chain: Install-time Payload Execution", "T1195.002"),
+            ("Chain: Reconnaissance Beacon", "T1082"),
+            ("Chain: System Discovery", "T1087"),
+            ("Chain: Extension Side-loading", "T1195.002"),
+            ("Chain: AI API Traffic Hijack", "T1557"),
+            ("YARA Rule: ReverseShellGeneric", "T1071"),
+            ("YARA Rule: CryptoDrainerGeneric", "T1657"),
+            ("Exfiltration Service Endpoint", "T1567"),
+            ("Shell Process Start", "T1059"),
+            ("Repackaged Copy of Popular Extension", "T1036.005"),
+            ("Shell Profile Modification", "T1546.004"),
+        ] {
+            assert!(
+                ids(name).contains(&expected.to_string()),
+                "{} -> {:?}",
+                name,
+                ids(name)
+            );
+        }
+        // npm registry spam, IP lookups and exfil services are not Windows persistence.
+        for name in [
+            "Chain: Registry Spam Publisher",
+            "IP Lookup Service",
+            "Exfiltration Service Endpoint",
+        ] {
+            assert!(!ids(name).contains(&"T1543.003".to_string()), "{}", name);
+        }
+        assert!(!ids("Archive Extraction").contains(&"T1560".to_string()));
     }
 
     #[test]

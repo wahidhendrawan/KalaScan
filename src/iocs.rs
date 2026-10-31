@@ -87,12 +87,12 @@ fn is_benign(host: &str) -> bool {
 }
 
 /// Collect external URLs from the script and manifest files under `root`.
-pub fn extract(root: &Path) -> Vec<Ioc> {
-    let skip = [".git", "target", "__pycache__", "venv", ".venv"];
+/// `own_tree`: same directory skipping as the scanner (`scanner::skip_dir`).
+pub fn extract(root: &Path, own_tree: bool) -> Vec<Ioc> {
     let mut found: BTreeMap<String, Ioc> = BTreeMap::new();
     let entries = WalkDir::new(root)
         .into_iter()
-        .filter_entry(|e| !skip.contains(&e.file_name().to_string_lossy().as_ref()))
+        .filter_entry(|e| !crate::scanner::skip_dir(e, own_tree))
         .flatten()
         .filter(|e| e.file_type().is_file())
         .filter(|e| crate::scanner::is_critical_file(&e.file_name().to_string_lossy()));
@@ -209,7 +209,7 @@ mod tests {
             "https://not-scanned.example.ru",
         )
         .unwrap();
-        let iocs = extract(dir.path());
+        let iocs = extract(dir.path(), false);
         let values: Vec<(&str, &str)> = iocs
             .iter()
             .map(|i| (i.kind.as_str(), i.host.as_str()))

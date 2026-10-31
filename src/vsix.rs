@@ -1,7 +1,9 @@
 use serde::Deserialize;
 use std::fs::File;
-use std::io::{Cursor, Read, Seek};
+use std::io::{Cursor, Read};
+use std::net::IpAddr;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use zip::ZipArchive;
 
 #[derive(Deserialize)]
@@ -87,13 +89,93 @@ pub fn parse_package_target(target: &str) -> Option<PackageTarget> {
     })
 }
 
-async fn resolve_package_download(pkg: &PackageTarget) -> anyhow::Result<String> {
-    let client = reqwest::Client::builder()
+/// Loopback, private, link-local, CGNAT and unique-local addresses: hosts a
+/// scan target must not make the server talk to (cloud metadata, admin ports).
+pub fn is_internal_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v4) => {
+            let [a, b, ..] = v4.octets();
+            v4.is_loopback()
+                || v4.is_private()
+                || v4.is_link_local()
+                || v4.is_unspecified()
+                || v4.is_broadcast()
+                || (a == 100 && (b & 0xc0) == 64)
+        }
+        IpAddr::V6(v6) => {
+            let first = v6.segments()[0];
+            v6.is_loopback()
+                || v6.is_unspecified()
+                || (first & 0xfe00) == 0xfc00
+                || (first & 0xffc0) == 0xfe80
+                || v6
+                    .to_ipv4_mapped()
+                    .is_some_and(|v4| is_internal_ip(IpAddr::V4(v4)))
+        }
+    }
+}
+
+/// `KALASCAN_ALLOW_PRIVATE_TARGETS=1`: scan an internal Git server or mirror.
+pub fn allow_private_targets() -> bool {
+    std::env::var("KALASCAN_ALLOW_PRIVATE_TARGETS").is_ok_and(|v| v == "1")
+}
+
+/// One client for every registry and marketplace call. Bounded connect, idle
+/// and total time: a host serving 1 KB/s used to hang the CLI forever.
+fn http_client() -> anyhow::Result<reqwest::Client> {
+    // A public URL that redirects to a literal internal address is refused.
+    // shortcut: hostnames that resolve internal after a redirect still pass;
+    // a custom DNS resolver closes that if the server faces untrusted users.
+    let policy = reqwest::redirect::Policy::custom(|attempt| {
+        let internal = attempt
+            .url()
+            .host_str()
+            .and_then(|h| h.trim_matches(['[', ']']).parse::<IpAddr>().ok())
+            .is_some_and(is_internal_ip);
+        if attempt.previous().len() >= 5 {
+            attempt.error("too many redirects")
+        } else if internal && !allow_private_targets() {
+            attempt.error("redirect to an internal address refused")
+        } else {
+            attempt.follow()
+        }
+    });
+    Ok(reqwest::Client::builder()
         .user_agent(concat!(
             "KalaScan-Security-Scanner/",
             env!("CARGO_PKG_VERSION")
         ))
-        .build()?;
+        .connect_timeout(Duration::from_secs(30))
+        .read_timeout(Duration::from_secs(60))
+        .timeout(Duration::from_secs(900))
+        .redirect(policy)
+        .build()?)
+}
+
+/// Read a response body, refusing anything past `MAX_ARCHIVE_BYTES` before
+/// it is buffered (`bytes()` used to read an unbounded body into memory).
+async fn download_capped(mut resp: reqwest::Response) -> anyhow::Result<Vec<u8>> {
+    if resp.content_length().is_some_and(|n| n > MAX_ARCHIVE_BYTES) {
+        anyhow::bail!(
+            "Package too large (> {} MiB limit)",
+            MAX_ARCHIVE_BYTES / (1024 * 1024)
+        );
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = resp.chunk().await? {
+        if (body.len() + chunk.len()) as u64 > MAX_ARCHIVE_BYTES {
+            anyhow::bail!(
+                "Package too large (> {} MiB limit)",
+                MAX_ARCHIVE_BYTES / (1024 * 1024)
+            );
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
+}
+
+async fn resolve_package_download(pkg: &PackageTarget) -> anyhow::Result<String> {
+    let client = http_client()?;
     if pkg.ecosystem == "npm" {
         let url = format!(
             "https://registry.npmjs.org/{}/{}",
@@ -171,8 +253,11 @@ pub async fn unpack_extension(target: &str, dest_dir: &Path) -> anyhow::Result<P
     // Check if it is an existing local file
     let path = Path::new(t);
     if path.is_file() {
-        let file = File::open(path)?;
-        return extract_zip(file, dest_dir);
+        let mut bytes = Vec::new();
+        File::open(path)?
+            .take(MAX_ARCHIVE_BYTES + 1)
+            .read_to_end(&mut bytes)?;
+        return extract_zip(&bytes, dest_dir);
     }
 
     // Resolve download URL based on target type
@@ -200,11 +285,7 @@ pub async fn unpack_extension(target: &str, dest_dir: &Path) -> anyhow::Result<P
         t.to_string()
     };
 
-    let client = reqwest::Client::builder()
-        .user_agent("KalaScan-Security-Scanner/1.1")
-        .build()?;
-
-    let resp = client.get(&download_url).send().await?;
+    let resp = http_client()?.get(&download_url).send().await?;
     if !resp.status().is_success() {
         return Err(anyhow::anyhow!(
             "Failed to download extension package from {}: HTTP {}",
@@ -213,7 +294,7 @@ pub async fn unpack_extension(target: &str, dest_dir: &Path) -> anyhow::Result<P
         ));
     }
 
-    let bytes = resp.bytes().await?;
+    let bytes = download_capped(resp).await?;
     if download_url.ends_with(".tgz") || download_url.ends_with(".tar.gz") {
         return extract_tar_gz(&bytes, dest_dir);
     }
@@ -225,9 +306,9 @@ pub async fn unpack_extension(target: &str, dest_dir: &Path) -> anyhow::Result<P
         flate2::read::GzDecoder::new(&bytes[..])
             .take(MAX_ARCHIVE_BYTES + 1)
             .read_to_end(&mut vsix)?;
-        return extract_zip(Cursor::new(vsix), dest_dir);
+        return extract_zip(&vsix, dest_dir);
     }
-    extract_zip(Cursor::new(bytes), dest_dir)
+    extract_zip(&bytes, dest_dir)
 }
 
 /// npm tarballs and PyPI sdists, under the same zip-bomb limits as `extract_zip`.
@@ -313,14 +394,7 @@ async fn resolve_openvsx_download(url_str: &str) -> anyhow::Result<String> {
     let (namespace, name) = parse_openvsx_target(url_str)?;
     let metadata_url = format!("https://open-vsx.org/api/{}/{}/latest", namespace, name);
 
-    let client = reqwest::Client::builder()
-        .user_agent(concat!(
-            "KalaScan-Security-Scanner/",
-            env!("CARGO_PKG_VERSION")
-        ))
-        .build()?;
-
-    let metadata: OpenVsxMetadata = client
+    let metadata: OpenVsxMetadata = http_client()?
         .get(&metadata_url)
         .send()
         .await?
@@ -363,14 +437,7 @@ async fn resolve_jetbrains_download(url_str: &str) -> anyhow::Result<String> {
         plugin_id
     );
 
-    let client = reqwest::Client::builder()
-        .user_agent(concat!(
-            "KalaScan-Security-Scanner/",
-            env!("CARGO_PKG_VERSION")
-        ))
-        .build()?;
-
-    let updates: Vec<JetBrainsUpdate> = client
+    let updates: Vec<JetBrainsUpdate> = http_client()?
         .get(&updates_url)
         .send()
         .await?
@@ -398,33 +465,28 @@ const MAX_ENTRIES: usize = 10_000;
 const MAX_TOTAL_UNCOMPRESSED: u64 = 512 * 1024 * 1024; // 512 MiB
 const MAX_SINGLE_UNCOMPRESSED: u64 = 128 * 1024 * 1024; // 128 MiB per entry
 
-pub fn extract_zip<R: Read + Seek>(mut reader: R, dest_dir: &Path) -> anyhow::Result<PathBuf> {
-    let mut buffer = Vec::new();
-    reader
-        .by_ref()
-        .take(MAX_ARCHIVE_BYTES + 1)
-        .read_to_end(&mut buffer)?;
-    if buffer.len() as u64 > MAX_ARCHIVE_BYTES {
+pub fn extract_zip(bytes: &[u8], dest_dir: &Path) -> anyhow::Result<PathBuf> {
+    extract_zip_capped(bytes, dest_dir, MAX_TOTAL_UNCOMPRESSED)
+}
+
+fn extract_zip_capped(bytes: &[u8], dest_dir: &Path, max_total: u64) -> anyhow::Result<PathBuf> {
+    if bytes.len() as u64 > MAX_ARCHIVE_BYTES {
         anyhow::bail!(
             "Archive too large ({} bytes > {} MiB limit)",
-            buffer.len(),
+            bytes.len(),
             MAX_ARCHIVE_BYTES / (1024 * 1024)
         );
     }
 
     // Check for Chrome CRX magic bytes (Cr24 = 0x43, 0x72, 0x32, 0x34)
-    let is_crx = buffer.starts_with(b"Cr24");
-
-    let zip_bytes = if is_crx {
-        let zip_magic = b"PK\x03\x04";
-        let zip_offset = buffer
+    let zip_bytes = if bytes.starts_with(b"Cr24") {
+        let zip_offset = bytes
             .windows(4)
-            .position(|w| w == zip_magic)
+            .position(|w| w == b"PK\x03\x04")
             .ok_or_else(|| anyhow::anyhow!("Invalid CRX: embedded ZIP archive not found"))?;
-
-        buffer[zip_offset..].to_vec()
+        &bytes[zip_offset..]
     } else {
-        buffer
+        bytes
     };
 
     let mut archive = ZipArchive::new(Cursor::new(zip_bytes))?;
@@ -437,20 +499,11 @@ pub fn extract_zip<R: Read + Seek>(mut reader: R, dest_dir: &Path) -> anyhow::Re
         );
     }
 
+    // Counted from the bytes actually written: headers are attacker-written,
+    // and entries declaring 1 byte each used to inflate to 640 MB unchecked.
     let mut total_uncompressed: u64 = 0;
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)?;
-        // A bigger entry is truncated, not fatal: the scanner reads only the
-        // first 4 MiB of any file and flags it as oversized. Claude Code ships
-        // a 270 MB native binary, which used to make the whole VSIX unscannable.
-        let size = file.size().min(MAX_SINGLE_UNCOMPRESSED);
-        total_uncompressed = total_uncompressed.saturating_add(size);
-        if total_uncompressed > MAX_TOTAL_UNCOMPRESSED {
-            anyhow::bail!(
-                "Archive expands beyond {} MiB limit",
-                MAX_TOTAL_UNCOMPRESSED / (1024 * 1024)
-            );
-        }
         let outpath = match file.enclosed_name() {
             Some(path) => dest_dir.join(path),
             None => continue, // Prevent zip-slip
@@ -465,11 +518,20 @@ pub fn extract_zip<R: Read + Seek>(mut reader: R, dest_dir: &Path) -> anyhow::Re
                 }
             }
             let mut outfile = File::create(&outpath)?;
-            // take() also caps entries whose header lies about their size.
-            std::io::copy(
-                &mut std::io::Read::by_ref(&mut file).take(MAX_SINGLE_UNCOMPRESSED),
-                &mut outfile,
-            )?;
+            // A bigger entry is truncated, not fatal: the scanner reads only
+            // the first 4 MiB of any file and flags it as oversized. Claude
+            // Code ships a 270 MB binary that used to make the VSIX unscannable.
+            // One byte past the remaining budget is enough to detect overflow.
+            let budget = max_total - total_uncompressed;
+            let cap = MAX_SINGLE_UNCOMPRESSED.min(budget + 1);
+            let written = std::io::copy(&mut Read::by_ref(&mut file).take(cap), &mut outfile)?;
+            total_uncompressed += written;
+            if total_uncompressed > max_total {
+                anyhow::bail!(
+                    "Archive expands beyond {} MiB limit",
+                    max_total / (1024 * 1024)
+                );
+            }
         }
     }
 
@@ -555,7 +617,7 @@ mod tests {
     #[test]
     fn test_extract_zip() {
         let tmp = tempfile::tempdir().unwrap();
-        let out = extract_zip(Cursor::new(build_test_zip()), tmp.path()).unwrap();
+        let out = extract_zip(&build_test_zip(), tmp.path()).unwrap();
         assert!(out.join("extension.js").is_file());
     }
 
@@ -565,8 +627,77 @@ mod tests {
         crx.extend(build_test_zip());
 
         let tmp = tempfile::tempdir().unwrap();
-        let out = extract_zip(Cursor::new(crx), tmp.path()).unwrap();
+        let out = extract_zip(&crx, tmp.path()).unwrap();
         assert!(out.join("extension.js").is_file());
+    }
+
+    #[test]
+    fn zip_total_counts_bytes_written_not_headers() {
+        use std::io::Write;
+        use zip::write::SimpleFileOptions;
+        let mut buf = Cursor::new(Vec::new());
+        {
+            let mut w = zip::ZipWriter::new(&mut buf);
+            for name in ["a.js", "b.js"] {
+                w.start_file(name, SimpleFileOptions::default()).unwrap();
+                w.write_all(&[b'a'; 65_536]).unwrap();
+            }
+            w.finish().unwrap();
+        }
+        let honest = buf.into_inner();
+        let tmp = tempfile::tempdir().unwrap();
+        assert!(extract_zip_capped(&honest, tmp.path(), 200_000).is_ok());
+        assert!(extract_zip_capped(&honest, tempfile::tempdir().unwrap().path(), 100_000).is_err());
+
+        // Same archive, every header now claiming 1 byte uncompressed.
+        let mut lying = honest.clone();
+        for (sig, field) in [(b"PK\x03\x04", 22), (b"PK\x01\x02", 24)] {
+            let starts: Vec<usize> = lying
+                .windows(4)
+                .enumerate()
+                .filter(|(_, w)| w == sig)
+                .map(|(i, _)| i)
+                .collect();
+            for i in starts {
+                lying[i + field..i + field + 4].copy_from_slice(&1u32.to_le_bytes());
+            }
+        }
+        let dest = tempfile::tempdir().unwrap();
+        let _ = extract_zip_capped(&lying, dest.path(), 100_000);
+        let written: u64 = walkdir::WalkDir::new(dest.path())
+            .into_iter()
+            .flatten()
+            .filter_map(|e| e.metadata().ok())
+            .filter(|m| m.is_file())
+            .map(|m| m.len())
+            .sum();
+        assert!(
+            written <= 100_001,
+            "wrote {} bytes past a 100 KB cap",
+            written
+        );
+    }
+
+    #[test]
+    fn internal_addresses() {
+        for ip in [
+            "127.0.0.1",
+            "10.0.0.5",
+            "172.16.3.4",
+            "192.168.1.1",
+            "169.254.169.254",
+            "100.64.0.1",
+            "::1",
+            "fd00::1",
+            "fe80::1",
+            "::ffff:10.0.0.1",
+            "0.0.0.0",
+        ] {
+            assert!(is_internal_ip(ip.parse().unwrap()), "{}", ip);
+        }
+        for ip in ["140.82.112.3", "8.8.8.8", "2606:4700::1111"] {
+            assert!(!is_internal_ip(ip.parse().unwrap()), "{}", ip);
+        }
     }
 
     #[test]

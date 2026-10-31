@@ -292,14 +292,15 @@ fn severity_rank(severity: &str) -> u8 {
     }
 }
 
+/// One piece of evidence, one score: high entropy already is the generic
+/// packer finding, and every packer is also listed as a capability. Counting
+/// all three gave one legitimately UPX-packed binary (cwebp-bin, pngquant-bin)
+/// 14-17 of the shared 20-point budget.
 pub fn risk_contribution(report: &TriageReport) -> u8 {
     let mut score = 0u16;
     for binary in &report.binaries {
         if binary.packer.is_some() {
             score += 8;
-        }
-        if binary.entropy >= 7.2 {
-            score += 3;
         }
         if binary
             .sections
@@ -313,7 +314,7 @@ pub fn risk_contribution(report: &TriageReport) -> u8 {
     for capability in report
         .capabilities
         .iter()
-        .filter(|capability| capability.source != "rule")
+        .filter(|capability| capability.source != "rule" && capability.namespace != "packer")
     {
         score += match capability.severity.as_str() {
             "critical" => 10,
@@ -904,7 +905,10 @@ async fn check_tools() -> Vec<ToolStatus> {
 async fn check_tool(name: &str) -> ToolStatus {
     match timeout(
         Duration::from_secs(5),
-        Command::new(name).arg("--version").output(),
+        Command::new(name)
+            .arg("--version")
+            .kill_on_drop(true)
+            .output(),
     )
     .await
     {
@@ -946,7 +950,11 @@ async fn check_tool(name: &str) -> ToolStatus {
 async fn run_capa(path: &Path, rel_path: &str) -> Result<Vec<CapabilityFinding>> {
     let output = timeout(
         TOOL_TIMEOUT,
-        Command::new("capa").arg("-j").arg(path).output(),
+        Command::new("capa")
+            .arg("-j")
+            .arg(path)
+            .kill_on_drop(true)
+            .output(),
     )
     .await
     .context("capa timed out")?
@@ -997,7 +1005,11 @@ async fn run_capa(path: &Path, rel_path: &str) -> Result<Vec<CapabilityFinding>>
 async fn run_floss(path: &Path) -> Result<Vec<String>> {
     let output = timeout(
         TOOL_TIMEOUT,
-        Command::new("floss").arg("-j").arg(path).output(),
+        Command::new("floss")
+            .arg("-j")
+            .arg(path)
+            .kill_on_drop(true)
+            .output(),
     )
     .await
     .context("FLOSS timed out")?
@@ -1024,7 +1036,11 @@ async fn run_floss(path: &Path) -> Result<Vec<String>> {
 async fn run_diec(path: &Path, rel_path: &str) -> Result<Vec<CapabilityFinding>> {
     let output = timeout(
         TOOL_TIMEOUT,
-        Command::new("diec").arg("-j").arg(path).output(),
+        Command::new("diec")
+            .arg("-j")
+            .arg(path)
+            .kill_on_drop(true)
+            .output(),
     )
     .await
     .context("DIE timed out")?
@@ -1226,7 +1242,19 @@ mod tests {
             }],
             ..Default::default()
         };
-        assert!(risk_contribution(&report) >= 8);
+        assert_eq!(risk_contribution(&report), 8);
+        // The same packer as a capability adds nothing more.
+        let mut with_capability = report;
+        with_capability.capabilities.push(CapabilityFinding {
+            name: "UPX packer".to_string(),
+            namespace: "packer".to_string(),
+            description: String::new(),
+            severity: "high".to_string(),
+            source: "heuristic".to_string(),
+            file_path: "evil.exe".to_string(),
+            attack: Vec::new(),
+        });
+        assert_eq!(risk_contribution(&with_capability), 8);
     }
 
     #[tokio::test]

