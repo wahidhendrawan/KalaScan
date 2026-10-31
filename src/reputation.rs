@@ -19,6 +19,23 @@ pub const UNVERIFIED_PUBLISHER: &str = "Unverified Publisher";
 pub const LOW_INSTALLS: &str = "Low Install Count";
 pub const RECENTLY_PUBLISHED: &str = "Recently Published Extension";
 pub const REPACKAGED_COPY: &str = "Repackaged Copy of Popular Extension";
+pub const AI_VENDOR_REPO: &str = "AI Vendor Repository Under Another Publisher";
+
+/// GitHub orgs of AI vendors and the marketplace publishers they use. Fake
+/// AI assistants borrow a vendor's name by pointing `repository` at its org
+/// (`github.com/anthropics/…` published by `siffat-ahmed`). Measured on the
+/// 10,000 most-installed extensions: the only two that point at these orgs
+/// are published by the vendors themselves. A wider rule (any established
+/// org) flagged 58 of them, mostly Microsoft teams with their own publisher.
+const AI_VENDOR_ORGS: &[(&str, &[&str])] = &[
+    ("anthropics", &["anthropic"]),
+    ("openai", &["openai"]),
+    ("google-gemini", &["google"]),
+    ("mistralai", &["mistralai"]),
+    ("deepseek-ai", &["deepseek"]),
+    ("moonshotai", &["moonshotai", "moonshot-ai"]),
+    ("xai-org", &["xai"]),
+];
 
 /// `repository -> [publisher.name]` for the most-installed extensions
 /// (rules/gen_popular_extensions.py). shortcut: a snapshot; regenerate when
@@ -225,6 +242,22 @@ pub fn identity_matches(root: &Path) -> Vec<RuleMatch> {
                 ));
             }
         }
+        let org = key.split('/').nth(1).unwrap_or_default();
+        if let Some((_, vendors)) = AI_VENDOR_ORGS.iter().find(|(o, _)| *o == org) {
+            if !vendors.contains(&publisher_lower.as_str()) {
+                out.push(finding(
+                    AI_VENDOR_REPO,
+                    "critical",
+                    format!(
+                        "Declares {} (the {} organisation) as its source but is published by '{}', not {}",
+                        key,
+                        org,
+                        publisher,
+                        vendors.join(" / ")
+                    ),
+                ));
+            }
+        }
     }
     out
 }
@@ -398,6 +431,21 @@ mod tests {
         pkg["repository"] = repository;
         std::fs::write(dir.path().join("package.json"), pkg.to_string()).unwrap();
         dir
+    }
+
+    #[test]
+    fn ai_vendor_repository_under_another_publisher() {
+        // Real sample: "AI Autocomplete (Claude)" by siffat-ahmed.
+        let fake = ext_with_repo(
+            "siffat-ahmed",
+            serde_json::json!("https://github.com/anthropics/claude-autocomplete"),
+        );
+        assert_eq!(names(&fake), vec![AI_VENDOR_REPO]);
+        let real = ext_with_repo(
+            "google",
+            serde_json::json!({"url": "https://github.com/google-gemini/gemini-cli"}),
+        );
+        assert!(names(&real).is_empty());
     }
 
     #[test]

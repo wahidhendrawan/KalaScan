@@ -623,7 +623,7 @@
    "target": "samples/ide_extensions/malicious_intent/siffat-ahmed.ai-autocomplete-siffat-ahmed/0.1.0.vsix",
    "label": "malicious",
    "source": "dataset",
-   "split": "holdout"
+   "split": "dev"
   },
   {
    "target": "samples/ide_extensions/malicious_intent/ab-498.cppplayground/1.0.42.vsix",

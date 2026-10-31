@@ -1,0 +1,8 @@
+# The default rules, minus rules/secrets.toml: that file holds gitleaks' own
+# patterns (converted), and a pattern that is a literal prefix matches itself.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Secret patterns converted from gitleaks"
+paths = ['''(^|/)rules/secrets\.toml$''']

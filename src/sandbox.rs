@@ -18,22 +18,47 @@ const MAX_NETWORK: usize = 20;
 const MAX_FILES: usize = 30;
 const MAX_INDICATORS: usize = 20;
 
+/// Path segments, not words: `token` matched Python's own `tokenize.py` on
+/// every import, and libc reads /etc/passwd for getpwuid().
 const CREDENTIAL_PATHS: &[&str] = &[
-    "/etc/passwd",
     "/etc/shadow",
-    ".ssh",
+    "/.ssh/",
     "id_rsa",
+    "id_ed25519",
     "authorized_keys",
-    ".aws",
-    ".npmrc",
-    ".env",
-    ".git-credentials",
+    "/.aws/",
+    "/.npmrc",
+    "/.pypirc",
+    "/.netrc",
+    "/.env",
+    "/.git-credentials",
+    "/.docker/config.json",
+    "/.kube/config",
+    "/.config/gh/",
     "wallet",
     "metamask",
     "keychain",
-    "credentials",
-    "token",
+    "login data",
+    "cookies.sqlite",
 ];
+
+/// Planted in the install sandbox's home before tracing starts. No install
+/// step needs them (the image has no npm, git, gh or aws CLI to read them);
+/// a stealer goes straight for them.
+const BAIT_FILES: &[&str] = &[
+    ".ssh/id_rsa",
+    ".aws/credentials",
+    ".npmrc",
+    ".git-credentials",
+    ".config/gh/hosts.yml",
+    ".env",
+];
+const SANDBOX_HOME: &str = "/tmp/home";
+/// `file_type` of install-trace executions. They inform the report but do
+/// not score: benign installs run shells, chmod and fetch prebuilt binaries.
+const INSTALL_HOOKS: &str = "install hooks";
+
+pub const INSTALL_CREDENTIAL_ACCESS: &str = "Chain: Install-time Credential Access (sandbox)";
 
 const PERSISTENCE_PATHS: &[&str] = &[
     "/etc/cron",
@@ -208,7 +233,11 @@ pub fn risk_contribution(report: &SandboxReport) -> u8 {
         return 0;
     }
     let mut score = 0u16;
-    for execution in &report.executions {
+    for execution in report
+        .executions
+        .iter()
+        .filter(|e| e.file_type != INSTALL_HOOKS)
+    {
         score += (execution.network_attempts.len() as u16 * 4).min(12);
         score += (execution.indicators.len() as u16 * 2).min(12);
         if execution.timed_out {
@@ -216,6 +245,298 @@ pub fn risk_contribution(report: &SandboxReport) -> u8 {
         }
     }
     score.min(30) as u8
+}
+
+/// What installing the package at `dir` runs: npm lifecycle scripts, or
+/// setup.py and `.pth` startup hooks. Returns (file that declares them,
+/// label, shell steps); `None` when nothing runs at install.
+fn install_plan(dir: &Path) -> Option<(String, String, String)> {
+    let quote = |s: &str| format!("'{}'", s.replace('\'', r"'\''"));
+    if let Some(pkg) = std::fs::read_to_string(dir.join("package.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+    {
+        let steps: Vec<(&str, &str)> = ["preinstall", "install", "postinstall"]
+            .into_iter()
+            .filter_map(|s| pkg["scripts"][s].as_str().map(|cmd| (s, cmd)))
+            .collect();
+        if steps.is_empty() {
+            return None;
+        }
+        let name = pkg["name"].as_str().unwrap_or("package");
+        let mut script = format!("export npm_package_name={}\n", quote(name));
+        for (event, cmd) in &steps {
+            script.push_str(&format!(
+                "npm_lifecycle_event={} sh -c {}\n",
+                event,
+                quote(cmd)
+            ));
+        }
+        let events: Vec<&str> = steps.iter().map(|(s, _)| *s).collect();
+        let label = format!("npm install: {}", events.join(", "));
+        return Some(("package.json".to_string(), label, script));
+    }
+    let setup = dir.join("setup.py").is_file();
+    let pth = std::fs::read_dir(dir).ok()?.flatten().find_map(|e| {
+        let name = e.file_name().to_string_lossy().into_owned();
+        name.ends_with(".pth").then_some(name)
+    });
+    let mut script = String::new();
+    if setup {
+        script.push_str("python3 setup.py -q install --root /tmp/root\n");
+    }
+    if pth.is_some() {
+        // `.pth` lines starting with `import` run at every interpreter start.
+        script.push_str("python3 -c \"import site; site.addsitedir('/tmp/pkg')\"\n");
+    }
+    match (setup, pth) {
+        (true, None) => Some(("setup.py".into(), "pip install: setup.py".into(), script)),
+        (true, Some(_)) => Some((
+            "setup.py".into(),
+            "pip install: setup.py, .pth hooks".into(),
+            script,
+        )),
+        (false, Some(pth)) => Some((pth, "pip install: .pth hooks".into(), script)),
+        (false, None) => None,
+    }
+}
+
+/// Run the package's install hooks in the sandbox under strace, with bait
+/// credentials in $HOME. The execution goes into `report`; opening a bait
+/// file comes back as a finding.
+pub async fn trace_install(
+    dir: &Path,
+    config: &SandboxConfig,
+    report: &mut SandboxReport,
+) -> Vec<crate::RuleMatch> {
+    // Unavailable: analyze_triage already noted why.
+    let Some((manifest, label, steps)) = install_plan(dir).filter(|_| report.available) else {
+        return Vec::new();
+    };
+    let root = match std::fs::canonicalize(dir) {
+        Ok(root) => root,
+        Err(error) => {
+            report
+                .notes
+                .push(format!("Install trace skipped: {}", error));
+            return Vec::new();
+        }
+    };
+    let bait: Vec<String> = BAIT_FILES
+        .iter()
+        .map(|f| format!("{}/{}", SANDBOX_HOME, f))
+        .collect();
+    // Bait is planted and the package copied before strace starts, so
+    // neither shows in the trace. `-y` prints the path behind each returned
+    // fd, which catches relative opens (`cd ~; cat .npmrc`). The steps come
+    // in as $1: docker passes argv as is, no host shell in between.
+    let script = format!(
+        "export HOME={home}; \
+         for f in {bait}; do mkdir -p \"$(dirname \"$f\")\"; echo kalascan-bait > \"$f\"; done; \
+         printf '%s' \"$1\" > /tmp/steps.sh; \
+         cp -r /pkg /tmp/pkg 2>/dev/null; cd /tmp/pkg || exit 1; \
+         timeout 50 strace -f -qq -y -e trace=process,file,network -s 200 -o /tmp/trace sh /tmp/steps.sh >/dev/null 2>&1; \
+         code=$?; cat /tmp/trace 2>/dev/null; exit $code",
+        home = SANDBOX_HOME,
+        bait = bait.join(" ")
+    );
+    let name = format!("kalascan-install-{}", uuid::Uuid::new_v4());
+    let args = docker_run_args(
+        &name,
+        &INSTALL_LIMITS,
+        &format!("{}:/pkg:ro", root.display()),
+        &config.image,
+        &script,
+        &["install-trace", &steps],
+    );
+    let (exit_code, duration_ms, text, analysis) =
+        match run_docker(&args, &name, Duration::from_secs(90)).await {
+            Ok(run) => run,
+            Err(error) => {
+                report
+                    .notes
+                    .push(format!("Install trace failed: {}", error));
+                return Vec::new();
+            }
+        };
+    let opened = bait_accesses(&text, &bait);
+    let execution = build_execution(
+        &label,
+        INSTALL_HOOKS,
+        host_arch(),
+        exit_code,
+        exit_code == Some(124),
+        duration_ms,
+        analysis,
+    );
+    attack::merge(&mut report.attack_techniques, execution.attack.clone());
+    report
+        .attack_techniques
+        .sort_by(|left, right| left.id.cmp(&right.id));
+    report.executions.push(execution);
+    report.files_analyzed += 1;
+    if opened.is_empty() {
+        return Vec::new();
+    }
+    vec![crate::RuleMatch {
+        file_path: manifest,
+        line_number: 1,
+        matched_pattern: INSTALL_CREDENTIAL_ACCESS.to_string(),
+        severity: "critical".to_string(),
+        context: format!("{} opened {}", label, opened.join(", ")),
+    }]
+}
+
+/// Bait files a trace opened. Only opens count: a stat or access() is an
+/// existence check, which benign tooling does too.
+fn bait_accesses(trace: &str, bait: &[String]) -> Vec<String> {
+    let mut out = Vec::new();
+    for line in trace.lines() {
+        let line = strip_pid_prefix(line.trim());
+        let Some((name, rest)) = line.split_once('(') else {
+            continue;
+        };
+        if !matches!(name, "open" | "openat" | "openat2" | "creat") {
+            continue;
+        }
+        // `= 3</tmp/home/.npmrc>` with -y; the quoted argument otherwise.
+        let resolved = rest
+            .rsplit_once(") = ")
+            .and_then(|(_, ret)| ret.split_once('<'))
+            .and_then(|(_, path)| path.strip_suffix('>'))
+            .map(str::to_string);
+        if let Some(path) = resolved.or_else(|| first_quoted(rest)) {
+            if bait.contains(&path) {
+                push_unique(&mut out, path, MAX_FILES);
+            }
+        }
+    }
+    out
+}
+
+struct Limits {
+    pids: &'static str,
+    memory: &'static str,
+    cpus: &'static str,
+    tmpfs: &'static str,
+    nofile: &'static str,
+}
+
+const SAMPLE_LIMITS: Limits = Limits {
+    pids: "64",
+    memory: "256m",
+    cpus: "0.5",
+    tmpfs: "/tmp:rw,exec,nosuid,size=64m",
+    nofile: "nofile=64:64",
+};
+
+/// Install hooks run node or python and may compile: more room than one ELF.
+const INSTALL_LIMITS: Limits = Limits {
+    pids: "128",
+    memory: "512m",
+    cpus: "1",
+    tmpfs: "/tmp:rw,exec,nosuid,size=512m",
+    nofile: "nofile=256:256",
+};
+
+/// `docker run` with the isolation every sandbox run shares: no network,
+/// read-only root, no capabilities, `nobody`, one read-only mount.
+fn docker_run_args(
+    name: &str,
+    limits: &Limits,
+    mount: &str,
+    image: &str,
+    script: &str,
+    script_args: &[&str],
+) -> Vec<OsString> {
+    [
+        "run",
+        "--rm",
+        "--name",
+        name,
+        "--network",
+        "none",
+        "--ipc",
+        "none",
+        "--read-only",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
+        "--pids-limit",
+        limits.pids,
+        "--memory",
+        limits.memory,
+        "--memory-swap",
+        limits.memory,
+        "--cpus",
+        limits.cpus,
+        "--user",
+        "65534:65534",
+        "--tmpfs",
+        limits.tmpfs,
+        "--ulimit",
+        limits.nofile,
+        "-v",
+        mount,
+        image,
+        "sh",
+        "-c",
+        script,
+    ]
+    .into_iter()
+    .chain(script_args.iter().copied())
+    .map(OsString::from)
+    .collect()
+}
+
+/// Run `docker` and parse the strace output it prints: exit code, duration,
+/// raw trace and its analysis. The traced program is bounded by `timeout`
+/// inside the container, so hitting `limit` means Docker itself is stuck:
+/// an infrastructure failure, not behaviour worth risk points.
+async fn run_docker(
+    args: &[OsString],
+    name: &str,
+    limit: Duration,
+) -> Result<(Option<i32>, u64, String, StraceAnalysis), String> {
+    let started = Instant::now();
+    let result = timeout(
+        limit,
+        Command::new("docker")
+            .args(args)
+            .kill_on_drop(true)
+            .output(),
+    )
+    .await;
+    let duration_ms = started.elapsed().as_millis() as u64;
+    let output = match result {
+        Ok(Ok(output)) => output,
+        Ok(Err(error)) => return Err(error.to_string()),
+        Err(_) => {
+            let _ = timeout(
+                Duration::from_secs(10),
+                Command::new("docker")
+                    .args(["rm", "-f", name])
+                    .kill_on_drop(true)
+                    .output(),
+            )
+            .await;
+            return Err(format!("docker did not finish within {}s", limit.as_secs()));
+        }
+    };
+    // Cut the bytes, then decode: `String::truncate` panics inside a
+    // multi-byte char.
+    let trace = &output.stdout[..output.stdout.len().min(MAX_TRACE_BYTES)];
+    let text = String::from_utf8_lossy(trace).into_owned();
+    let analysis = parse_strace(&text);
+    if analysis.syscalls == 0 && !output.status.success() {
+        let detail = String::from_utf8_lossy(&output.stderr);
+        let detail = detail.trim();
+        if !detail.is_empty() {
+            return Err(truncate(detail, 300));
+        }
+    }
+    Ok((output.status.code(), duration_ms, text, analysis))
 }
 
 async fn docker_available() -> bool {
@@ -265,100 +586,30 @@ async fn run_sample(
         "cat /tmp/trace 2>/dev/null || true; ",
         "exit $code"
     );
-    let args: Vec<OsString> = vec![
-        "run".into(),
-        "--rm".into(),
-        "--name".into(),
-        name.clone().into(),
-        "--network".into(),
-        "none".into(),
-        "--ipc".into(),
-        "none".into(),
-        "--read-only".into(),
-        "--cap-drop".into(),
-        "ALL".into(),
-        "--security-opt".into(),
-        "no-new-privileges".into(),
-        "--pids-limit".into(),
-        "64".into(),
-        "--memory".into(),
-        "256m".into(),
-        "--memory-swap".into(),
-        "256m".into(),
-        "--cpus".into(),
-        "0.5".into(),
-        "--user".into(),
-        "65534:65534".into(),
-        "--tmpfs".into(),
-        "/tmp:rw,exec,nosuid,size=64m".into(),
-        "--ulimit".into(),
-        "nofile=64:64".into(),
-        "-v".into(),
-        format!("{}:/sample:ro", absolute.display()).into(),
-        config.image.clone().into(),
-        "sh".into(),
-        "-c".into(),
-        script.into(),
-    ];
-
-    let started = Instant::now();
-    let result = timeout(
-        config.timeout,
-        Command::new("docker")
-            .args(&args)
-            .kill_on_drop(true)
-            .output(),
-    )
-    .await;
-    let duration_ms = started.elapsed().as_millis() as u64;
-
-    match result {
-        // The sample is bounded by `timeout 10` inside the container, so the
-        // outer timeout means Docker itself is stuck: an infrastructure
-        // failure, not sample behaviour worth risk points.
-        Err(_) => {
-            let _ = timeout(
-                Duration::from_secs(10),
-                Command::new("docker")
-                    .args(["rm", "-f", &name])
-                    .kill_on_drop(true)
-                    .output(),
-            )
-            .await;
-            Err(format!(
-                "docker did not finish within {}s",
-                config.timeout.as_secs()
-            ))
-        }
-        Ok(Err(error)) => Err(error.to_string()),
-        Ok(Ok(output)) => {
-            let exit_code = output.status.code();
-            let timed_out = exit_code == Some(124);
-            // Cut the bytes, then decode: `String::truncate` panics inside a
-            // multi-byte char.
-            let trace = &output.stdout[..output.stdout.len().min(MAX_TRACE_BYTES)];
-            let text = String::from_utf8_lossy(trace);
-            let analysis = parse_strace(&text);
-            if analysis.syscalls == 0 && !output.status.success() {
-                let detail = String::from_utf8_lossy(&output.stderr);
-                let detail = detail.trim();
-                if !detail.is_empty() {
-                    return Err(truncate(detail, 300));
-                }
-            }
-            Ok(build_execution(
-                binary,
-                exit_code,
-                timed_out,
-                duration_ms,
-                analysis,
-            ))
-        }
-    }
+    let args = docker_run_args(
+        &name,
+        &SAMPLE_LIMITS,
+        &format!("{}:/sample:ro", absolute.display()),
+        &config.image,
+        script,
+        &[],
+    );
+    let (exit_code, duration_ms, _, analysis) = run_docker(&args, &name, config.timeout).await?;
+    Ok(build_execution(
+        &binary.path,
+        &binary.file_type,
+        binary.architecture.as_deref().unwrap_or("unknown"),
+        exit_code,
+        exit_code == Some(124),
+        duration_ms,
+        analysis,
+    ))
 }
 
 fn build_execution(
-    binary: &BinaryArtifact,
+    file_path: &str,
+    file_type: &str,
+    architecture: &str,
     exit_code: Option<i32>,
     timed_out: bool,
     duration_ms: u64,
@@ -466,12 +717,9 @@ fn build_execution(
     attack.dedup_by(|left, right| left.id == right.id);
 
     SandboxExecution {
-        file_path: binary.path.clone(),
-        file_type: binary.file_type.clone(),
-        architecture: binary
-            .architecture
-            .clone()
-            .unwrap_or_else(|| "unknown".to_string()),
+        file_path: file_path.to_string(),
+        file_type: file_type.to_string(),
+        architecture: architecture.to_string(),
         exit_code,
         timed_out,
         duration_ms,
@@ -710,7 +958,7 @@ mod tests {
     fn parses_network_credential_and_exec_memory() {
         let trace = r#"
 1234  execve("/tmp/sample", ["/tmp/sample"], 0x7ffd) = 0
-1234  openat(AT_FDCWD, "/etc/passwd", O_RDONLY) = 3
+1234  openat(AT_FDCWD, "/home/u/.ssh/id_rsa", O_RDONLY) = 3
 1234  socket(AF_INET, SOCK_STREAM, IPPROTO_IP) = 3
 1234  connect(3, {sa_family=AF_INET, sin_port=htons(4444), sin_addr=inet_addr("1.2.3.4")}, 16) = -1
 1234  mprotect(0x7f000000, 4096, PROT_READ|PROT_EXEC) = 0
@@ -724,7 +972,7 @@ mod tests {
         assert!(analysis
             .file_accesses
             .iter()
-            .any(|path| path.contains("/etc/passwd")));
+            .any(|path| path.contains("/.ssh/id_rsa")));
         assert!(analysis
             .indicators
             .iter()
@@ -751,6 +999,64 @@ strace: Process 1234 attached
         assert_eq!(analysis.syscalls, 2);
         assert!(analysis.file_accesses.is_empty());
         assert!(analysis.network_attempts.is_empty());
+    }
+
+    #[test]
+    fn library_paths_are_not_credentials() {
+        // Python opens tokenize.py on import; libc reads /etc/passwd for getpwuid.
+        let trace = r#"
+1  openat(AT_FDCWD, "/usr/lib/python3.11/tokenize.py", O_RDONLY) = 3
+1  openat(AT_FDCWD, "/etc/passwd", O_RDONLY|O_CLOEXEC) = 3
+"#;
+        let analysis = parse_strace(trace);
+        assert!(!analysis.indicators.iter().any(|i| i.contains("credential")));
+    }
+
+    #[test]
+    fn install_plans_and_bait_detection() {
+        let npm = tempfile::tempdir().unwrap();
+        std::fs::write(
+            npm.path().join("package.json"),
+            r#"{"name": "x", "scripts": {"postinstall": "node -e 'steal()'", "test": "jest"}}"#,
+        )
+        .unwrap();
+        let (manifest, label, steps) = install_plan(npm.path()).unwrap();
+        assert_eq!(
+            (manifest.as_str(), label.as_str()),
+            ("package.json", "npm install: postinstall")
+        );
+        assert!(
+            steps.contains(r"sh -c 'node -e '\''steal()'\'''"),
+            "{}",
+            steps
+        );
+        std::fs::write(npm.path().join("package.json"), r#"{"name": "x"}"#).unwrap();
+        assert!(install_plan(npm.path()).is_none());
+
+        let py = tempfile::tempdir().unwrap();
+        std::fs::write(py.path().join("evil.pth"), "import os").unwrap();
+        assert_eq!(install_plan(py.path()).unwrap().0, "evil.pth");
+        std::fs::write(py.path().join("setup.py"), "from setuptools import setup").unwrap();
+        let (manifest, label, _) = install_plan(py.path()).unwrap();
+        assert_eq!(
+            (manifest.as_str(), label.as_str()),
+            ("setup.py", "pip install: setup.py, .pth hooks")
+        );
+
+        let bait = vec![
+            "/tmp/home/.ssh/id_rsa".to_string(),
+            "/tmp/home/.npmrc".to_string(),
+        ];
+        let trace = r#"
+7  openat(AT_FDCWD, ".npmrc", O_RDONLY|O_CLOEXEC) = 3</tmp/home/.npmrc>
+7  newfstatat(AT_FDCWD, "/tmp/home/.ssh/id_rsa", {st_mode=S_IFREG|0644, st_size=14, ...}, 0) = 0
+7  openat(AT_FDCWD, "/tmp/pkg/.env", O_RDONLY) = 3</tmp/pkg/.env>
+[pid 8] openat(AT_FDCWD, "/tmp/home/.ssh/id_rsa", O_RDONLY) = 4
+"#;
+        assert_eq!(
+            bait_accesses(trace, &bait),
+            vec!["/tmp/home/.npmrc", "/tmp/home/.ssh/id_rsa"]
+        );
     }
 
     #[test]

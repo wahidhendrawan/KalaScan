@@ -14,7 +14,10 @@ mod export;
 mod git_history;
 mod installed;
 mod iocs;
+mod lockfile;
 mod metrics;
+mod obfuscator;
+mod registry;
 mod reputation;
 mod sandbox;
 mod scanner;
@@ -140,6 +143,9 @@ pub struct ScanRequest {
     pub changed_only: bool,
     #[serde(default)]
     pub base_ref: Option<String>,
+    /// Also report hard-coded credentials (gitleaks patterns, `--secrets`).
+    #[serde(default)]
+    pub secrets: bool,
     /// A local directory holding someone else's code (`kalascan installed`).
     /// Never read from the API: remote targets are untrusted by construction.
     #[serde(skip)]
@@ -267,6 +273,7 @@ async fn main() -> anyhow::Result<()> {
             update_baseline,
             ignore,
             untrusted,
+            secrets,
             changed_only,
             base_ref,
             ai,
@@ -307,6 +314,7 @@ async fn main() -> anyhow::Result<()> {
                 ignore: ignore.map(|p| p.to_string_lossy().to_string()),
                 changed_only,
                 base_ref: Some(base_ref),
+                secrets,
                 third_party: untrusted,
             };
             run_cli_scan(req, format, fail_on_risk, output, baseline_path).await?;
@@ -327,6 +335,26 @@ async fn main() -> anyhow::Result<()> {
             jobs,
         }) => {
             run_installed_command(&format, min_risk, fail_on_risk, jobs).await?;
+        }
+        Some(Commands::Deps {
+            path,
+            format,
+            include_dev,
+            min_risk,
+            fail_on_risk,
+            jobs,
+            max,
+        }) => {
+            run_deps_command(
+                &path,
+                &format,
+                include_dev,
+                min_risk,
+                fail_on_risk,
+                jobs,
+                max,
+            )
+            .await?;
         }
         Some(Commands::Diff {
             old,
@@ -1361,6 +1389,7 @@ async fn api_scan_upload(
         ignore: None,
         changed_only: false,
         base_ref: None,
+        secrets: false,
         third_party: true,
     };
 
@@ -1472,10 +1501,13 @@ async fn execute_scan_in(
     // Phase 2: Static rule + YARA + Entropy check
     let custom_yara = req.yara_dir.clone().map(std::path::PathBuf::from);
     // Fail the scan on a broken rules file rather than silently matching nothing.
-    let extra_rules = match &req.rules_file {
+    let mut extra_rules = match &req.rules_file {
         Some(path) => scanner::load_rules_file(std::path::Path::new(path))?,
         None => Vec::new(),
     };
+    if req.secrets {
+        extra_rules.extend(scanner::secret_rules());
+    }
     let scan_path = scan_dir.clone();
     let changed_clone = changed_files.clone();
     let (total_files, scanned_files, mut rule_matches) = tokio::task::spawn_blocking(move || {
@@ -1497,6 +1529,9 @@ async fn execute_scan_in(
     rule_matches.extend(reputation::identity_matches(&scan_dir));
     if let Some((publisher, name, _)) = vsix::parse_marketplace_id(&repo_url) {
         rule_matches.extend(reputation::marketplace_matches(publisher, name).await);
+    }
+    if let Some(pkg) = vsix::parse_package_target(&repo_url) {
+        rule_matches.extend(registry::findings(&pkg, &scan_dir).await);
     }
 
     // IOCs, and exact-URL threat intel when an abuse.ch key is configured.
@@ -1591,7 +1626,9 @@ async fn execute_scan_in(
                 .unwrap_or_else(|| "kalascan-sandbox:latest".to_string()),
             ..Default::default()
         };
-        Some(sandbox::analyze_triage(&scan_dir, &triage_report, &config).await)
+        let mut report = sandbox::analyze_triage(&scan_dir, &triage_report, &config).await;
+        rule_matches.extend(sandbox::trace_install(&scan_dir, &config, &mut report).await);
+        Some(report)
     } else {
         None
     };
@@ -1836,6 +1873,116 @@ fn run_sbom_command(
     Ok(())
 }
 
+/// Critical findings and chains of a result, for one-line summaries.
+fn strong_findings(r: &ScanResult) -> Vec<String> {
+    let mut names: Vec<String> = r
+        .rule_matches
+        .iter()
+        .filter(|m| {
+            m.severity == "critical" || m.matched_pattern.starts_with(correlate::CHAIN_PREFIX)
+        })
+        .map(|m| m.matched_pattern.clone())
+        .collect();
+    names.sort();
+    names.dedup();
+    names
+}
+
+/// `kalascan deps`: download and scan every package a lockfile pins.
+/// shortcut: no cache between runs; every package is fetched again. Add one
+/// keyed on name@version if this runs in CI on large trees.
+async fn run_deps_command(
+    path: &std::path::Path,
+    format: &str,
+    include_dev: bool,
+    min_risk: u8,
+    fail_on_risk: Option<u8>,
+    jobs: usize,
+    max: usize,
+) -> anyhow::Result<()> {
+    let locked = lockfile::read(path, include_dev);
+    if locked.is_empty() {
+        anyhow::bail!(
+            "no package-lock.json, poetry.lock, Pipfile.lock or pinned requirements.txt in {}",
+            path.display()
+        );
+    }
+    if locked.len() > max {
+        eprintln!(
+            "{} packages locked; scanning the first {} (--max)",
+            locked.len(),
+            max
+        );
+    }
+    eprintln!("Scanning {} locked packages...", locked.len().min(max));
+
+    let permits = Arc::new(tokio::sync::Semaphore::new(jobs.max(1)));
+    let mut tasks = tokio::task::JoinSet::new();
+    for pkg in locked.into_iter().take(max) {
+        let permits = permits.clone();
+        tasks.spawn(async move {
+            let _permit = permits.acquire_owned().await;
+            let mut req: ScanRequest = serde_json::from_value(serde_json::json!({
+                "repo_url": pkg.target(),
+                "check_cve": false,
+            }))
+            .expect("static request");
+            req.third_party = true;
+            (pkg, execute_scan(req).await)
+        });
+    }
+    let mut rows = Vec::new();
+    let mut failed = 0;
+    while let Some(joined) = tasks.join_next().await {
+        let (pkg, result) = joined?;
+        match result {
+            Ok(r) => rows.push((pkg, r)),
+            Err(e) => {
+                failed += 1;
+                eprintln!("  failed {}: {}", pkg.target(), e);
+            }
+        }
+    }
+    rows.sort_by(|a, b| b.1.risk_score.cmp(&a.1.risk_score).then(a.0.cmp(&b.0)));
+
+    let shown: Vec<_> = rows
+        .iter()
+        .filter(|(_, r)| r.risk_score >= min_risk)
+        .collect();
+    if format == "json" {
+        let out: Vec<_> = shown
+            .iter()
+            .map(|(p, r)| {
+                serde_json::json!({
+                    "package": p.target(),
+                    "source": p.source,
+                    "dev": p.dev,
+                    "risk_score": r.risk_score,
+                    "critical": strong_findings(r),
+                })
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&out)?);
+    } else {
+        println!("{:>4}  {:<56} CRITICAL FINDINGS", "RISK", "PACKAGE");
+        for (p, r) in &shown {
+            println!(
+                "{:>4}  {:<56} {}",
+                r.risk_score,
+                p.target(),
+                strong_findings(r).join(", ")
+            );
+        }
+        eprintln!("{} scanned, {} failed", rows.len(), failed);
+    }
+    if let Some(threshold) = fail_on_risk {
+        if rows.iter().any(|(_, r)| r.risk_score >= threshold) {
+            std::process::exit(1);
+        }
+    }
+    Ok(())
+}
+
 async fn run_installed_command(
     format: &str,
     min_risk: u8,
@@ -1878,19 +2025,7 @@ async fn run_installed_command(
             .then(a.0.name.cmp(&b.0.name))
     });
 
-    let strong = |r: &ScanResult| -> Vec<String> {
-        let mut names: Vec<String> = r
-            .rule_matches
-            .iter()
-            .filter(|m| {
-                m.severity == "critical" || m.matched_pattern.starts_with(correlate::CHAIN_PREFIX)
-            })
-            .map(|m| m.matched_pattern.clone())
-            .collect();
-        names.sort();
-        names.dedup();
-        names
-    };
+    let strong = strong_findings;
     let shown: Vec<_> = rows
         .iter()
         .filter(|(_, r)| r.risk_score >= min_risk)
@@ -2378,12 +2513,15 @@ fn calculate_risk_score(
         }
         // A chain is two corroborating hard signals by construction. Listing
         // spoofs (invisible characters, look-alike publisher, a popular
-        // extension's repository under a stranger's name) have no benign
-        // reading at all, so they weigh the same.
+        // extension's repository under a stranger's name) and an install
+        // script hidden from the registry's manifest have no benign reading
+        // at all, so they weigh the same.
         if m.matched_pattern.starts_with(correlate::CHAIN_PREFIX)
             || m.matched_pattern == reputation::INVISIBLE_NAME
             || m.matched_pattern == reputation::PUBLISHER_LOOKALIKE
             || m.matched_pattern == reputation::REPACKAGED_COPY
+            || m.matched_pattern == reputation::AI_VENDOR_REPO
+            || m.matched_pattern == registry::MANIFEST_CONFUSION
             || m.matched_pattern == iocs::URLHAUS_HIT
         {
             critical += 2;
