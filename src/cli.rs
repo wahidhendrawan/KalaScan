@@ -219,6 +219,24 @@ pub enum Commands {
         #[arg(long)]
         cve: bool,
     },
+    /// Normalize another scanner's report (Nessus, Nmap, Burp, ZAP, Nuclei, Qualys, CSV) into one finding format
+    Import {
+        /// Report file; its format is detected from the content, not the extension
+        file: PathBuf,
+
+        /// Output format: text, json, sarif. SARIF results point at host:port, not
+        /// files, so they suit SARIF viewers; GitHub Code Scanning needs file locations
+        #[arg(short, long, default_value = "text")]
+        format: String,
+
+        /// Path to save the output
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Exit 1 if a finding is at or above this severity
+        #[arg(long, value_parser = ["critical", "high", "medium", "low"])]
+        fail_on: Option<String>,
+    },
 }
 
 #[derive(Subcommand, Debug)]

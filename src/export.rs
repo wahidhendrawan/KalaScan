@@ -551,6 +551,11 @@ pub fn export_sarif(result: &ScanResult) -> String {
         results.push(entry);
     }
 
+    sarif_log(rules, results)
+}
+
+/// The SARIF 2.1.0 document around one KalaScan run.
+pub fn sarif_log(rules: Vec<serde_json::Value>, results: Vec<serde_json::Value>) -> String {
     serde_json::to_string_pretty(&serde_json::json!({
         "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
         "version": "2.1.0",
@@ -568,7 +573,7 @@ pub fn export_sarif(result: &ScanResult) -> String {
     .unwrap_or_else(|_| "{}".to_string())
 }
 
-fn rule_id(name: &str) -> String {
+pub fn rule_id(name: &str) -> String {
     name.chars()
         .map(|c| {
             if c.is_ascii_alphanumeric() {
@@ -580,7 +585,7 @@ fn rule_id(name: &str) -> String {
         .collect::<String>()
 }
 
-fn sarif_level(severity: &str) -> &'static str {
+pub fn sarif_level(severity: &str) -> &'static str {
     match severity {
         "critical" | "high" => "error",
         "medium" => "warning",

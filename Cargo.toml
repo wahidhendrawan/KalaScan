@@ -35,3 +35,4 @@ flate2 = "1.1.10"
 iced-x86 = "1.21.0"
 tar = { version = "0.4", default-features = false }
 toml = { version = "1.1", default-features = false, features = ["parse", "serde"] }
+quick-xml = "0.42"
