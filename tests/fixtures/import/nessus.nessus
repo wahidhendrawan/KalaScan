@@ -1,0 +1,27 @@
+<?xml version="1.0" ?>
+<NessusClientData_v2>
+  <Report name="Test Scan">
+    <ReportHost name="192.168.1.100">
+      <ReportItem port="443" svc_name="https" protocol="tcp" severity="3" pluginID="12345" pluginName="SSL Certificate Expiring">
+        <risk_factor>High</risk_factor>
+        <description>The SSL certificate on the remote host is expiring soon.</description>
+        <solution>Renew the SSL certificate before expiration.</solution>
+        <plugin_output>Certificate expires: 2023-12-31</plugin_output>
+      </ReportItem>
+      <ReportItem port="22" svc_name="ssh" protocol="tcp" severity="4" pluginID="67890" pluginName="SSH Weak Cipher Enabled">
+        <risk_factor>Critical</risk_factor>
+        <description>The remote SSH server supports weak encryption algorithms.</description>
+        <solution>Disable weak ciphers in SSH configuration.</solution>
+        <plugin_output>Weak cipher: 3des-cbc detected</plugin_output>
+        <cvss3_base_score>5.9</cvss3_base_score>
+        <cve>CVE-2023-48795</cve>
+        <cve>CVE-2008-5161</cve>
+      </ReportItem>
+      <ReportItem port="80" svc_name="http" protocol="tcp" severity="0" pluginID="11111" pluginName="HTTP Server Information">
+        <risk_factor>None</risk_factor>
+        <description>The remote HTTP server banner reveals version information.</description>
+        <solution>Configure the server to hide version information.</solution>
+      </ReportItem>
+    </ReportHost>
+  </Report>
+</NessusClientData_v2>

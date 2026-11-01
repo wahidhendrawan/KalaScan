@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<issues burpVersion="2023.1.1" exportTime="Sun Jan 01 00:00:00 UTC 2023">
+  <issue>
+    <serialNumber>1234567890</serialNumber>
+    <type>5244416</type>
+    <name>SQL Injection</name>
+    <host ip="192.168.1.100">https://example.com</host>
+    <path><![CDATA[/api/users?id=1]]></path>
+    <location><![CDATA[/api/users]]></location>
+    <severity>High</severity>
+    <confidence>Certain</confidence>
+    <issueBackground><![CDATA[SQL injection is a vulnerability.]]></issueBackground>
+    <remediationBackground><![CDATA[Use prepared statements.]]></remediationBackground>
+    <issueDetail><![CDATA[The application is vulnerable to SQL injection in the id parameter.]]></issueDetail>
+    <remediationDetail><![CDATA[Use parameterized queries to prevent SQL injection attacks.]]></remediationDetail>
+  </issue>
+  <issue>
+    <serialNumber>1234567891</serialNumber>
+    <type>2097920</type>
+    <name>Cross-site scripting (reflected)</name>
+    <host ip="192.168.1.100">https://example.com</host>
+    <path><![CDATA[/search?q=test]]></path>
+    <location><![CDATA[/search]]></location>
+    <severity>Medium</severity>
+    <confidence>Firm</confidence>
+    <issueDetail><![CDATA[Reflected XSS in search parameter.]]></issueDetail>
+    <remediationDetail><![CDATA[Encode user input before reflecting in responses.]]></remediationDetail>
+  </issue>
+</issues>
