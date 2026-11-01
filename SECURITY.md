@@ -2,12 +2,7 @@
 
 ## Supported versions
 
-Only the latest release gets security fixes.
-
-| Version | Supported |
-|---|---|
-| 1.11.x | yes |
-| < 1.11 | no |
+Only the latest release gets security fixes. Please check that the problem still exists there before reporting.
 
 ## Reporting a vulnerability
 
