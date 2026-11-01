@@ -1,13 +1,12 @@
 # 🛡️ KalaScan
 
-**Security & Malware Scanner for Git Repositories and IDE Extensions** (VS Code, Open VSX, JetBrains, Chrome CRX) — detects malicious code, token stealers, supply chain attacks, and known CVEs using high-speed Rust RegEx rules, YARA rules engine, Shannon entropy analysis, deep static binary triage, recursive deobfuscation, safe static emulation, TTP/ATT&CK coverage mapping, opt-in Docker sandboxing, and optional AI deep audit.
+[![CI](https://github.com/wahidhendrawan/KalaScan/actions/workflows/ci.yml/badge.svg)](https://github.com/wahidhendrawan/KalaScan/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/wahidhendrawan/KalaScan?sort=semver)](https://github.com/wahidhendrawan/KalaScan/releases/latest)
+[![License](https://img.shields.io/github/license/wahidhendrawan/KalaScan)](LICENSE)
+![rust](https://img.shields.io/badge/rust-1.95+-orange?logo=rust)
+![docker](https://img.shields.io/badge/docker-ready-2496ED?logo=docker)
 
-<p align="center">
-  <img src="https://img.shields.io/badge/rust-1.95+-orange?logo=rust" />
-  <img src="https://img.shields.io/badge/license-GPL--3.0-blue" />
-  <img src="https://img.shields.io/badge/tests-190%20passed-brightgreen" />
-  <img src="https://img.shields.io/badge/docker-ready-2496ED?logo=docker" />
-</p>
+**Security & Malware Scanner for Git Repositories and IDE Extensions** (VS Code, Open VSX, JetBrains, Chrome CRX) — detects malicious code, token stealers, supply chain attacks, and known CVEs using high-speed Rust RegEx rules, YARA rules engine, Shannon entropy analysis, deep static binary triage, recursive deobfuscation, safe static emulation, TTP/ATT&CK coverage mapping, opt-in Docker sandboxing, and optional AI deep audit.
 
 ## Features
 
@@ -140,6 +139,11 @@ For `npm:` and `pypi:` targets, what the registry says about the scanned version
 
 ### Lockfile Audit
 - `kalascan deps [PATH]` reads `package-lock.json` (v1-v3), `poetry.lock`, `Pipfile.lock` and pinned `requirements.txt` lines, then downloads and scans each exact locked version, highest risk first. Dev dependencies are skipped unless `--include-dev`; `--jobs` (default 4), `--max` (default 500), `--min-risk`, `--fail-on-risk`, `--format text|json`. Git, file and link dependencies are skipped. Other lockfiles (`yarn.lock`, `pnpm-lock.yaml`, `Cargo.lock`, …) are not read yet; a directory with none of the supported ones exits with an error
+
+### Scanner Report Import
+- `kalascan import <FILE>` reads a Nessus (`.nessus` v2), Nmap XML, Burp Suite XML, OWASP ZAP (XML or JSON), Nuclei (JSON or JSONL), Qualys scan XML or generic CSV report (a `title`/`name` column; Nessus CSV exports fit) and normalizes every item to one finding: tool, id, title, severity (`critical|high|medium|low|info`), host, port, protocol, CVEs, CVSS, description, solution and evidence (cut at 4,000 characters)
+- The format is detected from the content, not the extension. XML is streamed with `quick-xml`; entity declarations are refused (XXE, billion laughs) and no DTD is fetched. Files over 256 MiB are refused; import stops at 100,000 findings with a warning
+- `--format text|json|sarif`, `-o FILE`, `--fail-on critical|high|medium|low`. SARIF results carry a `host:port` logical location instead of a file, so they are for SARIF viewers; GitHub Code Scanning needs file locations and will not show them
 
 ### Secret Scanning (opt-in)
 - `--secrets` adds 208 credential patterns converted from [gitleaks](https://github.com/gitleaks/gitleaks) (MIT; [`rules/secrets.toml`](rules/secrets.toml), regenerate with `python3 rules/gen_secret_rules.py > rules/secrets.toml`), including their entropy thresholds and keyword prefilters, and also scans config files (`.env`, `*.yml`, `*.json`, `.npmrc`, …). A hard-coded token is a leak, not malware: these findings are medium and never join a chain. Rules that need a gitleaks allowlist to stay accurate are left out
@@ -322,6 +326,10 @@ kalascan deps . --min-risk 30 --fail-on-risk 70
 # Also report hard-coded credentials (gitleaks patterns)
 kalascan scan . --secrets
 
+# Normalize a pentest/VAPT scanner report (Nessus, Nmap, Burp, ZAP, Nuclei, Qualys, CSV)
+kalascan import scan.nessus --format json -o findings.json
+kalascan import nuclei.jsonl --fail-on high
+
 # Extra rules, threat intel
 kalascan scan . --rules ./org-rules.toml
 URLHAUS_AUTH_KEY=... kalascan scan ./suspicious.vsix
@@ -427,7 +435,6 @@ KalaScan/
 │   ├── ci.yml             # Rust build + test
 │   ├── release.yml        # Cross-platform binary upload on tags
 │   ├── security.yml       # Gitleaks + Trivy container scan
-│   ├── dependabot-auto-merge.yml
 │   ├── dependency-review.yml
 │   ├── eval.yml           # False-positive gate on the clean corpus
 │   └── docker.yml         # Multi-arch build + push to ghcr.io
@@ -491,7 +498,11 @@ KALASCAN_ADDR=0.0.0.0:8080 cargo run --release
 - **Docker**: Multi-stage build published to `ghcr.io/wahidhendrawan/kalascan` on push to main
 - **Dependency Review**: Audits dependency changes on PRs
 - **Detection eval**: scans the clean corpus on PRs touching `src/` or `eval/`; any clean sample at risk ≥ 50 fails the build
-- All third-party actions are pinned to commit SHAs; Dependabot keeps them current
+- All third-party actions are pinned to commit SHAs
+
+## Security
+
+Please report vulnerabilities privately as described in [SECURITY.md](SECURITY.md), not in a public issue.
 
 ## License
 

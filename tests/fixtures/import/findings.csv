@@ -1,0 +1,6 @@
+"Plugin ID","CVE","CVSS v2.0 Base Score","Risk","Host","Protocol","Port","Name","Synopsis","Description","Solution","See Also","Plugin Output"
+"58987","CVE-2012-1823","7.5","High","10.0.0.5","tcp","80","PHP Unsupported Version Detection","The remote host contains an unsupported version of PHP.","According to its version, the installation of PHP on the remote host
+is no longer supported.","Upgrade to a supported version of PHP.","","  Installed version : 5.3.3
+  Fixed version : 8.1"
+"10107","","","None","10.0.0.5","tcp","80","HTTP Server Type and Version","A web server is running.","This plugin attempts to determine the type, ""and the version"", of the web server.","n/a","","  The remote web server type is : Apache/2.2.15"
+"42873","CVE-2016-2183","5.0","Medium","10.0.0.6","tcp","443","SSL Medium Strength Cipher Suites Supported (SWEET32)","Weak ciphers, e.g. 3DES.","The remote host supports medium strength SSL ciphers.","Reconfigure the affected application.","",""

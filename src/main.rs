@@ -12,6 +12,7 @@ mod emulate;
 mod entropy;
 mod export;
 mod git_history;
+mod import;
 mod installed;
 mod iocs;
 mod lockfile;
@@ -367,6 +368,14 @@ async fn main() -> anyhow::Result<()> {
         }
         Some(Commands::Sbom { path, output }) => {
             run_sbom_command(&path, output.as_deref())?;
+        }
+        Some(Commands::Import {
+            file,
+            format,
+            output,
+            fail_on,
+        }) => {
+            run_import_command(&file, &format, output.as_deref(), fail_on.as_deref())?;
         }
         None => {
             // clap already reads KALASCAN_ADDR. Loopback like `serve`: 0.0.0.0
@@ -1869,6 +1878,47 @@ fn run_sbom_command(
             );
         }
         None => println!("{}", sbom),
+    }
+    Ok(())
+}
+
+/// `kalascan import`: normalize another scanner's report.
+fn run_import_command(
+    file: &std::path::Path,
+    format: &str,
+    output: Option<&std::path::Path>,
+    fail_on: Option<&str>,
+) -> anyhow::Result<()> {
+    let imported = import::import(file)?;
+    if imported.truncated {
+        eprintln!(
+            "warning: stopped at {} findings; the rest of {} was not imported",
+            import::MAX_FINDINGS,
+            file.display()
+        );
+    }
+    let content = match format {
+        "json" => import::format_json(&imported, file),
+        "sarif" => import::format_sarif(&imported),
+        _ => import::format_text(&imported, file),
+    };
+    match output {
+        Some(out) => {
+            std::fs::write(out, &content)?;
+            println!("Report successfully saved to: {:?}", out);
+        }
+        None => println!("{}", content),
+    }
+    if let Some(threshold) = fail_on {
+        let limit = import::rank(threshold);
+        if imported
+            .findings
+            .iter()
+            .any(|f| import::rank(f.severity) <= limit)
+        {
+            eprintln!("Finding at or above '{}' severity", threshold);
+            std::process::exit(1);
+        }
     }
     Ok(())
 }

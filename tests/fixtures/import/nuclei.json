@@ -1,0 +1,26 @@
+[
+  {
+    "template-id": "tcp-banner",
+    "info": {
+      "name": "TCP Banner",
+      "author": "pdteam",
+      "severity": "info",
+      "description": "Banner is a software that is running on a port."
+    },
+    "host": "localhost",
+    "matched-at": "localhost:3389",
+    "timestamp": "2023-01-01T00:00:00.000000Z"
+  },
+  {
+    "template": "exposed-panel",
+    "info": {
+        "name": "Exposed Login Panel",
+        "author": "hacker",
+        "severity": "high"
+    },
+    "matcher-name": "grafana",
+    "host": "http://192.168.1.100",
+    "matched-at": "http://192.168.1.100/login",
+    "timestamp": "2023-01-01T00:00:01.000000Z"
+  }
+]
