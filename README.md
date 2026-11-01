@@ -435,7 +435,6 @@ KalaScan/
 │   ├── ci.yml             # Rust build + test
 │   ├── release.yml        # Cross-platform binary upload on tags
 │   ├── security.yml       # Gitleaks + Trivy container scan
-│   ├── dependabot-auto-merge.yml
 │   ├── dependency-review.yml
 │   ├── eval.yml           # False-positive gate on the clean corpus
 │   └── docker.yml         # Multi-arch build + push to ghcr.io
@@ -499,7 +498,7 @@ KALASCAN_ADDR=0.0.0.0:8080 cargo run --release
 - **Docker**: Multi-stage build published to `ghcr.io/wahidhendrawan/kalascan` on push to main
 - **Dependency Review**: Audits dependency changes on PRs
 - **Detection eval**: scans the clean corpus on PRs touching `src/` or `eval/`; any clean sample at risk ≥ 50 fails the build
-- All third-party actions are pinned to commit SHAs; Dependabot keeps them current
+- All third-party actions are pinned to commit SHAs
 
 ## Security
 
