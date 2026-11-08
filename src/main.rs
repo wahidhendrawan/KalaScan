@@ -120,6 +120,11 @@ pub struct ScanRequest {
     pub rules_file: Option<String>,
     #[serde(default)]
     pub git_history: bool,
+    /// `--git-history` bounds: newest commits walked, and `git log --since`.
+    #[serde(default)]
+    pub history_max_commits: Option<usize>,
+    #[serde(default)]
+    pub history_since: Option<String>,
     #[serde(default)]
     pub deep_triage: bool,
     #[serde(default)]
@@ -257,7 +262,10 @@ pub struct ScanResult {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter("kalascan=info")
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("kalascan=info")),
+        )
         .with_writer(std::io::stderr)
         .init();
 
@@ -266,6 +274,7 @@ async fn main() -> anyhow::Result<()> {
     match cli.command {
         Some(Commands::Scan {
             target,
+            config,
             format,
             fail_on_risk,
             output,
@@ -286,14 +295,27 @@ async fn main() -> anyhow::Result<()> {
             yara_dir,
             rules,
             git_history,
+            max_commits,
+            since,
             deep_triage,
             deobfuscate,
             emulate,
             sandbox,
             sandbox_image,
         }) => {
+            // kalascan.toml fills in whatever the command line left unset.
+            let cfg = cli::Config::load(config.as_deref())?;
+            let format = format.or(cfg.format).unwrap_or_else(|| "text".to_string());
+            let baseline = baseline.or(cfg.baseline);
+            let new_only = new_only || cfg.new_only.unwrap_or(false);
+            if (new_only || update_baseline) && baseline.is_none() {
+                anyhow::bail!(
+                    "--new-only and --update-baseline need --baseline (flag or kalascan.toml)"
+                );
+            }
             // Written only on request: --new-only reads the baseline, never updates it.
             let baseline_path = baseline.clone().filter(|_| update_baseline);
+            let path_str = |p: std::path::PathBuf| p.to_string_lossy().to_string();
             let req = ScanRequest {
                 repo_url: target,
                 llm_provider,
@@ -301,24 +323,37 @@ async fn main() -> anyhow::Result<()> {
                 llm_api_key: llm_key,
                 llm_endpoint,
                 ai_analysis_enabled: ai,
-                check_cve: Some(cve),
-                yara_dir: yara_dir.map(|p| p.to_string_lossy().to_string()),
-                rules_file: rules.map(|p| p.to_string_lossy().to_string()),
-                git_history,
-                deep_triage,
-                deobfuscate,
-                emulate,
+                check_cve: Some(cve || cfg.cve.unwrap_or(false)),
+                yara_dir: yara_dir.or(cfg.yara_dir).map(path_str),
+                rules_file: rules.or(cfg.rules).map(path_str),
+                git_history: git_history || cfg.git_history.unwrap_or(false),
+                history_max_commits: max_commits.or(cfg.max_commits),
+                history_since: since.or(cfg.since),
+                deep_triage: deep_triage || cfg.deep_triage.unwrap_or(false),
+                deobfuscate: deobfuscate || cfg.deobfuscate.unwrap_or(false),
+                emulate: emulate || cfg.emulate.unwrap_or(false),
                 sandbox,
                 sandbox_image: Some(sandbox_image),
                 new_only,
-                baseline: baseline.map(|p| p.to_string_lossy().to_string()),
-                ignore: ignore.map(|p| p.to_string_lossy().to_string()),
+                baseline: baseline.map(path_str),
+                ignore: ignore.or(cfg.ignore).map(path_str),
                 changed_only,
-                base_ref: Some(base_ref),
-                secrets,
+                base_ref: Some(
+                    base_ref
+                        .or(cfg.base_ref)
+                        .unwrap_or_else(|| "origin/main".to_string()),
+                ),
+                secrets: secrets || cfg.secrets.unwrap_or(false),
                 third_party: untrusted,
             };
-            run_cli_scan(req, format, fail_on_risk, output, baseline_path).await?;
+            run_cli_scan(
+                req,
+                format,
+                fail_on_risk.or(cfg.fail_on_risk),
+                output,
+                baseline_path,
+            )
+            .await?;
         }
         Some(Commands::Serve { addr }) => {
             start_web_server(&addr).await?;
@@ -1388,6 +1423,8 @@ async fn api_scan_upload(
         yara_dir: None,
         rules_file: None,
         git_history: false,
+        history_max_commits: None,
+        history_since: None,
         deep_triage,
         deobfuscate,
         emulate,
@@ -1569,7 +1606,13 @@ async fn execute_scan_in(
     // Phase 2c: Full git commit history scan
     if req.git_history && !vsix::is_vsix_target(&repo_url) {
         info!("Scanning full git commit history at {:?}...", scan_dir);
-        let history_matches = git_history::scan_git_history(&scan_dir).await;
+        let history_matches = git_history::scan_git_history(
+            &scan_dir,
+            req.history_max_commits
+                .unwrap_or(git_history::DEFAULT_MAX_COMMITS),
+            req.history_since.as_deref(),
+        )
+        .await;
         info!("Git history scan found {} matches", history_matches.len());
         rule_matches.extend(history_matches);
     }
@@ -2220,7 +2263,9 @@ async fn run_cli_scan(
     output: Option<std::path::PathBuf>,
     baseline_out: Option<std::path::PathBuf>,
 ) -> anyhow::Result<()> {
-    let result = execute_scan(req).await?;
+    let started = Instant::now();
+    let mut result = execute_scan(req).await?;
+    result.duration_ms = Some(started.elapsed().as_millis() as u64);
 
     // `--update-baseline` (exclusive with --new-only, so these are all findings).
     if let Some(path) = baseline_out {
@@ -2588,7 +2633,15 @@ fn calculate_risk_score(
     // Hard signals dominate (exfil endpoints, encoded commands). Soft ones
     // (`process.env`, loopback IPs, `exec()` in a Python extension) are
     // ubiquitous in legitimate code, so they saturate quickly.
-    let static_score = (critical * 35).min(70) + (high * 5).min(15) + medium.min(5);
+    // One critical on its own (a `ghp_x…` placeholder, one `vssadmin` in a
+    // forensics playbook) is a lead, not a verdict: a chain or a second
+    // critical makes it one. Caps are unchanged.
+    let critical_score = match critical {
+        0 => 0,
+        1 => 20,
+        n => (n * 35).min(70),
+    };
+    let static_score = critical_score + (high * 5).min(15) + medium.min(5);
 
     // Vulnerable dependencies are a hygiene issue, not malware evidence.
     let cve_score = cve.min(5);
@@ -2818,6 +2871,8 @@ mod risk_score_tests {
         let matches = vec![
             hit("out/extension.js", "Discord Webhook", "critical"),
             hit("out/extension.js", "SSH Key Access", "high"),
+            // What correlate_file emits for that pair in a real scan.
+            hit("out/extension.js", correlate::CREDENTIAL_EXFIL, "critical"),
             hit("out/extension.js", "exec() Usage", "high"),
             hit("out/extension.js", "Environment Variable Dump", "medium"),
         ];
@@ -2843,7 +2898,7 @@ mod risk_score_tests {
         );
         assert_eq!(
             calculate_risk_score(&mal, &None, None, None, None, None),
-            35
+            20
         );
     }
 
@@ -2851,6 +2906,28 @@ mod risk_score_tests {
     fn listing_spoof_alone_is_high_risk() {
         let m = vec![hit("package.json", reputation::INVISIBLE_NAME, "critical")];
         assert_eq!(calculate_risk_score(&m, &None, None, None, None, None), 70);
+    }
+
+    #[test]
+    fn one_unchained_critical_is_a_lead_not_a_verdict() {
+        let one = vec![hit("db.js", "Shadow Copy Deletion", "critical")];
+        assert_eq!(
+            calculate_risk_score(&one, &None, None, None, None, None),
+            20
+        );
+        let two = vec![
+            hit("db.js", "Shadow Copy Deletion", "critical"),
+            hit("enc.js", "Discord Webhook", "critical"),
+        ];
+        assert_eq!(
+            calculate_risk_score(&two, &None, None, None, None, None),
+            70
+        );
+        let chained = vec![hit("enc.js", correlate::RANSOMWARE, "critical")];
+        assert_eq!(
+            calculate_risk_score(&chained, &None, None, None, None, None),
+            70
+        );
     }
 
     #[test]

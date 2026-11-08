@@ -1,11 +1,12 @@
 [package]
 name = "kalascan"
-version = "1.12.0"
+version = "1.13.0"
 edition = "2021"
 description = "Security & Malware Scanner for Git Repositories and IDE Extensions (VS Code, Open VSX, JetBrains, Browser CRX) using RegEx, YARA, Entropy, deep static binary triage, recursive deobfuscation, safe static emulation, TTP/ATT&CK coverage, opt-in Docker sandboxing, and AI deep analysis."
 authors = ["Wahid Hendrawan"]
-license = "GPL-3.0"
+license = "GPL-3.0-only"
 repository = "https://github.com/wahidhendrawan/KalaScan"
+rust-version = "1.95"
 
 [dependencies]
 axum = { version = "0.8", features = ["multipart"] }
@@ -36,3 +37,12 @@ iced-x86 = "1.21.0"
 tar = { version = "0.4", default-features = false }
 toml = { version = "1.1", default-features = false, features = ["parse", "serde"] }
 quick-xml = "0.42"
+
+[dev-dependencies]
+assert_cmd = "2.2.2"
+
+[profile.release]
+# Not panic = "abort": scanner.rs turns a per-file panic into a finding via catch_unwind.
+strip = true
+lto = "thin"
+codegen-units = 1
