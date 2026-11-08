@@ -1,5 +1,6 @@
 use crate::scanner::{build_rules, get_context, get_extension, is_critical_file};
 use crate::RuleMatch;
+use std::collections::HashSet;
 use std::path::Path;
 use tokio::process::Command;
 
@@ -10,12 +11,21 @@ use tokio::process::Command;
 /// - `git show <commit>:<file>` retrieves content at that snapshot
 /// - scanner rules are run against it
 ///
-/// Returns `Vec<RuleMatch>` with `file_path` formatted as `"commit_hash:file_path"`.
-pub async fn scan_git_history(repo_path: &Path) -> Vec<RuleMatch> {
+/// Returns `Vec<RuleMatch>` with `file_path` formatted as `"commit_hash:file_path"`,
+/// one per (path, rule, matched text), at the commit that introduced it:
+/// the same line re-reported for every later revision made the history
+/// report six times longer than the tree's. `max_commits` newest commits,
+/// optionally only those after `since` (any `git log --since` date).
+pub async fn scan_git_history(
+    repo_path: &Path,
+    max_commits: usize,
+    since: Option<&str>,
+) -> Vec<RuleMatch> {
     let rules = build_rules();
     let mut matches = Vec::new();
+    let mut seen: HashSet<(String, String, String)> = HashSet::new();
 
-    let log_output = match get_commits_with_files(repo_path).await {
+    let log_output = match get_commits_with_files(repo_path, max_commits, since).await {
         Some(out) => out,
         None => return matches,
     };
@@ -28,7 +38,9 @@ pub async fn scan_git_history(repo_path: &Path) -> Vec<RuleMatch> {
         .map(|h| h.trim().to_string())
         .unwrap_or_default();
 
-    for (commit_hash, files) in entries.iter().filter(|(hash, _)| *hash != head) {
+    // git log is newest first; oldest first makes the first sighting the
+    // introducing commit.
+    for (commit_hash, files) in entries.iter().rev().filter(|(hash, _)| *hash != head) {
         for file in files {
             let lower_file = file.to_lowercase();
             if !is_critical_file(&lower_file) {
@@ -51,6 +63,9 @@ pub async fn scan_git_history(repo_path: &Path) -> Vec<RuleMatch> {
                 }
 
                 for cap in rule.pattern.find_iter(&content) {
+                    if !seen.insert((file.clone(), rule.name.clone(), cap.as_str().to_string())) {
+                        continue;
+                    }
                     let context = get_context(&content, cap.start(), cap.end());
 
                     matches.push(RuleMatch {
@@ -98,18 +113,27 @@ pub fn tree_path(file_path: &str) -> &str {
     }
 }
 
-/// Run `git log --diff-filter=AM --name-only --format=COMMIT:%H`
-async fn get_commits_with_files(repo_path: &Path) -> Option<String> {
-    git(
-        repo_path,
-        &[
-            "log",
-            "--diff-filter=AM",
-            "--name-only",
-            "--format=COMMIT:%H",
-        ],
-    )
-    .await
+/// Commits walked by default (`--max-commits`).
+pub const DEFAULT_MAX_COMMITS: usize = 1000;
+
+/// Run `git log --diff-filter=AM --name-only --format=COMMIT:%H --max-count=N [--since=D]`
+async fn get_commits_with_files(
+    repo_path: &Path,
+    max_commits: usize,
+    since: Option<&str>,
+) -> Option<String> {
+    let max = format!("--max-count={}", max_commits);
+    // One `--since=<date>` argument: a date can never become a second option.
+    let since = since.map(|s| format!("--since={}", s));
+    let mut args = vec![
+        "log",
+        "--diff-filter=AM",
+        "--name-only",
+        "--format=COMMIT:%H",
+        &max,
+    ];
+    args.extend(since.as_deref());
+    git(repo_path, &args).await
 }
 
 /// Parse git log output.
@@ -213,6 +237,61 @@ mod tests {
     fn test_parse_git_log_blank_only() {
         let entries = parse_git_log("\n\n");
         assert!(entries.is_empty());
+    }
+
+    #[tokio::test]
+    async fn history_reports_each_finding_once_at_its_first_commit() {
+        let dir = tempfile::tempdir().unwrap();
+        let git = |args: &[&str]| {
+            let out = std::process::Command::new("git")
+                .arg("-C")
+                .arg(dir.path())
+                .args([
+                    "-c",
+                    "user.name=t",
+                    "-c",
+                    "user.email=t@t",
+                    "-c",
+                    "commit.gpgsign=false",
+                ])
+                .args(args)
+                .output()
+                .unwrap();
+            assert!(
+                out.status.success(),
+                "git {:?}: {}",
+                args,
+                String::from_utf8_lossy(&out.stderr)
+            );
+            String::from_utf8(out.stdout).unwrap()
+        };
+        git(&["init", "-q"]);
+        let mut hashes = Vec::new();
+        for body in [
+            "eval(atob(p));\n",
+            "// v2\neval(atob(p));\n",
+            "// v3\neval(atob(p));\n",
+        ] {
+            std::fs::write(dir.path().join("a.js"), body).unwrap();
+            git(&["add", "a.js"]);
+            git(&["commit", "-q", "-m", "c"]);
+            hashes.push(git(&["rev-parse", "HEAD"]).trim().to_string());
+        }
+
+        let found = scan_git_history(dir.path(), DEFAULT_MAX_COMMITS, None).await;
+        let evals: Vec<_> = found
+            .iter()
+            .filter(|m| m.matched_pattern == "eval() Usage")
+            .collect();
+        assert_eq!(evals.len(), 1, "{:?}", found);
+        assert_eq!(evals[0].file_path, format!("{}:a.js", hashes[0]));
+        // --max-commits 1 walks HEAD only, which the tree scan already covers.
+        assert!(scan_git_history(dir.path(), 1, None).await.is_empty());
+        assert!(
+            scan_git_history(dir.path(), DEFAULT_MAX_COMMITS, Some("2099-12-31"))
+                .await
+                .is_empty()
+        );
     }
 
     #[test]

@@ -34,6 +34,7 @@ pub const SYSTEM_DISCOVERY: &str = "Chain: System Discovery";
 pub const AI_TRAFFIC_HIJACK: &str = "Chain: AI API Traffic Hijack";
 pub const NPM_SPAM: &str = "Chain: Registry Spam Publisher";
 pub const OBFUSCATED_RECON: &str = "Chain: Obfuscated Reconnaissance";
+pub const RANSOMWARE: &str = "Chain: Ransomware";
 /// Emitted by `cve::own_package_matches` for versions like 99.0.0 / 999.9.9.
 pub const DEP_CONFUSION_VERSION: &str = "Dependency Confusion Version";
 
@@ -225,6 +226,15 @@ pub fn correlate_file(
     // Not OBFUSCATOR_IO: Live Share ships obfuscated code that reads os.hostname.
     if let (Some(obf), Some(recon)) = (has(&[HEX_API, ESCAPED_EVAL]), has(&[HOST_RECON])) {
         out.push(chain(rel_path, OBFUSCATED_RECON, obf, recon));
+    }
+
+    // A ransom note next to file encryption. The note alone is every threat
+    // tool's vocabulary (`ransomware_use`, a detection label); the pair is not.
+    if let Some((_, note, enc)) = near(
+        &["Ransom Note"],
+        &["Mass File Encryption", "Encrypted File Extension"],
+    ) {
+        out.push(chain(rel_path, RANSOMWARE, note, enc));
     }
 
     if has(&[ARCHIVE_EXTRACTION]).is_some() {
@@ -458,6 +468,19 @@ mod tests {
             hit("a.js", "Discord Webhook", 2),
         ];
         assert_eq!(correlate_file("a.js", "", &hard, &[]).len(), 1);
+    }
+
+    #[test]
+    fn ransom_note_chains_only_with_file_encryption() {
+        let alone = [hit("a.py", "Ransom Note", 1)];
+        assert!(correlate_file("a.py", "", &alone, &[]).is_empty());
+        let both = [
+            hit("a.py", "Ransom Note", 1),
+            hit("a.py", "Mass File Encryption", 2),
+        ];
+        let out = correlate_file("a.py", "", &both, &[]);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].matched_pattern, RANSOMWARE);
     }
 
     #[test]

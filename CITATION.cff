@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "KalaScan: Security & Malware Scanner for Git Repositories and IDE Extensions"
+authors:
+  - family-names: Hendrawan
+    given-names: Wahid
+version: "1.13.0"
+date-released: "2026-11-08"
+repository-code: "https://github.com/wahidhendrawan/KalaScan"
+url: "https://github.com/wahidhendrawan/KalaScan"
+license: GPL-3.0
+keywords:
+  - malware-scanner
+  - supply-chain-security
+  - yara
+  - sarif
+  - vscode-extension
+  - rust

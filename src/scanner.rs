@@ -7,11 +7,15 @@ use walkdir::WalkDir;
 pub const RULESET_VERSION: &str = "2026.10.1";
 
 /// Critical file extensions for scanning
+// `.yml`/`.yaml` get only the exfiltration, network, supply-chain and
+// secret rules (see `Rule::applies_to`).
 const CRITICAL_EXTENSIONS: &[&str] = &[
-    ".py", ".js", ".ts", ".mjs", ".cjs", ".sh", ".bat", ".ps1", ".vbs", ".php", ".java", ".kt",
+    ".py", ".js", ".ts", ".mjs", ".cjs", ".jsx", ".tsx", ".sh", ".bat", ".ps1", ".psm1", ".vbs",
+    ".php", ".java", ".kt", ".rb", ".go", ".rs", ".lua", ".pl", ".cs", ".swift", ".groovy",
+    ".gradle", ".yml", ".yaml",
 ];
 
-/// Critical filenames (exact match)
+/// Critical filenames (exact match, lower-case)
 // `extension.vsixmanifest` carries the marketplace links; malicious
 // extensions point them at raw-IP C2 hosts.
 const CRITICAL_FILENAMES: &[&str] = &[
@@ -20,6 +24,9 @@ const CRITICAL_FILENAMES: &[&str] = &[
     "manifest.json",
     "plugin.xml",
     "extension.vsixmanifest",
+    "dockerfile",
+    "makefile",
+    "justfile",
 ];
 
 /// Prose files: never executed, and READMEs routinely quote IOC strings that
@@ -257,11 +264,22 @@ impl Rule {
         if self.exclude_files.iter().any(|f| f == filename) {
             return false;
         }
+        let named = CRITICAL_FILENAMES.contains(&filename.to_ascii_lowercase().as_str());
+        // CI/infra YAML: a webhook, `curl | sh`, a raw IP or a token is worth
+        // reporting there; the code rules (eval, env dumps) are noise.
+        if matches!(ext, ".yml" | ".yaml")
+            && !matches!(
+                self.category.as_str(),
+                "exfiltration" | "network" | "supply_chain" | "secret"
+            )
+        {
+            return false;
+        }
         if self.category == "obfuscation" {
             return true;
         }
         if self.category == "exfiltration" {
-            return CRITICAL_EXTENSIONS.contains(&ext) || CRITICAL_FILENAMES.contains(&filename);
+            return CRITICAL_EXTENSIONS.contains(&ext) || named;
         }
         if self.category == "file_access" {
             return CRITICAL_EXTENSIONS.contains(&ext);
@@ -274,9 +292,7 @@ impl Rule {
             return filename == "package.json";
         }
         if self.category == "secret" {
-            return CRITICAL_EXTENSIONS.contains(&ext)
-                || CRITICAL_FILENAMES.contains(&filename)
-                || is_config_file(filename);
+            return CRITICAL_EXTENSIONS.contains(&ext) || named || is_config_file(filename);
         }
         true
     }
@@ -543,14 +559,19 @@ fn scan_bytes(
             .unwrap_or_default()
     };
 
-    if !critical {
-        let mut out = yara_hits();
+    let workflow = || {
         if crate::workflow::is_workflow(rel_path) {
-            out.extend(crate::workflow::scan(
-                rel_path,
-                &String::from_utf8_lossy(bytes),
-            ));
+            crate::workflow::scan(rel_path, &String::from_utf8_lossy(bytes))
+        } else {
+            Vec::new()
         }
+    };
+
+    // Vendored code only in the operator's own tree (`honor_markers`): in a
+    // package, `dist/` is the shipped code.
+    if !critical || (honor_markers && is_vendored_code(rel_path, filename)) {
+        let mut out = yara_hits();
+        out.extend(workflow());
         // `--secrets`: config files get the secret rules and nothing else.
         if is_config_file(filename) && rules.iter().any(|r| r.category == "secret") {
             let content = String::from_utf8_lossy(bytes);
@@ -579,7 +600,7 @@ fn scan_bytes(
         return Vec::new();
     }
 
-    let mut out = Vec::new();
+    let mut out = workflow();
     if size > MAX_SCAN_BYTES {
         out.push(RuleMatch {
             file_path: rel_path.clone(),
@@ -671,6 +692,22 @@ fn scan_bytes(
         ));
     }
     out
+}
+
+/// Minified or vendored third-party code in a checkout: `*.min.js`,
+/// `*bundle*.js`, anything under `vendor/`, `dist/` or `node_modules/`. The
+/// regex rules only report the bundler's output there (swagger-ui-bundle.js:
+/// 34 hits, all noise), so such files get YARA only. Judged by name, never by
+/// line length: a payload padded onto one long line must stay visible
+/// (`test_evasion_tricks_no_longer_hide_files`). shortcut: they still count
+/// as scanned files, upgrade the count when anyone reads it for coverage.
+fn is_vendored_code(rel_path: &str, filename: &str) -> bool {
+    let lower = filename.to_ascii_lowercase();
+    lower.ends_with(".min.js")
+        || (lower.contains("bundle") && lower.ends_with(".js"))
+        || rel_path
+            .split(['/', '\\'])
+            .any(|dir| matches!(dir, "vendor" | "dist" | "node_modules"))
 }
 
 /// Official vendor download / installer hosts: Playwright fetching Chrome
@@ -1037,8 +1074,59 @@ mod tests {
         assert!(is_critical_file("script.js"));
         assert!(is_critical_file("batch.bat"));
         assert!(is_critical_file("package.json"));
+        for file in [
+            "App.tsx",
+            "main.rs",
+            "server.go",
+            "ci.yml",
+            "Dockerfile",
+            "Makefile",
+        ] {
+            assert!(is_critical_file(file), "{}", file);
+        }
         assert!(!is_critical_file("readme.md"));
         assert!(!is_critical_file("image.png"));
+        assert!(!is_critical_file("Dockerfile.md"));
+    }
+
+    #[test]
+    fn vendored_code_in_own_tree_gets_yara_only() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("dist")).unwrap();
+        for file in ["dist/app.js", "swagger-ui-bundle.js", "lib.min.js"] {
+            std::fs::write(dir.path().join(file), "eval(atob(p));\n").unwrap();
+        }
+        std::fs::write(dir.path().join("src.js"), "eval(atob(p));\n").unwrap();
+
+        let own = scan(dir.path(), true);
+        assert!(has(&own, "src.js", "eval() Usage"));
+        for file in ["dist/app.js", "swagger-ui-bundle.js", "lib.min.js"] {
+            assert!(!has(&own, file, "eval() Usage"), "{} is vendored", file);
+        }
+        assert!(has(&scan(dir.path(), false), "dist/app.js", "eval() Usage"));
+    }
+
+    #[test]
+    fn yaml_dockerfile_and_rust_get_the_fitting_rules() {
+        let dir = tempfile::tempdir().unwrap();
+        let hook = "discord.com/api/webhooks/123456789012345678/ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrst";
+        std::fs::write(
+            dir.path().join("ci.yml"),
+            format!("run: eval(atob(p))\nurl: {}\n", hook),
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("Dockerfile"),
+            format!("RUN echo {}\n", hook),
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("main.rs"), "fn main() { eval(atob(p)) }\n").unwrap();
+
+        let m = scan(dir.path(), true);
+        assert!(has(&m, "ci.yml", "Discord Webhook"));
+        assert!(!has(&m, "ci.yml", "eval() Usage"), "code rules ran on YAML");
+        assert!(has(&m, "Dockerfile", "Discord Webhook"));
+        assert!(has(&m, "main.rs", "eval() Usage"));
     }
 
     fn comment_at(content: &str, pos: usize) -> bool {

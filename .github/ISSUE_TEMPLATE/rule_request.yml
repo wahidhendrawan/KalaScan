@@ -1,0 +1,43 @@
+name: Rule request
+description: Propose a new detection rule or a sample KalaScan misses
+title: "[Rule]: "
+labels: ["detection"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not attach live malware. Reference a public write-up, advisory or the package name and version so it can be added to the eval corpus by reference (`eval/corpus.json`).
+  - type: textarea
+    id: behaviour
+    attributes:
+      label: Behaviour to detect
+      description: What the malicious code does (exfiltration, install hook, loader, ...) and where it lives (npm, PyPI, VS Code extension, repository, binary).
+    validations:
+      required: true
+  - type: textarea
+    id: sample
+    attributes:
+      label: Public sample or reference
+      description: Package name and version, advisory or blog post, or a redacted code snippet of the pattern.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed rule
+      description: Optional. A regex or YARA pattern in the `rules/builtin.toml` format (see docs/detection-rules.md), severity and category.
+      render: toml
+  - type: textarea
+    id: benign
+    attributes:
+      label: Benign look-alikes
+      description: Legitimate code that resembles the pattern and must not match.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and `kalascan rules` for an existing rule.
+          required: true
+        - label: I did not attach live malware or private indicators.
+          required: true

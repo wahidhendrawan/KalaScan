@@ -563,6 +563,8 @@ pub fn sarif_log(rules: Vec<serde_json::Value>, results: Vec<serde_json::Value>)
             "tool": {
                 "driver": {
                     "name": "KalaScan",
+                    "version": env!("CARGO_PKG_VERSION"),
+                    "semanticVersion": env!("CARGO_PKG_VERSION"),
                     "informationUri": "https://github.com/wahidhendrawan/KalaScan",
                     "rules": rules,
                 }
