@@ -1,16 +1,16 @@
 # False positives / test mock credentials in scanner source
-46bad50b7dbaea1edd9c00038627de84c0cb4def:src/export.rs:generic-api-key:387
-147dce32f2203319a57ec3a35e18a91f3bd97d6e:src/scanner.rs:aws-access-token:498
+984fd09bdf924f37011226734100e91085837380:src/export.rs:generic-api-key:387
+0ea4a69b150561c67a71ec2963593597d78b06bc:src/scanner.rs:aws-access-token:498
 # Rule examples in rules/builtin.toml (KS-EXF-017/018), replaced by low-entropy ones in the next commit
-64d3e5c0df3d38cf3c7dd5955e0bc3d70b3400c3:rules/builtin.toml:gitlab-pat:808
-64d3e5c0df3d38cf3c7dd5955e0bc3d70b3400c3:rules/builtin.toml:jwt:817
+e63acc99dfd337b7afebea5debf3938f768683c4:rules/builtin.toml:gitlab-pat:808
+e63acc99dfd337b7afebea5debf3938f768683c4:rules/builtin.toml:jwt:817
 # Historical rule examples (rules lived in src/scanner.rs before rules/builtin.toml);
 # the current files use low-entropy examples. These fingerprints change if history is rewritten.
-147dce32f2203319a57ec3a35e18a91f3bd97d6e:src/scanner.rs:github-pat:505
-e1be126be7ddc6b5ba314df872d5735ac3414a9c:src/scanner.rs:github-pat:632
-fadc4796278ef4fece10e538d3c788211b973f53:rules/builtin.toml:aws-access-token:49
-fadc4796278ef4fece10e538d3c788211b973f53:rules/builtin.toml:github-pat:67
-64d3e5c0df3d38cf3c7dd5955e0bc3d70b3400c3:rules/builtin.toml:github-oauth:69
-64d3e5c0df3d38cf3c7dd5955e0bc3d70b3400c3:rules/builtin.toml:github-pat:69
-64d3e5c0df3d38cf3c7dd5955e0bc3d70b3400c3:rules/builtin.toml:generic-api-key:826
-c54c5898dc278e80a16af089477dd4c132fd2737:rules/builtin.toml:aws-access-token:51
+0ea4a69b150561c67a71ec2963593597d78b06bc:src/scanner.rs:github-pat:505
+ce1d205e150120517db8e0999891cc874354f4c2:src/scanner.rs:github-pat:632
+f9aa9ffea49875eea079282125ea25848fa0500b:rules/builtin.toml:aws-access-token:49
+f9aa9ffea49875eea079282125ea25848fa0500b:rules/builtin.toml:github-pat:67
+e63acc99dfd337b7afebea5debf3938f768683c4:rules/builtin.toml:github-oauth:69
+e63acc99dfd337b7afebea5debf3938f768683c4:rules/builtin.toml:github-pat:69
+e63acc99dfd337b7afebea5debf3938f768683c4:rules/builtin.toml:generic-api-key:826
+d646e6150c9c533b5735ea605776bc4393d45b92:rules/builtin.toml:aws-access-token:51
