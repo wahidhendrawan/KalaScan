@@ -1,0 +1,53 @@
+name: False positive
+description: A rule fires on code that is not malicious
+title: "[FP]: "
+labels: ["false-positive"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        False positives are fixed by adding an `ignores` example to the rule and, when the sample is public, adding it to the clean eval corpus so it stays fixed. Public targets help most.
+  - type: input
+    id: rule
+    attributes:
+      label: Rule
+      description: The rule id or name from the report (`kalascan rules <id>` explains it).
+      placeholder: KS-RAN-004 Ransom Note
+    validations:
+      required: true
+  - type: input
+    id: target
+    attributes:
+      label: Target
+      description: Public package, extension or repository and version (e.g. `npm:express@4.19.2`, `ms-python.python@2024.4.1`, a GitHub URL).
+    validations:
+      required: true
+  - type: textarea
+    id: matched
+    attributes:
+      label: Matched line(s)
+      description: The file path and the line KalaScan reported, redacted if needed.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why is it benign?
+      description: What the code actually does, in one or two sentences.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: KalaScan version
+      placeholder: kalascan 1.12.0
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: The target is public, or I have redacted everything that is not.
+          required: true

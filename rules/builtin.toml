@@ -351,10 +351,14 @@ ignores = ['''return this.encoder.write(e)''']
 [[rule]]
 id = "KS-RAN-004"
 name = "Ransom Note"
-severity = "critical"
+severity = "high"
 category = "ransomware"
-description = "Ransom note text — ransomware indicator"
-pattern = '''(?i)(?:ransom(?:note|ware)|how_to_decrypt|readme_decrypt|your_files|your_data(?-u:\b)|pay\s+\d+\s+btc)'''
+description = "Ransom note text — ransomware indicator; critical next to file encryption (Chain: Ransomware)"
+# Word boundaries: `ransomware_use` (the CISA KEV column) and
+# `knownRansomwareCampaignUse` are threat-intel vocabulary, not a note.
+pattern = '''(?i)(?-u:\b)(?:ransom(?:note|ware)|how_to_decrypt|readme_decrypt|your_files|your_data|pay\s+\d+\s+btc)(?-u:\b)'''
+matches = ['''HOW_TO_DECRYPT.txt''', '''pay 2 BTC to this address''', '''YOUR_FILES have been encrypted''']
+ignores = ['''ransomware_use TEXT,''', '''kev.knownRansomwareCampaignUse''', '''ransomware_name''']
 
 [[rule]]
 id = "KS-RAN-005"

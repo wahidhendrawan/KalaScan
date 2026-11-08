@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -30,9 +30,13 @@ pub enum Commands {
         /// Target URL (Git repo, VS Code / Open VSX / JetBrains marketplace), registry package (npm:name[@ver], pypi:name[==ver]) or local file path (.vsix, .zip, .jar, .crx)
         target: String,
 
-        /// Output format: text, json, md, html, sarif, csv, junit, github
-        #[arg(short, long, default_value = "text")]
-        format: String,
+        /// Scan settings file (TOML; keys are these flags' names). Default: ./kalascan.toml when present. A flag given here wins
+        #[arg(long)]
+        config: Option<PathBuf>,
+
+        /// Output format: text, json, md, html, sarif, csv, junit, github [default: text]
+        #[arg(short, long)]
+        format: Option<String>,
 
         /// Exit with code 1 if risk score is equal to or greater than threshold (ideal for CI/CD gates)
         #[arg(long)]
@@ -43,7 +47,7 @@ pub enum Commands {
         output: Option<PathBuf>,
 
         /// Only report findings absent from the baseline file (requires --baseline); never writes it
-        #[arg(long, requires = "baseline")]
+        #[arg(long)]
         new_only: bool,
 
         /// Baseline JSON file of known findings
@@ -51,7 +55,7 @@ pub enum Commands {
         baseline: Option<PathBuf>,
 
         /// Record every current finding in the --baseline file (overwrites it)
-        #[arg(long, requires = "baseline", conflicts_with = "new_only")]
+        #[arg(long, conflicts_with = "new_only")]
         update_baseline: bool,
 
         /// Path-glob ignore file (default: .kalascanignore in the working directory, if present)
@@ -72,9 +76,9 @@ pub enum Commands {
         #[arg(long)]
         changed_only: bool,
 
-        /// Git ref used as the diff base for --changed-only
-        #[arg(long, default_value = "origin/main")]
-        base_ref: String,
+        /// Git ref used as the diff base for --changed-only [default: origin/main]
+        #[arg(long)]
+        base_ref: Option<String>,
 
         /// Enable AI deep analysis
         #[arg(long)]
@@ -111,6 +115,14 @@ pub enum Commands {
         /// Scan full git commit history (only applies to Git repositories)
         #[arg(long)]
         git_history: bool,
+
+        /// With --git-history: walk only the newest N commits [default: 1000]
+        #[arg(long)]
+        max_commits: Option<usize>,
+
+        /// With --git-history: only commits after this date (`git log --since`, e.g. 2025-01-01 or "6 months ago")
+        #[arg(long)]
+        since: Option<String>,
 
         /// Enable deep static binary triage with optional capa, FLOSS, and DIE
         #[arg(long)]
@@ -252,4 +264,71 @@ pub enum UserAction {
     List,
     /// Delete a user (its token stops working immediately)
     Remove { name: String },
+}
+
+/// Read by `scan` when present in the working directory (or `--config <path>`).
+pub const CONFIG_PATH: &str = "kalascan.toml";
+
+/// `kalascan.toml`: scan settings a team commits next to its code. Every key
+/// is the `scan` flag of the same name; a flag on the command line wins.
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Config {
+    pub format: Option<String>,
+    pub fail_on_risk: Option<u8>,
+    pub baseline: Option<PathBuf>,
+    pub new_only: Option<bool>,
+    pub ignore: Option<PathBuf>,
+    pub secrets: Option<bool>,
+    pub cve: Option<bool>,
+    pub yara_dir: Option<PathBuf>,
+    pub rules: Option<PathBuf>,
+    pub git_history: Option<bool>,
+    pub max_commits: Option<usize>,
+    pub since: Option<String>,
+    pub deep_triage: Option<bool>,
+    pub deobfuscate: Option<bool>,
+    pub emulate: Option<bool>,
+    pub base_ref: Option<String>,
+}
+
+impl Config {
+    /// An explicit `--config` must exist; otherwise `./kalascan.toml` is used
+    /// when present. Unknown keys fail: a typo must not silently disable a gate.
+    pub fn load(path: Option<&Path>) -> anyhow::Result<Config> {
+        let path = match path {
+            Some(p) => p,
+            None if Path::new(CONFIG_PATH).is_file() => Path::new(CONFIG_PATH),
+            None => return Ok(Config::default()),
+        };
+        let text = std::fs::read_to_string(path)
+            .map_err(|e| anyhow::anyhow!("cannot read config {}: {}", path.display(), e))?;
+        toml::from_str(&text).map_err(|e| anyhow::anyhow!("{}: {}", path.display(), e))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn config_parses_flag_names_and_rejects_typos() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("kalascan.toml");
+        std::fs::write(
+            &path,
+            "fail_on_risk = 60\nsecrets = true\nrules = \"x.toml\"\n",
+        )
+        .unwrap();
+        let cfg = Config::load(Some(&path)).unwrap();
+        assert_eq!(cfg.fail_on_risk, Some(60));
+        assert_eq!(cfg.secrets, Some(true));
+        assert_eq!(cfg.rules, Some(PathBuf::from("x.toml")));
+        assert!(cfg.format.is_none());
+
+        std::fs::write(&path, "fail_on_rsk = 60\n").unwrap();
+        let err = Config::load(Some(&path)).unwrap_err().to_string();
+        assert!(err.contains("fail_on_rsk"), "{}", err);
+        assert!(Config::load(Some(&dir.path().join("missing.toml"))).is_err());
+    }
 }

@@ -3,6 +3,7 @@
 [![CI](https://github.com/wahidhendrawan/KalaScan/actions/workflows/ci.yml/badge.svg)](https://github.com/wahidhendrawan/KalaScan/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/wahidhendrawan/KalaScan?sort=semver)](https://github.com/wahidhendrawan/KalaScan/releases/latest)
 [![License](https://img.shields.io/github/license/wahidhendrawan/KalaScan)](LICENSE)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/wahidhendrawan/KalaScan/badge)](https://scorecard.dev/viewer/?uri=github.com/wahidhendrawan/KalaScan)
 ![rust](https://img.shields.io/badge/rust-1.95+-orange?logo=rust)
 ![docker](https://img.shields.io/badge/docker-ready-2496ED?logo=docker)
 
@@ -14,6 +15,7 @@
 - **50+ RegEx & YARA Rules** across threat categories: exfiltration, sensitive data access, obfuscation, ransomware, supply chain, and IDE malware
 - **Rust Speed** — compiled binary, multi-threaded WalkDir scanner, zero-copy regex matching
 - **Safe by Design** — clones repos read-only via `git clone --depth 1`, never executes untrusted code, auto-cleanup with RAII temp dirs
+- **File coverage** — the RegEx rules run on code and script files (`.py .js .ts .jsx .tsx .mjs .cjs .sh .bat .ps1 .psm1 .vbs .php .java .kt .rb .go .rs .lua .pl .cs .swift .groovy .gradle`), on `package.json`, `setup.py`, `manifest.json`, `plugin.xml`, `Dockerfile`, `Makefile` and `Justfile`, and on `.yml`/`.yaml` for the exfiltration, network, supply-chain and secret rules only; YARA runs on every file. In a checkout scanned in place, minified or vendored files (`*.min.js`, `*bundle*.js`, `vendor/`, `dist/`, `node_modules/`) get YARA only
 
 ### Multi-Ecosystem Extension Scanning
 - **Multi-Source Ingestion** — scan local packages via drag-and-drop file upload (`.vsix`, `.zip`, `.jar`, `.crx`), or scan remote extensions directly by entering an ID or marketplace URL:
@@ -212,6 +214,22 @@ For `npm:` and `pypi:` targets, what the registry says about the scanned version
 - No clone is performed, so `--changed-only` uses the real PR diff and finishes faster in CI
 - Local paths are read-only; packages (`.vsix`/`.zip`/`.jar`/`.crx`) are still extracted into a temp dir
 
+### Config File (`kalascan.toml`)
+Commit the scan policy next to the code: `kalascan scan` reads `./kalascan.toml` when present (or the file given with `--config`). Keys are the `scan` flags of the same name; a flag on the command line wins over the file, which wins over the built-in default:
+
+```toml
+fail_on_risk = 60
+secrets = true
+rules = "rules/extra.toml"
+baseline = "kalascan-baseline.json"
+new_only = true
+git_history = true
+max_commits = 500
+since = "2025-01-01"
+```
+
+Accepted keys: `format`, `fail_on_risk`, `baseline`, `new_only`, `ignore`, `secrets`, `cve`, `yara_dir`, `rules`, `git_history`, `max_commits`, `since`, `deep_triage`, `deobfuscate`, `emulate`, `base_ref`; an unknown key fails the scan. The GitHub Action always passes its `fail_on_risk` input (default 60), so set that threshold in the workflow, not in the file.
+
 ### Database Migrations (v1.7)
 - `PRAGMA user_version` tracks schema state; versions upgrade in place on startup
 - Legacy databases gain missing columns automatically and are stamped to the current version
@@ -240,6 +258,17 @@ brew trust wahidhendrawan/kalascan
 brew install kalascan
 ```
 Installs to `/usr/local/bin`; override with `KALASCAN_INSTALL_DIR=/some/bin`.
+
+Every release archive ships with a keyless cosign signature (`<asset>.sigstore.json`), SLSA
+build provenance and a CycloneDX SBOM (`kalascan-<tag>.sbom.cyclonedx.json`). Verify before
+installing by hand:
+
+```bash
+cosign verify-blob --bundle kalascan-<target>.tar.gz.sigstore.json \
+  --certificate-identity-regexp '^https://github.com/wahidhendrawan/KalaScan/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com kalascan-<target>.tar.gz
+gh attestation verify kalascan-<target>.tar.gz --repo wahidhendrawan/KalaScan
+```
 
 ### Build & Run
 
@@ -393,7 +422,12 @@ All requests then need `Authorization: Bearer change-me`.
 - On a non-loopback address the server **refuses to start** without `KALASCAN_TOKEN` or users. For a trusted network only, opt out with `KALASCAN_ALLOW_UNAUTHENTICATED=1`.
 - The JSON API accepts remote targets only (Git URLs, `publisher.extension`, marketplace URLs, `npm:` / `pypi:`), and refuses hosts that resolve to loopback, private, link-local or CGNAT addresses (cloud metadata, admin ports) unless `KALASCAN_ALLOW_PRIVATE_TARGETS=1`. Credentials in a repo URL (`https://user:token@host/…`) reach `git` only; logs, the audit log, history and reports show the URL without them. Local paths and the server-side options `yara_dir`, `ignore`, `baseline` and `sandbox_image` are CLI-only; upload local packages via `POST /api/scan/upload`.
 
+Details: [docs/web-ui-security.md](docs/web-ui-security.md).
+
 ## Architecture
+
+The scan pipeline, the risk model and the output formats are described in
+[docs/architecture.md](docs/architecture.md).
 
 ```
 KalaScan/
@@ -409,6 +443,10 @@ KalaScan/
 │   ├── workflow.rs        # GitHub Actions checks (pwn request, script injection)
 │   ├── reputation.rs      # Listing spoofing, look-alike publishers, marketplace stats
 │   ├── iocs.rs            # URL / IP indicator extraction, URLhaus lookups
+│   ├── registry.rs        # npm / PyPI registry metadata checks
+│   ├── obfuscator.rs      # Obfuscator fingerprints
+│   ├── lockfile.rs        # Lockfile audit (`kalascan deps`)
+│   ├── import.rs          # Scanner report import (Nessus, Nmap, Burp, ZAP, ...)
 │   ├── diff.rs            # Version diff (new capabilities)
 │   ├── installed.rs       # Installed IDE / browser extension discovery
 │   ├── attack.rs          # MITRE ATT&CK technique mapping
@@ -426,7 +464,10 @@ KalaScan/
 │   ├── baseline.rs        # Finding fingerprints, baselines & .kalascanignore
 │   └── export.rs          # MD + HTML + SARIF + CSV + JUnit + GitHub export
 ├── rules/
-│   └── builtin.toml       # Built-in RegEx rules with ids and verified examples
+│   ├── builtin.toml       # Built-in RegEx rules with ids and verified examples
+│   ├── secrets.toml       # Secret patterns generated from gitleaks (opt-in `--secrets`)
+│   ├── popular_extensions.tsv
+│   └── yara/              # Built-in YARA rules
 ├── eval/                  # Labelled corpus + detection-quality harness
 ├── templates/
 │   ├── index.html         # Dashboard with drag-and-drop upload & scan form
@@ -437,13 +478,18 @@ KalaScan/
 │   ├── security.yml       # Gitleaks + Trivy container scan
 │   ├── dependency-review.yml
 │   ├── eval.yml           # False-positive gate on the clean corpus
-│   └── docker.yml         # Multi-arch build + push to ghcr.io
+│   ├── docker.yml         # Multi-arch build + push to ghcr.io
+│   ├── dependabot-auto-merge.yml
+│   └── scorecard.yml      # OpenSSF Scorecard
 ├── action.yml             # Composite GitHub Action (SARIF → Code Scanning)
 ├── sandbox/
 │   └── Dockerfile         # Minimal strace-enabled sandbox runtime image
 ├── Dockerfile             # Multi-stage Rust container build
 ├── docker-compose.yml     # KalaScan stack
+├── docs/                  # Architecture, detection rules, web UI security
+├── deny.toml              # cargo-deny policy (advisories, licences, duplicates)
 ├── Cargo.toml
+├── CHANGELOG.md
 ├── LICENSE                # GPL-3.0
 └── README.md
 ```
@@ -468,11 +514,17 @@ KalaScan/
 | **Supply Chain** | npm `postinstall`/`preinstall` scripts, `setup.py` install hooks and stagers, typo-squatted package names (edit distance), dependency-confusion versions, remote executable downloads, `curl … \| sh` / `irm … \| iex` cradles, OSV `MAL-*` malicious packages |
 | **Recon & C2** | Host/user collection, IP-lookup services, request-capture / OAST / tunnel services, raw-IP URLs, raw sockets, local HTTP servers with upload routes |
 
+See [docs/detection-rules.md](docs/detection-rules.md) for the rule format, ids, file scope and how to add rules.
+
 ## Development
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow.
+
 ```bash
-# Run tests
+# Run tests, lint and the dependency policy
 cargo test
+cargo clippy --all-targets -- -D warnings
+cargo deny check
 
 # Measure detection quality on the labelled corpus (see eval/README.md)
 python3 eval/run_eval.py --only clean
@@ -483,8 +535,9 @@ cargo build --release
 # Rebuild the bundled UI stylesheet after editing templates
 npx tailwindcss@3.4.17 -c tailwind.config.js -i tailwind.input.css -o static/app.css --minify
 
-# Run with debug logging
+# Logging goes to stderr; RUST_LOG filters it (default: kalascan=info)
 RUST_LOG=kalascan=debug cargo run
+RUST_LOG=debug kalascan scan .
 
 # Custom listen address
 KALASCAN_ADDR=0.0.0.0:8080 cargo run --release
@@ -492,8 +545,10 @@ KALASCAN_ADDR=0.0.0.0:8080 cargo run --release
 
 ## CI/CD
 
-- **CI**: `cargo check` → `cargo test` → `cargo build --release`
-- **Release**: tagged `v*` builds upload cross-platform `kalascan` binaries via `.github/workflows/release.yml`
+- **CI**: `cargo check` → `cargo test` → `cargo build --release`, plus `cargo deny check` (advisories, licences, duplicate crates)
+- **Release**: tagged `v*` builds upload cross-platform `kalascan` binaries via `.github/workflows/release.yml`; the tag must match `Cargo.toml` and have a `CHANGELOG.md` section, and the assets ship with a CycloneDX SBOM, keyless cosign signatures and SLSA provenance
+- **Dependabot**: grouped weekly minor/patch updates for Cargo, Docker and Actions, auto-merged once CI passes
+- **Scorecard**: OpenSSF Scorecard runs weekly
 - **Security**: Gitleaks (secret detection) + Trivy (vuln + secret + misconfig scan)
 - **Docker**: Multi-stage build published to `ghcr.io/wahidhendrawan/kalascan` on push to main
 - **Dependency Review**: Audits dependency changes on PRs
@@ -506,7 +561,8 @@ Please report vulnerabilities privately as described in [SECURITY.md](SECURITY.m
 
 ## License
 
-GNU General Public License v3.0 — see [LICENSE](LICENSE).
+GNU General Public License v3.0 — see [LICENSE](LICENSE). Changes are tracked in
+[CHANGELOG.md](CHANGELOG.md); cite the project with [CITATION.cff](CITATION.cff).
 
 ---
 
