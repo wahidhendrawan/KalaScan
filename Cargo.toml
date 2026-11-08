@@ -18,7 +18,7 @@ regex = "1"
 walkdir = "2"
 tempfile = "3"
 uuid = { version = "1", features = ["v4"] }
-tower-http = { version = "0.6", features = ["fs", "cors"] }
+tower-http = { version = "0.7", features = ["fs", "cors"] }
 anyhow = "1"
 zip = "9"
 tracing = "0.1"
