@@ -26,6 +26,7 @@ dependencies = [
  "cipher",
  "cpubits",
  "cpufeatures 0.3.1",
+ "zeroize",
 ]
 
 [[package]]
@@ -1492,9 +1493,9 @@ dependencies = [
 
 [[package]]
 name = "iced-x86"
-version = "1.21.0"
+version = "1.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c447cff8c7f384a7d4f741cfcff32f75f3ad02b406432e8d6c878d56b1edf6b"
+checksum = "c23ad4d19dca41180e835ef6fbd2c1ee655777eca086ad80dd517e0513322879"
 dependencies = [
  "lazy_static",
 ]
@@ -4447,9 +4448,9 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "9.1.0"
+version = "9.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2886b00003a72c4ccee3f42cfc34908d33b2508a74d827dc2a4244706475c704"
+checksum = "848dad21639597378c3be94c59fd4de683f0f6d8a5387575896e1245737d4f37"
 dependencies = [
  "aes",
  "bzip2",
