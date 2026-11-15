@@ -23,7 +23,7 @@
   - **Open VSX**: Open-source registry URLs (`open-vsx.org/extension/<namespace>/<name>`)
   - **JetBrains**: IntelliJ / PyCharm / WebStorm plugin archives (`.jar`, `.zip`)
   - **Chrome / Browser**: Extension packages (`.crx`, `.zip`) with `manifest.json` permission checks
-  - **npm / PyPI**: registry packages by name — `npm:express`, `npm:@scope/name@1.2.3`, `pypi:requests==2.31.0` (wheel preferred, sdist fallback)
+  - **npm / PyPI / crates.io**: registry packages by name — `npm:express`, `npm:@scope/name@1.2.3`, `pypi:requests==2.31.0` (wheel preferred, sdist fallback), `crates:serde@1.0.203`
 - **Safe Unpacking** — automated extraction with zip-slip path traversal guards, targeting runtime payloads (`extension/`, `META-INF/`); `.tgz` / `.tar.gz` drop symlinks and `../` entries under the same size limits
 - **Bundled `node_modules/` is scanned** — in a VSIX/CRX it is shipped, executed code
 - **IDE Malware Rules**:
@@ -78,7 +78,7 @@
 - **Invisible Zero-Width Character Detection**: Uncovers hidden unicode steganography (`\u{200B}`, `\u{200C}`, `\u{200D}`, `\u{FEFF}`) wedged between ASCII word characters; emoji ZWJ sequences and Persian/Indic ZWNJ are ordinary text
 - **Trojan Source Detection (CVE-2021-42574)**: Flags dangerous Bi-Directional override characters disguised as comments
 - **Homoglyph Spoofing Detection**: Catches a single identifier mixing Latin letters with Cyrillic lookalikes (localised UI strings are not flagged)
-- **javascript-obfuscator String Tables**: a file flagged as obfuscator.io output has its string array decoded (plain, `\x` escapes, or the obfuscator's base64 alphabet; `splitStrings` pieces are searched as they are) and checked for a file read + secret path + upload (`Chain: Obfuscated Credential Theft`) or a shell + download cradle (`Chain: Obfuscated Download and Execute`). The `rc4` encoding is not decoded
+- **javascript-obfuscator String Tables**: a file flagged as obfuscator.io output has its string array decoded (plain, `\x` escapes, or the obfuscator's base64 alphabet; `splitStrings` pieces are searched as they are, and a name cut across two pieces is put back together) and checked for a file read + secret path + upload (`Chain: Obfuscated Credential Theft`) or a shell + download cradle (`Chain: Obfuscated Download and Execute`). The `rc4` encoding is decrypted with the keys found at the call sites
 
 ### Behaviour Chains (correlation)
 - Individual hits are weak evidence; KalaScan correlates them into chains, each scored as two critical signals. File-level chain parts must sit within 4 KB of each other (bundlers put a whole extension in one file); package-level chains only combine evidence inside one package, never across bundled `node_modules` deps:
@@ -90,11 +90,12 @@
   - **`Chain: Install-time Exfiltration` / `Install-time Payload Execution`** — an npm install script or `setup.py` hook (custom `cmdclass`, shell calls) together with an exfil channel, host recon + HTTP, an encoded PowerShell blob, a base64/zlib stager or a download (not for VS Code extensions, whose package.json scripts never run on install)
   - **`Chain: Reconnaissance Beacon`** — hostname/username collection plus a request-capture service (`webhook.site`, `*.oast.fun`, …), raw-IP URL or chat webhook
   - **`Chain: Remote File Write via Local Server`** — an HTTP listener with an upload route plus a **zip slip** extractor. Zip slip is found by variable-level taint tracking: archive entry name → path → `writeFile` / `open(…, 'wb')` with no `..` / prefix check on that same variable; `tarfile.extractall` without `filter=` counts too
+  - **`Chain: Phishing Redirect Package`** — an npm package with no dependencies and at most three small scripts, one of which sends the browser to a hard-coded site (`window.location.href = …`): the redirect pages phishing kits serve from unpkg / jsDelivr
 - **Typo-squat detection** — dependencies (and the package's own name) one edit or one swapped pair away from a popular npm/PyPI package (`crossenv` → `cross-env`, `asyncoi` → `asyncio`), offline, on every scan
 - **Dependency-confusion versions** — a package versioned `99.0.0`, `999.9.9`, … (CalVer years excluded)
 
 ### Publisher & Listing Reputation (VS Code extensions)
-- **Offline**, from the extension's own package.json (works on a .vsix long after the marketplace removed it): invisible characters in the name or publisher (`Solidity\u200b`) and look-alike publishers (`juanbIanco` for `juanblanco`) are scored like a chain, and so is a repackaged copy: an extension whose `repository` is one of the 2,000 most-installed extensions' source but whose publisher is not ([`rules/popular_extensions.tsv`](rules/popular_extensions.tsv), regenerate with `python3 rules/gen_popular_extensions.py`); brand use by a non-owner (`"Error Lens Ultra"` by `GitlensPro`) is reported
+- **Offline**, from the extension's own package.json (works on a .vsix long after the marketplace removed it): invisible characters in the name or publisher (`Solidity\u200b`) and look-alike publishers (`juanbIanco` for `juanblanco`) are scored like a chain, and so is a repackaged copy: an extension whose `repository` is one of the 10,000 most-installed extensions' source but whose publisher is not ([`rules/popular_extensions.tsv`](rules/popular_extensions.tsv), regenerate with `python3 rules/gen_popular_extensions.py`); brand use by a non-owner (`"Error Lens Ultra"` by `GitlensPro`) is reported
 - An extension whose `repository` lives under an AI vendor's GitHub org (`anthropics`, `openai`, `google-gemini`, `mistralai`, `deepseek-ai`, `moonshotai`, `xai-org`) but is published by someone else is scored like a chain (`AI Vendor Repository Under Another Publisher`): the fake Claude/ChatGPT extension pattern. A general org check was tried and dropped: vendors publish under many accounts (58 false positives in 8,000 extensions)
 - **Online**, for `publisher.extension` targets: unverified publisher, fewer than 1,000 installs, first published less than 30 days ago (informational)
 
@@ -132,7 +133,7 @@ For `npm:` and `pypi:` targets, what the registry says about the scanned version
 - `kalascan rules` lists ids; `kalascan rules KS-SUP-009` explains one
 
 ### Detection Quality
-- [`eval/`](eval/README.md) holds a labelled corpus (DataDog malicious-package samples + popular clean packages and extensions) and the harness that measures it. Current: **81 of 100 malicious samples caught (26 of the 27 never used for tuning), 0 false positives across 227 clean packages/extensions** (the first run on 161 new clean samples found 5%, since fixed; see the eval README); CI fails a PR that makes any clean sample cross risk 50
+- [`eval/`](eval/README.md) holds a labelled corpus (DataDog malicious-package samples + popular clean packages and extensions) and the harness that measures it. Current: **85 of 100 malicious samples caught (26 of the 27 never used for tuning), 0 false positives across 227 clean packages/extensions** (the first run on 161 new clean samples found 5%, since fixed; see the eval README); CI fails a PR that makes any clean sample cross risk 50
 
 ### GitHub Actions Workflow Checks
 - **Pwn request** (critical) — `pull_request_target` that checks out the PR head (`ref: ${{ github.event.pull_request.head.sha }}`)
@@ -140,7 +141,7 @@ For `npm:` and `pypi:` targets, what the registry says about the scanned version
 - **Unpinned third-party actions** (low) — `uses: owner/action@v1` instead of a full commit SHA
 
 ### Lockfile Audit
-- `kalascan deps [PATH]` reads `package-lock.json` (v1-v3), `poetry.lock`, `Pipfile.lock` and pinned `requirements.txt` lines, then downloads and scans each exact locked version, highest risk first. Dev dependencies are skipped unless `--include-dev`; `--jobs` (default 4), `--max` (default 500), `--min-risk`, `--fail-on-risk`, `--format text|json`. Git, file and link dependencies are skipped. Other lockfiles (`yarn.lock`, `pnpm-lock.yaml`, `Cargo.lock`, …) are not read yet; a directory with none of the supported ones exits with an error
+- `kalascan deps [PATH]` reads `package-lock.json` (v1-v3), `yarn.lock` (classic and Berry), `pnpm-lock.yaml` (v5-v9), `poetry.lock`, `Pipfile.lock`, `uv.lock`, pinned `requirements.txt` lines and `Cargo.lock`, then downloads and scans each exact locked version, highest risk first. Dev dependencies are skipped unless `--include-dev`; `--jobs` (default 4), `--max` (default 500), `--min-risk`, `--fail-on-risk`, `--format text|json`. Git, file and link dependencies are skipped. `yarn.lock`, `pnpm-lock.yaml` v9, `uv.lock` and `Cargo.lock` do not say which packages are dev-only, so all of them are scanned. Results are kept in `~/.cache/kalascan` (`KALASCAN_CACHE_DIR`) per KalaScan and ruleset version, so a second run only downloads packages it has not seen; `--no-cache` scans everything again. Other lockfiles are not read yet; a directory with none of the supported ones exits with an error
 
 ### Scanner Report Import
 - `kalascan import <FILE>` reads a Nessus (`.nessus` v2), Nmap XML, Burp Suite XML, OWASP ZAP (XML or JSON), Nuclei (JSON or JSONL), Qualys scan XML or generic CSV report (a `title`/`name` column; Nessus CSV exports fit) and normalizes every item to one finding: tool, id, title, severity (`critical|high|medium|low|info`), host, port, protocol, CVEs, CVSS, description, solution and evidence (cut at 4,000 characters)
@@ -163,7 +164,7 @@ For `npm:` and `pypi:` targets, what the registry says about the scanned version
 ### CI Workflow Features (v1.6)
 - **SARIF 2.1.0 output** (`--format sarif`) for GitHub Code Scanning, with stable partial fingerprints per finding
 - **Baselines** — `--baseline <FILE> --update-baseline` records the current findings; `--baseline <FILE> --new-only` reports only findings not yet recorded and never writes the file. Fingerprints use the matched text, not the line number, so edits elsewhere in a file do not re-report its findings (baselines written by v1.11 or earlier must be rebuilt once)
-- **Path suppression** — `.kalascanignore` (or `--ignore <FILE>`) accepts globs such as `src/generated/*` and `*.min.js`
+- **Path suppression** — `.kalascanignore` (or `--ignore <FILE>`) accepts globs such as `src/generated/*` and `*.min.js`. `./.kalascanignore` applies to a checkout scanned in place only; `--ignore` applies to any target
 - **Inline suppression** — add `kalascan:ignore` on a line, or `kalascan:ignore-file` anywhere in a file. Honoured only when scanning your own checkout in place; ignored in anything cloned, downloaded or uploaded, and with `--untrusted`
 - **Changed-files scanning** — `--changed-only --base-ref origin/main` restricts the scan to files touched by the PR
 - **Raw JSON** is unaffected: the async web API and CLI `json` format still return every finding
@@ -171,6 +172,7 @@ For `npm:` and `pypi:` targets, what the registry says about the scanned version
 ### API Authentication
 - Set `KALASCAN_TOKEN` to require `Authorization: Bearer <token>` on all routes
 - When bound to a non-loopback address without a token, KalaScan logs a prominent warning at startup
+- No CORS headers are sent, and a request whose `Origin` is another site gets 403: a web page cannot drive the API through a visitor's browser. A loopback server without a token also answers only to `localhost` / `127.0.0.1` / `[::1]` as `Host` (DNS rebinding)
 - Responses carry a strict `Content-Security-Policy` (self-hosted assets only), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and `Referrer-Policy: no-referrer`
 
 ### Multi-User Auth & RBAC (v1.8)
@@ -420,7 +422,7 @@ KALASCAN_TOKEN=change-me kalascan serve --addr 0.0.0.0:3000
 All requests then need `Authorization: Bearer change-me`.
 
 - On a non-loopback address the server **refuses to start** without `KALASCAN_TOKEN` or users. For a trusted network only, opt out with `KALASCAN_ALLOW_UNAUTHENTICATED=1`.
-- The JSON API accepts remote targets only (Git URLs, `publisher.extension`, marketplace URLs, `npm:` / `pypi:`), and refuses hosts that resolve to loopback, private, link-local or CGNAT addresses (cloud metadata, admin ports) unless `KALASCAN_ALLOW_PRIVATE_TARGETS=1`. Credentials in a repo URL (`https://user:token@host/…`) reach `git` only; logs, the audit log, history and reports show the URL without them. Local paths and the server-side options `yara_dir`, `ignore`, `baseline` and `sandbox_image` are CLI-only; upload local packages via `POST /api/scan/upload`.
+- The JSON API accepts remote targets only (Git URLs, `publisher.extension`, marketplace URLs, `npm:` / `pypi:` / `crates:`), and refuses hosts that resolve to loopback, private, link-local or CGNAT addresses (cloud metadata, admin ports) unless `KALASCAN_ALLOW_PRIVATE_TARGETS=1`. Credentials in a repo URL (`https://user:token@host/…`) reach `git` only; logs, the audit log, history and reports show the URL without them. Local paths and the server-side options `yara_dir`, `ignore`, `baseline` and `sandbox_image` are CLI-only; upload local packages via `POST /api/scan/upload`.
 
 Details: [docs/web-ui-security.md](docs/web-ui-security.md).
 
@@ -432,7 +434,9 @@ The scan pipeline, the risk model and the output formats are described in
 ```
 KalaScan/
 ├── src/
-│   ├── main.rs            # Axum web server, scan orchestrator & CLI router
+│   ├── main.rs            # Scan orchestrator, risk score & CLI dispatch
+│   ├── server.rs          # Axum web server: routes, auth middleware, scan queue, upload
+│   ├── commands.rs        # CLI subcommands & text report
 │   ├── cli.rs             # Clap CLI subcommand argument parser
 │   ├── vsix.rs            # VSIX, Open VSX, JetBrains, CRX, npm & PyPI extraction
 │   ├── scanner.rs         # Rule loader (rules/builtin.toml), WalkDir scanner, file filter
@@ -462,7 +466,7 @@ KalaScan/
 │   ├── metrics.rs         # Prometheus counters/gauges (atomic, lock-free)
 │   ├── git_history.rs     # Commit history scanner
 │   ├── baseline.rs        # Finding fingerprints, baselines & .kalascanignore
-│   └── export.rs          # MD + HTML + SARIF + CSV + JUnit + GitHub export
+│   └── export.rs          # MD + SARIF + CSV + JUnit + GitHub export (HTML in export/html.rs)
 ├── rules/
 │   ├── builtin.toml       # Built-in RegEx rules with ids and verified examples
 │   ├── secrets.toml       # Secret patterns generated from gitleaks (opt-in `--secrets`)

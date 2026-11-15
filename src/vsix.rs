@@ -42,7 +42,8 @@ struct PypiFile {
     url: String,
 }
 
-/// Registry package target: `npm:name[@version]` or `pypi:name[==version]`.
+/// Registry package target: `npm:name[@version]`, `pypi:name[==version]` or
+/// `crates:name[@version]`.
 #[derive(Debug, PartialEq)]
 pub struct PackageTarget {
     pub ecosystem: &'static str,
@@ -57,6 +58,11 @@ pub fn parse_package_target(target: &str) -> Option<PackageTarget> {
         match spec.rfind('@').filter(|&i| i > 0) {
             Some(i) => ("npm", &spec[..i], Some(&spec[i + 1..])),
             None => ("npm", spec, None),
+        }
+    } else if let Some(spec) = t.strip_prefix("crates:") {
+        match spec.split_once('@') {
+            Some((n, v)) => ("crates", n, Some(v)),
+            None => ("crates", spec, None),
         }
     } else {
         let spec = t.strip_prefix("pypi:")?;
@@ -191,6 +197,29 @@ async fn resolve_package_download(pkg: &PackageTarget) -> anyhow::Result<String>
             .await?;
         return Ok(meta.dist.tarball);
     }
+    if pkg.ecosystem == "crates" {
+        let version = match &pkg.version {
+            Some(v) => v.clone(),
+            None => {
+                let meta: serde_json::Value = client
+                    .get(format!("https://crates.io/api/v1/crates/{}", pkg.name))
+                    .send()
+                    .await?
+                    .error_for_status()?
+                    .json()
+                    .await?;
+                meta["crate"]["max_stable_version"]
+                    .as_str()
+                    .or_else(|| meta["crate"]["max_version"].as_str())
+                    .ok_or_else(|| anyhow::anyhow!("crates.io lists no version of {}", pkg.name))?
+                    .to_string()
+            }
+        };
+        return Ok(format!(
+            "https://static.crates.io/crates/{0}/{0}-{1}.crate",
+            pkg.name, version
+        ));
+    }
     let url = match &pkg.version {
         Some(v) => format!("https://pypi.org/pypi/{}/{}/json", pkg.name, v),
         None => format!("https://pypi.org/pypi/{}/json", pkg.name),
@@ -295,7 +324,11 @@ pub async fn unpack_extension(target: &str, dest_dir: &Path) -> anyhow::Result<P
     }
 
     let bytes = download_capped(resp).await?;
-    if download_url.ends_with(".tgz") || download_url.ends_with(".tar.gz") {
+    // A .crate is a gzipped tarball too.
+    if [".tgz", ".tar.gz", ".crate"]
+        .iter()
+        .any(|ext| download_url.ends_with(ext))
+    {
         return extract_tar_gz(&bytes, dest_dir);
     }
     // The VS Marketplace serves .vsix with `Content-Encoding: gzip`, and
@@ -748,6 +781,13 @@ mod tests {
             pkg("pypi", "requests", Some("2.31.0"))
         );
         assert_eq!(p("pypi:requests"), pkg("pypi", "requests", None));
+        assert_eq!(p("crates:serde"), pkg("crates", "serde", None));
+        assert_eq!(
+            p("crates:tokio@1.38.0"),
+            pkg("crates", "tokio", Some("1.38.0"))
+        );
+        assert!(p("crates:a/b").is_none());
+        assert!(p("crates:x@1.0.0/../y").is_none());
         // Must not smuggle anything into the registry URL.
         assert!(p("npm:../../etc").is_none());
         assert!(p("npm:a/b").is_none());

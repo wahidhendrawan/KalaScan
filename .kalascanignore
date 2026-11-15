@@ -1,0 +1,7 @@
+# Paths left out when this checkout is scanned in place (`kalascan scan .`,
+# as CI does). They hold detection signatures, rule examples and test
+# samples, which match the rules they describe.
+src/*
+rules/*
+tests/*
+eval/*

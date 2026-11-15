@@ -181,7 +181,7 @@ pub enum Commands {
         #[arg(long, default_value_t = 4)]
         jobs: usize,
     },
-    /// Scan every dependency a lockfile pins (package-lock.json, poetry.lock, Pipfile.lock, requirements.txt)
+    /// Scan every dependency a lockfile pins (package-lock.json, yarn.lock, pnpm-lock.yaml, poetry.lock, Pipfile.lock, uv.lock, requirements.txt, Cargo.lock)
     Deps {
         /// Directory holding the lockfile(s)
         #[arg(default_value = ".")]
@@ -210,6 +210,10 @@ pub enum Commands {
         /// Stop after this many packages (each one is downloaded)
         #[arg(long, default_value_t = 500)]
         max: usize,
+
+        /// Scan every package again instead of reusing results of earlier runs
+        #[arg(long)]
+        no_cache: bool,
     },
     /// Compare two versions of a package or extension and list capabilities the new one adds
     Diff {

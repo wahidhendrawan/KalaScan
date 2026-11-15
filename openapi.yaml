@@ -188,7 +188,7 @@ components:
       type: object
       required: [repo_url, llm_provider, llm_model]
       properties:
-        repo_url: { type: string, description: "Git URL (https/ssh), marketplace URL, publisher.extension[@version], npm:name[@version] or pypi:name[==version]. Local paths are CLI-only; upload packages via /api/scan/upload" }
+        repo_url: { type: string, description: "Git URL (https/ssh), marketplace URL, publisher.extension[@version], npm:name[@version], crates:name[@version] or pypi:name[==version]. Local paths are CLI-only; upload packages via /api/scan/upload" }
         llm_provider: { type: string, default: ollama }
         llm_model: { type: string, default: llama3 }
         llm_api_key: { type: string, description: "Never persisted with queued scans" }

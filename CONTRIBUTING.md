@@ -51,7 +51,7 @@ Use the "False positive" issue template with the rule id (`kalascan rules <id>` 
 
 ## Guidelines
 
-- Keep `cargo fmt --check`, `cargo clippy --all-targets --locked -- -D warnings` and `cargo test --locked` green. CI also runs `cargo deny check`, the clean-corpus gate and the security scans.
+- Keep `cargo fmt --check`, `cargo clippy --all-targets --locked -- -D warnings` and `cargo test --locked` green. CI also runs `cargo deny check`, a scan of this repository with the built binary, the clean-corpus gate and the security scans.
 - Add a test for every behaviour change; rule changes are tested by their examples.
 - A known limitation gets a `shortcut: <limit>, <when to upgrade>` comment rather than silence.
 - Conventional commit messages: `feat:`, `fix:`, `docs:`, `ci:`, `chore:`.

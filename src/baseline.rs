@@ -77,6 +77,7 @@ pub fn fingerprints(matches: &[RuleMatch]) -> Vec<String> {
     out
 }
 
+#[derive(Default)]
 pub struct IgnoreSet {
     patterns: Vec<Regex>,
 }
