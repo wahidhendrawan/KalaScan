@@ -61,6 +61,7 @@
 ### TTP / ATT&CK Coverage (v1.5)
 - **Unified Technique Mapping** — aggregates observations from RegEx/YARA matches, static triage capabilities, recursive deobfuscation, static emulation, and sandbox telemetry
 - **Kill-Chain Ordering** — groups techniques by ATT&CK tactic in execution order with per-tactic observation counts
+- **Current ATT&CK** — technique ids, names and tactics follow Enterprise ATT&CK v20.1, including the Stealth and Defense Impairment tactics that replaced Defense Evasion
 - **Coverage Scoring** — reports technique/tactic coverage and contributes a capped risk signal without overriding the primary risk model
 - **Safe by Design** — pure metadata aggregation; no sample execution or network access
 

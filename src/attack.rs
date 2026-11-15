@@ -9,11 +9,14 @@ pub struct AttackTechnique {
     pub tactic: String,
 }
 
+/// Names and tactics follow Enterprise ATT&CK v20.1 (2026-11): the Defense
+/// Evasion tactic is split into Stealth and Defense Impairment, and the
+/// T1562 family moved to T1685.
 const TECHNIQUE_TABLE: &[(&str, &str, &str)] = &[
     ("T1001", "Data Obfuscation", "Command and Control"),
     ("T1005", "Data from Local System", "Collection"),
     ("T1008", "Fallback Channels", "Command and Control"),
-    ("T1014", "Rootkit", "Defense Evasion"),
+    ("T1014", "Rootkit", "Stealth"),
     (
         "T1016",
         "System Network Configuration Discovery",
@@ -21,26 +24,22 @@ const TECHNIQUE_TABLE: &[(&str, &str, &str)] = &[
     ),
     ("T1021", "Remote Services", "Lateral Movement"),
     ("T1025", "Data from Removable Media", "Collection"),
-    (
-        "T1027",
-        "Obfuscated Files or Information",
-        "Defense Evasion",
-    ),
-    ("T1027.002", "Software Packing", "Defense Evasion"),
-    ("T1027.009", "Embedded Payloads", "Defense Evasion"),
-    ("T1027.010", "Command Obfuscation", "Defense Evasion"),
-    ("T1027.013", "Encrypted/Encoded File", "Defense Evasion"),
+    ("T1027", "Obfuscated Files or Information", "Stealth"),
+    ("T1027.002", "Software Packing", "Stealth"),
+    ("T1027.009", "Embedded Payloads", "Stealth"),
+    ("T1027.010", "Command Obfuscation", "Stealth"),
+    ("T1027.013", "Encrypted/Encoded File", "Stealth"),
     ("T1033", "System Owner/User Discovery", "Discovery"),
-    ("T1036", "Masquerading", "Defense Evasion"),
+    ("T1036", "Masquerading", "Stealth"),
     (
         "T1036.005",
-        "Match Legitimate Name or Location",
-        "Defense Evasion",
+        "Match Legitimate Resource Name or Location",
+        "Stealth",
     ),
     ("T1039", "Data from Network Shared Drive", "Collection"),
     ("T1041", "Exfiltration Over C2 Channel", "Exfiltration"),
     ("T1053.005", "Scheduled Task", "Persistence"),
-    ("T1055", "Process Injection", "Defense Evasion"),
+    ("T1055", "Process Injection", "Stealth"),
     ("T1056.001", "Keylogging", "Collection"),
     ("T1059", "Command and Scripting Interpreter", "Execution"),
     ("T1059.001", "PowerShell", "Execution"),
@@ -52,16 +51,10 @@ const TECHNIQUE_TABLE: &[(&str, &str, &str)] = &[
         "Exploitation for Privilege Escalation",
         "Privilege Escalation",
     ),
-    ("T1070", "Indicator Removal", "Defense Evasion"),
-    ("T1070.001", "Clear Windows Event Logs", "Defense Evasion"),
-    (
-        "T1070.002",
-        "Clear Linux or Mac System Logs",
-        "Defense Evasion",
-    ),
-    ("T1070.003", "Clear Command History", "Defense Evasion"),
-    ("T1070.004", "File Deletion", "Defense Evasion"),
-    ("T1070.006", "Timestomp", "Defense Evasion"),
+    ("T1070", "Indicator Removal", "Stealth"),
+    ("T1070.003", "Clear Command History", "Stealth"),
+    ("T1070.004", "File Deletion", "Stealth"),
+    ("T1070.006", "Timestomp", "Stealth"),
     ("T1071", "Application Layer Protocol", "Command and Control"),
     ("T1071.001", "Web Protocols", "Command and Control"),
     ("T1071.004", "DNS", "Command and Control"),
@@ -79,7 +72,7 @@ const TECHNIQUE_TABLE: &[(&str, &str, &str)] = &[
     ("T1104", "Multi-Stage Channels", "Command and Control"),
     ("T1105", "Ingress Tool Transfer", "Command and Control"),
     ("T1106", "Native API", "Execution"),
-    ("T1112", "Modify Registry", "Defense Evasion"),
+    ("T1112", "Modify Registry", "Defense Impairment"),
     ("T1113", "Screen Capture", "Collection"),
     ("T1115", "Clipboard Data", "Collection"),
     ("T1119", "Automated Collection", "Collection"),
@@ -90,9 +83,9 @@ const TECHNIQUE_TABLE: &[(&str, &str, &str)] = &[
     (
         "T1140",
         "Deobfuscate/Decode Files or Information",
-        "Defense Evasion",
+        "Stealth",
     ),
-    ("T1176", "Browser Extensions", "Persistence"),
+    ("T1176", "Software Extensions", "Persistence"),
     (
         "T1195.002",
         "Compromise Software Supply Chain",
@@ -102,18 +95,18 @@ const TECHNIQUE_TABLE: &[(&str, &str, &str)] = &[
     ("T1204", "User Execution", "Execution"),
     ("T1204.002", "Malicious File", "Execution"),
     ("T1205", "Traffic Signaling", "Command and Control"),
-    ("T1218", "System Binary Proxy Execution", "Defense Evasion"),
-    ("T1218.011", "Rundll32", "Defense Evasion"),
+    ("T1218", "System Binary Proxy Execution", "Stealth"),
+    ("T1218.011", "Rundll32", "Stealth"),
     (
         "T1222",
         "File and Directory Permissions Modification",
-        "Defense Evasion",
+        "Defense Impairment",
     ),
-    ("T1480", "Execution Guardrails", "Defense Evasion"),
+    ("T1480", "Execution Guardrails", "Stealth"),
     ("T1485", "Data Destruction", "Impact"),
     ("T1486", "Data Encrypted for Impact", "Impact"),
     ("T1490", "Inhibit System Recovery", "Impact"),
-    ("T1497", "Virtualization/Sandbox Evasion", "Defense Evasion"),
+    ("T1497", "Virtualization/Sandbox Evasion", "Stealth"),
     (
         "T1528",
         "Steal Application Access Token",
@@ -144,15 +137,8 @@ const TECHNIQUE_TABLE: &[(&str, &str, &str)] = &[
     ("T1557", "Adversary-in-the-Middle", "Credential Access"),
     ("T1560", "Archive Collected Data", "Collection"),
     ("T1560.001", "Archive via Utility", "Collection"),
-    ("T1562", "Impair Defenses", "Defense Evasion"),
-    ("T1562.001", "Disable or Modify Tools", "Defense Evasion"),
-    ("T1562.006", "Indicator Blocking", "Defense Evasion"),
-    ("T1564", "Hide Artifacts", "Defense Evasion"),
-    (
-        "T1564.001",
-        "Hidden Files and Directories",
-        "Defense Evasion",
-    ),
+    ("T1564", "Hide Artifacts", "Stealth"),
+    ("T1564.001", "Hidden Files and Directories", "Stealth"),
     ("T1566", "Phishing", "Initial Access"),
     ("T1566.001", "Spearphishing Attachment", "Initial Access"),
     ("T1567", "Exfiltration Over Web Service", "Exfiltration"),
@@ -165,9 +151,20 @@ const TECHNIQUE_TABLE: &[(&str, &str, &str)] = &[
     ("T1571", "Non-Standard Port", "Command and Control"),
     ("T1572", "Protocol Tunneling", "Command and Control"),
     ("T1573", "Encrypted Channel", "Command and Control"),
-    ("T1620", "Reflective Code Loading", "Defense Evasion"),
-    ("T1622", "Debugger Evasion", "Defense Evasion"),
+    ("T1620", "Reflective Code Loading", "Stealth"),
+    ("T1622", "Debugger Evasion", "Stealth"),
     ("T1657", "Financial Theft", "Impact"),
+    ("T1685", "Disable or Modify Tools", "Defense Impairment"),
+    (
+        "T1685.005",
+        "Clear Windows Event Logs",
+        "Defense Impairment",
+    ),
+    (
+        "T1685.006",
+        "Clear Linux or Mac System Logs",
+        "Defense Impairment",
+    ),
 ];
 
 static TECHNIQUES: LazyLock<BTreeMap<&'static str, AttackTechnique>> = LazyLock::new(|| {
@@ -482,8 +479,7 @@ pub fn map_text(text: &str) -> Vec<AttackTechnique> {
         &text,
         &["amsi", "etw", "disable security", "impair defense"],
     ) {
-        add(&mut out, "T1562");
-        add(&mut out, "T1562.001");
+        add(&mut out, "T1685");
     }
 
     // Not "registry" or "service": those named the npm registry and
@@ -672,6 +668,48 @@ mod tests {
     use super::*;
 
     #[test]
+    fn table_follows_attack_v20() {
+        // v19 split Defense Evasion; v20 retired T1562 and two T1070 log-clearing sub-techniques.
+        const TACTICS: [&str; 15] = [
+            "Reconnaissance",
+            "Resource Development",
+            "Initial Access",
+            "Execution",
+            "Persistence",
+            "Privilege Escalation",
+            "Stealth",
+            "Defense Impairment",
+            "Credential Access",
+            "Discovery",
+            "Lateral Movement",
+            "Collection",
+            "Command and Control",
+            "Exfiltration",
+            "Impact",
+        ];
+        for (id, _, tactic) in TECHNIQUE_TABLE {
+            assert!(
+                TACTICS.contains(tactic),
+                "{} has retired tactic {}",
+                id,
+                tactic
+            );
+            assert!(
+                !id.starts_with("T1562") && *id != "T1070.001" && *id != "T1070.002",
+                "{} was revoked",
+                id
+            );
+        }
+        let tools = lookup("T1685").unwrap();
+        assert_eq!(
+            (tools.name.as_str(), tools.tactic.as_str()),
+            ("Disable or Modify Tools", "Defense Impairment")
+        );
+        assert_eq!(lookup("T1027").unwrap().tactic, "Stealth");
+        assert_eq!(lookup("T1176").unwrap().name, "Software Extensions");
+    }
+
+    #[test]
     fn lookup_known_and_parent_technique() {
         assert_eq!(lookup("T1055").unwrap().name, "Process Injection");
         assert_eq!(
@@ -700,8 +738,8 @@ mod tests {
     fn short_keywords_match_whole_words_only() {
         let ids =
             |name: &str| -> Vec<String> { map_text(name).into_iter().map(|t| t.id).collect() };
-        assert!(!ids("local network server").contains(&"T1562".to_string()));
-        assert!(ids("patches etw and amsi").contains(&"T1562".to_string()));
+        assert!(!ids("local network server").contains(&"T1685".to_string()));
+        assert!(ids("patches etw and amsi").contains(&"T1685".to_string()));
     }
 
     #[test]
