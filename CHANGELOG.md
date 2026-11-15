@@ -7,6 +7,19 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+### Changed
+- ATT&CK mapping follows Enterprise ATT&CK v20.1: findings formerly under the Defense Evasion tactic are reported under Stealth or Defense Impairment, `T1562` / `T1562.001` / `T1562.006` became `T1685` (Disable or Modify Tools), `T1070.001` / `T1070.002` became `T1685.005` / `T1685.006`, and `T1036.005` and `T1176` carry their current names. Reports and SARIF exported by earlier versions keep the old ids.
+
+### Added
+- Dashboard: "Remember key in this browser" keeps the AI provider API key (one per provider) in the browser's localStorage. Off by default; switching it off deletes the saved keys. Switching provider no longer carries a typed key over to another provider.
+
+### Fixed
+- Dashboard: the rule count is the real number of built-in rules (it said "50+"), and the "0 code exec" claim is gone: nothing runs unless the sandbox is switched on.
+- Dashboard: scan progress shows the server's state and the elapsed time instead of an invented percentage.
+- Dashboard: package files can be dropped onto the upload area; the label offered it but only clicking worked.
+- Dashboard: errors appear in the page instead of browser alerts.
+- Dashboard: keyboard focus is visible on every control, and the upload area and history entries can be reached and activated with the keyboard.
+
 ## [1.14.0] - 2026-11-15
 
 ### Added

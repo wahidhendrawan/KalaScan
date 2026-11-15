@@ -862,13 +862,13 @@ mod tests {
                 attack: vec![AttackTechnique {
                     id: "T1055".into(),
                     name: "Process Injection".into(),
-                    tactic: "Defense Evasion".into(),
+                    tactic: "Stealth".into(),
                 }],
             }],
             attack_techniques: vec![AttackTechnique {
                 id: "T1055".into(),
                 name: "Process Injection".into(),
-                tactic: "Defense Evasion".into(),
+                tactic: "Stealth".into(),
             }],
             tools: vec![ToolStatus {
                 name: "capa".into(),
@@ -926,13 +926,13 @@ mod tests {
                 attack: vec![AttackTechnique {
                     id: "T1055".into(),
                     name: "Process Injection".into(),
-                    tactic: "Defense Evasion".into(),
+                    tactic: "Stealth".into(),
                 }],
             }],
             attack_techniques: vec![AttackTechnique {
                 id: "T1055".into(),
                 name: "Process Injection".into(),
-                tactic: "Defense Evasion".into(),
+                tactic: "Stealth".into(),
             }],
             notes: vec!["Entrypoint was emulated with a bounded instruction budget".into()],
         }

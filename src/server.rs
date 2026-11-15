@@ -420,6 +420,7 @@ async fn root(State(state): State<AppState>) -> Html<String> {
     Html(
         include_str!("../templates/index.html")
             .replace("__VERSION__", env!("CARGO_PKG_VERSION"))
+            .replace("__RULE_COUNT__", &scanner::build_rules().len().to_string())
             .replace("__SCANS_JSON__", &scans_json),
     )
 }

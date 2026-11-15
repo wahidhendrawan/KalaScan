@@ -41,7 +41,7 @@ A loopback server without a token or users also answers only requests addressed 
 - Remote targets only: Git URLs, `publisher.extension`, marketplace URLs, `npm:` / `pypi:` / `crates:` names. Local paths are refused; upload a package through `POST /api/scan/upload` instead.
 - Hosts that resolve to loopback, private, link-local or CGNAT addresses (cloud metadata, admin ports) are refused, for the target and for download redirects, unless `KALASCAN_ALLOW_PRIVATE_TARGETS=1` (an internal Git server).
 - Server-side file options (`yara_dir`, `ignore`, `baseline`, `sandbox_image`, `rules`) are CLI-only and rejected by the API.
-- Credentials in a repository URL (`https://user:token@host/...`) reach `git` only; logs, the audit log, history and reports show the URL without them. LLM API keys are stripped before a queued request is persisted.
+- Credentials in a repository URL (`https://user:token@host/...`) reach `git` only; logs, the audit log, history and reports show the URL without them. LLM API keys are stripped before a queued request is persisted. The dashboard keeps an AI provider key only when "Remember key in this browser" is switched on: it then sits in that browser's `localStorage`, readable by any script running on the dashboard's origin, and is deleted when the option is switched off.
 - `GET /api/sbom?path=...` serves only directories under the server's working directory (canonicalized; 403 outside).
 
 ## Limits

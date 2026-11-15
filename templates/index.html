@@ -50,7 +50,10 @@
 
         .input { background: rgba(7,8,12,.72); border: 1px solid rgba(255,255,255,.08); border-radius: .8rem;
             transition: border-color .15s ease, box-shadow .15s ease, background .15s ease; }
-        .input:focus { outline: none; border-color: rgba(139,92,246,.65); box-shadow: 0 0 0 4px rgba(139,92,246,.13); background: rgba(7,8,12,.92); }
+        .input:focus { outline: none; border-color: rgba(167,139,250,.9); box-shadow: 0 0 0 3px rgba(139,92,246,.45); background: rgba(7,8,12,.92); }
+        :focus-visible { outline: 2px solid #a78bfa; outline-offset: 2px; }
+        input:focus-visible + .toggle { outline: 2px solid #a78bfa; outline-offset: 2px; }
+        .sidebar-item:focus-within .actions { opacity: 1; }
         .input::placeholder { color: rgba(148,163,184,.42); }
 
         .chip { display: inline-flex; align-items: center; gap: .4rem; border-radius: 9999px;
@@ -168,16 +171,16 @@
                 </div>
                 <div class="grid grid-cols-3 gap-2 text-center lg:min-w-[330px]">
                     <div class="glass card p-3">
-                        <div class="text-xl font-bold text-white">50+</div>
+                        <div class="text-xl font-bold text-white">__RULE_COUNT__</div>
                         <div class="mt-0.5 text-[10px] uppercase tracking-wider text-slate-500">Rules</div>
                     </div>
                     <div class="glass card p-3">
-                        <div class="text-xl font-bold text-aqua-400">5</div>
-                        <div class="mt-0.5 text-[10px] uppercase tracking-wider text-slate-500">Engines</div>
+                        <div class="text-xl font-bold text-aqua-400">Static</div>
+                        <div class="mt-0.5 text-[10px] uppercase tracking-wider text-slate-500">By default</div>
                     </div>
                     <div class="glass card p-3">
-                        <div class="text-xl font-bold text-brand-400">0</div>
-                        <div class="mt-0.5 text-[10px] uppercase tracking-wider text-slate-500">Code exec</div>
+                        <div class="text-xl font-bold text-brand-400">Opt-in</div>
+                        <div class="mt-0.5 text-[10px] uppercase tracking-wider text-slate-500">Sandbox</div>
                     </div>
                 </div>
             </section>
@@ -210,7 +213,7 @@
                         </div>
 
                         <!-- Dropzone -->
-                        <div id="drop-zone" class="group flex cursor-pointer items-center justify-center gap-3 rounded-xl border border-dashed border-white/10 bg-white/[.015] px-4 py-3 text-center transition hover:border-brand-400/50 hover:bg-brand-500/[.04]" onclick="document.getElementById('vsix-file').click()">
+                        <div id="drop-zone" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="group flex cursor-pointer items-center justify-center gap-3 rounded-xl border border-dashed border-white/10 bg-white/[.015] px-4 py-3 text-center transition hover:border-brand-400/50 hover:bg-brand-500/[.04]" onclick="document.getElementById('vsix-file').click()">
                             <input type="file" id="vsix-file" name="file" accept=".vsix,.zip,.jar,.crx" class="hidden" onchange="handleFileSelect(this)" />
                             <svg class="h-5 w-5 text-slate-500 transition group-hover:text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
                             <span id="file-label" class="text-xs text-slate-400">Drop or upload <span class="font-mono text-slate-300">.vsix / .zip / .jar / .crx</span></span>
@@ -282,10 +285,26 @@
                                 <div>
                                     <label class="mb-1 block text-[10px] uppercase tracking-wider text-slate-500" for="llm-key">API key</label>
                                     <input type="password" id="llm-key" name="llm_api_key" placeholder="sk-… (not needed for Ollama)" class="input w-full px-3 py-2 text-sm text-slate-100" />
+                                    <label class="mt-2 flex items-center gap-2">
+                                        <input type="checkbox" id="remember-key" class="peer sr-only" onchange="rememberKey()" />
+                                        <span class="toggle"></span>
+                                        <span class="text-[11px] text-slate-400">Remember key in this browser</span>
+                                    </label>
                                 </div>
                             </div>
                         </details>
                     </form>
+                </div>
+            </section>
+
+            <!-- Error -->
+            <section id="scan-error" role="alert" class="glass card mb-6 hidden border-rose-500/30 p-5">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="min-w-0">
+                        <h2 id="scan-error-title" class="text-sm font-semibold text-rose-300"></h2>
+                        <p id="scan-error-text" class="mt-1 break-words text-xs text-slate-400"></p>
+                    </div>
+                    <button onclick="hideError()" class="rounded-lg border border-white/[.08] bg-white/[.03] px-3 py-1.5 text-[11px] text-slate-400 transition hover:text-white">Dismiss</button>
                 </div>
             </section>
 
@@ -298,14 +317,14 @@
                     <div class="min-w-0 flex-1">
                         <div class="flex items-center justify-between gap-4">
                             <p id="progress-text" class="truncate text-sm font-medium text-slate-200">Initializing scan…</p>
-                            <span id="progress-pct" class="font-mono text-xs text-slate-500">0%</span>
+                            <span id="progress-pct" class="font-mono text-xs text-slate-500">0s</span>
                         </div>
                         <div class="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-white/[.06]">
                             <div id="progress-bar" class="progress-stripe h-full w-0 rounded-full bg-gradient-to-r from-brand-500 to-aqua-400 transition-all duration-500"></div>
                         </div>
                         <div class="mt-2 flex items-center justify-between text-[10px] uppercase tracking-wider text-slate-600">
                             <span id="progress-phase">Queued</span>
-                            <span>Never executes untrusted code</span>
+                            <span>Nothing runs unless Sandbox is on</span>
                         </div>
                     </div>
                 </div>
@@ -468,7 +487,7 @@
 
             <footer class="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-white/[.06] pt-5 text-[10px] text-slate-600">
                 <span>KalaScan __VERSION__ · Rust + Axum</span>
-                <span class="inline-flex items-center gap-1.5"><span class="h-1.5 w-1.5 rounded-full bg-rose-500/70"></span>Never execute untrusted code</span>
+                <span class="inline-flex items-center gap-1.5"><span class="h-1.5 w-1.5 rounded-full bg-rose-500/70"></span>Nothing runs unless Sandbox is on</span>
             </footer>
         </main>
     </div>
@@ -519,6 +538,16 @@
             document.getElementById('sidebar-overlay').classList.add('hidden');
         }
 
+        /* ── Errors ── */
+        function showError(title, text) {
+            document.getElementById('scan-error-title').textContent = title;
+            document.getElementById('scan-error-text').textContent = text;
+            const box = document.getElementById('scan-error');
+            box.classList.remove('hidden');
+            box.scrollIntoView({ block: 'nearest' });
+        }
+        function hideError() { document.getElementById('scan-error').classList.add('hidden'); }
+
         /* ── Settings ── */
         const SETTING_IDS = ['llm-provider','llm-model','llm-endpoint','llm-key','ai-enabled','cve-enabled','deep-triage-enabled','deobfuscate-enabled','emulate-enabled','sandbox-enabled'];
 
@@ -544,8 +573,26 @@
             const cfg = presets[p] || {};
             if (cfg.ep !== undefined) { ep.value = cfg.ep; ep.placeholder = cfg.ep || 'https://…'; }
             if (cfg.model !== undefined) model.value = cfg.model;
-            if (cfg.key !== undefined) key.value = cfg.key;
+            // A key belongs to one provider: switching never carries it to another vendor.
+            key.value = savedKeys()[p] || '';
             saveSettings();
+        }
+
+        // Opt-in: one API key per provider in this browser's localStorage, so
+        // it survives a restart. Off by default; switching it off deletes
+        // every saved key. Anything that can run script on this origin can
+        // read it, which is why it is a choice and not the default.
+        const KEY_STORE = 'kalascan_llm_keys';
+        function savedKeys() {
+            try { return JSON.parse(localStorage.getItem(KEY_STORE)) || {}; } catch (_) { return {}; }
+        }
+        function rememberKey() {
+            if (!document.getElementById('remember-key').checked) { localStorage.removeItem(KEY_STORE); return; }
+            const keys = savedKeys();
+            const provider = document.getElementById('llm-provider').value;
+            const value = document.getElementById('llm-key').value;
+            if (value) keys[provider] = value; else delete keys[provider];
+            localStorage.setItem(KEY_STORE, JSON.stringify(keys));
         }
 
         function saveSettings() {
@@ -591,7 +638,11 @@
             el.addEventListener('change', saveSettings);
             if (el.type !== 'checkbox') el.addEventListener('input', saveSettings);
         });
+        document.getElementById('remember-key').checked = localStorage.getItem(KEY_STORE) !== null;
+        document.getElementById('llm-key').addEventListener('input', rememberKey);
         loadSettings();
+        // No saved settings: loadSettings returned before filling the key.
+        if (!document.getElementById('llm-key').value) document.getElementById('llm-key').value = savedKeys()[document.getElementById('llm-provider').value] || '';
 
         /* ── History ── */
         function scoreClass(score) {
@@ -615,7 +666,7 @@
             container.innerHTML = list.map(s => {
                 const ts = (s.timestamp || '').replace('T',' ').substring(0,19);
                 const pending = s.status === 'running' || s.status === 'queued';
-                return `<div class="sidebar-item ${s.id === currentResultId ? 'active' : ''} px-3 py-2.5" data-id="${s.id}" onclick="viewResult('${s.id}')">
+                return `<div class="sidebar-item ${s.id === currentResultId ? 'active' : ''} px-3 py-2.5" data-id="${s.id}" role="button" tabindex="0" onclick="viewResult('${s.id}')" onkeydown="if(event.target===this&&(event.key==='Enter'||event.key===' ')){event.preventDefault();viewResult('${s.id}');}">
                     <div class="flex items-start justify-between gap-2">
                         <div class="min-w-0 flex-1">
                             <p class="font-mono text-[9px] text-slate-600">${ts}</p>
@@ -664,6 +715,20 @@
             document.getElementById('clear-file-btn').classList.add('hidden');
         }
 
+        (function wireDrop() {
+            const zone = document.getElementById('drop-zone');
+            const hover = (on) => { zone.style.borderColor = on ? 'rgba(167,139,250,.7)' : ''; };
+            ['dragenter', 'dragover'].forEach(n => zone.addEventListener(n, (e) => { e.preventDefault(); hover(true); }));
+            ['dragleave', 'drop'].forEach(n => zone.addEventListener(n, (e) => { e.preventDefault(); hover(false); }));
+            zone.addEventListener('drop', (e) => {
+                const files = e.dataTransfer && e.dataTransfer.files;
+                if (!files || !files.length) return;
+                const input = document.getElementById('vsix-file');
+                input.files = files;
+                handleFileSelect(input);
+            });
+        })();
+
         /* ── Tabs ── */
         function switchTab(name) {
             ['overview','findings','analysis','attack'].forEach(t => {
@@ -678,7 +743,8 @@
             const fileInput = document.getElementById('vsix-file');
             const hasFile = fileInput.files && fileInput.files.length > 0;
             const repoUrl = document.getElementById('repo-url').value.trim();
-            if (!hasFile && !repoUrl) { alert('Enter a repository/extension target or upload a package.'); return; }
+            if (!hasFile && !repoUrl) { showError('Nothing to scan', 'Enter a repository or extension target, or upload a package.'); document.getElementById('repo-url').focus(); return; }
+            hideError();
 
             document.getElementById('result-card').classList.add('hidden');
             const pc = document.getElementById('progress-card');
@@ -687,26 +753,19 @@
             const pt = document.getElementById('progress-text');
             const pp = document.getElementById('progress-pct');
             const ph = document.getElementById('progress-phase');
-            pb.style.width = '6%'; pp.textContent = '6%';
+            // The stripe animates across the full bar: the server reports a state, not a percentage.
+            pb.style.width = '100%'; pp.textContent = '0s';
             pt.textContent = 'Submitting scan…'; ph.textContent = 'Queued';
 
             const btn = document.getElementById('scan-btn');
             const btnLabel = document.getElementById('scan-btn-label');
             btn.disabled = true; btnLabel.textContent = 'Scanning…';
 
-            let progress = 6;
-            const tick = setInterval(() => {
-                if (progress < 88) {
-                    progress = Math.min(88, progress + Math.random() * 7 + 1);
-                    pb.style.width = progress + '%'; pp.textContent = Math.round(progress) + '%';
-                    if (progress > 30) { pt.textContent = 'Fetching and scanning source files…'; ph.textContent = 'Scanning'; }
-                    if (progress > 62) { pt.textContent = 'Running deep analysis modules…'; ph.textContent = 'Analysis'; }
-                }
-            }, 800);
+            const started = Date.now();
+            const tick = setInterval(() => { pp.textContent = Math.round((Date.now() - started) / 1000) + 's'; }, 1000);
 
             function finish() {
                 clearInterval(tick);
-                pb.style.width = '100%'; pp.textContent = '100%';
                 pt.textContent = 'Scan complete'; ph.textContent = 'Done';
                 btn.disabled = false; btnLabel.textContent = 'Scan now';
             }
@@ -714,7 +773,7 @@
                 clearInterval(tick);
                 pc.classList.add('hidden');
                 btn.disabled = false; btnLabel.textContent = 'Scan now';
-                alert('Scan error: ' + msg);
+                showError('Scan failed', msg);
             }
 
             try {
@@ -762,9 +821,8 @@
                 // Poll until the background job completes.
                 const id = json.result_id;
                 currentResultId = id;
-                await pollScan(id, { onDone: async () => { finish(); await loadResult(id); await loadHistory(); }, onFail: fail, onProgress: (p) => {
-                    if (p > progress) { progress = p; pb.style.width = p + '%'; pp.textContent = Math.round(p) + '%'; }
-                }, onStatus: (status) => {
+                await pollScan(id, { onDone: async () => { finish(); await loadResult(id); await loadHistory(); }, onFail: fail, onStatus: (status) => {
+                    if (status === 'queued') { pt.textContent = 'Waiting for a free scan slot…'; ph.textContent = 'Queued'; }
                     if (status === 'running') { pt.textContent = 'Fetching and scanning source files…'; ph.textContent = 'Scanning'; }
                 }});
             } catch (err) { fail(err.message); }
@@ -784,7 +842,6 @@
                     }
                     if (j.status) cb.onStatus(j.status);
                 } catch(_) {}
-                cb.onProgress(88);
                 await new Promise(res => setTimeout(res, delay));
                 delay = Math.min(3000, Math.round(delay * 1.5));
             }
@@ -1001,7 +1058,7 @@
 
                 switchTab('overview');
             } catch (err) {
-                alert('Failed to load results: ' + err.message);
+                showError('Could not load the result', err.message);
             }
         }
 
@@ -1042,7 +1099,7 @@
                 a.click();
                 a.remove();
                 setTimeout(() => URL.revokeObjectURL(url), 10000);
-            } catch (err) { alert('Report download failed: ' + err.message); }
+            } catch (err) { showError('Report download failed', err.message); }
         }
 
         async function deleteScan(id) {
@@ -1056,7 +1113,7 @@
                     currentResultId = null; currentResult = null;
                 }
                 await loadHistory();
-            } catch (err) { alert('Delete failed: ' + err.message); }
+            } catch (err) { showError('Delete failed', err.message); }
         }
 
         /* ── Boot ── */
