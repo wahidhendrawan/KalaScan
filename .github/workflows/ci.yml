@@ -17,6 +17,9 @@ jobs:
       - run: cargo clippy --all-targets --locked -- -D warnings
       - run: cargo test --locked
       - run: cargo build --release --locked
+      # Self-scan: workflows, Dockerfile and install.sh; the files that hold
+      # detection signatures are listed in .kalascanignore.
+      - run: ./target/release/kalascan scan . --fail-on-risk 30
 
   cargo-deny:
     runs-on: ubuntu-latest

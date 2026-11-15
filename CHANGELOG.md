@@ -7,6 +7,29 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-11-15
+
+### Added
+- `kalascan deps` reads `yarn.lock` (classic and Berry), `pnpm-lock.yaml` (v5-v9), `uv.lock` and `Cargo.lock`, and keeps results in `~/.cache/kalascan` (`KALASCAN_CACHE_DIR`) so a package is downloaded and scanned once per KalaScan and ruleset version; `--no-cache` scans everything again.
+- `crates:name[@version]` scan targets (crates.io), for `scan`, `diff`, `deps` and the API.
+- `Chain: Phishing Redirect Package`: an npm package with no dependencies whose only code sends the browser to a hard-coded site.
+- A name cut across two `splitStrings` pieces of a javascript-obfuscator string table (`readF` + `ileSy`) is put back together.
+- javascript-obfuscator string tables encoded with `rc4` are decrypted with the keys found at the call sites, so the `Chain: Obfuscated Credential Theft` / `Obfuscated Download and Execute` checks cover them.
+- CLI integration tests for `diff`, `deps`, `installed`, `rules`, `sbom`, `import` and the web API (upload, status polling, local-path refusal), all offline.
+- CI scans the repository with the freshly built binary (`.kalascanignore` lists the files that hold detection signatures).
+
+### Changed
+- The popular-extension list behind `Repackaged Copy of Popular Extension` covers the 10,000 most-installed extensions (was 2,000). Detection on the eval corpus: 85 of 100 malicious samples (was 81), still 0 of 227 clean ones.
+- `src/main.rs` is split: the web server moved to `src/server.rs`, the CLI subcommands to `src/commands.rs`, the HTML report to `src/export/html.rs`. No behaviour change.
+
+### Security
+- The web server no longer sends permissive CORS headers (`Access-Control-Allow-Origin: *`) and refuses requests from another origin with 403. Before, any web page open in the same browser could queue scans on a loopback server without a token and read its results.
+- A loopback server without a token or users answers only requests whose `Host` is `localhost`, `127.0.0.1` or `[::1]` (DNS rebinding).
+
+### Fixed
+- `./.kalascanignore` is applied only to a checkout scanned in place. It used to filter every target scanned from that directory, so a pattern such as `src/*` hid findings in downloaded packages; `--ignore <FILE>` still applies to any target.
+- Piping output into a command that stops reading (`kalascan scan . --format json | head`) no longer ends in a panic message and exit 101; the run exits 141, as a SIGPIPE death would.
+
 ## [1.13.0] - 2026-11-08
 
 ### Added
@@ -121,7 +144,8 @@ published on GitHub; their features are listed with version markers in `README.m
 ### Fixed
 - `openapi.yaml` is copied into the Docker builder stage.
 
-[Unreleased]: https://github.com/wahidhendrawan/KalaScan/compare/v1.13.0...HEAD
+[Unreleased]: https://github.com/wahidhendrawan/KalaScan/compare/v1.14.0...HEAD
+[1.14.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.13.0...v1.14.0
 [1.13.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.12.0...v1.13.0
 [1.12.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.11.0...v1.12.0
 [1.11.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.10.0...v1.11.0

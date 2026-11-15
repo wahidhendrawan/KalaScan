@@ -30,9 +30,15 @@ kalascan user remove ci                   # the token stops working immediately
 
 Submit, cancel, delete, user changes and denied or forbidden requests are written to an append-only `audit_log`.
 
+## Browsers and other sites
+
+The dashboard talks to its own origin only. The server sends no CORS headers and answers 403 to any request whose `Origin` is not the host it was addressed to (`Host`, or `X-Forwarded-Host` behind a reverse proxy), so a page on another site cannot queue scans or read results through a visitor's browser, even on a loopback server without a token. Scripts and CI send no `Origin` and are unaffected.
+
+A loopback server without a token or users also answers only requests addressed to `localhost`, `127.0.0.1` or `[::1]` (the `Host` header), which stops DNS rebinding: a page whose domain re-resolves to `127.0.0.1` is same-origin to the browser but still sends its own domain as `Host`. If a local reverse proxy that does its own authentication forwards the public `Host`, configure a token, or set `KALASCAN_ALLOW_UNAUTHENTICATED=1`.
+
 ## What the API will and will not scan
 
-- Remote targets only: Git URLs, `publisher.extension`, marketplace URLs, `npm:` / `pypi:` names. Local paths are refused; upload a package through `POST /api/scan/upload` instead.
+- Remote targets only: Git URLs, `publisher.extension`, marketplace URLs, `npm:` / `pypi:` / `crates:` names. Local paths are refused; upload a package through `POST /api/scan/upload` instead.
 - Hosts that resolve to loopback, private, link-local or CGNAT addresses (cloud metadata, admin ports) are refused, for the target and for download redirects, unless `KALASCAN_ALLOW_PRIVATE_TARGETS=1` (an internal Git server).
 - Server-side file options (`yara_dir`, `ignore`, `baseline`, `sandbox_image`, `rules`) are CLI-only and rejected by the API.
 - Credentials in a repository URL (`https://user:token@host/...`) reach `git` only; logs, the audit log, history and reports show the URL without them. LLM API keys are stripped before a queued request is persisted.

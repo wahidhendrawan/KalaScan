@@ -6,11 +6,13 @@ KalaScan is one Rust binary (`src/main.rs`) that runs as a CLI scanner, a GitHub
 
 | Area | Module | Role |
 |---|---|---|
-| Entry points | `main.rs` | Axum routes, scan orchestrator (`execute_scan_in`), CLI dispatch, `calculate_risk_score`, text formatter |
+| Entry points | `main.rs` | Scan orchestrator (`execute_scan_in`), CLI dispatch, `calculate_risk_score` |
+| | `server.rs` | Axum routes, auth and security-header middleware, scan queue, upload endpoint |
+| | `commands.rs` | The CLI subcommands (`scan`, `user`, `sbom`, `import`, `deps`, `installed`, `diff`, `rules`) and the text formatter |
 | | `cli.rs` | clap definitions: `serve`, `scan`, `user`, `rules`, `sbom`, `installed`, `deps`, `diff`, `import` |
 | Target acquisition | `vsix.rs` | Downloads and safely extracts VSIX / Open VSX / JetBrains / CRX / npm / PyPI packages (zip-slip, symlink and size guards); Git URLs are cloned with `git` |
 | | `registry.rs` | npm / PyPI registry metadata: manifest confusion, install-script and provenance regressions, lapsed maintainer e-mail domains, AI-vendor repository impersonation |
-| | `lockfile.rs` | `package-lock.json`, `poetry.lock`, `Pipfile.lock`, `requirements.txt` parsing for `kalascan deps` |
+| | `lockfile.rs` | `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `poetry.lock`, `Pipfile.lock`, `uv.lock`, `requirements.txt`, `Cargo.lock` parsing for `kalascan deps` |
 | Static analysis | `scanner.rs` | Rule loader (`rules/builtin.toml`, `--rules`, `rules/secrets.toml`), file walker and extension filter, regex pass, per-file `catch_unwind`, 4 MiB read cap |
 | | `yara_engine.rs` | yara-x compiler and scanner; three built-in rules; GuardDog `path_include` / `ecosystem` meta; `--yara-dir` |
 | | `entropy.rs` | Shannon high-entropy blobs, zero-width characters, Trojan Source bidi controls, Cyrillic homoglyphs |
@@ -35,7 +37,7 @@ KalaScan is one Rust binary (`src/main.rs`) that runs as a CLI scanner, a GitHub
 | Server | `auth.rs` | Users, salted token hashes, roles, audit helpers |
 | | `db.rs` | SQLite history, migrations (schema v3), bounded retention |
 | | `metrics.rs` | Prometheus counters and gauges (atomics) |
-| Output | `export.rs` | Markdown, HTML, SARIF, CSV, JUnit and GitHub-annotation exporters; risk levels |
+| Output | `export.rs`, `export/html.rs` | Markdown, HTML, SARIF, CSV, JUnit and GitHub-annotation exporters; risk levels |
 
 Rules are data: `rules/builtin.toml` (89 regex rules), `rules/secrets.toml` (208 gitleaks patterns, opt-in), `rules/yara/` (GuardDog rules) and `rules/popular_extensions.tsv` are embedded at compile time. See [detection-rules.md](detection-rules.md).
 
@@ -43,7 +45,7 @@ Rules are data: `rules/builtin.toml` (89 regex rules), `rules/secrets.toml` (208
 
 `execute_scan_in` runs the same phases for the CLI, the API and the Action:
 
-1. **Acquire the target.** A Git URL is cloned, a marketplace id or `npm:` / `pypi:` name is downloaded and extracted, a local path is scanned in place. Anything cloned, downloaded or uploaded is treated as someone else's code: build directories are scanned and inline `kalascan:ignore` markers are not honoured (`--untrusted` forces this for a local path).
+1. **Acquire the target.** A Git URL is cloned, a marketplace id or `npm:` / `pypi:` / `crates:` name is downloaded and extracted, a local path is scanned in place. Anything cloned, downloaded or uploaded is treated as someone else's code: build directories are scanned and inline `kalascan:ignore` markers are not honoured (`--untrusted` forces this for a local path).
 2. **Changed-only filter** (`--changed-only --base-ref`): restrict the file set to the diff.
 3. **Static pass** (`scanner.rs`): regex rules by category scope, YARA on every file, entropy and Unicode checks, `--secrets` patterns on scripts and config files. Files are scanned on a work-stealing pool with one YARA scanner per worker; each file runs inside `catch_unwind`, so a panic becomes a `Scanner Error` finding and a file over 4 MiB becomes an `Oversized File` finding instead of being skipped.
 4. **Manifest and registry context**: offline typo-squat and dependency-confusion checks, listing identity, marketplace statistics, npm / PyPI registry metadata, IOC extraction (URLhaus when `URLHAUS_AUTH_KEY` is set), OSV advisories (`--cve`; `MAL-*` advisories become critical `Malicious Package` findings).

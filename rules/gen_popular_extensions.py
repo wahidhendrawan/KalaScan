@@ -15,7 +15,7 @@ import sys
 import urllib.request
 
 API = "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery"
-PAGES, PAGE_SIZE = 2, 1000
+PAGES, PAGE_SIZE = 10, 1000
 # IncludeFiles | IncludeVersionProperties | IncludeStatistics | IncludeLatestVersionOnly
 FLAGS = 0x2 | 0x10 | 0x100 | 0x200
 

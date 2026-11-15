@@ -5,8 +5,8 @@ title: "KalaScan: Security & Malware Scanner for Git Repositories and IDE Extens
 authors:
   - family-names: Hendrawan
     given-names: Wahid
-version: "1.13.0"
-date-released: "2026-11-08"
+version: "1.14.0"
+date-released: "2026-11-15"
 repository-code: "https://github.com/wahidhendrawan/KalaScan"
 url: "https://github.com/wahidhendrawan/KalaScan"
 license: GPL-3.0
