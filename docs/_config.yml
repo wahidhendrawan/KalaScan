@@ -1,0 +1,9 @@
+# GitHub Pages site (https://wahidhendrawan.github.io/KalaScan/), built by
+# .github/workflows/pages.yml. index.html is the landing page; the Markdown
+# files in this folder become the documentation pages.
+title: KalaScan
+description: Security and malware scanner for Git repositories, registry packages and IDE extensions
+# Project pages live under the repository name. Change both lines if the
+# site moves to a custom domain.
+url: https://wahidhendrawan.github.io
+baseurl: /KalaScan

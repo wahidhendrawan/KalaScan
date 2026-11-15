@@ -7,6 +7,8 @@
 ![rust](https://img.shields.io/badge/rust-1.95+-orange?logo=rust)
 ![docker](https://img.shields.io/badge/docker-ready-2496ED?logo=docker)
 
+**Website and documentation:** <https://wahidhendrawan.github.io/KalaScan/>
+
 **Security & Malware Scanner for Git Repositories and IDE Extensions** (VS Code, Open VSX, JetBrains, Chrome CRX) — detects malicious code, token stealers, supply chain attacks, and known CVEs using high-speed Rust RegEx rules, YARA rules engine, Shannon entropy analysis, deep static binary triage, recursive deobfuscation, safe static emulation, TTP/ATT&CK coverage mapping, opt-in Docker sandboxing, and optional AI deep audit.
 
 ## Features
