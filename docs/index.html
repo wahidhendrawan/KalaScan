@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KalaScan: malware scanner for repositories, packages and IDE extensions</title>
+    <meta name="description" content="KalaScan scans Git repositories, npm, PyPI and crates.io packages and IDE extensions for credential stealers, backdoors and supply-chain attacks. One Rust binary, runs locally." />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%238b5cf6'/%3E%3Cstop offset='1' stop-color='%2322d3ee'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cpath fill='%2307080c' d='M16 5l9 3.4v6.9c0 6.2-3.9 10-9 11.5-5.1-1.5-9-5.3-9-11.5V8.4L16 5z'/%3E%3Cpath fill='%23fff' d='M14.6 19.5l-3.4-3.4 1.5-1.5 1.9 1.9 4.6-4.6 1.5 1.5z'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+    <div class="bg-grid" aria-hidden="true"></div>
+    <div class="bg-glow glow-a" aria-hidden="true"></div>
+    <div class="bg-glow glow-b" aria-hidden="true"></div>
+
+    <header class="site-header">
+        <div class="wrap">
+            <a class="brand" href="./">
+                <span class="mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path fill="#07080c" d="M16 2l12 4.5v9.2C28 24 22.8 29 16 31 9.2 29 4 24 4 15.7V6.5L16 2z"/><path fill="#fff" d="M14.2 21.3l-4.6-4.6 2-2 2.6 2.6 6.2-6.2 2 2z"/></svg></span>
+                KalaScan
+            </a>
+            <nav class="site-nav" aria-label="Main">
+                <a href="#install">Install</a>
+                <a href="#use">Use</a>
+                <a href="#finds">What it finds</a>
+                <a href="#docs">Docs</a>
+                <a href="https://github.com/wahidhendrawan/KalaScan">GitHub</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <div class="wrap hero">
+            <h1>Find malware<br><span class="text-gradient">before it ships.</span></h1>
+            <p class="lead">KalaScan reads Git repositories, registry packages and IDE extensions for credential stealers, backdoors, obfuscated loaders and supply-chain attacks. It is one Rust binary that runs on your machine, and it executes nothing from the target unless you switch the sandbox on.</p>
+            <div class="actions">
+                <a class="btn btn-primary" href="#install">Install KalaScan</a>
+                <a class="btn" href="https://github.com/wahidhendrawan/KalaScan/releases/latest">Download the latest release</a>
+            </div>
+            <figure class="glass shot">
+                <img src="assets/dashboard.png" width="1280" height="800" fetchpriority="high"
+                     alt="KalaScan dashboard after scanning an extension archive: risk score 86 out of 100, 10 findings, 3 of them critical, with the findings Download Cradle, Chain: Credential Exfiltration and Chain: Download and Execute listed first." />
+                <figcaption>The web dashboard after scanning a test extension that reads SSH keys and browser logins and posts them to a webhook.</figcaption>
+            </figure>
+        </div>
+
+        <section id="install">
+            <div class="wrap">
+                <h2>Install</h2>
+                <p class="sub">Prebuilt binaries exist for Linux (x86_64, aarch64), macOS (universal) and Windows. Every release carries checksums, cosign signatures and an SBOM.</p>
+                <div class="install">
+                    <div class="glass cmd">
+                        <h3>Install script</h3>
+                        <p>Linux and macOS. Verifies the checksum before installing.</p>
+                        <pre><code>curl -fsSL https://raw.githubusercontent.com/wahidhendrawan/KalaScan/main/install.sh | sh</code></pre>
+                        <button class="btn copy" type="button">Copy command</button>
+                    </div>
+                    <div class="glass cmd">
+                        <h3>Homebrew</h3>
+                        <p>macOS, from the KalaScan tap.</p>
+                        <pre><code>brew tap wahidhendrawan/kalascan
+brew trust wahidhendrawan/kalascan
+brew install kalascan</code></pre>
+                        <button class="btn copy" type="button">Copy commands</button>
+                    </div>
+                    <div class="glass cmd">
+                        <h3>Docker</h3>
+                        <p>Runs the web dashboard on port 3000 behind a token.</p>
+                        <pre><code>docker run --rm -p 3000:3000 \
+  -e KALASCAN_TOKEN="$(openssl rand -hex 32)" \
+  ghcr.io/wahidhendrawan/kalascan:latest</code></pre>
+                        <button class="btn copy" type="button">Copy command</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="use">
+            <div class="wrap">
+                <h2>One command per question</h2>
+                <p class="sub">Every command prints a risk score from 0 to 100 and each finding with its file and line. Add <code>--format sarif</code>, <code>json</code>, <code>md</code> or <code>html</code> for a report, and <code>--fail-on-risk 70</code> to gate CI.</p>
+                <ul class="steps">
+                    <li><p><strong>Is this package safe to add?</strong> Scans one exact version from npm, PyPI or crates.io.</p><pre><code>kalascan scan npm:express@4.17.1</code></pre></li>
+                    <li><p><strong>What about everything my lockfile pins?</strong> Downloads and scans each locked dependency, highest risk first.</p><pre><code>kalascan deps .</code></pre></li>
+                    <li><p><strong>Is this extension what it claims to be?</strong> Works on a marketplace id or a local <code>.vsix</code>, <code>.crx</code> or <code>.jar</code>.</p><pre><code>kalascan scan ms-python.python</code></pre></li>
+                    <li><p><strong>What is already installed here?</strong> Audits the VS Code, Cursor, Windsurf and browser extensions on this machine.</p><pre><code>kalascan installed</code></pre></li>
+                    <li><p><strong>What did this update add?</strong> Lists the capabilities only the new version has.</p><pre><code>kalascan diff npm:lib@1.4.0 npm:lib@1.4.1</code></pre></li>
+                    <li><p><strong>Did this pull request bring something in?</strong> Scans a checkout and reports only findings not in the baseline.</p><pre><code>kalascan scan . --baseline base.json --new-only</code></pre></li>
+                    <li><p><strong>Prefer a browser?</strong> Starts the dashboard on <code>127.0.0.1:3000</code>.</p><pre><code>kalascan serve</code></pre></li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="finds">
+            <div class="wrap">
+                <h2>What it finds</h2>
+                <p class="sub">A single <code>fetch(</code> or a path to <code>.ssh</code> is weak evidence. KalaScan scores behaviour: it correlates individual hits into chains, and a chain is what moves the score.</p>
+                <dl class="finds">
+                    <div><dt>Credential exfiltration</dt><dd>Browser stores, wallets, SSH keys or editor sessions read next to a webhook, a Telegram bot or a raw-IP upload.</dd></div>
+                    <div><dt>Download and execute</dt><dd>A remote script or binary fetched and started, including <code>curl | sh</code> and PowerShell cradles.</dd></div>
+                    <div><dt>Install-time payloads</dt><dd>npm install scripts and <code>setup.py</code> hooks that ship data out or stage a second payload.</dd></div>
+                    <div><dt>Obfuscated loaders</dt><dd>javascript-obfuscator string tables decoded (plain, base64 and RC4), plus recursive decoding of nested base64, hex, XOR and gzip layers.</dd></div>
+                    <div><dt>Registry tricks</dt><dd>Typo-squats, dependency-confusion versions, npm manifest confusion, a dropped provenance attestation, a maintainer email on a lapsed domain.</dd></div>
+                    <div><dt>Fake and repackaged extensions</dt><dd>Look-alike publishers, hidden characters in names, and copies of popular extensions republished under another account.</dd></div>
+                    <div><dt>Workflow attacks</dt><dd>GitHub Actions pwn requests and script injection from attacker-controlled fields.</dd></div>
+                    <div><dt>Known-bad dependencies</dt><dd>OSV advisories, with packages OSV lists as malicious reported as malware rather than as hygiene.</dd></div>
+                </dl>
+            </div>
+        </section>
+
+        <section id="measured">
+            <div class="wrap">
+                <h2>Measured, not claimed</h2>
+                <p class="sub">The repository holds a labelled corpus and the harness that scores it. These are the current numbers at risk threshold 50.</p>
+                <div class="measure">
+                    <div class="glass"><b>85 of 100</b><span>malicious samples flagged (DataDog malicious-packages dataset)</span></div>
+                    <div class="glass"><b>0 of 227</b><span>popular clean packages and extensions flagged</span></div>
+                    <div class="glass"><b>89 rules</b><span>built in, plus 208 opt-in secret patterns and YARA</span></div>
+                </div>
+                <p class="note">Only 27 of the malicious samples were never looked at while tuning rules, so treat the detection rate as an estimate. The samples that still get through, and how the clean set was chosen, are written up in the <a href="https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md">evaluation notes</a>. CI fails any change that makes a clean sample cross the threshold.</p>
+            </div>
+        </section>
+
+        <section id="docs">
+            <div class="wrap">
+                <h2>Documentation</h2>
+                <p class="sub">The README covers every flag; these pages cover how it works.</p>
+                <ul class="doclinks">
+                    <li><a class="glass" href="architecture.html"><strong>Architecture</strong><span>Module map, the scan pipeline and how the risk score is computed.</span></a></li>
+                    <li><a class="glass" href="detection-rules.html"><strong>Detection rules</strong><span>The rule format, writing your own rules and YARA.</span></a></li>
+                    <li><a class="glass" href="web-ui-security.html"><strong>Web UI and API security</strong><span>Tokens, roles, what the API refuses to scan.</span></a></li>
+                    <li><a class="glass" href="https://github.com/wahidhendrawan/KalaScan#readme"><strong>README</strong><span>Every command, flag and output format.</span></a></li>
+                    <li><a class="glass" href="https://github.com/wahidhendrawan/KalaScan/blob/main/CHANGELOG.md"><strong>Changelog</strong><span>What changed in each release.</span></a></li>
+                    <li><a class="glass" href="https://github.com/wahidhendrawan/KalaScan/blob/main/SECURITY.md"><strong>Security policy</strong><span>How to report a vulnerability in KalaScan.</span></a></li>
+                </ul>
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <div class="wrap">
+            <span>KalaScan is free software under GPL-3.0.</span>
+            <span><a href="https://github.com/wahidhendrawan/KalaScan">Source on GitHub</a> · <a href="https://github.com/wahidhendrawan/KalaScan/issues">Report an issue</a></span>
+        </div>
+    </footer>
+
+    <script>
+        // Copy buttons: the command next to them, with visible confirmation.
+        document.querySelectorAll('.copy').forEach((button) => {
+            const label = button.textContent;
+            button.addEventListener('click', async () => {
+                const code = button.parentElement.querySelector('code');
+                try {
+                    await navigator.clipboard.writeText(code.textContent);
+                    button.textContent = 'Copied';
+                } catch (_) {
+                    // Clipboard blocked (permissions, unfocused tab): select it for a manual copy.
+                    window.getSelection().selectAllChildren(code);
+                    button.textContent = 'Selected, press Ctrl+C';
+                }
+                setTimeout(() => { button.textContent = label; }, 2000);
+            });
+        });
+    </script>
+</body>
+</html>

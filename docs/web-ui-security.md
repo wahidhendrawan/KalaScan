@@ -75,4 +75,4 @@ The image runs the same server with the same rules. The opt-in `--sandbox` pass 
 
 ## Reporting
 
-Vulnerabilities in the server, the API tokens or the sandbox: see [SECURITY.md](../SECURITY.md).
+Vulnerabilities in the server, the API tokens or the sandbox: see [SECURITY.md](https://github.com/wahidhendrawan/KalaScan/blob/main/SECURITY.md).

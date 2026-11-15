@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ page.title }} | KalaScan</title>
+    <meta name="description" content="{{ site.description }}" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%238b5cf6'/%3E%3Cstop offset='1' stop-color='%2322d3ee'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cpath fill='%2307080c' d='M16 5l9 3.4v6.9c0 6.2-3.9 10-9 11.5-5.1-1.5-9-5.3-9-11.5V8.4L16 5z'/%3E%3Cpath fill='%23fff' d='M14.6 19.5l-3.4-3.4 1.5-1.5 1.9 1.9 4.6-4.6 1.5 1.5z'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+    <div class="bg-grid" aria-hidden="true"></div>
+    <div class="bg-glow glow-a" aria-hidden="true"></div>
+    <div class="bg-glow glow-b" aria-hidden="true"></div>
+
+    <header class="site-header">
+        <div class="wrap">
+            <a class="brand" href="./">
+                <span class="mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path fill="#07080c" d="M16 2l12 4.5v9.2C28 24 22.8 29 16 31 9.2 29 4 24 4 15.7V6.5L16 2z"/><path fill="#fff" d="M14.2 21.3l-4.6-4.6 2-2 2.6 2.6 6.2-6.2 2 2z"/></svg></span>
+                KalaScan
+            </a>
+            <nav class="site-nav" aria-label="Documentation">
+                <a href="architecture.html"{% if page.name == "architecture.md" %} aria-current="page"{% endif %}>Architecture</a>
+                <a href="detection-rules.html"{% if page.name == "detection-rules.md" %} aria-current="page"{% endif %}>Detection rules</a>
+                <a href="web-ui-security.html"{% if page.name == "web-ui-security.md" %} aria-current="page"{% endif %}>Web UI security</a>
+                <a href="https://github.com/wahidhendrawan/KalaScan">GitHub</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="wrap">
+        <article class="doc">
+            {{ content }}
+        </article>
+    </main>
+
+    <footer class="site-footer">
+        <div class="wrap">
+            <span>KalaScan is free software under GPL-3.0.</span>
+            <a href="https://github.com/wahidhendrawan/KalaScan/edit/main/docs/{{ page.path }}">Edit this page on GitHub</a>
+        </div>
+    </footer>
+</body>
+</html>
