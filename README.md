@@ -138,7 +138,7 @@ For `npm:` and `pypi:` targets, what the registry says about the scanned version
 - `kalascan rules` lists ids; `kalascan rules KS-SUP-009` explains one
 
 ### Detection Quality
-- [`eval/`](eval/README.md) holds a labelled corpus (DataDog malicious-package samples + popular clean packages and extensions) and the harness that measures it. Current: **82 of the 147 malicious samples never used for tuning are caught (56%; 141 of 220 overall), 0 false positives across 227 clean packages/extensions**. On the same corpus GuardDog 3.2.0 catches 107 of those 147 and flags 128 of 223 clean packages; the eval README has the method and the caveats; CI fails a PR that makes any clean sample cross risk 50
+- [`eval/`](eval/README.md) holds a labelled corpus (DataDog malicious-package samples + popular clean packages and extensions) and the harness that measures it. Current: **82 of the 147 malicious samples never used for tuning are caught (56%; 141 of 220 overall), 0 false positives across 227 popular clean packages/extensions, and 1 in 299 packages drawn at random from npm and PyPI (that rule is fixed)**. On the same corpus GuardDog 3.2.0 catches 107 of those 147 and flags 128 of 223 clean packages; the eval README has the method and the caveats; CI fails a PR that makes any clean sample cross risk 50
 
 ### GitHub Actions Workflow Checks
 - **Pwn request** (critical) — `pull_request_target` that checks out the PR head (`ref: ${{ github.event.pull_request.head.sha }}`)

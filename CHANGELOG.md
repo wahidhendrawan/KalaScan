@@ -10,11 +10,16 @@ published on GitHub; their features are listed with version markers in `README.m
 ### Added
 - AI agent files and MCP servers: `SKILL.md`, `CLAUDE.md`, `AGENTS.md`, Cursor and Copilot rule files, MCP configs and Claude Code settings and hooks are scanned for hidden text (Unicode tags, zero-width and bidi characters, directives in HTML comments), instructions to hide actions from the user or override earlier instructions, and the builtin download, exfiltration and credential rules. MCP server code gets the same instruction checks on its tool descriptions. New chains: `Chain: Malicious Agent Instruction` and `Chain: Agent Config Runs Remote Code`.
 - `kalascan installed` also lists Claude Code plugins (`~/.claude/plugins/cache`) and skills (`~/.claude/skills`).
+- Evaluation corpus: 299 clean packages drawn at random from all of npm and PyPI (`eval/sample_clean.py`), not picked. One legitimate package among them was flagged (fixed below); the clean set is now 526 samples.
 - Sandbox: a simulated network inside the isolated container. Names resolve to a loopback stand-in that answers DNS and accepts HTTP and TLS, so the report shows the hosts, request lines and TLS server names a sample asked for, and each host becomes a `sandbox-host` indicator. The container still has no network.
 - Sandbox: `--sandbox-runtime <NAME>` / `KALASCAN_SANDBOX_RUNTIME` runs the container under another OCI runtime, for example gVisor's `runsc`.
 - Fuzz targets (`fuzz/`, cargo-fuzz) for the report importers, lockfile parsers, archive extraction, rule files, text analyzers, binary triage and emulation, the deobfuscator and the strace parser, with a weekly Fuzz workflow.
 - `eval/run_eval.py --scanner guarddog` measures GuardDog on the same corpus.
 - Evaluation corpus: 120 fresh malicious samples (2026 npm and PyPI packages, extensions) join the holdout split. The published detection rate is now the holdout figure, 82 of 147 (56%); the earlier 26 of 27 came from too few samples.
+
+### Fixed
+- `Chain: Reconnaissance Beacon` no longer fires on a hostname read plus the Telegram API host: agents and bots call it with the user's own token. A bot token written into the code still counts. Malicious recall is unchanged.
+- CI: the `false-positives` check runs on every pull request and skips the scan when no detection code or corpus changed. With a paths filter it never reported on Dockerfile- or workflow-only PRs, so Dependabot updates could not be merged.
 
 ### Changed
 - The crate is a library (`src/lib.rs`) with a thin binary (`src/main.rs`), so the fuzz targets can call the parsers. No behaviour change.

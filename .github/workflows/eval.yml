@@ -2,15 +2,42 @@ name: Detection eval
 # False-positive gate: every clean package in eval/corpus.json must stay
 # below risk 50. Malicious samples are not fetched in CI (live malware);
 # measure recall locally with eval/fetch_malicious.sh + eval/run_eval.py.
+# Runs on every pull request: `false-positives` is a required check, and a
+# workflow left out by a paths filter never reports it, so the PR stays
+# blocked. A PR that touches no detection code or corpus skips the job, and
+# a skipped job counts as passed.
 on:
   pull_request:
-    paths: ["src/**", "rules/**", "eval/**", "Cargo.lock"]
   workflow_dispatch:
 permissions:
   contents: read
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      scan: ${{ steps.diff.outputs.scan }}
+    steps:
+      - id: diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.number }}
+          REPO: ${{ github.repository }}
+        # Scans when the file list cannot be read.
+        run: |
+          if [ "$EVENT" != pull_request ] \
+            || ! files=$(gh pr diff "$PR" --name-only --repo "$REPO") \
+            || grep -qE '^(src/|rules/|eval/|Cargo\.lock$)' <<<"$files"; then
+            echo "scan=true" >> "$GITHUB_OUTPUT"
+          fi
+
   false-positives:
+    needs: changes
+    # Also when `changes` failed: skipped would count as passed.
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.scan == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
