@@ -72,6 +72,11 @@ pub const SHELL_PROFILE: &str = "Shell Profile Modification";
 pub const NPM_PUBLISH: &str = "npm Publish from Code";
 pub const FETCH_EVAL: &str = "Download Cradle (fetch then eval)";
 pub const HEX_API: &str = "Hex-Encoded API Name";
+pub const INSTALL_NET: &str = "Install Script Network Command";
+pub const INSTALL_RECON: &str = "Install Script Host Reconnaissance";
+pub const DNS_BUILT: &str = "DNS Lookup of Built Hostname";
+pub const B64_EXEC: &str = "b64decode + exec Chain";
+pub const IMPORT_LOADER: &str = "Python Import-Obfuscated Loader";
 
 #[derive(Clone, Debug)]
 pub struct Rule {
@@ -686,7 +691,16 @@ fn scan_bytes(
             m.line_number.saturating_sub(1).min(newlines.len()),
         ));
     }
-    let chains = crate::correlate::correlate_file(rel_path, &content, &matches, &offsets);
+    let mut chains = crate::correlate::correlate_file(rel_path, &content, &matches, &offsets);
+    // The read and the send far apart, joined by variables.
+    for flow in crate::dataflow::flows(rel_path, &content) {
+        if !chains
+            .iter()
+            .any(|c| c.matched_pattern == flow.matched_pattern)
+        {
+            chains.push(flow);
+        }
+    }
     // MCP server code: tool descriptions are prompts.
     out.extend(crate::agent::scan(rel_path, &content, &matches));
     // javascript-obfuscator hides every API name in a string table.
@@ -990,6 +1004,11 @@ mod tests {
             NPM_PUBLISH,
             FETCH_EVAL,
             HEX_API,
+            INSTALL_NET,
+            INSTALL_RECON,
+            DNS_BUILT,
+            B64_EXEC,
+            IMPORT_LOADER,
             "Hardcoded IP Address",
             "Post-Install Script",
             "URL Fetch Command",

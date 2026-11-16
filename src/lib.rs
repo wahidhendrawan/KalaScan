@@ -10,6 +10,7 @@ mod cli;
 mod commands;
 mod correlate;
 mod cve;
+pub mod dataflow;
 mod db;
 pub mod deobfuscate;
 mod diff;
@@ -291,6 +292,13 @@ pub async fn run() -> anyhow::Result<()> {
             jobs,
         }) => {
             commands::run_installed_command(&format, min_risk, fail_on_risk, jobs).await?;
+        }
+        Some(Commands::Guard {
+            fail_on_risk,
+            jobs,
+            command,
+        }) => {
+            commands::run_guard_command(&command, fail_on_risk, jobs).await?;
         }
         Some(Commands::Deps {
             path,
@@ -770,8 +778,9 @@ fn calculate_risk_score(
         // A chain is two corroborating hard signals by construction. Listing
         // spoofs (invisible characters, look-alike publisher, a popular
         // extension's repository under a stranger's name), an install script
-        // hidden from the registry's manifest and text hidden in Unicode tags
-        // have no benign reading at all, so they weigh the same.
+        // hidden from the registry's manifest, text hidden in Unicode tags and
+        // code decoded straight into exec (none of 526 clean packages) have no
+        // benign reading at all, so they weigh the same.
         if m.matched_pattern.starts_with(correlate::CHAIN_PREFIX)
             || m.matched_pattern == reputation::INVISIBLE_NAME
             || m.matched_pattern == reputation::PUBLISHER_LOOKALIKE
@@ -780,6 +789,9 @@ fn calculate_risk_score(
             || m.matched_pattern == registry::MANIFEST_CONFUSION
             || m.matched_pattern == iocs::URLHAUS_HIT
             || m.matched_pattern == agent::TAG_TEXT
+            || m.matched_pattern == scanner::B64_EXEC
+            || m.matched_pattern == scanner::IMPORT_LOADER
+            || m.matched_pattern == cve::REMOTE_URL_DEP
         {
             critical += 2;
             continue;

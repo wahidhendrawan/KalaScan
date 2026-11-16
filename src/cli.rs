@@ -186,6 +186,20 @@ pub enum Commands {
         #[arg(long, default_value_t = 4)]
         jobs: usize,
     },
+    /// Scan what an install command would fetch and run it only if nothing reaches the threshold: `kalascan guard -- npm install left-pad`. Knows npm, pnpm, yarn, bun, pip, uv and code / cursor / windsurf --install-extension
+    Guard {
+        /// Refuse to install when a package scores at or above this risk
+        #[arg(long, default_value_t = 50)]
+        fail_on_risk: u8,
+
+        /// Packages scanned in parallel
+        #[arg(long, default_value_t = 4)]
+        jobs: usize,
+
+        /// The install command, after `--`
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true, required = true)]
+        command: Vec<String>,
+    },
     /// Scan every dependency a lockfile pins (package-lock.json, yarn.lock, pnpm-lock.yaml, poetry.lock, Pipfile.lock, uv.lock, requirements.txt, Cargo.lock)
     Deps {
         /// Directory holding the lockfile(s)

@@ -6,11 +6,11 @@
 //! critical hits by the risk score.
 
 use crate::scanner::{
-    ACCOUNT_ENUM, AI_BASE_URL, ARCHIVE_EXTRACTION, DETACHED_SPAWN, DOWNLOAD_CRADLE, ESCAPED_EVAL,
-    EXFIL_SERVICE, FETCH_EVAL, FUNCTION_REQUIRE, HEX_API, HOST_RECON, INSTALL_HOOK_OVERRIDE,
-    IP_LOOKUP, IP_URL, LOCAL_SERVER, MAKE_EXECUTABLE, NPM_PUBLISH, OBFUSCATOR_IO, RAW_SOCKET,
-    REMOTE_BINARY, SEED_ACCESS, SETUP_PY_EXEC, SETUP_PY_STAGER, SHELL_PROFILE, SHELL_START,
-    SIDELOAD, UPLOAD_HANDLER,
+    ACCOUNT_ENUM, AI_BASE_URL, ARCHIVE_EXTRACTION, DETACHED_SPAWN, DNS_BUILT, DOWNLOAD_CRADLE,
+    ESCAPED_EVAL, EXFIL_SERVICE, FETCH_EVAL, FUNCTION_REQUIRE, HEX_API, HOST_RECON, IMPORT_LOADER,
+    INSTALL_HOOK_OVERRIDE, INSTALL_NET, INSTALL_RECON, IP_LOOKUP, IP_URL, LOCAL_SERVER,
+    MAKE_EXECUTABLE, NPM_PUBLISH, OBFUSCATOR_IO, RAW_SOCKET, REMOTE_BINARY, SEED_ACCESS,
+    SETUP_PY_EXEC, SETUP_PY_STAGER, SHELL_PROFILE, SHELL_START, SIDELOAD, UPLOAD_HANDLER,
 };
 use crate::RuleMatch;
 use regex::Regex;
@@ -29,6 +29,7 @@ pub const INSTALL_EXFIL: &str = "Chain: Install-time Exfiltration";
 pub const RECON_BEACON: &str = "Chain: Reconnaissance Beacon";
 pub const OBFUSCATED_EXEC: &str = "Chain: Obfuscated Process Execution";
 pub const INSTALL_PAYLOAD: &str = "Chain: Install-time Payload Execution";
+pub const INSTALL_RECON_CHAIN: &str = "Chain: Install-time Reconnaissance";
 pub const REMOTE_CODE: &str = "Chain: Remote Code Execution";
 pub const EXTENSION_SIDELOAD: &str = "Chain: Extension Side-loading";
 pub const SYSTEM_DISCOVERY: &str = "Chain: System Discovery";
@@ -97,6 +98,7 @@ const STAGERS: &[&str] = &[
     OBFUSCATOR_IO,
     FETCH_EVAL,
     HEX_API,
+    IMPORT_LOADER,
 ];
 
 /// Signals that code runs when the package is installed.
@@ -346,13 +348,41 @@ fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
     // legitimate install scripts do not need the hostname and username.
     // Root only: a bundled dep's own install script never runs for the user.
     if let Some(hook) = first(INSTALL_HOOKS).filter(|_| hooks_run) {
+        // An npm script that runs `curl` / `nslookup` itself, next to the user
+        // or host name or a dependency-confusion version, is the probe.
         let sink = first(EXFIL_CHANNELS)
-            .or_else(|| first(&[HOST_RECON]).and(first(&["URL Fetch Command"])));
+            .or_else(|| first(&[HOST_RECON]).and(first(&["URL Fetch Command"])))
+            .or_else(|| {
+                first(&[INSTALL_NET]).filter(|_| {
+                    first(&[INSTALL_RECON, HOST_RECON, DEP_CONFUSION_VERSION]).is_some()
+                })
+            });
         if let Some(sink) = sink {
             out.push(chain(&sink.file_path, INSTALL_EXFIL, hook, sink));
         }
         if let Some(stager) = first(STAGERS) {
             out.push(chain(&stager.file_path, INSTALL_PAYLOAD, hook, stager));
+        }
+    }
+
+    // setup.py runs top to bottom at `pip install`: what it fetches needs no
+    // `cmdclass` to count, and a build has no use for the user or host name.
+    if hooks_run {
+        let in_setup = |names: &[&str]| {
+            matches.iter().copied().find(|m| {
+                Path::new(&m.file_path).file_name() == Some("setup.py".as_ref())
+                    && names.contains(&m.matched_pattern.as_str())
+            })
+        };
+        let fetch = in_setup(&[SETUP_PY_STAGER, "URL Fetch Command"]);
+        if let (Some(fetch), Some(sink)) = (fetch, in_setup(EXFIL_CHANNELS)) {
+            if !out.iter().any(|c| c.matched_pattern == INSTALL_EXFIL) {
+                out.push(chain(&sink.file_path, INSTALL_EXFIL, fetch, sink));
+            }
+        }
+        let hook = in_setup(&[INSTALL_HOOK_OVERRIDE, SETUP_PY_EXEC]);
+        if let (Some(hook), Some(recon)) = (hook, in_setup(&[HOST_RECON])) {
+            out.push(chain(&recon.file_path, INSTALL_RECON_CHAIN, hook, recon));
         }
     }
 
@@ -369,6 +399,7 @@ fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
                 [
                     EXFIL_SERVICE,
                     IP_URL,
+                    DNS_BUILT,
                     "Discord Webhook",
                     "Telegram Bot API Token",
                 ]
@@ -729,12 +760,48 @@ mod tests {
     }
 
     #[test]
+    fn install_scripts_and_setup_py_that_phone_home() {
+        let pj = |rule| hit("package.json", rule, 7);
+        // npm: curl / nslookup in the install script next to the user name.
+        let m = vec![
+            pj("Post-Install Script"),
+            pj(INSTALL_NET),
+            pj(INSTALL_RECON),
+        ];
+        assert_eq!(names(&correlate_package(&m)), vec![INSTALL_EXFIL]);
+        // `curl` alone fetches a prebuilt binary, as plenty of packages do.
+        let m = vec![pj("Post-Install Script"), pj(INSTALL_NET)];
+        assert!(correlate_package(&m).is_empty());
+        // setup.py calling a webhook at module level needs no cmdclass.
+        let m = vec![
+            hit("setup.py", SETUP_PY_STAGER, 10),
+            hit("setup.py", EXFIL_SERVICE, 11),
+        ];
+        assert_eq!(names(&correlate_package(&m)), vec![INSTALL_EXFIL]);
+        // The user and host name read by an install hook.
+        let m = vec![
+            hit("pkg-1.0/setup.py", INSTALL_HOOK_OVERRIDE, 30),
+            hit("pkg-1.0/setup.py", HOST_RECON, 10),
+        ];
+        assert_eq!(names(&correlate_package(&m)), vec![INSTALL_RECON_CHAIN]);
+        // Recon in the library is not install-time.
+        let m = vec![
+            hit("setup.py", INSTALL_HOOK_OVERRIDE, 30),
+            hit("pkg/util.py", HOST_RECON, 10),
+        ];
+        assert!(correlate_package(&m).is_empty());
+    }
+
+    #[test]
     fn recon_plus_beacon_target_is_recon_beacon() {
         let m = vec![hit("a.js", HOST_RECON, 2), hit("b.js", EXFIL_SERVICE, 7)];
         assert_eq!(names(&correlate_package(&m)), vec![RECON_BEACON]);
         // "What is my IP" alone is a feature, not a beacon.
         let m = vec![hit("a.js", HOST_RECON, 2), hit("b.js", IP_LOOKUP, 7)];
         assert!(correlate_package(&m).is_empty());
+        // A host name built from data and resolved is a DNS beacon.
+        let m = vec![hit("a.py", HOST_RECON, 2), hit("a.py", DNS_BUILT, 3)];
+        assert_eq!(names(&correlate_package(&m)), vec![RECON_BEACON]);
         // A Telegram connector with the user's token (tavallio-agent) is not;
         // the attacker's own bot token in the code is.
         let mut telegram = hit("b.js", EXFIL_SERVICE, 7);

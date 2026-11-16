@@ -1,5 +1,5 @@
 {
- "_comment": "Labelled corpus for eval/run_eval.py. 'dataset' paths are relative to a checkout of github.com/DataDog/malicious-software-packages-dataset (fetch with eval/fetch_malicious.sh). Clean targets are fetched from public registries. 'split': rules were tuned on 'dev'; report 'holdout' for an honest estimate. 'set': 'random-2026-11' marks clean packages drawn at random from npm and PyPI (eval/sample_clean.py) instead of picked.",
+ "_comment": "Labelled corpus for eval/run_eval.py. 'dataset' paths are relative to a checkout of github.com/DataDog/malicious-software-packages-dataset (fetch with eval/fetch_malicious.sh). Clean targets are fetched from public registries. 'split': rules were tuned on 'dev'; report 'holdout' for an honest estimate. 'set': 'random-2026-11' marks clean packages drawn at random from npm and PyPI (eval/sample_clean.py) instead of picked. 'set': 'tune-2026-11' marks malicious samples drawn for tuning (split dev): every 2026 PyPI package not used before, 19 from 2025, 40 npm from 2026.",
  "samples": [
   {
    "target": "samples/ide_extensions/malicious_intent/Puglight.discoverito/0.0.1.vsix",
@@ -1043,7 +1043,7 @@
    "target": "npm:next@16.4.3",
    "label": "clean",
    "source": "remote",
-   "split": "holdout"
+   "split": "dev"
   },
   {
    "target": "npm:@anthropic-ai/claude-code@2.1.316",
@@ -1067,7 +1067,7 @@
    "target": "npm:playwright@1.64.1",
    "label": "clean",
    "source": "remote",
-   "split": "holdout"
+   "split": "dev"
   },
   {
    "target": "npm:cypress@16.2.1",
@@ -1895,13 +1895,13 @@
    "target": "gruntfuggly.todo-tree",
    "label": "clean",
    "source": "remote",
-   "split": "holdout"
+   "split": "dev"
   },
   {
    "target": "wallabyjs.quokka-vscode",
    "label": "clean",
    "source": "remote",
-   "split": "holdout"
+   "split": "dev"
   },
   {
    "target": "alefragnani.project-manager",
@@ -3730,7 +3730,7 @@
    "target": "pypi:delta-core==1.2.7",
    "label": "clean",
    "source": "remote",
-   "split": "holdout",
+   "split": "dev",
    "set": "random-2026-11"
   },
   {
@@ -4654,7 +4654,7 @@
    "target": "pypi:tvsd==1.4.1",
    "label": "clean",
    "source": "remote",
-   "split": "holdout",
+   "split": "dev",
    "set": "random-2026-11"
   },
   {
@@ -4775,6 +4775,706 @@
    "source": "remote",
    "split": "holdout",
    "set": "random-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/aet-test/1.0.1/2026-04-17-aet-test-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/aiolrucache/0.1.0/2026-03-20-aiolrucache-v0.1.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/airio/9.9.9/2026-03-20-airio-v9.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/b10connoisseur/0.2.0/2026-02-12-b10connoisseur-v0.2.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/bloxy-api/3.4.0/2026-04-12-bloxy-api-v3.4.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/cicd-ppe-redteam-test01/1.0.0/2026-02-27-cicd-ppe-redteam-test01-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/cloud-datasets/9.9.9/2026-03-20-cloud-datasets-v9.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/cryptowallet-safety/0.1.0/2026-05-22-cryptowallet-safety-v0.1.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/databasetapes/0.0.4/2026-04-05-databasetapes-v0.0.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/dify-api/2.0.0/2026-01-13-dify-api-v2.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/env-loader-cli/0.1.0/2026-05-24-env-loader-cli-v0.1.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/ether-account/0.13.7/2026-04-01-ether-account-v0.13.7.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/fluxhttp/1a1/2026-03-26-fluxhttp-v1a1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/hex2pcap/99.0.0/2026-04-11-hex2pcap-v99.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/hy-api-utilities/0.2.10/2026-03-25-hy-api-utilities-v0.2.10.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/just4testlm/0.5.0/2026-03-16-just4testlm-v0.5.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/jwrincident/1.0.1/2026-02-28-jwrincident-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/keystackutilities/99.99.1/2026-04-17-keystackutilities-v99.99.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/krbutils/1.0.0/2026-02-12-krbutils-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/license-utils-kit/0.1rc2/2026-03-23-license-utils-kit-v0.1rc2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/logutilkit/1.0.1/2026-03-23-logutilkit-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/marshmellows/1.0.0/2026-02-15-marshmellows-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/neverinstallme/0.1.3/2026-04-14-neverinstallme-v0.1.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/nsscache/9.9.9/2026-03-20-nsscache-v9.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/opentelematry-api/1.0.0/2026-02-12-opentelematry-api-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/oraceldb/1.0.0/2026-02-12-oraceldb-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/pandaai/1.0.0/2026-02-12-pandaai-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/perfkitbenchmarker/9.9.9/2026-03-20-perfkitbenchmarker-v9.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/pip-doom/0.1.10/2026-04-04-pip-doom-v0.1.10.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/pubsub2inbox/9.9.9/2026-03-20-pubsub2inbox-v9.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/pycolorlib3/0.0.5/2026-04-02-pycolorlib3-v0.0.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/restasv3/99.99.1/2026-04-17-restasv3-v99.99.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/roboat-util/2.30/2026-03-24-roboat-util-v2.30.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/rogiant-quick-install/2.4.0/2026-05-04-rogiant-quick-install-v2.4.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/rsquests/2.34.2/2026-06-07-rsquests-v2.34.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/safecheckit/1.0.0/2026-03-29-safecheckit-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/solidity-build-guard/0.1.0/2026-05-22-solidity-build-guard-v0.1.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/telstra/2.0.1/2026-01-03-telstra-v2.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/test-poc-package-for-session-2/0.0.1/2026-01-25-test-poc-package-for-session-2-v0.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/thisismytest123/2.0.0/2026-03-27-thisismytest123-v2.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/tlask/3.1.3/2026-06-07-tlask-v3.1.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/atlasctf-21-prod-02/99.99.99/2025-06-07-atlasctf-21-prod-02-v99.99.99.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/mlc-llm-nightly-cu123/9.9.9/2025-01-19-mlc-llm-nightly-cu123-v9.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/testveriftest1asdlaaaa/1/2025-05-06-testveriftest1asdlaaaa-v1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/usar-agent/0.1.0/2025-02-09-usar-agent-v0.1.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/atlasctf-21-prod-14/99.99.99.1/2025-06-07-atlasctf-21-prod-14-v99.99.99.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/deepseeek/0.0.8/2025-01-29-deepseeek-v0.0.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/poppo213/1.5/2025-03-28-poppo213-v1.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/atlasctf-21-prod-11/99.99.99/2025-06-07-atlasctf-21-prod-11-v99.99.99.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/chimera-sandbox-extensions/0.1.42/2025-06-09-chimera-sandbox-extensions-v0.1.42.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/imad213/0.1.0/2025-03-20-imad213-v0.1.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/gnosis-py/0.0.0/2025-10-03-gnosis-py-v0.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/atlasctf-21-prod-07/99.99.99/2025-06-07-atlasctf-21-prod-07-v99.99.99.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/s3transfer-sl/0.12.2/2025-04-23-s3transfer-sl-v0.12.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/googleapis-googleapis-grpc-python/1.9.3/2025-02-10-googleapis-googleapis-grpc-python-v1.9.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/myownpyfiglet/0.0.1/2025-05-15-myownpyfiglet-v0.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/lightgboost/1.1.1/2025-02-04-lightgboost-v1.1.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/quicly/1.1.4/2025-02-26-quicly-v1.1.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/ctosec-appsec-wb-xray-adapter/0.2.0/2025-12-09-ctosec-appsec-wb-xray-adapter-v0.2.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/pypi/malicious_intent/atlasctf-21-prod-19/99.99.99.1/2025-06-07-atlasctf-21-prod-19-v99.99.99.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/gurgaon/0.0.0-dev-202603280649/2026-03-28-gurgaon-v0.0.0-dev-202603280649.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@toptal@picasso-accordion/4.0.0/2026-05-14-@toptal_picasso-accordion-v4.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/langmail-win32-x64-msvc/0.4.1/2026-03-06-langmail-win32-x64-msvc-v0.4.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@housecallpro@marketing-site/0.0.1/2026-05-12-@housecallpro_marketing-site-v0.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chai-use-chain/1.2.6/2026-03-26-chai-use-chain-v1.2.6.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/js-unpack/1.1.8/2026-02-02-js-unpack-v1.1.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/solidity-coverage-plus/1.1.0/2026-05-25-solidity-coverage-plus-v1.1.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/metrics-probe-dc85/1.0.0/2026-06-17-metrics-probe-dc85-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/gina/0.6.9/2026-08-16-gina-v0.6.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/syntax-async-generators/6.13.0/2026-02-15-syntax-async-generators-v6.13.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@global-dax-ad-platform@dax-hooks/999.999.999/2026-02-15-@global-dax-ad-platform_dax-hooks-v999.999.999.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/pear-wrk-wdk/0.0.5/2026-02-10-pear-wrk-wdk-v0.0.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/n8n-nodes-xml-utils/1.0.0/2026-03-15-n8n-nodes-xml-utils-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/cache_mng/1.0.2/2026-04-16-cache_mng-v1.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/contact-button-podlet/5.8.5/2026-02-10-contact-button-podlet-v5.8.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/srcsrctest/1.0.0/2026-03-26-srcsrctest-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/sparkling-sdk/2.1.0-rc.12/2026-04-20-sparkling-sdk-v2.1.0-rc.12.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@t-in-one@only_difference_payload/5.7.1/2026-05-29-@t-in-one_only_difference_payload-v5.7.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/sap-code-style-guides/99.99.100/2026-02-09-sap-code-style-guides-v99.99.100.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/uudi/13.0.0/2026-02-17-uudi-v13.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chai-use-test/1.3.0/2026-05-04-chai-use-test-v1.3.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/backpack-ios/1.0.0/2026-06-20-backpack-ios-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/deployment-core/50.50.50/2026-04-30-deployment-core-v50.50.50.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@sbt_gitverse@analytics-client/99.0.3/2026-04-25-@sbt_gitverse_analytics-client-v99.0.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/secdriven/1.0.8/2026-05-23-secdriven-v1.0.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/jwt-logger/2.4.9/2026-09-05-jwt-logger-v2.4.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/prysk/0.0.2/2026-02-24-prysk-v0.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/quesoeducation/1.0.67/2026-08-23-quesoeducation-v1.0.67.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/rce-pkg-2/1.0.0/2026-02-09-rce-pkg-2-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ts-input-utils/1.0.0/2026-04-12-ts-input-utils-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ftm-noderpc/1.0.3/2026-01-15-ftm-noderpc-v1.0.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@cloudplatform-single-spa@employees/99.99.99/2026-05-27-@cloudplatform-single-spa_employees-v99.99.99.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/devlino/1.0.8/2026-03-14-devlino-v1.0.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/jsontoken-extend/1.0.11/2026-05-25-jsontoken-extend-v1.0.11.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/nolimitcity/1.0.0/2026-04-09-nolimitcity-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/cilm-ui-commons/1.1.0/2026-08-13-cilm-ui-commons-v1.1.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ac-dom-nodes/99.9.9/2026-02-04-ac-dom-nodes-v99.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/axis-ui-generator/1.0.0/2026-04-25-axis-ui-generator-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@activation_code@success/99.0.2/2026-04-27-@activation_code_success-v99.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@brewnet@cli/0.0.11/2026-03-29-@brewnet_cli-v0.0.11.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-2026-11"
   }
  ]
 }

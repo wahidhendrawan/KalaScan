@@ -368,6 +368,28 @@ pub fn map_text(text: &str) -> Vec<AttackTechnique> {
         add(&mut out, "T1546");
     }
 
+    // A poisoned skill, rule file or MCP server is a supply-chain component;
+    // ATT&CK has no technique for the prompt injection itself.
+    if contains_any(&text, &["agent instruction", "agent config"]) {
+        add(&mut out, "T1195.002");
+    }
+    if contains_any(
+        &text,
+        &["hidden unicode", "invisible characters", "html comment"],
+    ) {
+        add(&mut out, "T1027");
+    }
+    if contains_any(&text, &["conceal"]) {
+        add(&mut out, "T1564");
+    }
+    if contains_any(&text, &["runs remote code", "remote url dependency"]) {
+        add(&mut out, "T1105");
+        add(&mut out, "T1195.002");
+    }
+    if contains_any(&text, &["dns lookup"]) {
+        add(&mut out, "T1071.004");
+    }
+
     if contains_any(&text, &["zip slip", "remote file write"]) {
         add(&mut out, "T1203");
     }
@@ -778,6 +800,15 @@ mod tests {
             ("Chain: Obfuscated Credential Theft", "T1552"),
             ("Chain: Obfuscated Download and Execute", "T1105"),
             ("Chain: Install-time Credential Access (sandbox)", "T1552"),
+            ("Chain: Malicious Agent Instruction", "T1195.002"),
+            ("Chain: Agent Config Runs Remote Code", "T1105"),
+            ("Agent Instruction: Hidden Unicode Tag Text", "T1027"),
+            ("Agent Instruction: Conceal Action from User", "T1564"),
+            ("Chain: Install-time Reconnaissance", "T1082"),
+            ("Install Script Network Command", "T1195.002"),
+            ("DNS Lookup of Built Hostname", "T1071.004"),
+            ("Remote URL Dependency", "T1105"),
+            ("Python Import-Obfuscated Loader", "T1027"),
         ] {
             assert!(
                 ids(name).contains(&expected.to_string()),

@@ -114,11 +114,11 @@ brew install kalascan</code></pre>
                 <h2>Measured, not claimed</h2>
                 <p class="sub">The repository holds a labelled corpus and the harness that scores it. These are the current numbers at risk threshold 50.</p>
                 <div class="measure">
-                    <div class="glass"><b>82 of 147</b><span>malicious samples it had never seen, flagged (DataDog malicious-packages dataset)</span></div>
-                    <div class="glass"><b>0 of 227</b><span>popular clean packages and extensions flagged</span></div>
+                    <div class="glass"><b>94 of 147</b><span>malicious samples it had never seen, flagged (DataDog malicious-packages dataset)</span></div>
+                    <div class="glass"><b>0 of 526</b><span>clean packages and extensions flagged, 299 of them drawn at random from npm and PyPI</span></div>
                     <div class="glass"><b>89 rules</b><span>built in, plus 208 opt-in secret patterns and YARA</span></div>
                 </div>
-                <p class="note">The 147 samples were never looked at while writing rules; counting the 73 that were, the total is 141 of 220. On the same corpus GuardDog 3.2.0 catches more of the malware (107 of 147) and flags 128 of 223 clean packages. Of 299 packages drawn at random from npm and PyPI, KalaScan flagged one legitimate package, and that rule has been fixed. The method, the caveats and the samples that get through are written up in the <a href="https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md">evaluation notes</a>. CI fails any change that makes a clean sample cross the threshold.</p>
+                <p class="note">The 147 samples were never looked at while writing rules; counting the 173 that were, the total is 223 of 320. On the same corpus GuardDog 3.2.0 catches more of the malware (107 of 147) and flags 128 of 223 clean packages. Among the 299 random packages, one legitimate package was flagged before a rule was fixed. The method, the caveats and the samples that get through are written up in the <a href="https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md">evaluation notes</a>. CI fails any change that makes a clean sample cross the threshold.</p>
             </div>
         </section>
 
