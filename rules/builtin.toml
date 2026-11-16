@@ -23,7 +23,7 @@ category = "exfiltration"
 description = "Telegram Bot API token — C2/exfiltration channel"
 # Also a bare token in quotes: bot libraries (node-telegram-bot-api) build the URL.
 pattern = '''(?:https?://)?api\.telegram\.org/bot\d{8,10}:[a-zA-Z0-9_-]{35,40}/|["'`]\d{8,10}:AA[a-zA-Z0-9_-]{33}["'`]'''
-matches = ['''https://api.telegram.org/bot1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklm/sendMessage''', '''const BOT_TOKEN = '7712345678:AAHk3jJ9xQ2mZ8vR4tLp6wY1nB5cD7eF0gA';''']
+matches = ['''https://api.telegram.org/bot1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklm/sendMessage''', '''const BOT_TOKEN = '1234567890:AABCDEFGHIJKLMNOPQRSTUVWXYZabcdefgh';''']  # ggignore: placeholder, not a token
 ignores = ['''version = "20240101:AA"''']
 
 [[rule]]

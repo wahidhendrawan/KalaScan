@@ -748,7 +748,7 @@ version = "1.20.0"
         std::fs::write(
             dir.path().join("package.json"),
             r#"{"name": "pear-wrk-wdk", "version": "0.0.5",
-  "dependencies": {"ui-styles-pkg": "http://npm.jpartifacts.com/npm/pear-wrk-wdk",
+  "dependencies": {"ui-styles-pkg": "http://npm.artifacts-cdn.example/npm/pear-wrk-wdk",
     "fork": "https://github.com/a/b/tarball/v1", "semver": "^7.0.0"},
   "homepage": "https://example.com"}"#,
         )
@@ -759,6 +759,6 @@ version = "1.20.0"
             .collect();
         assert_eq!(found.len(), 1, "{:?}", found);
         assert_eq!(found[0].line_number, 2);
-        assert!(found[0].context.contains("npm.jpartifacts.com"));
+        assert!(found[0].context.contains("npm.artifacts-cdn.example"));
     }
 }
