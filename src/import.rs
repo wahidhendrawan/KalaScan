@@ -79,7 +79,7 @@ pub fn import(path: &Path) -> anyhow::Result<Imported> {
 }
 
 /// Picks the parser from the content, not the file name.
-fn parse(text: &str) -> anyhow::Result<Imported> {
+pub fn parse(text: &str) -> anyhow::Result<Imported> {
     let text = text.trim_start_matches('\u{feff}').trim_start();
     let (format, mut findings) = match text.chars().next() {
         Some('<') => parse_xml(text)?,

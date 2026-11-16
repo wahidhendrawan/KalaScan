@@ -143,6 +143,11 @@ pub enum Commands {
         /// Docker image used for sandbox execution
         #[arg(long, default_value = "kalascan-sandbox:latest")]
         sandbox_image: String,
+
+        /// OCI runtime for the sandbox container, e.g. `runsc` (gVisor): a
+        /// stronger boundary than Docker's default shared kernel
+        #[arg(long, env = "KALASCAN_SANDBOX_RUNTIME")]
+        sandbox_runtime: Option<String>,
     },
     /// Manage API users (RBAC tokens for the web server)
     User {

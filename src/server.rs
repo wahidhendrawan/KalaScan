@@ -615,6 +615,7 @@ fn validate_api_request(req: &ScanRequest) -> Result<(), String> {
         ("ignore", req.ignore.is_some()),
         ("baseline", req.baseline.is_some()),
         ("sandbox_image", req.sandbox_image.is_some()),
+        ("sandbox_runtime", req.sandbox_runtime.is_some()),
     ];
     if let Some((field, _)) = server_paths.iter().find(|(_, set)| *set) {
         return Err(format!("'{}' is CLI-only", field));
@@ -1168,6 +1169,7 @@ async fn api_scan_upload(
         emulate,
         sandbox,
         sandbox_image: None,
+        sandbox_runtime: None,
         new_only: false,
         baseline: None,
         ignore: None,
@@ -1298,6 +1300,7 @@ mod api_validation_tests {
             "ignore",
             "baseline",
             "sandbox_image",
+            "sandbox_runtime",
         ] {
             let r = req(
                 "https://github.com/a/b",

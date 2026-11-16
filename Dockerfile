@@ -11,6 +11,7 @@ RUN apt-get update -qq && \
 COPY Cargo.toml Cargo.lock ./
 RUN mkdir -p src templates && \
     echo 'fn main() {}' > src/main.rs && \
+    echo '' > src/lib.rs && \
     echo '' > src/scanner.rs && \
     echo '' > src/ai_analyzer.rs && \
     cargo build --release --locked && \
@@ -24,7 +25,7 @@ COPY rules/ rules/
 # include_str!, so they must exist before compiling.
 COPY openapi.yaml ./
 
-RUN touch src/main.rs src/scanner.rs src/ai_analyzer.rs && \
+RUN touch src/main.rs src/lib.rs src/scanner.rs src/ai_analyzer.rs && \
     cargo build --release --locked
 
 # ---- Stage 2: Runtime ----

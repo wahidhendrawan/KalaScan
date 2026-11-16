@@ -19,7 +19,8 @@ const MAX_FILE_BYTES: u64 = 4 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Ioc {
-    /// `url` or `ip`
+    /// `url`, `ip`, or `sandbox-host`: a name the code contacted when run
+    /// in the sandbox (it may appear nowhere in the source)
     pub kind: String,
     pub value: String,
     pub host: String,

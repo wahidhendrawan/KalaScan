@@ -74,6 +74,8 @@
 - **Graceful Fallback** — if Docker or the sandbox image is unavailable, the scan continues with a clear note; samples are never executed on the host
 - **Runtime Requirement** — the KalaScan process needs access to a Docker daemon; when running KalaScan itself in a container, mount the Docker socket or run the CLI on the host
 - **Install-hook Tracing** — with `--sandbox`, npm `preinstall`/`install`/`postinstall` scripts, `setup.py install` and `.pth` startup hooks run under strace in the same container, with bait credentials planted in `$HOME` (`~/.ssh/id_rsa`, `~/.aws/credentials`, `~/.npmrc`, `~/.git-credentials`, `~/.config/gh/hosts.yml`, `~/.env`). Opening one is a critical `Chain: Install-time Credential Access (sandbox)`; existence checks (`stat`) don't count, relative opens (`cd ~; cat .npmrc`) do. The rest of the install trace is reported but not scored: benign installs run shells, chmod and fetch prebuilt binaries. The image has node and python, no npm/git/gh, so nothing legitimate reads the bait. Dependencies are not installed, so a hook that needs them fails early
+- **Simulated Network** — the container still has no network, but names resolve to a stand-in on its own loopback that answers DNS and accepts HTTP and TLS connections. The sample goes on to say where it wanted to connect: the report lists `dns <name>`, `http <method> <host> <path>` and `tls <server name>`, and each host is added to the scan's indicators as `sandbox-host`. A server name assembled at runtime shows up here even though it is nowhere in the source. Nothing leaves the container
+- **Stronger Isolation** — `--sandbox-runtime runsc` (or `KALASCAN_SANDBOX_RUNTIME`) runs the container under another OCI runtime such as gVisor, so the sample no longer shares the host kernel. The runtime must be installed and registered with Docker; CLI only
 - **Build the Image** — `docker build -t kalascan-sandbox:latest sandbox`
 
 ### Entropy & Advanced Obfuscation Analysis
@@ -136,7 +138,7 @@ For `npm:` and `pypi:` targets, what the registry says about the scanned version
 - `kalascan rules` lists ids; `kalascan rules KS-SUP-009` explains one
 
 ### Detection Quality
-- [`eval/`](eval/README.md) holds a labelled corpus (DataDog malicious-package samples + popular clean packages and extensions) and the harness that measures it. Current: **85 of 100 malicious samples caught (26 of the 27 never used for tuning), 0 false positives across 227 clean packages/extensions** (the first run on 161 new clean samples found 5%, since fixed; see the eval README); CI fails a PR that makes any clean sample cross risk 50
+- [`eval/`](eval/README.md) holds a labelled corpus (DataDog malicious-package samples + popular clean packages and extensions) and the harness that measures it. Current: **82 of the 147 malicious samples never used for tuning are caught (56%; 141 of 220 overall), 0 false positives across 227 clean packages/extensions**. On the same corpus GuardDog 3.2.0 catches 107 of those 147 and flags 128 of 223 clean packages; the eval README has the method and the caveats; CI fails a PR that makes any clean sample cross risk 50
 
 ### GitHub Actions Workflow Checks
 - **Pwn request** (critical) — `pull_request_target` that checks out the PR head (`ref: ${{ github.event.pull_request.head.sha }}`)
@@ -437,7 +439,8 @@ The scan pipeline, the risk model and the output formats are described in
 ```
 KalaScan/
 ├── src/
-│   ├── main.rs            # Scan orchestrator, risk score & CLI dispatch
+│   ├── main.rs            # Binary entry point (calls kalascan::run)
+│   ├── lib.rs             # Scan orchestrator, risk score & CLI dispatch
 │   ├── server.rs          # Axum web server: routes, auth middleware, scan queue, upload
 │   ├── commands.rs        # CLI subcommands & text report
 │   ├── cli.rs             # Clap CLI subcommand argument parser

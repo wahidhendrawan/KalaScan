@@ -53,6 +53,7 @@ Use the "False positive" issue template with the rule id (`kalascan rules <id>` 
 
 - Keep `cargo fmt --check`, `cargo clippy --all-targets --locked -- -D warnings` and `cargo test --locked` green. CI also runs `cargo deny check`, a scan of this repository with the built binary, the clean-corpus gate and the security scans.
 - Add a test for every behaviour change; rule changes are tested by their examples.
+- A new parser of untrusted input (an archive, a report or lockfile format) gets a fuzz target under `fuzz/`: `cp Cargo.lock fuzz/Cargo.lock && cargo +nightly fuzz run <target> -- -max_total_time=60` (needs `cargo install cargo-fuzz`; on macOS use `fuzz run -s none <target>`). The Fuzz workflow runs every target weekly.
 - A known limitation gets a `shortcut: <limit>, <when to upgrade>` comment rather than silence.
 - Conventional commit messages: `feat:`, `fix:`, `docs:`, `ci:`, `chore:`.
 - Add a line under `[Unreleased]` in `CHANGELOG.md` for every user-facing change.

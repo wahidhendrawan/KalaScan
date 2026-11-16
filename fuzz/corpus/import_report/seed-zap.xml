@@ -1,0 +1,72 @@
+<?xml version="1.0"?>
+<OWASPZAPReport programName="ZAP" version="2.15.0" generated="Mon, 1 Jan 2024 00:00:00">
+	<site name="https://shop.example.com" host="shop.example.com" port="443" ssl="true">
+		<alerts>
+			<alertitem>
+				<pluginid>40012</pluginid>
+				<alertRef>40012</alertRef>
+				<alert>Cross Site Scripting (Reflected)</alert>
+				<name>Cross Site Scripting (Reflected)</name>
+				<riskcode>3</riskcode>
+				<confidence>2</confidence>
+				<riskdesc>High (Medium)</riskdesc>
+				<desc>&lt;p&gt;Cross-site Scripting (XSS) is an attack technique.&lt;/p&gt;</desc>
+				<instances>
+					<instance>
+						<uri>https://shop.example.com/search?q=%3Cscript%3E</uri>
+						<method>GET</method>
+						<param>q</param>
+						<attack>&lt;script&gt;alert(1);&lt;/script&gt;</attack>
+						<evidence>&lt;script&gt;alert(1);&lt;/script&gt;</evidence>
+					</instance>
+				</instances>
+				<count>1</count>
+				<solution>&lt;p&gt;Encode output for the HTML context.&lt;/p&gt;</solution>
+				<cweid>79</cweid>
+				<wascid>8</wascid>
+				<sourceid>1</sourceid>
+			</alertitem>
+			<alertitem>
+				<pluginid>10038</pluginid>
+				<alertRef>10038-1</alertRef>
+				<alert>Content Security Policy (CSP) Header Not Set</alert>
+				<name>Content Security Policy (CSP) Header Not Set</name>
+				<riskcode>2</riskcode>
+				<confidence>3</confidence>
+				<riskdesc>Medium (High)</riskdesc>
+				<desc>&lt;p&gt;No Content-Security-Policy header was returned.&lt;/p&gt;</desc>
+				<instances>
+					<instance>
+						<uri>https://shop.example.com/</uri>
+						<method>GET</method>
+						<param></param>
+						<attack></attack>
+						<evidence></evidence>
+					</instance>
+				</instances>
+				<count>1</count>
+				<solution>&lt;p&gt;Set the Content-Security-Policy header.&lt;/p&gt;</solution>
+				<cweid>693</cweid>
+			</alertitem>
+			<alertitem>
+				<pluginid>10037</pluginid>
+				<alertRef>10037</alertRef>
+				<alert>Server Leaks Information via &quot;X-Powered-By&quot;</alert>
+				<name>Server Leaks Information via &quot;X-Powered-By&quot;</name>
+				<riskcode>0</riskcode>
+				<confidence>2</confidence>
+				<riskdesc>Informational (Medium)</riskdesc>
+				<desc>&lt;p&gt;The server leaks its framework.&lt;/p&gt;</desc>
+				<instances>
+					<instance>
+						<uri>https://shop.example.com/</uri>
+						<method>GET</method>
+						<evidence>X-Powered-By: Express</evidence>
+					</instance>
+				</instances>
+				<count>1</count>
+				<solution>&lt;p&gt;Suppress the header.&lt;/p&gt;</solution>
+			</alertitem>
+		</alerts>
+	</site>
+</OWASPZAPReport>

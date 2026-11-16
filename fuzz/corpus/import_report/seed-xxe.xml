@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<!DOCTYPE foo [
+  <!ENTITY xxe SYSTEM "file:///etc/passwd">
+]>
+<issues>
+  <issue>
+    <name>&xxe;</name>
+    <severity>High</severity>
+  </issue>
+</issues>

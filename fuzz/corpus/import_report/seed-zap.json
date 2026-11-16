@@ -1,0 +1,23 @@
+{
+  "site": [
+    {
+      "@name": "http://localhost:8080",
+      "alerts": [
+        {
+          "alert": "Absence of Anti-CSRF Tokens",
+          "riskcode": 3,
+          "riskdesc": "High (Medium Confidence)",
+          "desc": "No Anti-CSRF tokens were found in a HTML submission form.",
+          "solution": "Use a library or framework that has CSRF protection built in."
+        },
+        {
+          "alert": "X-Frame-Options Header Not Set",
+          "riskcode": 2,
+          "riskdesc": "Medium (Medium Confidence)",
+          "desc": "The X-Frame-Options header is not set.",
+          "solution": "Set the X-Frame-Options header to DENY or SAMEORIGIN."
+        }
+      ]
+    }
+  ]
+}
