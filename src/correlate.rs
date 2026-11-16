@@ -484,7 +484,7 @@ pub fn redirect_package(root: &Path) -> Option<RuleMatch> {
     })
 }
 
-fn chain(rel_path: &str, name: &str, a: &RuleMatch, b: &RuleMatch) -> RuleMatch {
+pub(crate) fn chain(rel_path: &str, name: &str, a: &RuleMatch, b: &RuleMatch) -> RuleMatch {
     RuleMatch {
         file_path: rel_path.to_string(),
         line_number: a.line_number,

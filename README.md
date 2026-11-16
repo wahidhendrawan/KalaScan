@@ -116,7 +116,7 @@ For `npm:` and `pypi:` targets, what the registry says about the scanned version
 - Works with any target: `npm:pkg@1.0.0`, `pypi:pkg==1.0`, `publisher.ext@1.2.0`, local `.vsix` / directories
 
 ### Installed Extension Audit
-- `kalascan installed` finds VS Code, Insiders, VSCodium, Cursor and Windsurf extensions plus Chrome / Edge / Brave / Chromium extensions on this machine and scans each one offline, in place, highest risk first (`--min-risk`, `--fail-on-risk`, `--format json`)
+- `kalascan installed` finds VS Code, Insiders, VSCodium, Cursor and Windsurf extensions, Chrome / Edge / Brave / Chromium extensions, and Claude Code plugins and skills on this machine and scans each one offline, in place, highest risk first (`--min-risk`, `--fail-on-risk`, `--format json`). Symlinked skill folders are not followed; scan them with `kalascan scan <path>`
 
 ### Indicators of Compromise
 - Every scan lists the external URLs and public IPs the code refers to (`iocs` in JSON, an INDICATORS section in text), skipping documentation/registry hosts
@@ -144,6 +144,14 @@ For `npm:` and `pypi:` targets, what the registry says about the scanned version
 - **Pwn request** (critical) — `pull_request_target` that checks out the PR head (`ref: ${{ github.event.pull_request.head.sha }}`)
 - **Script injection** (high) — attacker-controlled contexts (`github.event.issue.title`, `…pull_request.body`, `github.head_ref`, …) interpolated into `run:` / `script:` blocks
 - **Unpinned third-party actions** (low) — `uses: owner/action@v1` instead of a full commit SHA
+
+### AI Agent Plugins, Skills and MCP Servers
+An agent reads `SKILL.md`, `CLAUDE.md`, `AGENTS.md`, `.cursorrules`, `.cursor/rules/*.mdc`, Copilot instruction files and `.claude/` agents and commands as instructions, and runs the commands in `.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json`, `claude_desktop_config.json`, `.claude/settings.json` and plugin `hooks/hooks.json`. These files are scanned even though they are Markdown or JSON, and so is the code of MCP servers, whose tool descriptions are prompts too.
+- **Hidden text** — Unicode tag characters that spell out instructions nobody sees (decoded in the finding, scored like a chain), zero-width and bidi characters, and directives inside HTML comments
+- **Steering** — instructions to keep an action from the user, and `ignore previous instructions` / `<IMPORTANT>` blocks; a phrase in quotes is being discussed and does not count
+- **Payloads** — download-and-execute commands, exfiltration endpoints, public-IP URLs and credential or agent-config paths (`~/.ssh`, `~/.aws/credentials`, `~/.cursor/mcp.json`), from the builtin rules
+- **`Chain: Malicious Agent Instruction`** — steering plus a payload, or two kinds of steering (tool shadowing needs no URL). Flags all three tool-poisoning examples in invariantlabs-ai/mcp-injection-experiments; Anthropic's skills and plugins, the official MCP servers, github/awesome-copilot and 257 Cursor rule files from awesome-cursorrules raise none
+- **`Chain: Agent Config Runs Remote Code`** — a hook or MCP server command that pipes a download into a shell; official installers (astral.sh, rustup, …) are not counted
 
 ### Lockfile Audit
 - `kalascan deps [PATH]` reads `package-lock.json` (v1-v3), `yarn.lock` (classic and Berry), `pnpm-lock.yaml` (v5-v9), `poetry.lock`, `Pipfile.lock`, `uv.lock`, pinned `requirements.txt` lines and `Cargo.lock`, then downloads and scans each exact locked version, highest risk first. Dev dependencies are skipped unless `--include-dev`; `--jobs` (default 4), `--max` (default 500), `--min-risk`, `--fail-on-risk`, `--format text|json`. Git, file and link dependencies are skipped. `yarn.lock`, `pnpm-lock.yaml` v9, `uv.lock` and `Cargo.lock` do not say which packages are dev-only, so all of them are scanned. Results are kept in `~/.cache/kalascan` (`KALASCAN_CACHE_DIR`) per KalaScan and ruleset version, so a second run only downloads packages it has not seen; `--no-cache` scans everything again. Other lockfiles are not read yet; a directory with none of the supported ones exits with an error
@@ -451,6 +459,7 @@ KalaScan/
 │   ├── correlate.rs       # Behaviour chains (exfil, download+exec, install-time, beacons)
 │   ├── zipslip.rs         # Variable-level taint tracking for archive extraction
 │   ├── workflow.rs        # GitHub Actions checks (pwn request, script injection)
+│   ├── agent.rs           # AI agent files & MCP servers (hidden text, tool poisoning)
 │   ├── reputation.rs      # Listing spoofing, look-alike publishers, marketplace stats
 │   ├── iocs.rs            # URL / IP indicator extraction, URLhaus lookups
 │   ├── registry.rs        # npm / PyPI registry metadata checks
@@ -458,7 +467,7 @@ KalaScan/
 │   ├── lockfile.rs        # Lockfile audit (`kalascan deps`)
 │   ├── import.rs          # Scanner report import (Nessus, Nmap, Burp, ZAP, ...)
 │   ├── diff.rs            # Version diff (new capabilities)
-│   ├── installed.rs       # Installed IDE / browser extension discovery
+│   ├── installed.rs       # Installed IDE / browser extension and Claude Code plugin discovery
 │   ├── attack.rs          # MITRE ATT&CK technique mapping
 │   ├── triage.rs          # Deep static binary triage (goblin, capa/FLOSS/DIE)
 │   ├── deobfuscate.rs     # Recursive decoding chains & recovered payloads

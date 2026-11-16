@@ -1,6 +1,7 @@
 //! KalaScan as a library: `run` is the program; the public modules are the
 //! parsers of untrusted input, public so fuzz/ can drive them.
 
+pub mod agent;
 mod ai_analyzer;
 mod attack;
 mod auth;
@@ -768,9 +769,9 @@ fn calculate_risk_score(
         }
         // A chain is two corroborating hard signals by construction. Listing
         // spoofs (invisible characters, look-alike publisher, a popular
-        // extension's repository under a stranger's name) and an install
-        // script hidden from the registry's manifest have no benign reading
-        // at all, so they weigh the same.
+        // extension's repository under a stranger's name), an install script
+        // hidden from the registry's manifest and text hidden in Unicode tags
+        // have no benign reading at all, so they weigh the same.
         if m.matched_pattern.starts_with(correlate::CHAIN_PREFIX)
             || m.matched_pattern == reputation::INVISIBLE_NAME
             || m.matched_pattern == reputation::PUBLISHER_LOOKALIKE
@@ -778,6 +779,7 @@ fn calculate_risk_score(
             || m.matched_pattern == reputation::AI_VENDOR_REPO
             || m.matched_pattern == registry::MANIFEST_CONFUSION
             || m.matched_pattern == iocs::URLHAUS_HIT
+            || m.matched_pattern == agent::TAG_TEXT
         {
             critical += 2;
             continue;

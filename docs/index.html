@@ -83,7 +83,7 @@ brew install kalascan</code></pre>
                     <li><p><strong>Is this package safe to add?</strong> Scans one exact version from npm, PyPI or crates.io.</p><pre><code>kalascan scan npm:express@4.17.1</code></pre></li>
                     <li><p><strong>What about everything my lockfile pins?</strong> Downloads and scans each locked dependency, highest risk first.</p><pre><code>kalascan deps .</code></pre></li>
                     <li><p><strong>Is this extension what it claims to be?</strong> Works on a marketplace id or a local <code>.vsix</code>, <code>.crx</code> or <code>.jar</code>.</p><pre><code>kalascan scan ms-python.python</code></pre></li>
-                    <li><p><strong>What is already installed here?</strong> Audits the VS Code, Cursor, Windsurf and browser extensions on this machine.</p><pre><code>kalascan installed</code></pre></li>
+                    <li><p><strong>What is already installed here?</strong> Audits the VS Code, Cursor, Windsurf and browser extensions and the Claude Code plugins and skills on this machine.</p><pre><code>kalascan installed</code></pre></li>
                     <li><p><strong>What did this update add?</strong> Lists the capabilities only the new version has.</p><pre><code>kalascan diff npm:lib@1.4.0 npm:lib@1.4.1</code></pre></li>
                     <li><p><strong>Did this pull request bring something in?</strong> Scans a checkout and reports only findings not in the baseline.</p><pre><code>kalascan scan . --baseline base.json --new-only</code></pre></li>
                     <li><p><strong>Prefer a browser?</strong> Starts the dashboard on <code>127.0.0.1:3000</code>.</p><pre><code>kalascan serve</code></pre></li>
@@ -103,6 +103,7 @@ brew install kalascan</code></pre>
                     <div><dt>Registry tricks</dt><dd>Typo-squats, dependency-confusion versions, npm manifest confusion, a dropped provenance attestation, a maintainer email on a lapsed domain.</dd></div>
                     <div><dt>Fake and repackaged extensions</dt><dd>Look-alike publishers, hidden characters in names, and copies of popular extensions republished under another account.</dd></div>
                     <div><dt>Workflow attacks</dt><dd>GitHub Actions pwn requests and script injection from attacker-controlled fields.</dd></div>
+                    <div><dt>Poisoned agent plugins</dt><dd>Skills, rule files, MCP configs and hooks with hidden instructions, tool-poisoning descriptions in MCP servers, and hooks that run downloaded code.</dd></div>
                     <div><dt>Known-bad dependencies</dt><dd>OSV advisories, with packages OSV lists as malicious reported as malware rather than as hygiene.</dd></div>
                 </dl>
             </div>
