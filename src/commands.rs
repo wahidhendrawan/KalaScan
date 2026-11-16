@@ -296,8 +296,33 @@ pub(crate) async fn run_installed_command(
     let home = std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
         .ok_or_else(|| anyhow::anyhow!("cannot locate the home directory"))?;
-    let found = installed::discover(std::path::Path::new(&home));
-    eprintln!("Scanning {} installed extensions...", found.len());
+    let home = std::path::Path::new(&home);
+    let mut found = installed::discover(home);
+    // MCP and hook configs are single files: each is scanned in a folder of
+    // its own, kept alive until the scans finish.
+    let mut folders = Vec::new();
+    for cfg in installed::agent_configs(home) {
+        let Some(text) = installed::agent_config_text(&cfg.path) else {
+            continue;
+        };
+        let dir = tempfile::tempdir()?;
+        let file = dir.path().join(cfg.as_file);
+        std::fs::create_dir_all(file.parent().unwrap_or(dir.path()))?;
+        std::fs::write(&file, text)?;
+        found.push(installed::Installed {
+            app: cfg.app,
+            name: format!(
+                "~/{}",
+                cfg.path.strip_prefix(home).unwrap_or(&cfg.path).display()
+            ),
+            path: dir.path().to_path_buf(),
+        });
+        folders.push(dir);
+    }
+    eprintln!(
+        "Scanning {} installed extensions and agent configs...",
+        found.len()
+    );
 
     let permits = Arc::new(tokio::sync::Semaphore::new(jobs.max(1)));
     let mut tasks = tokio::task::JoinSet::new();
@@ -369,6 +394,243 @@ pub(crate) async fn run_installed_command(
         }
     }
     Ok(())
+}
+
+/// What an install command would fetch, as scan targets, or `None` when the
+/// command installs nothing (`npm test`). An empty list means "whatever the
+/// lockfile says" (`npm ci`, a bare `npm install`).
+/// shortcut: only the packages named on the command line (and the lockfile
+/// for a bare install) are scanned, not what they pull in; a range
+/// (`lodash@^4`) scans the latest version. `kalascan deps` after the install
+/// covers the rest.
+fn install_targets(command: &[String]) -> anyhow::Result<Option<Vec<String>>> {
+    let prog = std::path::Path::new(command.first().map_or("", String::as_str))
+        .file_name()
+        .map(|n| n.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    let prog = prog.trim_end_matches(".exe").trim_end_matches(".cmd");
+    let args: Vec<&str> = command.iter().skip(1).map(String::as_str).collect();
+    // Flags whose value is the next argument, not a package.
+    const VALUE_FLAGS: &[&str] = &[
+        "--registry",
+        "--prefix",
+        "--workspace",
+        "-w",
+        "--tag",
+        "--cache",
+        "--userconfig",
+        "--filter",
+        "--dir",
+        "-C",
+        "-c",
+        "--constraint",
+        "-i",
+        "--index-url",
+        "--extra-index-url",
+        "-t",
+        "--target",
+        "--root",
+        "-f",
+        "--find-links",
+        "--platform",
+        "--python-version",
+        "--python",
+        "-p",
+        "--group",
+    ];
+    let positional = |from: usize| -> Vec<&str> {
+        let mut out = Vec::new();
+        let mut skip = false;
+        for a in &args[from..] {
+            if skip {
+                skip = false;
+            } else if VALUE_FLAGS.contains(a) {
+                skip = true;
+            } else if !a.starts_with('-') {
+                out.push(*a);
+            }
+        }
+        out
+    };
+    let verb_at = |verbs: &[&str]| args.iter().position(|a| verbs.contains(a));
+
+    match prog {
+        "npm" | "pnpm" | "yarn" | "bun" => {
+            let Some(at) = verb_at(&["install", "i", "add", "ci"]) else {
+                return Ok(None);
+            };
+            Ok(Some(positional(at + 1).into_iter().filter_map(npm_target).collect()))
+        }
+        "pip" | "pip3" | "uv" | "python" | "python3" => {
+            let Some(at) = verb_at(&["install", "add"]) else {
+                return Ok(None);
+            };
+            let mut targets: Vec<String> =
+                positional(at + 1).into_iter().filter_map(pypi_target).collect();
+            // -r / --requirement files: one spec per line.
+            for (i, a) in args.iter().enumerate() {
+                let file = match *a {
+                    "-r" | "--requirement" => args.get(i + 1).copied(),
+                    _ => a.strip_prefix("--requirement="),
+                };
+                if let Some(file) = file {
+                    let text = std::fs::read_to_string(file)
+                        .map_err(|e| anyhow::anyhow!("cannot read {}: {}", file, e))?;
+                    targets.extend(
+                        text.lines()
+                            .map(|l| l.split('#').next().unwrap_or("").trim())
+                            .filter(|l| !l.is_empty() && !l.starts_with('-'))
+                            .filter_map(pypi_target),
+                    );
+                }
+            }
+            Ok(Some(targets))
+        }
+        "code" | "code-insiders" | "cursor" | "windsurf" | "codium" => {
+            let ids: Vec<String> = args
+                .windows(2)
+                .filter(|w| w[0] == "--install-extension")
+                .map(|w| w[1].to_string())
+                .collect();
+            Ok(Some(ids).filter(|ids| !ids.is_empty()))
+        }
+        _ => anyhow::bail!(
+            "kalascan guard knows npm, pnpm, yarn, bun, pip, uv and code / cursor / windsurf, not `{}`",
+            prog
+        ),
+    }
+}
+
+/// `left-pad`, `lodash@4.17.21`, `@scope/pkg@1.0.0`; paths, git and URLs are skipped.
+fn npm_target(spec: &str) -> Option<String> {
+    if spec.is_empty()
+        || spec.starts_with(['.', '/', '~'])
+        || spec.contains(':')
+        || (spec.contains('/') && !spec.starts_with('@'))
+    {
+        return None;
+    }
+    let (name, version) = match spec[1..].find('@') {
+        Some(i) => (&spec[..i + 1], &spec[i + 2..]),
+        None => (spec, ""),
+    };
+    // A dist-tag (`latest`, `next`) or a range is resolved by npm, not here.
+    let exact = version.starts_with(|c: char| c.is_ascii_digit())
+        && version
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || ".-+".contains(c));
+    Some(if exact {
+        format!("npm:{name}@{version}")
+    } else {
+        format!("npm:{name}")
+    })
+}
+
+/// `requests`, `requests==2.32.3`, `requests[socks]>=2`; paths and URLs are skipped.
+fn pypi_target(spec: &str) -> Option<String> {
+    if spec.starts_with(['.', '/', '~']) || spec.contains("://") || spec.ends_with(".whl") {
+        return None;
+    }
+    let name_end = spec
+        .find(|c: char| "=<>!~[;@ ".contains(c))
+        .unwrap_or(spec.len());
+    let name = &spec[..name_end];
+    if name.is_empty() {
+        return None;
+    }
+    match spec.split_once("==") {
+        Some((_, v)) if !v.contains([',', '*', ';']) => Some(format!("pypi:{name}=={}", v.trim())),
+        _ => Some(format!("pypi:{name}")),
+    }
+}
+
+/// `kalascan guard -- npm install x`: scan first, install only if nothing
+/// reaches `fail_on_risk`. A package that cannot be scanned blocks the
+/// install too: the guard fails closed.
+pub(crate) async fn run_guard_command(
+    command: &[String],
+    fail_on_risk: u8,
+    jobs: usize,
+) -> anyhow::Result<()> {
+    match install_targets(command)? {
+        None => {}
+        Some(targets) if targets.is_empty() => {
+            if lockfile::read(std::path::Path::new("."), true).is_empty() {
+                eprintln!(
+                    "kalascan guard: nothing named and no lockfile here, so nothing to check"
+                );
+            } else {
+                // Exits 1 itself when a locked package reaches the threshold.
+                run_deps_command(
+                    std::path::Path::new("."),
+                    "text",
+                    true,
+                    fail_on_risk,
+                    Some(fail_on_risk),
+                    jobs,
+                    500,
+                    false,
+                )
+                .await?;
+            }
+        }
+        Some(targets) => {
+            eprintln!(
+                "kalascan guard: scanning {} before install...",
+                targets.len()
+            );
+            let permits = Arc::new(tokio::sync::Semaphore::new(jobs.max(1)));
+            let mut tasks = tokio::task::JoinSet::new();
+            for target in targets {
+                let permits = permits.clone();
+                tasks.spawn(async move {
+                    let _permit = permits.acquire_owned().await;
+                    let mut req: ScanRequest = serde_json::from_value(serde_json::json!({
+                        "repo_url": target,
+                        "check_cve": false,
+                    }))
+                    .expect("static request");
+                    req.third_party = true;
+                    (target, execute_scan(req).await)
+                });
+            }
+            let mut blocked = false;
+            while let Some(joined) = tasks.join_next().await {
+                match joined? {
+                    (target, Ok(r)) => {
+                        let bad = r.risk_score >= fail_on_risk;
+                        blocked |= bad;
+                        println!(
+                            "{:>4}  {:<48} {}",
+                            r.risk_score,
+                            target,
+                            if bad {
+                                strong_findings(&r).join(", ")
+                            } else {
+                                String::new()
+                            }
+                        );
+                    }
+                    (target, Err(e)) => {
+                        blocked = true;
+                        println!("   ?  {:<48} not scanned: {}", target, e);
+                    }
+                }
+            }
+            if blocked {
+                eprintln!(
+                    "\nkalascan guard: not installing. A package reached risk {} or could not be scanned;\nrun the command without `kalascan guard --` to install anyway.",
+                    fail_on_risk
+                );
+                std::process::exit(1);
+            }
+        }
+    }
+    let status = std::process::Command::new(&command[0])
+        .args(&command[1..])
+        .status()
+        .map_err(|e| anyhow::anyhow!("cannot run {}: {}", command[0], e))?;
+    std::process::exit(status.code().unwrap_or(1));
 }
 
 pub(crate) async fn run_diff_command(
@@ -788,4 +1050,65 @@ fn format_cli_text(result: &ScanResult) -> String {
 
     out.push_str("============================================================\n");
     out
+}
+
+#[cfg(test)]
+mod guard_tests {
+    use super::*;
+
+    fn targets(cmd: &str) -> Option<Vec<String>> {
+        let argv: Vec<String> = cmd.split_whitespace().map(String::from).collect();
+        install_targets(&argv).unwrap()
+    }
+
+    #[test]
+    fn install_commands_become_scan_targets() {
+        assert_eq!(
+            targets("npm install --save-dev left-pad lodash@4.17.21 @scope/pkg@1.0.0 react@^19 ./local git+https://x/y.git -w app"),
+            Some(vec![
+                "npm:left-pad".to_string(),
+                "npm:lodash@4.17.21".to_string(),
+                "npm:@scope/pkg@1.0.0".to_string(),
+                "npm:react".to_string(),
+            ])
+        );
+        assert_eq!(
+            targets("pnpm add zod@latest"),
+            Some(vec!["npm:zod".to_string()])
+        );
+        assert_eq!(targets("npm ci"), Some(vec![]));
+        assert_eq!(targets("npm test"), None);
+        assert_eq!(
+            targets("/usr/bin/pip3 install -i https://pypi.org/simple requests==2.32.3 rich[jupyter]>=13 ./dist/x.whl"),
+            Some(vec!["pypi:requests==2.32.3".to_string(), "pypi:rich".to_string()])
+        );
+        assert_eq!(
+            targets("uv add httpx"),
+            Some(vec!["pypi:httpx".to_string()])
+        );
+        assert_eq!(
+            targets("cursor --install-extension ms-python.python --install-extension ./evil.vsix"),
+            Some(vec![
+                "ms-python.python".to_string(),
+                "./evil.vsix".to_string()
+            ])
+        );
+        assert_eq!(targets("code --list-extensions"), None);
+        assert!(install_targets(&["cargo".to_string(), "install".to_string()]).is_err());
+    }
+
+    #[test]
+    fn requirement_files_are_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let req = dir.path().join("requirements.txt");
+        std::fs::write(&req, "# deps\nflask==3.1.0  # web\n-e .\nrequests>=2\n\n").unwrap();
+        let cmd = format!("pip install -r {}", req.display());
+        assert_eq!(
+            targets(&cmd),
+            Some(vec![
+                "pypi:flask==3.1.0".to_string(),
+                "pypi:requests".to_string()
+            ])
+        );
+    }
 }

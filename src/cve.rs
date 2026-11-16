@@ -362,6 +362,59 @@ pub fn own_package_matches(root: &Path) -> Vec<RuleMatch> {
             ),
         });
     }
+    out.extend(remote_url_dependencies(root));
+    out
+}
+
+pub const REMOTE_URL_DEP: &str = "Remote URL Dependency";
+
+/// npm dependencies given as an http(s) tarball URL on someone's own server:
+/// the code is fetched at install time and never seen by the registry or a
+/// scan of the package (PhantomRaven, 2025). Source hosts are left alone.
+fn remote_url_dependencies(root: &Path) -> Vec<RuleMatch> {
+    const SOURCE_HOSTS: &[&str] = &[
+        "github.com",
+        "codeload.github.com",
+        "gitlab.com",
+        "bitbucket.org",
+        "registry.npmjs.org",
+        "registry.yarnpkg.com",
+    ];
+    let Some(text) = std::fs::read_to_string(root.join("package.json")).ok() else {
+        return Vec::new();
+    };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return Vec::new();
+    };
+    // An extension ships its node_modules; nothing is fetched on install.
+    if v["engines"]["vscode"].is_string() {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for section in ["dependencies", "optionalDependencies", "peerDependencies"] {
+        let Some(deps) = v[section].as_object() else {
+            continue;
+        };
+        for (name, spec) in deps {
+            let Some(url) = spec.as_str() else { continue };
+            let Some(rest) = url.strip_prefix("https://").or(url.strip_prefix("http://")) else {
+                continue;
+            };
+            let host = rest.split(['/', ':', '?']).next().unwrap_or_default();
+            if SOURCE_HOSTS.contains(&host.to_ascii_lowercase().as_str()) {
+                continue;
+            }
+            out.push(RuleMatch {
+                file_path: "package.json".to_string(),
+                line_number: text
+                    .find(url)
+                    .map_or(1, |i| text[..i].lines().count().max(1)),
+                matched_pattern: REMOTE_URL_DEP.to_string(),
+                severity: "critical".to_string(),
+                context: format!("{section}: \"{name}\": \"{url}\""),
+            });
+        }
+    }
     out
 }
 
@@ -687,5 +740,25 @@ version = "1.20.0"
         assert_eq!(pkgs.len(), 2);
         assert_eq!(pkgs[0].name, "requests");
         assert_eq!(pkgs[0].version, "2.25.1");
+    }
+
+    #[test]
+    fn dependency_fetched_from_a_private_server() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"name": "pear-wrk-wdk", "version": "0.0.5",
+  "dependencies": {"ui-styles-pkg": "http://npm.jpartifacts.com/npm/pear-wrk-wdk",
+    "fork": "https://github.com/a/b/tarball/v1", "semver": "^7.0.0"},
+  "homepage": "https://example.com"}"#,
+        )
+        .unwrap();
+        let found: Vec<RuleMatch> = own_package_matches(dir.path())
+            .into_iter()
+            .filter(|m| m.matched_pattern == REMOTE_URL_DEP)
+            .collect();
+        assert_eq!(found.len(), 1, "{:?}", found);
+        assert_eq!(found[0].line_number, 2);
+        assert!(found[0].context.contains("npm.jpartifacts.com"));
     }
 }

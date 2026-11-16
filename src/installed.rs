@@ -43,6 +43,99 @@ fn browser_roots(home: &Path) -> Vec<(&'static str, PathBuf)> {
     roots
 }
 
+/// An AI agent's MCP or hook configuration. It is one file, so it is scanned
+/// in a folder of its own as `as_file`: the name tells the scanner what it is.
+pub struct AgentConfig {
+    pub app: &'static str,
+    pub path: PathBuf,
+    pub as_file: &'static str,
+}
+
+pub fn agent_configs(home: &Path) -> Vec<AgentConfig> {
+    let (mac, linux) = (
+        home.join("Library/Application Support"),
+        home.join(".config"),
+    );
+    let mut found = vec![
+        ("Cursor", home.join(".cursor/mcp.json"), ".cursor/mcp.json"),
+        (
+            "Windsurf",
+            home.join(".codeium/windsurf/mcp_config.json"),
+            "mcp_config.json",
+        ),
+        (
+            "Claude Code",
+            home.join(".claude/settings.json"),
+            ".claude/settings.json",
+        ),
+        ("Claude Code", home.join(".claude.json"), ".mcp.json"),
+        (
+            "Gemini CLI",
+            home.join(".gemini/settings.json"),
+            ".gemini/settings.json",
+        ),
+        (
+            "Claude Desktop",
+            mac.join("Claude/claude_desktop_config.json"),
+            "claude_desktop_config.json",
+        ),
+        (
+            "Claude Desktop",
+            linux.join("Claude/claude_desktop_config.json"),
+            "claude_desktop_config.json",
+        ),
+        (
+            "VS Code",
+            mac.join("Code/User/mcp.json"),
+            ".vscode/mcp.json",
+        ),
+        (
+            "VS Code",
+            linux.join("Code/User/mcp.json"),
+            ".vscode/mcp.json",
+        ),
+    ];
+    if let Some(appdata) = std::env::var_os("APPDATA").map(PathBuf::from) {
+        found.push((
+            "Claude Desktop",
+            appdata.join("Claude/claude_desktop_config.json"),
+            "claude_desktop_config.json",
+        ));
+        found.push((
+            "VS Code",
+            appdata.join("Code/User/mcp.json"),
+            ".vscode/mcp.json",
+        ));
+    }
+    found
+        .into_iter()
+        .filter(|(_, path, _)| path.is_file())
+        .map(|(app, path, as_file)| AgentConfig { app, path, as_file })
+        .collect()
+}
+
+/// The part of a config file worth scanning: all of it, except for
+/// `~/.claude.json`, which is mostly Claude Code's own state. Its MCP servers
+/// (user scope and per project) are what an attacker would add.
+pub fn agent_config_text(path: &Path) -> Option<String> {
+    let text = std::fs::read_to_string(path).ok()?;
+    if path.file_name() != Some(".claude.json".as_ref()) {
+        return Some(text);
+    }
+    let v: serde_json::Value = serde_json::from_str(&text).ok()?;
+    let mut servers = serde_json::Map::new();
+    let mut add = |section: &serde_json::Value, prefix: &str| {
+        for (name, server) in section.as_object().into_iter().flatten() {
+            servers.insert(format!("{prefix}{name}"), server.clone());
+        }
+    };
+    add(&v["mcpServers"], "");
+    for (project, cfg) in v["projects"].as_object().into_iter().flatten() {
+        add(&cfg["mcpServers"], &format!("{project}: "));
+    }
+    serde_json::to_string_pretty(&serde_json::json!({ "mcpServers": servers })).ok()
+}
+
 fn subdirs(dir: &Path) -> Vec<PathBuf> {
     let mut dirs: Vec<PathBuf> = std::fs::read_dir(dir)
         .into_iter()
@@ -155,6 +248,30 @@ mod tests {
         assert_eq!(found[1].app, "Chrome");
         assert_eq!(found[1].name, "abcdef (Default)");
         assert!(found[1].path.ends_with("1.2.0_0"));
+    }
+
+    #[test]
+    fn finds_agent_configs_and_keeps_only_mcp_servers_of_claude_json() {
+        let home = tempfile::tempdir().unwrap();
+        let h = home.path();
+        std::fs::create_dir_all(h.join(".cursor")).unwrap();
+        std::fs::write(h.join(".cursor/mcp.json"), r#"{"mcpServers": {}}"#).unwrap();
+        std::fs::write(
+            h.join(".claude.json"),
+            r#"{"cachedGrowthBookFeatures": {"x": "http://1.2.3.4"},
+                "mcpServers": {"gh": {"command": "npx"}},
+                "projects": {"/repo": {"mcpServers": {"evil": {"command": "bash"}}, "lastCost": 1}}}"#,
+        )
+        .unwrap();
+        let found = agent_configs(h);
+        let files: Vec<&str> = found.iter().map(|c| c.as_file).collect();
+        assert_eq!(files, [".cursor/mcp.json", ".mcp.json"]);
+        let text = agent_config_text(&h.join(".claude.json")).unwrap();
+        assert!(
+            text.contains("\"gh\"") && text.contains("/repo: evil"),
+            "{text}"
+        );
+        assert!(!text.contains("1.2.3.4") && !text.contains("lastCost"));
     }
 
     #[test]

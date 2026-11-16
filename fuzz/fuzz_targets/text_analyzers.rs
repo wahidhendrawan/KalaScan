@@ -11,4 +11,6 @@ fuzz_target!(|data: &[u8]| {
     let _ = kalascan::entropy::scan_advanced_obfuscation("index.js", &text);
     let _ = kalascan::agent::scan("skills/x/SKILL.md", &text, &[]);
     let _ = kalascan::agent::scan(".claude/settings.json", &text, &[]);
+    let _ = kalascan::dataflow::flows("pkg/__init__.py", &text);
+    let _ = kalascan::dataflow::flows("index.js", &text);
 });

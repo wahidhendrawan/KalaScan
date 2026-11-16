@@ -19,16 +19,30 @@ The malicious samples are **live malware**. `run_eval.py` only scans them static
 
 CI (`.github/workflows/eval.yml`) runs only the clean half, as a false-positive gate: `--only clean --max-fpr 0`, on every pull request that touches `src/`, `rules/`, `eval/` or `Cargo.lock`.
 
-Results at threshold 50 (KalaScan 1.14, measured 2026-11-16):
+Results at threshold 50 (measured 2026-11-17):
 
 | split | malicious recall | clean false positives |
 |---|---|---|
-| dev | 59/73 (81%) | 0/63 |
-| holdout | 82/147 (56%) | 0/463 |
+| dev | 129/173 (75%) | 0/69 |
+| holdout | 94/147 (64%) | 0/457 |
 
 **The holdout number is the one to quote.** Until November 2026 the holdout split held 27 malicious samples and scored 26/27 (96%). 120 fresh samples were then added with a fixed seed (40 npm and 40 PyPI packages first published to the dataset in 2026, 40 extensions, one version per package name), and none of them has been read. On those 120 alone KalaScan catches 56 (47%): the earlier figure was a small-sample artefact, and rules tuned on 2022-2025 samples generalise worse than it suggested.
 
-Holdout recall by ecosystem: IDE extensions 32/48 (67%), npm 28/51 (55%), PyPI 22/48 (46%). The highest score among the picked clean packages is 23, among the random ones 38 (`tavallio-agent`, below). The 161 picked clean npm/PyPI targets also go through the registry checks (manifest confusion, install script added, provenance dropped, lapsed maintainer email domain) without a finding. Before this work the dev split scored 1/60, and marketplace-id scans failed outright.
+Holdout recall by ecosystem: IDE extensions 32/48 (67%), npm 29/51 (57%), PyPI 33/48 (69%). The highest score among the picked clean packages is 23, among the random ones 38 (`tavallio-agent`, below). The 161 picked clean npm/PyPI targets also go through the registry checks (manifest confusion, install script added, provenance dropped, lapsed maintainer email domain) without a finding. Before this work the dev split scored 1/60, and marketplace-id scans failed outright.
+
+### Tuning on fresh samples (November 2026)
+
+PyPI was the weak spot (22 of 48 holdout samples). Rather than read the holdout misses, a separate tuning batch was drawn into `dev` (`"set": "tune-2026-11"`): every 2026 PyPI package in the dataset not used before (41), 19 PyPI packages from 2025 and 40 npm packages from 2026, one version each. Before any change it scored PyPI 27/60 and npm 23/40, close to the holdout rates, so it stood in for them. Reading its 50 misses showed what the rules did not know:
+
+- npm install scripts that run `curl` / `nslookup` themselves next to `$(whoami)` or a dependency-confusion version, and dependencies given as an http tarball on the attacker's own server (PhantomRaven);
+- `setup.py` hooks that read `whoami` / `hostname` (five samples of one template), and `setup.py` code that calls a capture service at module level;
+- DNS exfiltration through `socket.getaddrinfo(f"{host}.{user}.domain")`, host recon through `os.popen('whoami')` and `os.uname().nodename`;
+- `exec(resp.read())` after `urlopen`, `curl` run through `subprocess` and its output handed to `node -e`, `os.environ` collected into a dict and posted to a raw IP;
+- `__import__('zlib').decompress(__import__('base64').b64decode(…))` loaders, and Telegram bot tokens used through a library rather than a URL.
+
+After the changes: tuning batch PyPI 42/60, npm 28/40; holdout **82 → 94 of 147**, PyPI 22 → 33 of 48. No sample that was caught before was lost. The 12 holdout gains came from `Chain: Reconnaissance Beacon` (6), `Chain: Install-time Reconnaissance` (5), `Chain: Install-time Exfiltration` (2), data flow (2) and a remote URL dependency (1). Every new rule and chain fires on none of the 526 clean packages.
+
+The data-flow pass was the risky part. Its first version ignored statement order and treated `.send()` as a network call, and flagged **53 of 526 clean packages**: `process.env` spread into a `fork()` option and an unrelated IPC `.send()`, a variable reused by two functions in a bundle, `eval(r.text)` used to parse a response. It now reads statements in order, counts only named network APIs, skips files over 64 KB or with minified lines, and needs a variable (not `curl` itself) to reach an interpreter. That cost two holdout detections (96 → 94) and brought the clean count back to 0. The ten clean packages looked at while fixing it are in `dev` now.
 
 ### Compared with GuardDog
 
@@ -36,11 +50,11 @@ Holdout recall by ecosystem: IDE extensions 32/48 (67%), npm 28/51 (55%), PyPI 2
 
 | | malicious, holdout | malicious, all | clean flagged |
 |---|---|---|---|
-| KalaScan (risk >= 50) | 82/147 (56%) | 141/220 (64%) | 0/227 (0%) |
+| KalaScan (risk >= 50) | 94/147 (64%) | 153/220 (70%) | 0/227 (0%) |
 | GuardDog, threat or metadata rule | 107/147 (73%) | 155/220 (70%) | 128/223 (57%) |
 | GuardDog, any rule | 123/147 (84%) | 187/220 (85%) | 213/223 (96%) |
 
-The two tools sit at different points: GuardDog finds more of the malware, most clearly on PyPI (41 of 48 holdout samples against 22), and flags more than half of the popular clean packages on the way; KalaScan flags none of the clean ones and misses more malware. On the holdout samples 66 are caught by both, 16 only by KalaScan, 41 only by GuardDog and 24 by neither. Read the comparison with two caveats: the malicious samples come from DataDog's own dataset, which GuardDog's rules were developed against, and four large clean PyPI packages timed out under GuardDog (300 s) and are left out of its column.
+The two tools sit at different points: GuardDog finds more of the malware, most clearly on PyPI (41 of 48 holdout samples against KalaScan's 33), and flags more than half of the popular clean packages on the way; KalaScan flags none of the clean ones and misses more malware. GuardDog was run once, before the November tuning; at that time 66 holdout samples were caught by both, 16 only by KalaScan, 41 only by GuardDog and 24 by neither. Read the comparison with two caveats: the malicious samples come from DataDog's own dataset, which GuardDog's rules were developed against, and four large clean PyPI packages timed out under GuardDog (300 s) and are left out of its column.
 
 The 60 extensions installed on the maintainer's machine (`kalascan installed`) also all score below 30. Ten of them were false positives during development and are now in the clean `dev` split.
 
@@ -53,4 +67,6 @@ The 60 extensions installed on the maintainer's machine (`kalascan installed`) a
 
 That is 1 false positive in 299 random packages (0.3%), PyPI 0 of 150. Nothing else reached 30.
 
-What still gets through in the `dev` split (15 samples; the holdout misses are deliberately not read): forks of legitimate extensions republished with a changed API endpoint or compile server, so the user's code goes to a personal host (chatgpt-china, cppplayground, cortex-debug fork: 7 samples, nothing in the code is malicious on its own; the two that kept the original's `repository` are caught since the popular-extension list grew to 10,000); themes and hello-world extensions whose only offence is the listing (5); typo-squats with no code; an install script that patches a sibling package in `node_modules`; code that builds its C2 host at runtime.
+What still got through in the original `dev` split before the November tuning (15 samples; the holdout misses are deliberately not read): forks of legitimate extensions republished with a changed API endpoint or compile server, so the user's code goes to a personal host (chatgpt-china, cppplayground, cortex-debug fork: 7 samples, nothing in the code is malicious on its own; the two that kept the original's `repository` are caught since the popular-extension list grew to 10,000); themes and hello-world extensions whose only offence is the listing (5); typo-squats with no code; an install script that patches a sibling package in `node_modules`; code that builds its C2 host at runtime.
+
+What still gets through in the tuning batch (30 of 100): packages with no code at all (empty placeholders, a native `.node` binary, a typo-squat that copies the original), a proof-of-concept that only prints a warning, DNS exfiltration with every API name spelled as character codes, a javascript-obfuscator variant with mangled names instead of `_0x…`, environment variables stored by one function and sent by another, and a credential stealer for n8n that reads cloud metadata endpoints.

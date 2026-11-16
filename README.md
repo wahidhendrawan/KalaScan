@@ -92,12 +92,16 @@
   - **`Chain: Reverse Shell`** — a raw socket and a process whose stdio is piped into it
   - **`Chain: Drop and Execute Binary`** — `chmod +x` next to a detached spawn
   - **`Chain: Obfuscated Process Execution`** — javascript-obfuscator (`_0x…`) output that spawns processes
-  - **`Chain: Install-time Exfiltration` / `Install-time Payload Execution`** — an npm install script or `setup.py` hook (custom `cmdclass`, shell calls) together with an exfil channel, host recon + HTTP, an encoded PowerShell blob, a base64/zlib stager or a download (not for VS Code extensions, whose package.json scripts never run on install)
-  - **`Chain: Reconnaissance Beacon`** — hostname/username collection plus a request-capture service (`webhook.site`, `*.oast.fun`, …), raw-IP URL or chat webhook
+  - **`Chain: Install-time Exfiltration` / `Install-time Payload Execution`** — an npm install script or `setup.py` hook (custom `cmdclass`, shell calls) together with an exfil channel, host recon + HTTP, an encoded PowerShell blob, a base64/zlib stager or a download; an install script that runs `curl` / `nslookup` itself next to `$(whoami)` or a dependency-confusion version; `setup.py` code that calls a capture service at module level (not for VS Code extensions, whose package.json scripts never run on install)
+  - **`Chain: Reconnaissance Beacon`** — hostname/username collection plus a request-capture service (`webhook.site`, `*.oast.fun`, …), raw-IP URL, chat webhook, a bot token in the code, or a DNS lookup of a host name built from data (the Telegram API host alone is not one: agents and bots call it with the user's own token)
+  - **`Chain: Install-time Reconnaissance`** — an install hook in `setup.py` that reads the user or host name (`whoami`, `hostname`, `socket.gethostname()`); a build has no use for either
   - **`Chain: Remote File Write via Local Server`** — an HTTP listener with an upload route plus a **zip slip** extractor. Zip slip is found by variable-level taint tracking: archive entry name → path → `writeFile` / `open(…, 'wb')` with no `..` / prefix check on that same variable; `tarfile.extractall` without `filter=` counts too
   - **`Chain: Phishing Redirect Package`** — an npm package with no dependencies and at most three small scripts, one of which sends the browser to a hard-coded site (`window.location.href = …`): the redirect pages phishing kits serve from unpkg / jsDelivr
 - **Typo-squat detection** — dependencies (and the package's own name) one edit or one swapped pair away from a popular npm/PyPI package (`crossenv` → `cross-env`, `asyncoi` → `asyncio`), offline, on every scan
 - **Dependency-confusion versions** — a package versioned `99.0.0`, `999.9.9`, … (CalVer years excluded)
+- **Remote URL dependencies** — an npm dependency given as an `http(s)://` tarball on someone's own server, fetched at install time and never seen by the registry (PhantomRaven); GitHub, GitLab and Bitbucket URLs excluded. Scored like a chain
+- **Data flow** — inside one Python or JS file, variables are followed from the whole environment (`os.environ`, `JSON.stringify(process.env)`), an SSH key or a browser / wallet store to a network call, and from a download (`urlopen`, `fetch`, `curl` via `subprocess`) to `exec`, `eval`, `new Function` or `node -e`. Reported as `Chain: Credential Exfiltration` / `Chain: Download and Execute` with both lines. Lexical, one namespace per file, no control flow: it catches the read and the send far apart or a few assignments away, not data passed through functions
+- **Decoded straight into exec** — `exec(b64decode(…))` and `__import__('zlib').decompress(__import__('base64').b64decode(…))` loaders are scored like a chain; none of the 526 clean packages has either
 
 ### Publisher & Listing Reputation (VS Code extensions)
 - **Offline**, from the extension's own package.json (works on a .vsix long after the marketplace removed it): invisible characters in the name or publisher (`Solidity\u200b`) and look-alike publishers (`juanbIanco` for `juanblanco`) are scored like a chain, and so is a repackaged copy: an extension whose `repository` is one of the 10,000 most-installed extensions' source but whose publisher is not ([`rules/popular_extensions.tsv`](rules/popular_extensions.tsv), regenerate with `python3 rules/gen_popular_extensions.py`); brand use by a non-owner (`"Error Lens Ultra"` by `GitlensPro`) is reported
@@ -116,7 +120,15 @@ For `npm:` and `pypi:` targets, what the registry says about the scanned version
 - Works with any target: `npm:pkg@1.0.0`, `pypi:pkg==1.0`, `publisher.ext@1.2.0`, local `.vsix` / directories
 
 ### Installed Extension Audit
-- `kalascan installed` finds VS Code, Insiders, VSCodium, Cursor and Windsurf extensions, Chrome / Edge / Brave / Chromium extensions, and Claude Code plugins and skills on this machine and scans each one offline, in place, highest risk first (`--min-risk`, `--fail-on-risk`, `--format json`). Symlinked skill folders are not followed; scan them with `kalascan scan <path>`
+- `kalascan installed` finds VS Code, Insiders, VSCodium, Cursor and Windsurf extensions, Chrome / Edge / Brave / Chromium extensions, Claude Code plugins and skills, and the MCP and hook configs of Cursor, Windsurf, Claude Code, Claude Desktop, VS Code and Gemini CLI on this machine and scans each one offline, in place, highest risk first (`--min-risk`, `--fail-on-risk`, `--format json`). Of `~/.claude.json` only the MCP servers are scanned; the rest is Claude Code's own state. Symlinked skill folders are not followed; scan them with `kalascan scan <path>`
+
+### Pre-install Guard
+- `kalascan guard -- <install command>` scans what the command would fetch and runs it only when nothing scores at or above `--fail-on-risk` (default 50). It knows `npm` / `pnpm` / `yarn` / `bun` `install` / `add`, `pip` / `uv` `install` / `add` (including `-r requirements.txt`) and `code` / `cursor` / `windsurf --install-extension` (marketplace ids and `.vsix` files). `npm ci` and a bare `npm install` audit the lockfile instead. A package that cannot be scanned blocks the install too: the guard fails closed. Make it the default with an alias:
+  ```bash
+  alias npm='kalascan guard -- npm'
+  alias pip='kalascan guard -- pip'
+  ```
+- What it does not see: the dependencies a named package pulls in (run `kalascan deps` after installing), and for a range such as `lodash@^4` it scans the latest version, which may not be the one npm picks
 
 ### Indicators of Compromise
 - Every scan lists the external URLs and public IPs the code refers to (`iocs` in JSON, an INDICATORS section in text), skipping documentation/registry hosts
@@ -138,7 +150,7 @@ For `npm:` and `pypi:` targets, what the registry says about the scanned version
 - `kalascan rules` lists ids; `kalascan rules KS-SUP-009` explains one
 
 ### Detection Quality
-- [`eval/`](eval/README.md) holds a labelled corpus (DataDog malicious-package samples + popular clean packages and extensions) and the harness that measures it. Current: **82 of the 147 malicious samples never used for tuning are caught (56%; 141 of 220 overall), 0 false positives across 227 popular clean packages/extensions, and 1 in 299 packages drawn at random from npm and PyPI (that rule is fixed)**. On the same corpus GuardDog 3.2.0 catches 107 of those 147 and flags 128 of 223 clean packages; the eval README has the method and the caveats; CI fails a PR that makes any clean sample cross risk 50
+- [`eval/`](eval/README.md) holds a labelled corpus (DataDog malicious-package samples + popular clean packages and extensions) and the harness that measures it. Current: **94 of the 147 malicious samples never used for tuning are caught (64%; 223 of 320 overall), 0 false positives across 526 clean packages/extensions (227 popular ones and 299 drawn at random from npm and PyPI)**. On the same 147 GuardDog 3.2.0 catches 107 and flags 128 of 223 clean packages; the eval README has the method and the caveats; CI fails a PR that makes any clean sample cross risk 50
 
 ### GitHub Actions Workflow Checks
 - **Pwn request** (critical) — `pull_request_target` that checks out the PR head (`ref: ${{ github.event.pull_request.head.sha }}`)
@@ -364,6 +376,9 @@ kalascan diff publisher.ext@2.0.0 publisher.ext@2.1.0
 # Audit the extensions installed on this machine
 kalascan installed --min-risk 30
 
+# Scan a package before installing it; install only if it scores below 50
+kalascan guard -- npm install left-pad
+
 # Scan every locked dependency version (package-lock.json, poetry.lock, Pipfile.lock, requirements.txt)
 kalascan deps . --min-risk 30 --fail-on-risk 70
 
@@ -460,6 +475,7 @@ KalaScan/
 │   ├── zipslip.rs         # Variable-level taint tracking for archive extraction
 │   ├── workflow.rs        # GitHub Actions checks (pwn request, script injection)
 │   ├── agent.rs           # AI agent files & MCP servers (hidden text, tool poisoning)
+│   ├── dataflow.rs        # Variable-level data flow: secrets to network, downloads to exec
 │   ├── reputation.rs      # Listing spoofing, look-alike publishers, marketplace stats
 │   ├── iocs.rs            # URL / IP indicator extraction, URLhaus lookups
 │   ├── registry.rs        # npm / PyPI registry metadata checks
