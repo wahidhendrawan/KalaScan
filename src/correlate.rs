@@ -357,15 +357,26 @@ fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
     }
 
     // An IP-lookup service alone is a legitimate "what is my IP" feature;
-    // pair recon with channels that only receive data.
+    // pair recon with channels that only receive data. The Telegram API host
+    // is not one: agents and bots talk to it with the user's own token (a
+    // device name from os.hostname() plus a Telegram connector). The
+    // attacker's bot shows up as a token in the code instead.
     if let Some(recon) = first(&[HOST_RECON]) {
-        let beacon = first(&[
-            EXFIL_SERVICE,
-            IP_URL,
-            "Discord Webhook",
-            "Telegram Bot API Token",
-        ])
-        .or_else(|| first(&[DEP_CONFUSION_VERSION]).and(first(&["URL Fetch Command"])));
+        let beacon = matches
+            .iter()
+            .copied()
+            .find(|m| {
+                [
+                    EXFIL_SERVICE,
+                    IP_URL,
+                    "Discord Webhook",
+                    "Telegram Bot API Token",
+                ]
+                .contains(&m.matched_pattern.as_str())
+                    && !(m.matched_pattern == EXFIL_SERVICE
+                        && m.context.contains("api.telegram.org"))
+            })
+            .or_else(|| first(&[DEP_CONFUSION_VERSION]).and(first(&["URL Fetch Command"])));
         if let Some(sink) = beacon {
             out.push(chain(&recon.file_path, RECON_BEACON, recon, sink));
         }
@@ -724,6 +735,19 @@ mod tests {
         // "What is my IP" alone is a feature, not a beacon.
         let m = vec![hit("a.js", HOST_RECON, 2), hit("b.js", IP_LOOKUP, 7)];
         assert!(correlate_package(&m).is_empty());
+        // A Telegram connector with the user's token (tavallio-agent) is not;
+        // the attacker's own bot token in the code is.
+        let mut telegram = hit("b.js", EXFIL_SERVICE, 7);
+        telegram.context =
+            "fetch(`>>> https://api.telegram.org <<< /bot${botToken}/sendMessage`".into();
+        let m = vec![hit("a.js", HOST_RECON, 2), telegram.clone()];
+        assert!(correlate_package(&m).is_empty());
+        let m = vec![
+            hit("a.js", HOST_RECON, 2),
+            telegram,
+            hit("b.js", "Telegram Bot API Token", 9),
+        ];
+        assert_eq!(names(&correlate_package(&m)), vec![RECON_BEACON]);
         // Telemetry that reads the hostname and posts to its own API is not.
         let m = vec![
             hit("a.js", HOST_RECON, 2),

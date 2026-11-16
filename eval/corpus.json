@@ -1,5 +1,5 @@
 {
- "_comment": "Labelled corpus for eval/run_eval.py. 'dataset' paths are relative to a checkout of github.com/DataDog/malicious-software-packages-dataset (fetch with eval/fetch_malicious.sh). Clean targets are fetched from public registries. 'split': rules were tuned on 'dev'; report 'holdout' for an honest estimate.",
+ "_comment": "Labelled corpus for eval/run_eval.py. 'dataset' paths are relative to a checkout of github.com/DataDog/malicious-software-packages-dataset (fetch with eval/fetch_malicious.sh). Clean targets are fetched from public registries. 'split': rules were tuned on 'dev'; report 'holdout' for an honest estimate. 'set': 'random-2026-11' marks clean packages drawn at random from npm and PyPI (eval/sample_clean.py) instead of picked.",
  "samples": [
   {
    "target": "samples/ide_extensions/malicious_intent/Puglight.discoverito/0.0.1.vsix",
@@ -2682,6 +2682,2099 @@
    "label": "malicious",
    "source": "dataset",
    "split": "holdout"
+  },
+  {
+   "target": "npm:@mdgbayly/react-textarea-autosize@3.3.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@iqs/datetimepicker@1.0.10",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:early-teaa@1.1.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:fitknock-ui-kit@1.0.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:packagee@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:postcss-value@0.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:lib-jcc@0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@zendeskgarden/container-splitter@2.0.23",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@ajejoseph22/lotr-sdk@1.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:numberg123@2.3.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:npmwqwqqwewqewqewq@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:ertu-jagnjmai-rassismu@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@arco-themes/vue-dem-theme@0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@drhomes/piece-delay-after-queue@0.3.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:acht-geschwister-stream-deutsch-kino-uwof@0.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@senmu/web-moniter@0.2.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:avangi-olia-tab@1.1.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@statscript/stats@0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:tavallio-agent@0.5.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:karma-antd-gravity-uranology@1.2.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@aryth/flopper@0.7.8",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@calmer/vue2-component-playground@0.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@marchyang/enhanced_promise@1.2.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:npx-atm-s_m_adil-project@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:remark-vue-loader@0.3.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:ev-accessibility-react@1.0.24",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@reactway/webpack-builder-plugin-write-file@2.0.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:axos@0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:cubejs-tiva-api-gateway@0.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:juster@1.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@digia-engage/moengage@1.0.0-beta.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:web-assembly-compilation-kit@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:kak-otkliuchit-p2p-trafik-jklr66x4y@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:sanity-plugin-tailwind-color-picker@1.0.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@therms/icons@2.19.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:node-esi-stackdriver@1.1.9",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:tempmail-guard@1.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:lwxcustom@1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@alifd/theme-23990@0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:speakevent@0.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:facebook-photo-selector@0.0.9",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@revivifai/eslint-config@1.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@sadorlovsky/lowdb-s3@1.0.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@moleculeone/dagre-plus@0.8.5-pre",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:puppeteer-page@0.4.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@tolga1452/logchu@3.1.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:sass-import-once@0.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:al-ngx-perfect-scrollbar@9.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:react-hot-toast-magic@0.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:rn-img-cache@1.0.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:tiger-demo001@0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:pekseg@0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:static-domain-data@0.0.1-1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@auzmor-sapiens-ui/theme@1.0.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:mooc-ui-yu@0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:chexr-mcp@1.0.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@types/spdx-correct@3.1.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@mfeproject/mfe_cards@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@lenne.tech/eslint-config-ts@2.1.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@improbable-eng/grpc-web@0.15.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:fusion-plugin-react-router-mod@0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@utd-argo/ux-master-library@0.4.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:sms-validator@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:alldata-coordinator@0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@quasar/quasar-app-extension-typescript@1.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:traay-patri-eartio@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:online-event-planner4x@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:liangzimixin@0.3.104-beta.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@pipedream/celonis_ems@0.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@fpg-modules/fk-ui-common@0.2.26",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@bianic-ui/textarea@0.1.0-alpha.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@ko-fi/koa@1.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:react-spring-scroll-to-hook@1.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@cosmos-kit/wallets@0.12.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:xuduo1218@1.4.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:react-native-zendrive@7.0.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:wow-xhr-js@1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@itentialopensource/adapter-onap_sdc@1.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:libreria_prueba_tres@0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@did-space/fs-driver@1.3.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:razzia-boilerplate@0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:lion-lib-nikita@1.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:canvas-color-tracker@1.3.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:verify-istanbul-coverage@1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:trbgraph@0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:difult.rest@0.15.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:blutic-webview@1.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@sls-next/aws-lambda@3.7.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:hitalem-eb-taoksulasbaainom@1.2.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@nkduy/babel-plugin-transform-es2015-computed-properties@6.22.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@alvanero/perlson2@1.2.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@nirvana-labs/nirvana@1.86.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@segment/in-eu@0.4.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:capacitor-plugin-felixhttp@0.2.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:ar1604@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@anzerr/http.server@1.0.22",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:avarage-oluis-nogig@1.1.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:api-mid-mock@3.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@rhys-mondo/test-library@0.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:webpack-loader-worker@0.0.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:node-webp-darwin-x64@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:tea-field-along-principle@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@intentsolutionsio/together-pack@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:ontology-graph-core@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:truffle-assertions@0.9.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:foxstate-react@0.1.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@namcapital/d3-nam-20@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:hyperfuel-client@0.0.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:avangers-holies-timanu@1.1.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@hyper.fun/fluentui-emoji-woman-climbing-color-dark@2.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:universal-analytics-umd@0.4.17",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@ngat/testnpmv3@2.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:ang-asg-man@0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@wzbxxx/create-my-app-cli@0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@types/gapi.client.accesscontextmanager-v1@0.0.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:hextime@1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@totonoel/hello@0.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@wangeditor/table-module@1.1.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:fvtt-types@13.346.0-beta.20251209192131",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:jiui@1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:corvuspay@1.0.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:tome_b00k_s@1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:graph-cms-ts-assets@1.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:vuex-redux-saga@0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:responsive-embed@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@qbitapi/sdk-api@0.0.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@ryancavanaugh/jquery.joyride@2.1.14-alpha",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@amarajs/plugin-bundle@0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:se2229@0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:makaira-storefront-cli@1.8.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:electron-override-modules@0.0.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@brickredsys/agent-js-jest-br@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:ldbfoghsphwrznjkqwaj@0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:recusandaenisi@1.2.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@doj/react-native-responsive-kit@0.1.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:araisl-palindrome@0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:markdown-pdf-hyperion-native-rocket@1.2.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@activepieces/piece-sftp@0.5.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@webresto/ng-user@0.0.18",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:tategaki@1.4.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@remax/plugin-less@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:my-react-components-test001@1.0.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:rashidchippa-atm@1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@mindyartera/bot-pure-water-496@1.1.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:matterbridge-aeg-robot@1.3.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:assistant-beige-locust@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:development_dev_86@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:gtm-core@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "npm:@callinapp/react-native@1.0.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:delta-core==1.2.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:Gladiator==0.7.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:wind-farm-loads==0.20.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:FeedSynchronizer==1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:nerfpy==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:inspect-proxmox-sandbox==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:pybinsim==1.2.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:ardoqpy==0.8.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:toomanyconfigs==0.2.868",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:khnum==0.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:odoo14-addon-sale-commission-geo-assign-product-domain==14.0.1.3.3.dev1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:napalm-fork==3.4.0.post3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:sonsc-isi==0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:ycnbc==1.0.12",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:aiodanbooru==1.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:controller==0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:l2data-feeder==0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:biofile==0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:fishnet-cod==1.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:VacuumFlask==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:fondasms==0.8.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:lojack-clients==1.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:flake8-deep-calls==0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:dj-sso-client==0.21",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:karrio-boxknight==2026.1.31",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:fast-censor==0.3.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:winzy-text-on-image==0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:sopel-http-codes==0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:ne-pretty==0.0.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:local-env-vars==1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:django-openflights==0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:extra-qt==0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:pygeodetics==1.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:nbt-structure-utils==0.3.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:single-table-orm==0.2.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:my-opencode-cli==0.2.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:python-sand==2.0.0a4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:oclawma==0.4.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:molspotter==0.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:cfn-inspect==0.2.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:root-signals==1.6.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:dataone.csw==3.5.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:geosh==0.0.9",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:apus==0.1.12",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:odoo-addon-invoice-somconnexio==16.0.1.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:bayte==0.2.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:alibabacloud-filedetect==1.1.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:vocuzi==0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:jingwei==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:tal-sc-libs-http-client==0.0.1rc0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:netlist-carpentry==0.4.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:Fusion-ER==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:aria-inference-birdnet==0.1.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:tsung2graphite==0.4.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:oko-py==0.1.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:crafty-client==2.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:slax==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:bteng==0.2.8",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:alibabacloud-ons20190214-py2==1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:reptree==0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:odoo8-addon-partner-contact-address-detailed==8.0.1.0.0.99.dev11",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:regexpro==0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:onlinectl==0.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:alphagenome-viewer==1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:dockops==0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:tabplot==0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:math-form==0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:kiwi-flight-events-booking-data==0.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:crystal-bases==0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:pyqt-llamaindex==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:TOPSIS-3606==1.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:DESimpy==0.48.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:llama-index-readers-awadb==0.5.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:apiclient-pydantic-generator==0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:draup-django==1.4.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:qubitboost-sdk==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:angelo==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:XStatic-AnyWikiDraw==0.14.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:tree-annotated-plot==0.2.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:kewkew==0.1.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:tw_textforge==0.0.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:streetscape==0.2.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:winui3-Microsoft.UI.Xaml==3.2.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:cleartest==0.924",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:streaminghub-proxy-empatica-e4==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:jupyternotifyplus==0.5.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:mlup==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:kiki-turtle==1.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:XTransferBench==0.1.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:tuya-bulb-control==0.1b3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:pypdbio==1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:busho==1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:zhanghm-tool==0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:burau==0.0.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:terminal-image==0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:minimal-cernsso==0.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:langchain-g4f==0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:chronopost-python==1.0.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:geojson-shave==0.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:libtgmk==0.4.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:nodeconductor-auth-social==0.7.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:antchain-defininstchannel==1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:pyvmomi==9.1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:ipycolorful==0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:sessionz==0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:random-name-generator-rendev==1.0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:kaia-brainbox==5.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:Req-http-vpn==4.5.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:TestMath==0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:recommend-games==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:clovepy==0.0.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:pprofile-ext==1.0.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:isweep==1.1.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:kaztau==0.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:pyipip==0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:bench-utils==1.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:pydna-utils==0.0.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:winauto-cli==0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:booksnake==0.3.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:django-tag-manager==0.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:Dendrite-Neural-Network==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:Utsavbasiccalculator==0.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:codewords-core==0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:DataGridBWC==0.2.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:blibs==1.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:li-submit==0.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:petstore-dummy-client==1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:godlike==1.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:szn-sdn-filtrilon-taskaro==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:impi-rt==2021.18.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:final-test-07==0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:JO-AutoMl-Sathishmahi==0.0.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:tvsd==1.4.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:mnlscript==0.2.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:wagtailutils==0.0.34",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:geou-demo==0.0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:punsctl==0.2.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:knv-cli==0.8",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:genai-util-bin==0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:rafafun==1.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:near-pytest==1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:python3-openid==3.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:qaradar==0.3.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:cpilot==0.1.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:intura-ai==0.0.7.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:HMongo==0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:codetamper==2.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:traduisons==0.6.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:gpt-client-lite==1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
+  },
+  {
+   "target": "pypi:pytest-unordered==0.7.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "random-2026-11"
   }
  ]
 }
