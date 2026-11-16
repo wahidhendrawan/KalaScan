@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///usr/bin/../share/nmap/nmap.xsl" type="text/xsl"?>
+<nmaprun scanner="nmap" args="nmap -sS -A -oX - 192.168.1.1" start="1672531200" startstr="Sun Jan  1 00:00:00 2023" version="7.91" xmloutputversion="1.05">
+<host starttime="1672531201" endtime="1672531205"><status state="up" reason="conn-refused" reason_ttl="0"/>
+<address addr="192.168.1.1" addrtype="ipv4"/>
+<hostnames>
+<hostname name="test.vulnboard.com" type="user-specified"/>
+</hostnames>
+<ports>
+<port protocol="tcp" portid="22"><state state="open" reason="syn-ack" reason_ttl="0"/><service name="ssh" product="OpenSSH" version="8.2p1 Ubuntu 4ubuntu0.5" ostype="Linux" method="probed" conf="10"></service></port>
+<port protocol="tcp" portid="80"><state state="open" reason="syn-ack" reason_ttl="0"/><service name="http" product="nginx" version="1.18.0 (Ubuntu)" method="probed" conf="10"></service></port>
+<port protocol="tcp" portid="443"><state state="closed" reason="conn-refused" reason_ttl="0"/><service name="https" method="table-lookup" conf="3"></service></port>
+</ports>
+</host>
+</nmaprun>

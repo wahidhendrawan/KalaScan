@@ -12,6 +12,11 @@ against a previous run.
   python3 eval/run_eval.py ... --compare eval-results.json   # after a change
 
 Gate a change with --min-recall / --max-fpr (exit 1 when violated).
+
+--scanner guarddog runs DataDog's GuardDog (Docker image) on the same
+samples, for a like-for-like comparison:
+
+  python3 eval/run_eval.py --scanner guarddog --dataset ~/kalascan-corpus
 """
 
 import argparse
@@ -50,6 +55,42 @@ def ecosystem(sample):
     return "ide_extensions"
 
 
+def guarddog(sample, target, args):
+    """GuardDog on one sample. It reports rule hits, not a score, so two
+    readings are kept apart: risk 100 when a `threat-*` or metadata rule
+    fires, risk 40 when only `capability-*` rules do (what the code can do,
+    not that it is malicious). Threshold 50 is the first reading, threshold
+    30 is "any issue", which is what --exit-non-zero-on-finding gates on."""
+    eco = {"ide_extensions": "extension"}.get(ecosystem(sample), ecosystem(sample))
+    cmd = ["docker", "run", "--rm"]
+    if os.path.exists(target):
+        inside = "/sample" + (os.path.splitext(target)[1] if os.path.isfile(target) else "")
+        cmd += ["-v", f"{os.path.abspath(target)}:{inside}:ro"]
+        spec = [inside]
+    else:
+        # Registry targets: npm:name[@version], pypi:name[==version], publisher.extension
+        name, version = target.split(":", 1)[-1], None
+        if eco == "npm" and "@" in name[1:]:
+            name, version = name.rsplit("@", 1)
+        elif eco == "pypi" and "==" in name:
+            name, version = name.split("==", 1)
+        spec = [name] + (["--version", version] if version else [])
+    # --no-sandbox: GuardDog's own kernel sandbox is unavailable inside the container.
+    cmd += [args.guarddog_image, eco, "scan", *spec, "--no-sandbox", "--output-format", "json"]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=args.timeout)
+    except subprocess.TimeoutExpired:
+        return {"error": "timeout"}
+    report = [line for line in proc.stdout.splitlines() if line.startswith("{")]
+    if not report:
+        return {"error": (proc.stderr.strip().splitlines() or ["no output"])[-1][:200]}
+    result = json.loads(report[-1])
+    hits = sorted(rule for rule, found in (result.get("results") or {}).items() if found)
+    threats = [rule for rule in hits if not rule.startswith("capability-")]
+    risk = 100 if threats else 40 if hits else 0
+    return {"risk": risk, "strong": (threats + hits)[:12]}
+
+
 def scan(sample, args):
     started = time.time()
     with tempfile.TemporaryDirectory(prefix="kalascan-eval-") as tmp:
@@ -66,6 +107,10 @@ def scan(sample, args):
                 target = package_root(os.path.join(tmp, "x"))
             else:
                 target = path
+        if args.scanner == "guarddog":
+            found = guarddog(sample, target, args)
+            found.setdefault("seconds", round(time.time() - started, 1))
+            return found
         out = os.path.join(tmp, "result.json")
         # --untrusted: extracted samples are someone else's code, not a checkout.
         cmd = [args.kalascan, "scan", target, "--untrusted", "--format", "json", "--output", out, *args.flag]
@@ -95,6 +140,8 @@ def main():
     ap.add_argument("--corpus", default=os.path.join(os.path.dirname(__file__), "corpus.json"))
     ap.add_argument("--dataset", help="checkout of the DataDog dataset (for malicious samples)")
     ap.add_argument("--kalascan", default="target/release/kalascan")
+    ap.add_argument("--scanner", choices=("kalascan", "guarddog"), default="kalascan", help="tool to measure")
+    ap.add_argument("--guarddog-image", default="ghcr.io/datadog/guarddog:latest")
     ap.add_argument("--only", choices=("clean", "malicious"))
     ap.add_argument("--flag", action="append", default=[], help="extra scan flag, repeatable (e.g. --flag=--deobfuscate)")
     ap.add_argument("--jobs", type=int, default=4)

@@ -1,12 +1,12 @@
 # Architecture
 
-KalaScan is one Rust binary (`src/main.rs`) that runs as a CLI scanner, a GitHub Action and an Axum web server, with the same scan pipeline behind all three. This page maps the modules, walks through a scan, and documents the risk score exactly as `calculate_risk_score` in `src/main.rs` computes it.
+KalaScan is one Rust binary (`src/main.rs`, a thin entry point over the library in `src/lib.rs`) that runs as a CLI scanner, a GitHub Action and an Axum web server, with the same scan pipeline behind all three. This page maps the modules, walks through a scan, and documents the risk score exactly as `calculate_risk_score` in `src/lib.rs` computes it.
 
 ## Module map (`src/`)
 
 | Area | Module | Role |
 |---|---|---|
-| Entry points | `main.rs` | Scan orchestrator (`execute_scan_in`), CLI dispatch, `calculate_risk_score` |
+| Entry points | `lib.rs` | Scan orchestrator (`execute_scan_in`), CLI dispatch, `calculate_risk_score`; `main.rs` only calls `kalascan::run()` |
 | | `server.rs` | Axum routes, auth and security-header middleware, scan queue, upload endpoint |
 | | `commands.rs` | The CLI subcommands (`scan`, `user`, `sbom`, `import`, `deps`, `installed`, `diff`, `rules`) and the text formatter |
 | | `cli.rs` | clap definitions: `serve`, `scan`, `user`, `rules`, `sbom`, `installed`, `deps`, `diff`, `import` |
@@ -58,7 +58,7 @@ Rules are data: `rules/builtin.toml` (89 regex rules), `rules/secrets.toml` (208
 
 ## Risk model
 
-`calculate_risk_score` (`src/main.rs`) turns the finding list into a 0-100 score:
+`calculate_risk_score` (`src/lib.rs`) turns the finding list into a 0-100 score:
 
 1. **Dedup.** Each `(file, rule name)` pair counts once; a regex firing 40 times in a minified bundle is one finding. History hits (`<commit>:<path>`) count as the file they belong to.
 2. **Buckets.** `Known Vulnerability:` findings go to a CVE counter. A behaviour chain, an invisible-character or look-alike publisher listing, a repackaged popular extension, an AI-vendor repository spoof, npm manifest confusion or a URLhaus hit counts as **two** criticals (they have no benign reading). Everything else is counted by its severity.

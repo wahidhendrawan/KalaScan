@@ -8,6 +8,10 @@ license = "GPL-3.0-only"
 repository = "https://github.com/wahidhendrawan/KalaScan"
 rust-version = "1.95"
 
+[lib]
+# Doc comments hold TOML and shell examples, not Rust to compile.
+doctest = false
+
 [dependencies]
 axum = { version = "0.8", features = ["multipart"] }
 tokio = { version = "1", features = ["full"] }

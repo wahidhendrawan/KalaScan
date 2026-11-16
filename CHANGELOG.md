@@ -7,6 +7,16 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+### Added
+- Sandbox: a simulated network inside the isolated container. Names resolve to a loopback stand-in that answers DNS and accepts HTTP and TLS, so the report shows the hosts, request lines and TLS server names a sample asked for, and each host becomes a `sandbox-host` indicator. The container still has no network.
+- Sandbox: `--sandbox-runtime <NAME>` / `KALASCAN_SANDBOX_RUNTIME` runs the container under another OCI runtime, for example gVisor's `runsc`.
+- Fuzz targets (`fuzz/`, cargo-fuzz) for the report importers, lockfile parsers, archive extraction, rule files, text analyzers, binary triage and emulation, the deobfuscator and the strace parser, with a weekly Fuzz workflow.
+- `eval/run_eval.py --scanner guarddog` measures GuardDog on the same corpus.
+- Evaluation corpus: 120 fresh malicious samples (2026 npm and PyPI packages, extensions) join the holdout split. The published detection rate is now the holdout figure, 82 of 147 (56%); the earlier 26 of 27 came from too few samples.
+
+### Changed
+- The crate is a library (`src/lib.rs`) with a thin binary (`src/main.rs`), so the fuzz targets can call the parsers. No behaviour change.
+
 ### Changed
 - ATT&CK mapping follows Enterprise ATT&CK v20.1: findings formerly under the Defense Evasion tactic are reported under Stealth or Defense Impairment, `T1562` / `T1562.001` / `T1562.006` became `T1685` (Disable or Modify Tools), `T1070.001` / `T1070.002` became `T1685.005` / `T1685.006`, and `T1036.005` and `T1176` carry their current names. Reports and SARIF exported by earlier versions keep the old ids.
 

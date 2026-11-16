@@ -17,6 +17,12 @@ const MAX_PROCESSES: usize = 20;
 const MAX_NETWORK: usize = 20;
 const MAX_FILES: usize = 30;
 const MAX_INDICATORS: usize = 20;
+/// The loopback stand-in for the internet (sandbox/fakenet.py). Handed to
+/// the container as an argument, so any image with python3 works.
+const FAKENET: &str = include_str!("../sandbox/fakenet.py");
+/// Separates the contact log from the strace output on stdout. The log
+/// comes first: a huge trace is cut at MAX_TRACE_BYTES, the contacts are not.
+const TRACE_MARK: &str = "=== kalascan-trace ===\n";
 
 /// Path segments, not words: `token` matched Python's own `tokenize.py` on
 /// every import, and libc reads /etc/passwd for getpwuid().
@@ -77,6 +83,9 @@ pub struct SandboxConfig {
     pub image: String,
     pub timeout: Duration,
     pub max_samples: usize,
+    /// OCI runtime for `docker run --runtime` (gVisor's `runsc`, Kata).
+    /// None: Docker's default, which shares the host kernel.
+    pub runtime: Option<String>,
 }
 
 impl Default for SandboxConfig {
@@ -85,6 +94,7 @@ impl Default for SandboxConfig {
             image: DEFAULT_IMAGE.to_string(),
             timeout: Duration::from_secs(20),
             max_samples: MAX_SAMPLES,
+            runtime: None,
         }
     }
 }
@@ -118,7 +128,7 @@ pub struct SandboxExecution {
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
-struct StraceAnalysis {
+pub struct StraceAnalysis {
     syscalls: usize,
     processes: Vec<String>,
     network_attempts: Vec<String>,
@@ -228,6 +238,26 @@ pub async fn analyze_triage(
     report
 }
 
+/// Host names the fake network saw, with the execution that asked for
+/// them: a server name assembled at runtime never shows up in the source.
+pub fn contacted_hosts(report: &SandboxReport) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    for execution in &report.executions {
+        for attempt in &execution.network_attempts {
+            let mut words = attempt.split(' ');
+            let host = match words.next() {
+                Some("dns" | "tls") => words.next(),
+                Some("http") => words.nth(1),
+                _ => None,
+            };
+            if let Some(host) = host.filter(|h| !out.iter().any(|(seen, _)| seen == h)) {
+                out.push((host.to_string(), execution.file_path.clone()));
+            }
+        }
+    }
+    out
+}
+
 pub fn risk_contribution(report: &SandboxReport) -> u8 {
     if !report.available {
         return 0;
@@ -335,19 +365,22 @@ pub async fn trace_install(
          for f in {bait}; do mkdir -p \"$(dirname \"$f\")\"; echo kalascan-bait > \"$f\"; done; \
          printf '%s' \"$1\" > /tmp/steps.sh; \
          cp -r /pkg /tmp/pkg 2>/dev/null; cd /tmp/pkg || exit 1; \
+         {fakenet} \
          timeout 50 strace -f -qq -y -e trace=process,file,network -s 200 -o /tmp/trace sh /tmp/steps.sh >/dev/null 2>&1; \
-         code=$?; cat /tmp/trace 2>/dev/null; exit $code",
+         code=$?; {report}; exit $code",
         home = SANDBOX_HOME,
-        bait = bait.join(" ")
+        bait = bait.join(" "),
+        fakenet = start_fakenet("$2"),
+        report = PRINT_REPORT,
     );
     let name = format!("kalascan-install-{}", uuid::Uuid::new_v4());
     let args = docker_run_args(
         &name,
         &INSTALL_LIMITS,
         &format!("{}:/pkg:ro", root.display()),
-        &config.image,
+        config,
         &script,
-        &["install-trace", &steps],
+        &["install-trace", &steps, FAKENET],
     );
     let (exit_code, duration_ms, text, analysis) =
         match run_docker(&args, &name, Duration::from_secs(90)).await {
@@ -439,23 +472,50 @@ const INSTALL_LIMITS: Limits = Limits {
     nofile: "nofile=256:256",
 };
 
+/// Shell that starts the fake network before the traced program. `arg` is
+/// the positional parameter holding fakenet.py. It runs outside strace, and
+/// an image without python3 simply goes on without it.
+fn start_fakenet(arg: &str) -> String {
+    format!(
+        "printf '%s' \"{arg}\" > /tmp/fakenet.py; \
+         python3 /tmp/fakenet.py /tmp/fakenet.log >/dev/null 2>&1 & \
+         for i in 1 2 3 4 5 6 7 8 9 10; do [ -e /tmp/fakenet.log.ready ] && break; sleep 0.1; done;"
+    )
+}
+
+/// Contacts first, then the trace (see TRACE_MARK).
+const PRINT_REPORT: &str =
+    "cat /tmp/fakenet.log 2>/dev/null; echo '=== kalascan-trace ==='; cat /tmp/trace 2>/dev/null";
+
 /// `docker run` with the isolation every sandbox run shares: no network,
-/// read-only root, no capabilities, `nobody`, one read-only mount.
+/// read-only root, no capabilities, `nobody`, one read-only mount. Names
+/// resolve to the container's own loopback, where the fake network listens
+/// (the sysctl lets `nobody` bind ports 53, 80 and 443 there).
 fn docker_run_args(
     name: &str,
     limits: &Limits,
     mount: &str,
-    image: &str,
+    config: &SandboxConfig,
     script: &str,
     script_args: &[&str],
 ) -> Vec<OsString> {
-    [
-        "run",
+    let runtime: Vec<&str> = config
+        .runtime
+        .as_deref()
+        .map(|r| vec!["--runtime", r])
+        .unwrap_or_default();
+    let mut args: Vec<&str> = vec!["run"];
+    args.extend(runtime);
+    args.extend([
         "--rm",
         "--name",
         name,
         "--network",
         "none",
+        "--dns",
+        "127.0.0.1",
+        "--sysctl",
+        "net.ipv4.ip_unprivileged_port_start=0",
         "--ipc",
         "none",
         "--read-only",
@@ -479,15 +539,22 @@ fn docker_run_args(
         limits.nofile,
         "-v",
         mount,
-        image,
+        &config.image,
         "sh",
         "-c",
         script,
-    ]
-    .into_iter()
-    .chain(script_args.iter().copied())
-    .map(OsString::from)
-    .collect()
+    ]);
+    args.extend(script_args.iter().copied());
+    args.into_iter().map(OsString::from).collect()
+}
+
+/// One line of the fake network's log as a network attempt: `dns <name>`,
+/// `http <method> <host> <path>`, `tls <name>`, `tcp <port>`. Anything else
+/// in that section is not ours and is dropped.
+fn fakenet_contact(line: &str) -> Option<String> {
+    let (kind, rest) = line.trim().split_once(' ')?;
+    matches!(kind, "DNS" | "HTTP" | "TLS" | "TCP")
+        .then(|| truncate(&format!("{} {}", kind.to_ascii_lowercase(), rest), 240))
 }
 
 /// Run `docker` and parse the strace output it prints: exit code, duration,
@@ -528,7 +595,21 @@ async fn run_docker(
     // multi-byte char.
     let trace = &output.stdout[..output.stdout.len().min(MAX_TRACE_BYTES)];
     let text = String::from_utf8_lossy(trace).into_owned();
-    let analysis = parse_strace(&text);
+    let (contacts, text) = match text.split_once(TRACE_MARK) {
+        Some((contacts, trace)) => (contacts.to_string(), trace.to_string()),
+        None => (String::new(), text),
+    };
+    let mut analysis = parse_strace(&text);
+    // What the sample asked the fake network for goes first: a name it
+    // resolved says more than the connect() to 127.0.0.1 that followed.
+    let mut attempts: Vec<String> = Vec::new();
+    for contact in contacts.lines().filter_map(fakenet_contact) {
+        push_unique(&mut attempts, contact, MAX_NETWORK);
+    }
+    for attempt in std::mem::take(&mut analysis.network_attempts) {
+        push_unique(&mut attempts, attempt, MAX_NETWORK);
+    }
+    analysis.network_attempts = attempts;
     if analysis.syscalls == 0 && !output.status.success() {
         let detail = String::from_utf8_lossy(&output.stderr);
         let detail = detail.trim();
@@ -576,23 +657,26 @@ async fn run_sample(
     // The sample's own output goes nowhere: stdout carries only the trace.
     // Mixed in, a sample could print fake `connect(...)` lines that parsed as
     // syscalls, or 2 MB of padding that pushed the real trace past the cap.
-    let script = concat!(
-        "set -eu; ",
-        "cp /sample /tmp/sample; ",
-        "chmod 700 /tmp/sample; ",
-        "set +e; ",
-        "timeout 10 strace -f -qq -e trace=process,file,network,memory -s 200 -o /tmp/trace /tmp/sample >/dev/null 2>&1; ",
-        "code=$?; ",
-        "cat /tmp/trace 2>/dev/null || true; ",
-        "exit $code"
+    let script = format!(
+        "set -eu; \
+         cp /sample /tmp/sample; \
+         chmod 700 /tmp/sample; \
+         set +e; \
+         {fakenet} \
+         timeout 10 strace -f -qq -e trace=process,file,network,memory -s 200 -o /tmp/trace /tmp/sample >/dev/null 2>&1; \
+         code=$?; \
+         {report}; \
+         exit $code",
+        fakenet = start_fakenet("$1"),
+        report = PRINT_REPORT,
     );
     let args = docker_run_args(
         &name,
         &SAMPLE_LIMITS,
         &format!("{}:/sample:ro", absolute.display()),
-        &config.image,
-        script,
-        &[],
+        config,
+        &script,
+        &["sample", FAKENET],
     );
     let (exit_code, duration_ms, _, analysis) = run_docker(&args, &name, config.timeout).await?;
     Ok(build_execution(
@@ -733,7 +817,7 @@ fn build_execution(
     }
 }
 
-fn parse_strace(text: &str) -> StraceAnalysis {
+pub fn parse_strace(text: &str) -> StraceAnalysis {
     let mut analysis = StraceAnalysis::default();
     let mut seen_files = HashSet::new();
 
@@ -1065,6 +1149,97 @@ strace: Process 1234 attached
         assert!(architecture_matches(Some("x86_64"), "x86_64"));
         assert!(!architecture_matches(Some("x86"), "x86_64"));
         assert!(!architecture_matches(None, "x86_64"));
+    }
+
+    #[test]
+    fn docker_args_keep_isolation_and_take_a_runtime() {
+        let config = SandboxConfig {
+            runtime: Some("runsc".to_string()),
+            ..Default::default()
+        };
+        let args: Vec<String> =
+            docker_run_args("n", &SAMPLE_LIMITS, "/s:/sample:ro", &config, "true", &[])
+                .into_iter()
+                .map(|a| a.to_string_lossy().into_owned())
+                .collect();
+        let has = |pair: [&str; 2]| args.windows(2).any(|w| w == pair);
+        assert!(has(["--runtime", "runsc"]), "{:?}", args);
+        // The fake network must not cost any isolation.
+        for pair in [
+            ["--network", "none"],
+            ["--cap-drop", "ALL"],
+            ["--security-opt", "no-new-privileges"],
+            ["--user", "65534:65534"],
+            ["--dns", "127.0.0.1"],
+        ] {
+            assert!(has(pair), "{:?} missing in {:?}", pair, args);
+        }
+        assert!(args.contains(&"--read-only".to_string()));
+        let default_args = docker_run_args(
+            "n",
+            &SAMPLE_LIMITS,
+            "/s:/sample:ro",
+            &SandboxConfig::default(),
+            "true",
+            &[],
+        );
+        assert!(!default_args.iter().any(|a| a == "--runtime"));
+    }
+
+    #[test]
+    fn fakenet_log_lines_become_network_attempts() {
+        assert_eq!(
+            fakenet_contact("HTTP POST c2.example.net /gate.php"),
+            Some("http POST c2.example.net /gate.php".to_string())
+        );
+        assert_eq!(
+            fakenet_contact("DNS c2.example.net"),
+            Some("dns c2.example.net".to_string())
+        );
+        assert_eq!(
+            fakenet_contact("TLS api.example.org"),
+            Some("tls api.example.org".to_string())
+        );
+        // Not a line the fake network writes.
+        assert_eq!(
+            fakenet_contact("connect(3, {sa_family=AF_INET}, 16) = 0"),
+            None
+        );
+        assert_eq!(fakenet_contact(""), None);
+    }
+
+    #[test]
+    fn contacted_hosts_come_from_fakenet_lines_only() {
+        let execution = SandboxExecution {
+            file_path: "npm install: postinstall".into(),
+            file_type: INSTALL_HOOKS.into(),
+            architecture: "aarch64".into(),
+            exit_code: Some(0),
+            timed_out: false,
+            duration_ms: 1,
+            syscalls: 1,
+            processes: vec![],
+            network_attempts: vec![
+                "dns c2.example.net".into(),
+                "http POST c2.example.net /gate".into(),
+                "tls api.example.org".into(),
+                "tcp 8080".into(),
+                "connect(3, {sa_family=AF_INET, sin_port=htons(53)}, 16) = 0".into(),
+            ],
+            file_accesses: vec![],
+            indicators: vec![],
+            attack: vec![],
+            trace_excerpt: vec![],
+        };
+        let report = SandboxReport {
+            executions: vec![execution],
+            ..Default::default()
+        };
+        let hosts: Vec<String> = contacted_hosts(&report)
+            .into_iter()
+            .map(|(h, _)| h)
+            .collect();
+        assert_eq!(hosts, vec!["c2.example.net", "api.example.org"]);
     }
 
     #[test]

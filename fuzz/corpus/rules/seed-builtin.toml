@@ -1,0 +1,9 @@
+[[rule]]
+id = "ORG-001"
+name = "Internal Upload Host"
+severity = "high"
+category = "custom"
+description = "Upload to a host outside the company"
+pattern = '''https?://paste\.example\.net/'''
+matches = ['''fetch("https://paste.example.net/up")''']
+ignores = ['''fetch("https://example.org/")''']

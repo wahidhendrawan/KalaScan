@@ -1,0 +1,7 @@
+target/
+artifacts/
+coverage/
+Cargo.lock
+# Seeds are committed; inputs the fuzzer discovers are not.
+corpus/*/*
+!corpus/*/seed-*

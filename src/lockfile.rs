@@ -31,35 +31,42 @@ impl Locked {
     }
 }
 
+/// The lockfiles `read` looks for.
+pub const LOCKFILES: [&str; 8] = [
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "poetry.lock",
+    "Pipfile.lock",
+    "uv.lock",
+    "requirements.txt",
+    "Cargo.lock",
+];
+
+/// The packages one lockfile pins, by its file name. Unknown names and
+/// unparsable text yield nothing.
+pub fn parse(file_name: &str, text: &str) -> Vec<Locked> {
+    match file_name {
+        "package-lock.json" => package_lock(text),
+        "yarn.lock" => yarn_lock(text),
+        "pnpm-lock.yaml" => pnpm_lock(text),
+        "poetry.lock" => poetry_lock(text),
+        "Pipfile.lock" => pipfile_lock(text),
+        "uv.lock" => registry_toml_lock(text, "pypi", "uv.lock"),
+        "requirements.txt" => requirements(text),
+        "Cargo.lock" => registry_toml_lock(text, "crates", "Cargo.lock"),
+        _ => Vec::new(),
+    }
+}
+
 /// Every locked package under `root`, deduplicated. Names that are not valid
 /// registry names (the lockfile is someone else's input) are dropped.
 pub fn read(root: &Path, include_dev: bool) -> Vec<Locked> {
-    let mut found: Vec<Locked> = Vec::new();
-    let text = |f: &str| std::fs::read_to_string(root.join(f)).ok();
-    if let Some(t) = text("package-lock.json") {
-        found.extend(package_lock(&t));
-    }
-    if let Some(t) = text("yarn.lock") {
-        found.extend(yarn_lock(&t));
-    }
-    if let Some(t) = text("pnpm-lock.yaml") {
-        found.extend(pnpm_lock(&t));
-    }
-    if let Some(t) = text("poetry.lock") {
-        found.extend(poetry_lock(&t));
-    }
-    if let Some(t) = text("Pipfile.lock") {
-        found.extend(pipfile_lock(&t));
-    }
-    if let Some(t) = text("uv.lock") {
-        found.extend(registry_toml_lock(&t, "pypi", "uv.lock"));
-    }
-    if let Some(t) = text("requirements.txt") {
-        found.extend(requirements(&t));
-    }
-    if let Some(t) = text("Cargo.lock") {
-        found.extend(registry_toml_lock(&t, "crates", "Cargo.lock"));
-    }
+    let found: Vec<Locked> = LOCKFILES
+        .iter()
+        .filter_map(|name| Some(parse(name, &std::fs::read_to_string(root.join(name)).ok()?)))
+        .flatten()
+        .collect();
     let mut seen = BTreeSet::new();
     found
         .into_iter()

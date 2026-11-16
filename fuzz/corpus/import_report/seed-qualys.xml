@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE SCAN SYSTEM "https://qualysapi.qualys.com/scan-1.dtd">
+<SCAN value="scan/1704067200.12345">
+<HEADER>
+<KEY value="USERNAME">demo</KEY>
+<KEY value="TITLE"><![CDATA[Quarterly external scan]]></KEY>
+</HEADER>
+<IP value="198.51.100.20" name="web01.example.com">
+<OS><![CDATA[Linux 5.x]]></OS>
+<VULNS>
+<CAT value="Web server" port="443" protocol="tcp" fqdn="">
+<VULN number="150262" severity="5">
+<TITLE><![CDATA[Apache HTTP Server Path Traversal]]></TITLE>
+<LAST_UPDATE><![CDATA[2023-11-01T00:00:00Z]]></LAST_UPDATE>
+<CVSS_BASE>7.5</CVSS_BASE>
+<CVSS3_BASE>9.8</CVSS3_BASE>
+<PCI_FLAG>1</PCI_FLAG>
+<CVE_ID_LIST>
+<CVE_ID>
+<ID><![CDATA[CVE-2021-41773]]></ID>
+<URL><![CDATA[http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-41773]]></URL>
+</CVE_ID>
+<CVE_ID>
+<ID><![CDATA[CVE-2021-42013]]></ID>
+<URL><![CDATA[http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-42013]]></URL>
+</CVE_ID>
+</CVE_ID_LIST>
+<BUGTRAQ_ID_LIST>
+<BUGTRAQ_ID>
+<ID><![CDATA[104570]]></ID>
+</BUGTRAQ_ID>
+</BUGTRAQ_ID_LIST>
+<DIAGNOSIS><![CDATA[Apache HTTP Server 2.4.49 maps URLs to files outside the document root.]]></DIAGNOSIS>
+<CONSEQUENCE><![CDATA[Remote attackers can read arbitrary files.]]></CONSEQUENCE>
+<SOLUTION><![CDATA[Upgrade to Apache HTTP Server 2.4.51 or later.]]></SOLUTION>
+<RESULT><![CDATA[Server: Apache/2.4.49 (Unix)]]></RESULT>
+</VULN>
+</CAT>
+</VULNS>
+<PRACTICES>
+<CAT value="General remote services" port="22" protocol="tcp">
+<PRACTICE number="38739" severity="3">
+<TITLE><![CDATA[Deprecated SSH Cryptographic Settings]]></TITLE>
+<CVSS_BASE>4.3</CVSS_BASE>
+<DIAGNOSIS><![CDATA[The SSH server supports deprecated algorithms.]]></DIAGNOSIS>
+<SOLUTION><![CDATA[Disable CBC ciphers and SHA1 MACs.]]></SOLUTION>
+<RESULT><![CDATA[Type Name
+cipher aes128-cbc]]></RESULT>
+</PRACTICE>
+</CAT>
+</PRACTICES>
+<INFOS>
+<CAT value="Information gathering">
+<INFO number="6" severity="1">
+<TITLE><![CDATA[DNS Host Name]]></TITLE>
+<DIAGNOSIS><![CDATA[The fully qualified domain name of this host.]]></DIAGNOSIS>
+<RESULT><![CDATA[web01.example.com]]></RESULT>
+</INFO>
+</CAT>
+</INFOS>
+</IP>
+</SCAN>

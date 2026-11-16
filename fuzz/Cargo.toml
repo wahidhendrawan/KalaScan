@@ -1,0 +1,82 @@
+# cargo-fuzz targets for the parsers of untrusted input. Not part of the
+# main build:
+#   cargo install cargo-fuzz
+#   cp Cargo.lock fuzz/Cargo.lock      # same dependency versions as the release
+#   cargo +nightly fuzz run import_report -- -max_total_time=60
+# On macOS add `-s none` after `run`: with AddressSanitizer the link fails
+# on yara-x's initializers. Linux (and the Fuzz workflow) runs with it.
+[package]
+name = "kalascan-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+kalascan = { path = ".." }
+tempfile = "3"
+tokio = { version = "1", features = ["rt"] }
+
+# Own workspace: the main build and its CI stay untouched. fuzz/Cargo.lock
+# is not committed; copy the root one first so the fuzzed code is the code
+# that ships (a fresh resolve picks newer, unvetted versions).
+[workspace]
+
+[[bin]]
+name = "import_report"
+path = "fuzz_targets/import_report.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "lockfile"
+path = "fuzz_targets/lockfile.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "archive"
+path = "fuzz_targets/archive.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "rules"
+path = "fuzz_targets/rules.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "text_analyzers"
+path = "fuzz_targets/text_analyzers.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "binary"
+path = "fuzz_targets/binary.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "deobfuscate"
+path = "fuzz_targets/deobfuscate.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "strace"
+path = "fuzz_targets/strace.rs"
+test = false
+doc = false
+bench = false

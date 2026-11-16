@@ -11,6 +11,7 @@ RUN apt-get update -qq && \
 COPY Cargo.toml Cargo.lock ./
 RUN mkdir -p src templates && \
     echo 'fn main() {}' > src/main.rs && \
+    echo '' > src/lib.rs && \
     echo '' > src/scanner.rs && \
     echo '' > src/ai_analyzer.rs && \
     cargo build --release --locked && \
@@ -20,11 +21,12 @@ COPY src/ src/
 COPY templates/ templates/
 COPY static/ static/
 COPY rules/ rules/
-# openapi.yaml, templates, app.css and rules/builtin.toml are embedded with
-# include_str!, so they must exist before compiling.
+COPY sandbox/fakenet.py sandbox/
+# openapi.yaml, templates, app.css, rules/builtin.toml and sandbox/fakenet.py
+# are embedded with include_str!, so they must exist before compiling.
 COPY openapi.yaml ./
 
-RUN touch src/main.rs src/scanner.rs src/ai_analyzer.rs && \
+RUN touch src/main.rs src/lib.rs src/scanner.rs src/ai_analyzer.rs && \
     cargo build --release --locked
 
 # ---- Stage 2: Runtime ----
