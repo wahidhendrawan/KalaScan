@@ -21,8 +21,9 @@ COPY src/ src/
 COPY templates/ templates/
 COPY static/ static/
 COPY rules/ rules/
-# openapi.yaml, templates, app.css and rules/builtin.toml are embedded with
-# include_str!, so they must exist before compiling.
+COPY sandbox/fakenet.py sandbox/
+# openapi.yaml, templates, app.css, rules/builtin.toml and sandbox/fakenet.py
+# are embedded with include_str!, so they must exist before compiling.
 COPY openapi.yaml ./
 
 RUN touch src/main.rs src/lib.rs src/scanner.rs src/ai_analyzer.rs && \
