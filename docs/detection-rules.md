@@ -84,4 +84,4 @@ Same format; `matches` / `ignores` are checked on load. `--rules` is CLI-only: t
 
 ## Findings that are not rules
 
-Entropy and Unicode checks (`src/entropy.rs`), behaviour chains (`src/correlate.rs`), zip-slip taint tracking, GitHub Actions workflow checks, registry and reputation checks, OSV advisories, IOC lookups and the deep passes produce findings with fixed names (`Oversized File (partially scanned)`, `Scanner Error (file not analysed)`, `Malicious Package`, chain names, ...). They have no `KS-` id and are not listed by `kalascan rules`; their weights are in the risk model.
+Entropy and Unicode checks (`src/entropy.rs`), behaviour chains (`src/correlate.rs`), zip-slip taint tracking, GitHub Actions workflow checks, AI agent file checks (`src/agent.rs`), registry and reputation checks, OSV advisories, IOC lookups and the deep passes produce findings with fixed names (`Oversized File (partially scanned)`, `Scanner Error (file not analysed)`, `Malicious Package`, chain names, ...). They have no `KS-` id and are not listed by `kalascan rules`; their weights are in the risk model.

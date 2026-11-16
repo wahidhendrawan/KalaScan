@@ -82,7 +82,7 @@ pub fn is_confusable_homoglyph(c: char) -> bool {
 /// A bidi control that can reorder what a reviewer sees. As a range endpoint
 /// in a regex class (`[\u{2027}\u{202A}-\u{D7FF}]`, Continue's bundle) it
 /// is just a Unicode table.
-fn has_trojan_bidi(line: &str) -> bool {
+pub(crate) fn has_trojan_bidi(line: &str) -> bool {
     let chars: Vec<char> = line.chars().collect();
     chars.iter().enumerate().any(|(i, &c)| {
         is_bidi_trojan_char(c)
@@ -95,7 +95,7 @@ fn has_trojan_bidi(line: &str) -> bool {
 /// A zero-width char with ASCII word chars on both sides hides inside a token
 /// (`pass​word`). ZWJ in emoji, ZWNJ in Persian/Indic text and codepage
 /// tables in iconv bundles are ordinary text.
-fn has_hidden_zero_width(line: &str) -> bool {
+pub(crate) fn has_hidden_zero_width(line: &str) -> bool {
     let chars: Vec<char> = line.chars().collect();
     let is_word = |c: Option<&char>| c.is_some_and(|c| c.is_ascii_alphanumeric() || *c == '_');
     chars.iter().enumerate().any(|(i, &c)| {

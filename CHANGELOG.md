@@ -8,6 +8,8 @@ published on GitHub; their features are listed with version markers in `README.m
 ## [Unreleased]
 
 ### Added
+- AI agent files and MCP servers: `SKILL.md`, `CLAUDE.md`, `AGENTS.md`, Cursor and Copilot rule files, MCP configs and Claude Code settings and hooks are scanned for hidden text (Unicode tags, zero-width and bidi characters, directives in HTML comments), instructions to hide actions from the user or override earlier instructions, and the builtin download, exfiltration and credential rules. MCP server code gets the same instruction checks on its tool descriptions. New chains: `Chain: Malicious Agent Instruction` and `Chain: Agent Config Runs Remote Code`.
+- `kalascan installed` also lists Claude Code plugins (`~/.claude/plugins/cache`) and skills (`~/.claude/skills`).
 - Sandbox: a simulated network inside the isolated container. Names resolve to a loopback stand-in that answers DNS and accepts HTTP and TLS, so the report shows the hosts, request lines and TLS server names a sample asked for, and each host becomes a `sandbox-host` indicator. The container still has no network.
 - Sandbox: `--sandbox-runtime <NAME>` / `KALASCAN_SANDBOX_RUNTIME` runs the container under another OCI runtime, for example gVisor's `runsc`.
 - Fuzz targets (`fuzz/`, cargo-fuzz) for the report importers, lockfile parsers, archive extraction, rule files, text analyzers, binary triage and emulation, the deobfuscator and the strace parser, with a weekly Fuzz workflow.

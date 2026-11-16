@@ -69,6 +69,42 @@ pub fn discover(home: &Path) -> Vec<Installed> {
             }
         }
     }
+    // Claude Code: `plugins/cache/<marketplace>/<plugin>/<version>/`, and
+    // skills as `skills/<name>/SKILL.md`. Every cached version is listed: an
+    // older one is a `/plugin` switch away from running. shortcut: MCP
+    // configs (~/.cursor/mcp.json, Claude Desktop) are files, not folders, so
+    // not listed here; scan their folder instead.
+    for marketplace in subdirs(&home.join(".claude/plugins/cache")) {
+        for plugin in subdirs(&marketplace) {
+            for version in subdirs(&plugin) {
+                found.push(Installed {
+                    app: "Claude Code",
+                    name: format!(
+                        "{}@{} ({})",
+                        plugin.file_name().unwrap_or_default().to_string_lossy(),
+                        version.file_name().unwrap_or_default().to_string_lossy(),
+                        marketplace
+                            .file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                    ),
+                    path: version,
+                });
+            }
+        }
+    }
+    for skill in subdirs(&home.join(".claude/skills")) {
+        if skill.join("SKILL.md").is_file() {
+            found.push(Installed {
+                app: "Claude Code",
+                name: format!(
+                    "skill {}",
+                    skill.file_name().unwrap_or_default().to_string_lossy()
+                ),
+                path: skill,
+            });
+        }
+    }
     for (app, root) in browser_roots(home) {
         for profile in subdirs(&root) {
             for ext in subdirs(&profile.join("Extensions")) {
@@ -119,5 +155,20 @@ mod tests {
         assert_eq!(found[1].app, "Chrome");
         assert_eq!(found[1].name, "abcdef (Default)");
         assert!(found[1].path.ends_with("1.2.0_0"));
+    }
+
+    #[test]
+    fn finds_claude_code_plugins_and_skills() {
+        let home = tempfile::tempdir().unwrap();
+        let h = home.path();
+        std::fs::create_dir_all(h.join(".claude/plugins/cache/acme/linter/1.2.0/hooks")).unwrap();
+        let skill = h.join(".claude/skills/release-notes");
+        std::fs::create_dir_all(&skill).unwrap();
+        std::fs::write(skill.join("SKILL.md"), "# Release notes").unwrap();
+        // Not a skill: no SKILL.md.
+        std::fs::create_dir_all(h.join(".claude/skills/scratch")).unwrap();
+
+        let names: Vec<String> = discover(h).into_iter().map(|e| e.name).collect();
+        assert_eq!(names, ["linter@1.2.0 (acme)", "skill release-notes"]);
     }
 }

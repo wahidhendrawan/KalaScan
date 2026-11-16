@@ -20,6 +20,7 @@ KalaScan is one Rust binary (`src/main.rs`, a thin entry point over the library 
 | | `correlate.rs` | Behaviour chains: proximity (4 KB) and per-package correlation of hard signals |
 | | `zipslip.rs` | Variable-level taint tracking from archive entry names to filesystem writes |
 | | `workflow.rs` | GitHub Actions checks: pwn request, script injection, unpinned actions |
+| | `agent.rs` | AI agent files and MCP server code: hidden text, steering phrases, tool poisoning, hooks that run downloaded code |
 | | `git_history.rs` | Runs the static pass over earlier revisions of every file (`--git-history`) |
 | Context and intel | `cve.rs` | Manifest / lockfile package extraction, OSV batch client (`--cve`), offline typo-squat and dependency-confusion checks |
 | | `reputation.rs` | Listing spoofing, look-alike publishers, repackaged popular extensions, marketplace statistics |

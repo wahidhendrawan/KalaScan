@@ -9,4 +9,6 @@ fuzz_target!(|data: &[u8]| {
     let _ = kalascan::zipslip::find(&text);
     let _ = kalascan::workflow::scan(".github/workflows/ci.yml", &text);
     let _ = kalascan::entropy::scan_advanced_obfuscation("index.js", &text);
+    let _ = kalascan::agent::scan("skills/x/SKILL.md", &text, &[]);
+    let _ = kalascan::agent::scan(".claude/settings.json", &text, &[]);
 });
