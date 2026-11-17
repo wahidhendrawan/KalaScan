@@ -34,7 +34,7 @@ pub enum Commands {
         #[arg(long)]
         config: Option<PathBuf>,
 
-        /// Output format: text, json, md, html, sarif, csv, junit, github [default: text]
+        /// Output format: text, json, md, html, sarif, csv, junit, github, stix, osv [default: text]
         #[arg(short, long)]
         format: Option<String>,
 

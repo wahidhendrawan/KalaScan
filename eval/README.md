@@ -48,7 +48,7 @@ The two new sets were drawn with `eval/sample_malicious.py` (seed 20261117, one 
 
 **The holdout number is still the one to quote.** Until November 2026 the holdout split held 27 malicious samples and scored 26/27 (96%). 120 fresh samples were then added with a fixed seed (40 npm and 40 PyPI packages first published to the dataset in 2026, 40 extensions, one version per package name), and none of them has been read. On those 120 alone KalaScan catches 56 (47%): the earlier figure was a small-sample artefact, and rules tuned on 2022-2025 samples generalise worse than it suggested.
 
-Holdout recall by ecosystem: IDE extensions 32/48 (67%), npm 29/51 (57%), PyPI 33/48 (69%). The highest score among the picked clean packages is 23, among the random ones 38 (`tavallio-agent`, below). The 161 picked clean npm/PyPI targets also go through the registry checks (manifest confusion, install script added, provenance dropped, lapsed maintainer email domain) without a finding. Before this work the dev split scored 1/60, and marketplace-id scans failed outright.
+Before the two new sets and the harness fix, holdout recall by ecosystem was IDE extensions 32/48 (67%), npm 29/51 (57%), PyPI 33/48 (69%); the current figures are above. The highest score among the picked clean packages is 23, among the random ones 38 (`tavallio-agent`, below). The 161 picked clean npm/PyPI targets also go through the registry checks (manifest confusion, install script added, provenance dropped, lapsed maintainer email domain) without a finding. Before this work the dev split scored 1/60, and marketplace-id scans failed outright.
 
 ### Tuning on fresh samples (November 2026)
 

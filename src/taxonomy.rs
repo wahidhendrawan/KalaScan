@@ -122,7 +122,7 @@ pub const VECTORS: &[Vector] = &[
         note: "Files are read whole, whatever a diff view shows." },
     Vector { id: "AV-309", name: "Hide in Generated/Compiled/Minified Code", coverage: Partial,
         evidence: &[scanner::OBFUSCATOR_IO, ENTROPY_BLOB, correlate::OBFUSCATED_EXEC, obfuscator::OBFUSCATED_DOWNLOAD_EXEC],
-        note: "Bundles and obfuscated scripts are scanned; compiled binaries only with `--triage`." },
+        note: "Bundles and obfuscated scripts are scanned; compiled binaries get metadata triage on every scan and capa / FLOSS only with `--deep-triage`." },
     Vector { id: "AV-302", name: "Contribute as Maintainer", coverage: Payload, evidence: &[], note: "" },
     Vector { id: "AV-303", name: "Tamper with Version Control System", coverage: Payload, evidence: &[],
         note: "`--git-history` scans earlier commits." },

@@ -178,6 +178,26 @@ pub struct ScanResult {
     pub score_breakdown: Option<score::ScoreBreakdown>,
 }
 
+/// Log writer: stderr, with CR and LF inside a record escaped. A repo URL,
+/// a scan id or git's stderr with a line break in it otherwise starts a
+/// second line that reads as a record of its own.
+struct OneLinePerRecord;
+
+impl std::io::Write for OneLinePerRecord {
+    // tracing-subscriber hands over each record whole, its newline last.
+    fn write(&mut self, record: &[u8]) -> std::io::Result<usize> {
+        let text = String::from_utf8_lossy(record);
+        let body = text.strip_suffix('\n').unwrap_or(&text);
+        let line = body.replace('\r', "\\r").replace('\n', "\\n") + "\n";
+        std::io::stderr().write_all(line.as_bytes())?;
+        Ok(record.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        std::io::stderr().flush()
+    }
+}
+
 /// The whole program: parse the command line and run the subcommand.
 pub async fn run() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
@@ -185,7 +205,7 @@ pub async fn run() -> anyhow::Result<()> {
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("kalascan=info")),
         )
-        .with_writer(std::io::stderr)
+        .with_writer(|| OneLinePerRecord)
         .init();
 
     // `kalascan … | head` closes stdout early and println! panics (exit 101
@@ -385,9 +405,46 @@ pub async fn run() -> anyhow::Result<()> {
     Ok(())
 }
 
+tokio::task_local! {
+    /// Set around a CLI scan (see `operator_scan`).
+    pub(crate) static OPERATOR_SCAN: ();
+}
+
+/// The CLI is the operator's own tool: its scans may use the host's git
+/// identity and an LLM on the local network. False for API and requeued
+/// scans, whose remote and LLM endpoint a caller chose.
+pub(crate) fn operator_scan() -> bool {
+    OPERATOR_SCAN.try_with(|_| ()).is_ok()
+}
+
+/// `git` for a remote. An API caller's remote gets none of the server
+/// user's credentials (helpers, ~/.netrc, ssh keys and agent, config
+/// headers) and no prompt: an operator-role user cloned a repository that
+/// only the server's stored token could read. `empty_home` stands in for
+/// HOME, where curl looks for .netrc.
+fn git_command(empty_home: &std::path::Path) -> tokio::process::Command {
+    let mut cmd = tokio::process::Command::new("git");
+    if !operator_scan() {
+        cmd.env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("HOME", empty_home)
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .env_remove("GIT_ASKPASS")
+            .env_remove("SSH_ASKPASS")
+            .env(
+                "GIT_SSH_COMMAND",
+                "ssh -F /dev/null -o BatchMode=yes -o IdentityAgent=none \
+                 -o IdentityFile=none -o IdentitiesOnly=yes",
+            )
+            .args(["-c", "credential.helper="]);
+    }
+    cmd
+}
+
+/// CLI entry point; the server calls `execute_scan_with_id`.
 async fn execute_scan(req: ScanRequest) -> anyhow::Result<ScanResult> {
     let id = uuid::Uuid::new_v4().to_string();
-    execute_scan_with_id(req, id).await
+    OPERATOR_SCAN.scope((), execute_scan_with_id(req, id)).await
 }
 
 async fn execute_scan_with_id(req: ScanRequest, id: String) -> anyhow::Result<ScanResult> {
@@ -418,10 +475,12 @@ async fn execute_scan_with_id(req: ScanRequest, id: String) -> anyhow::Result<Sc
     let is_extension = vsix::is_vsix_target(&req.repo_url);
     let scan_dir = if is_extension {
         info!("Target detected as IDE Extension / Package: {}", shown);
-        vsix::unpack_extension(&req.repo_url, &target_dir).await?
+        // Only the CLI reads a package file from this machine: an API target
+        // is downloaded or cloned, never opened on the server's disk.
+        vsix::unpack_extension(&req.repo_url, &target_dir, operator_scan()).await?
     } else {
         info!("Cloning {} to {:?}", shown, target_dir);
-        let mut clone_cmd = tokio::process::Command::new("git");
+        let mut clone_cmd = git_command(tmp_dir.path());
         clone_cmd.arg("clone");
         if !req.git_history {
             clone_cmd.arg("--depth").arg("1");
@@ -544,10 +603,16 @@ async fn execute_scan_in(
 
     // Cross-file chains, once every current-tree finding is in (history hits
     // are old snapshots and must not complete a chain).
-    let chains =
-        correlate::correlate_package_with(&rule_matches, !cve::is_vscode_extension(&scan_dir));
-    rule_matches.extend(chains);
-    rule_matches.extend(correlate::redirect_package(&scan_dir));
+    let chain_dir = scan_dir.clone();
+    let mut rule_matches = tokio::task::spawn_blocking(move || {
+        let chains =
+            correlate::correlate_package_with(&rule_matches, !cve::is_vscode_extension(&chain_dir));
+        rule_matches.extend(chains);
+        rule_matches.extend(correlate::redirect_package(&chain_dir));
+        rule_matches
+    })
+    .await
+    .map_err(|e| anyhow::anyhow!("Correlation task failed: {}", e))?;
 
     // Phase 2c: Full git commit history scan
     if req.git_history && !vsix::is_vsix_target(&repo_url) {
@@ -607,16 +672,29 @@ async fn execute_scan_in(
     info!("Running static binary triage...");
     let triage_report = triage::analyze_directory(&scan_dir, &rule_matches, req.deep_triage).await;
 
+    // CPU-bound like the scanner pass, so off the async workers too: inline,
+    // a one-worker server (1-CPU container) answered nothing, /healthz
+    // included, until the pass returned, and the scan timeout could not fire.
     let deobfuscation_report = if req.deobfuscate {
         info!("Running recursive deobfuscation...");
-        Some(deobfuscate::analyze_directory(&scan_dir))
+        let dir = scan_dir.clone();
+        Some(
+            tokio::task::spawn_blocking(move || deobfuscate::analyze_directory(&dir))
+                .await
+                .map_err(|e| anyhow::anyhow!("Deobfuscation task failed: {}", e))?,
+        )
     } else {
         None
     };
 
     let emulation_report = if req.emulate {
         info!("Running bounded static emulation...");
-        Some(emulate::analyze_triage(&scan_dir, &triage_report))
+        let (dir, triage) = (scan_dir.clone(), triage_report.clone());
+        Some(
+            tokio::task::spawn_blocking(move || emulate::analyze_triage(&dir, &triage))
+                .await
+                .map_err(|e| anyhow::anyhow!("Emulation task failed: {}", e))?,
+        )
     } else {
         None
     };
@@ -743,7 +821,8 @@ async fn git_changed_files(
     // Try to make the base ref available in shallow clones. Ignore failures:
     // the ref may already exist locally.
     let remote_ref = base_ref.strip_prefix("origin/").unwrap_or(base_ref);
-    let fetched = tokio::process::Command::new("git")
+    // An API scan's clone sits alone in the scan's temp dir.
+    let fetched = git_command(repo.parent().unwrap_or(repo))
         .arg("-C")
         .arg(repo)
         .args(["fetch", "--depth", "1", "origin", remote_ref])
@@ -850,6 +929,61 @@ mod git_injection_tests {
         assert!(!marker.exists(), "injected --upload-pack ran");
     }
 
+    /// A remote that answers 401 to everything, like a private repository.
+    async fn private_remote() -> String {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/private.git", listener.local_addr().unwrap());
+        tokio::spawn(async move {
+            while let Ok((mut sock, _)) = listener.accept().await {
+                let _ = sock.read(&mut [0u8; 4096]).await;
+                let _ = sock
+                    .write_all(
+                        b"HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"x\"\r\n\
+                          Content-Length: 0\r\nConnection: close\r\n\r\n",
+                    )
+                    .await;
+            }
+        });
+        url
+    }
+
+    #[tokio::test]
+    async fn only_a_cli_scan_offers_the_host_git_credentials() {
+        let (tmp, clone) = repo_with_origin();
+        let marker = tmp.path().join("helper-ran");
+        git(
+            &clone,
+            &["remote", "set-url", "origin", &private_remote().await],
+        );
+        // Stands in for the server user's stored token.
+        let helper = format!(
+            "!f() {{ touch {}; echo username=dummy; echo password=dummy; }}; f",
+            marker.display()
+        );
+        git(&clone, &["config", "credential.helper", &helper]);
+
+        assert!(git_changed_files(&clone, "no-such-ref").await.is_none());
+        assert!(!marker.exists(), "an API scan asked the credential helper");
+
+        OPERATOR_SCAN
+            .scope((), git_changed_files(&clone, "no-such-ref"))
+            .await;
+        assert!(marker.exists(), "a CLI scan lost its credential helper");
+    }
+
+    #[tokio::test]
+    async fn api_scan_clones_without_the_host_git_config() {
+        let (tmp, _) = repo_with_origin();
+        let req: ScanRequest = serde_json::from_value(serde_json::json!({
+            "repo_url": format!("file://{}", tmp.path().join("origin").display()),
+            "check_cve": false
+        }))
+        .unwrap();
+        let result = execute_scan_with_id(req, "id".to_string()).await.unwrap();
+        assert_eq!(result.total_files, 1);
+    }
+
     #[tokio::test]
     async fn repo_url_cannot_inject_git_options() {
         let tmp = tempfile::tempdir().unwrap();
@@ -863,5 +997,73 @@ mod git_injection_tests {
         .unwrap();
         assert!(execute_scan(req).await.is_err());
         assert!(!marker.exists(), "injected --upload-pack ran");
+    }
+}
+
+#[cfg(test)]
+mod blocking_pass_tests {
+    use super::*;
+    use std::future::Future;
+    use std::sync::{Arc, Mutex};
+
+    #[derive(Clone, Default)]
+    struct Log(Arc<Mutex<Vec<u8>>>);
+
+    impl std::io::Write for Log {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(buf);
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// Inline, the scan future ran from the pass's log line to the end of
+    /// the scan in one poll: nothing else got the worker meanwhile.
+    #[test]
+    fn deobfuscate_pass_returns_the_worker_to_the_runtime() {
+        let log = Log::default();
+        let writer = log.clone();
+        let _capture = tracing::subscriber::set_default(
+            tracing_subscriber::fmt()
+                .with_writer(move || writer.clone())
+                .finish(),
+        );
+        let dir = tempfile::tempdir().unwrap();
+        for i in 0..20 {
+            std::fs::write(
+                dir.path().join(format!("{}.js", i)),
+                "eval(atob('YWxlcnQoMSk='));\n".repeat(200),
+            )
+            .unwrap();
+        }
+        let req: ScanRequest = serde_json::from_value(serde_json::json!({
+            "repo_url": dir.path(),
+            "check_cve": false,
+            "deobfuscate": true,
+        }))
+        .unwrap();
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let _entered = rt.enter();
+        let mut scan = std::pin::pin!(execute_scan_in(
+            req,
+            dir.path().to_path_buf(),
+            "test".to_string(),
+            None,
+            false
+        ));
+        let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
+        let mut yielded_in_pass = false;
+        while scan.as_mut().poll(&mut cx).is_pending() {
+            yielded_in_pass |= String::from_utf8_lossy(&log.0.lock().unwrap())
+                .contains("Running recursive deobfuscation");
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        assert!(
+            yielded_in_pass,
+            "the deobfuscate pass ran on the async worker"
+        );
     }
 }

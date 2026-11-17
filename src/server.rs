@@ -18,12 +18,19 @@ use tokio::sync::Mutex;
 struct AppState {
     scans: Arc<Mutex<Vec<ScanResult>>>,
     token: Option<String>,
+    /// Started with no KALASCAN_TOKEN and no users (startup allows that only
+    /// on loopback or with KALASCAN_ALLOW_UNAUTHENTICATED=1). Only then may a
+    /// request without credentials run as anonymous.
+    open: bool,
     /// Caps how many scans run at once; the rest wait in the queue.
     scan_slots: Arc<tokio::sync::Semaphore>,
     /// Abort handles for queued/running scans, so `DELETE` cancels work.
     running: Arc<Mutex<HashMap<String, tokio::task::AbortHandle>>>,
     /// Simple submission budget (scans per minute) to prevent API abuse.
     submit_budget: Arc<Mutex<RateBudget>>,
+    /// Audit rows per minute for requests without valid credentials, so a
+    /// flood of 401s cannot grow the append-only audit log without bound.
+    denied_budget: Arc<Mutex<RateBudget>>,
     /// Bound to loopback: while no auth is configured, only requests
     /// addressed to a loopback name are served (see `auth_middleware`).
     loopback_only: bool,
@@ -65,6 +72,11 @@ fn env_u32(name: &str, default: u32) -> u32 {
         .unwrap_or(default)
 }
 
+/// Queued plus running scans held at once; more are refused (HTTP 429).
+/// A queued upload keeps its extracted tree, up to 512 MiB, on disk while it
+/// waits, so an unbounded queue was an unbounded disk claim.
+const MAX_PENDING_SCANS: usize = 64;
+
 fn scan_timeout() -> Duration {
     Duration::from_secs(u64::from(env_u32("KALASCAN_SCAN_TIMEOUT_SECS", 900)))
 }
@@ -84,8 +96,9 @@ fn target_host(target: &str) -> Option<(String, u16)> {
 
 /// API targets must not point the server at its own network: cloud
 /// metadata, admin ports, internal Git. The CLI is the operator's own tool
-/// and skips this. shortcut: checked once at submit; a host that re-resolves
-/// to an internal address before the clone (DNS rebinding) still passes.
+/// and skips this. shortcut: checked at submit and on resume only; a host that
+/// re-resolves to an internal address before the clone (DNS rebinding) still
+/// passes.
 async fn check_target_host(target: &str) -> Result<(), String> {
     if vsix::allow_private_targets() {
         return Ok(());
@@ -142,7 +155,8 @@ pub(crate) async fn start_web_server(addr: &str) -> anyhow::Result<()> {
             user_count
         );
     }
-    if token.is_none() && user_count == 0 {
+    let open = token.is_none() && user_count == 0;
+    if open {
         if is_loopback(addr) {
             info!("No auth configured (loopback only)");
         } else if std::env::var("KALASCAN_ALLOW_UNAUTHENTICATED").as_deref() == Ok("1") {
@@ -165,6 +179,7 @@ pub(crate) async fn start_web_server(addr: &str) -> anyhow::Result<()> {
     let state = AppState {
         scans: Arc::new(Mutex::new(Vec::new())),
         token,
+        open,
         scan_slots: Arc::new(tokio::sync::Semaphore::new(
             env_u32("KALASCAN_MAX_CONCURRENT_SCANS", 4) as usize,
         )),
@@ -173,6 +188,7 @@ pub(crate) async fn start_web_server(addr: &str) -> anyhow::Result<()> {
             "KALASCAN_SCAN_RATE_LIMIT",
             30,
         )))),
+        denied_budget: Arc::new(Mutex::new(RateBudget::new(30))),
         // KALASCAN_ALLOW_UNAUTHENTICATED=1 also covers a local reverse proxy
         // that does its own auth and forwards the public Host.
         loopback_only: is_loopback(addr)
@@ -213,9 +229,35 @@ pub(crate) async fn start_web_server(addr: &str) -> anyhow::Result<()> {
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     info!("Web UI available at http://{}", addr);
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
 
     Ok(())
+}
+
+/// Ctrl-C or SIGTERM (`docker stop`). Returning from `serve` drops the
+/// runtime and with it every queued and running scan, which removes their
+/// temp dirs; the default signal action exited at once and left the trees.
+async fn shutdown_signal() {
+    let interrupt = async {
+        // No handler means no signal, not a stop request.
+        if tokio::signal::ctrl_c().await.is_err() {
+            std::future::pending::<()>().await;
+        }
+    };
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{signal, SignalKind};
+        if let Ok(mut terminate) = signal(SignalKind::terminate()) {
+            tokio::select! {
+                _ = interrupt => {}
+                _ = terminate.recv() => {}
+            }
+            return;
+        }
+    }
+    interrupt.await;
 }
 
 fn is_loopback(addr: &str) -> bool {
@@ -242,21 +284,17 @@ async fn auth_middleware(
             .into_response();
     }
 
-    let path = req.uri().path().to_string();
-    if is_auth_exempt(&path) {
-        return next.run(req).await;
-    }
-
     // DNS rebinding: a page whose domain re-resolves to 127.0.0.1 is
     // same-origin to the browser, so the check above passes, but its Host
     // header still names that domain. Only the unauthenticated loopback
-    // server is exposed: with a token the page has nothing to send.
+    // server is exposed: with a token the page has nothing to send. Checked
+    // before the auth-exempt paths: without auth `/` embeds the scan history.
     let host = req
         .headers()
         .get(axum::http::header::HOST)
         .and_then(|v| v.to_str().ok())
         .unwrap_or_default();
-    if state.loopback_only && !is_loopback(host) && state.token.is_none() && !auth::any_users() {
+    if state.loopback_only && !is_loopback(host) && state.open && !auth::any_users() {
         return (
             StatusCode::FORBIDDEN,
             Json(serde_json::json!({
@@ -267,10 +305,17 @@ async fn auth_middleware(
             .into_response();
     }
 
+    let path = req.uri().path().to_string();
+    if is_auth_exempt(&path) {
+        return next.run(req).await;
+    }
+
     let principal = match authenticate_request(&state, req.headers()) {
         Ok(Some(p)) => p,
         Ok(None) => {
-            auth::audit("anonymous", "auth.denied", None, Some(&path));
+            if state.denied_budget.lock().await.try_take() {
+                auth::audit("anonymous", "auth.denied", None, Some(&path));
+            }
             return (
                 StatusCode::UNAUTHORIZED,
                 Json(serde_json::json!({ "success": false, "error": "Unauthorized" })),
@@ -345,8 +390,10 @@ fn authenticate_request(
         .and_then(|v| v.strip_prefix("Bearer "))
         .unwrap_or_default();
     if token.is_empty() {
-        // Anonymous access only while no auth of any kind is configured.
-        if state.token.is_none() && !auth::any_users() {
+        // Anonymous access only while no auth of any kind is configured. A
+        // server that started with auth stays closed when its last user is
+        // removed or its database cannot be read.
+        if state.open && !auth::any_users() {
             return Ok(Some(auth::Principal::anonymous()));
         }
         return Ok(None);
@@ -403,7 +450,7 @@ async fn security_headers(
 async fn root(State(state): State<AppState>) -> Html<String> {
     // The page is served without auth; under auth the history comes from
     // /api/history once the browser has a token.
-    let auth_enabled = state.token.is_some() || auth::any_users();
+    let auth_enabled = !state.open || auth::any_users();
     let scan_list = if auth_enabled {
         Vec::new()
     } else {
@@ -528,9 +575,12 @@ where
                 result
             }
             Ok(Err(e)) => {
-                error!("Scan {} failed: {}", task_id, e);
+                // Errors can echo the raw target (a package download URL);
+                // history, reports and logs must not show its credentials.
+                let message = redact_credentials(&e.to_string());
+                error!("Scan {} failed: {}", task_id, message);
                 metrics::scan_finished(false, false, duration_ms, 0);
-                failed_result(&task_state, &task_id, e.to_string()).await
+                failed_result(&task_state, &task_id, message).await
             }
             Err(_) => {
                 error!("Scan {} timed out", task_id);
@@ -561,23 +611,39 @@ async fn failed_result(state: &AppState, id: &str, message: String) -> ScanResul
     failed
 }
 
-/// Register a pending scan or reject it when the submission budget is spent.
+/// Register a pending scan or reject it when the queue is full or the
+/// submission budget is spent.
 #[allow(clippy::result_large_err)]
 async fn begin_scan(
     state: &AppState,
     req: &ScanRequest,
     actor: &str,
 ) -> Result<String, axum::response::Response> {
+    let refuse = |error: &str| {
+        (
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(serde_json::json!({ "success": false, "error": error })),
+        )
+            .into_response()
+    };
+    // shortcut: counted before this scan is registered, so submits racing
+    // each other can overshoot by a few; reserve the place under the lock
+    // if the cap has to be exact.
+    let pending = state
+        .running
+        .lock()
+        .await
+        .values()
+        .filter(|handle| !handle.is_finished())
+        .count();
+    if pending >= MAX_PENDING_SCANS {
+        return Err(refuse(
+            "Scan queue is full; try again when queued scans have finished",
+        ));
+    }
     let allowed = state.submit_budget.lock().await.try_take();
     if !allowed {
-        return Err((
-            StatusCode::TOO_MANY_REQUESTS,
-            Json(serde_json::json!({
-                "success": false,
-                "error": "Scan rate limit exceeded; try again shortly"
-            })),
-        )
-            .into_response());
+        return Err(refuse("Scan rate limit exceeded; try again shortly"));
     }
     let id = uuid::Uuid::new_v4().to_string();
     let timestamp = crate::now_rfc3339();
@@ -624,16 +690,19 @@ fn validate_api_request(req: &ScanRequest) -> Result<(), String> {
     Ok(())
 }
 
+/// What an API target must pass: at submit, and again when a queued scan is
+/// resumed after a restart.
+async fn check_api_target(req: &ScanRequest) -> Result<(), String> {
+    validate_api_request(req)?;
+    check_target_host(&req.repo_url).await
+}
+
 async fn scan_accepted(
     state: &AppState,
     req: ScanRequest,
     actor: &str,
 ) -> axum::response::Response {
-    let checked = match validate_api_request(&req) {
-        Ok(()) => check_target_host(&req.repo_url).await,
-        Err(e) => Err(e),
-    };
-    if let Err(error) = checked {
+    if let Err(error) = check_api_target(&req).await {
         return (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({ "success": false, "error": error })),
@@ -932,11 +1001,35 @@ async fn report(Path((id, format)): Path<(String, String)>) -> impl IntoResponse
                 )
                     .into_response()
             }
+            "stix" | "osv" => {
+                let (content_type, content) = if format == "stix" {
+                    (
+                        "application/stix+json;version=2.1",
+                        export::export_stix(&result),
+                    )
+                } else {
+                    (
+                        "application/json; charset=utf-8",
+                        export::export_osv(&result),
+                    )
+                };
+                match content {
+                    Ok(content) => {
+                        (StatusCode::OK, [("content-type", content_type)], content).into_response()
+                    }
+                    // The scan exists, but is not one this format can describe.
+                    Err(e) => (
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        Json(serde_json::json!({ "success": false, "error": e.to_string() })),
+                    )
+                        .into_response(),
+                }
+            }
             _ => (
                 StatusCode::BAD_REQUEST,
                 Json(serde_json::json!({
                     "success": false,
-                    "error": "Invalid format. Use 'md', 'html', 'sarif', 'csv', 'junit' or 'github'"
+                    "error": "Invalid format. Use 'md', 'html', 'sarif', 'csv', 'junit', 'github', 'stix' or 'osv'"
                 })),
             )
                 .into_response(),
@@ -1203,6 +1296,22 @@ async fn requeue_pending(state: &AppState) {
     match db::pending_scans(10_000) {
         Ok(pending) => {
             for (id, req) in pending {
+                // The policy in force now, not at submit: a restart is when a
+                // removed KALASCAN_ALLOW_PRIVATE_TARGETS takes effect, and the
+                // old queue used to run past it. An upload's extracted tree
+                // does not survive the stop.
+                let refused = if req.repo_url.starts_with("vsix://") {
+                    Err("the uploaded package was not kept; upload it again".to_string())
+                } else {
+                    check_api_target(&req).await
+                };
+                if let Err(reason) = refused {
+                    warn!("Not resuming scan {}: {}", id, reason);
+                    let mut failed = pending_scan(&id, &req.repo_url);
+                    failed.status = format!("failed: not resumed: {}", reason);
+                    store_result(state, failed).await;
+                    continue;
+                }
                 info!("Requeuing interrupted scan {} ({})", id, req.repo_url);
                 state
                     .scans

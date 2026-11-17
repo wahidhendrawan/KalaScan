@@ -494,6 +494,8 @@ pub fn audit_insert(
     target: Option<&str>,
     detail: Option<&str>,
 ) -> Result<()> {
+    // A denied request logs its path, up to the HTTP parser's 64 KB.
+    let detail = detail.map(|d| d.chars().take(512).collect::<String>());
     let conn = ready_conn()?;
     conn.execute(
         "INSERT INTO audit_log (timestamp, actor, action, target, detail)
@@ -504,12 +506,22 @@ pub fn audit_insert(
     Ok(())
 }
 
+/// The newest `limit` actions plus the newest `limit` denied requests.
+/// Denials are counted apart: anyone can cause them without credentials, so
+/// 200 of them used to push every real action out of the admin's view.
 pub fn audit_list(limit: u32) -> Result<Vec<AuditEntry>> {
-    let conn = ready_conn()?;
+    audit_list_from(&ready_conn()?, limit)
+}
+
+fn audit_list_from(conn: &Connection, limit: u32) -> Result<Vec<AuditEntry>> {
     let mut stmt = conn
         .prepare(
             "SELECT timestamp, actor, action, target, detail FROM audit_log
-             ORDER BY id DESC LIMIT ?1",
+             WHERE id IN (SELECT id FROM audit_log WHERE action != 'auth.denied'
+                          ORDER BY id DESC LIMIT ?1)
+                OR id IN (SELECT id FROM audit_log WHERE action = 'auth.denied'
+                          ORDER BY id DESC LIMIT ?1)
+             ORDER BY id DESC",
         )
         .context("Failed to prepare audit_list statement")?;
     let rows = stmt
@@ -575,6 +587,28 @@ mod tests {
 
         // Running again must be a no-op.
         ensure_schema(&conn).unwrap();
+    }
+
+    #[test]
+    fn denied_requests_do_not_push_actions_out_of_the_audit_view() {
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        let insert = |actor: &str, action: &str| {
+            conn.execute(
+                "INSERT INTO audit_log (timestamp, actor, action) VALUES ('t', ?1, ?2)",
+                [actor, action],
+            )
+            .unwrap();
+        };
+        insert("dummy-op", "scan.delete");
+        for _ in 0..250 {
+            insert("anonymous", "auth.denied");
+        }
+        let entries = audit_list_from(&conn, 200).unwrap();
+        let count = |action: &str| entries.iter().filter(|e| e.action == action).count();
+        assert_eq!(count("scan.delete"), 1);
+        assert_eq!(count("auth.denied"), 200);
+        assert_eq!(entries[0].action, "auth.denied");
     }
 
     #[test]

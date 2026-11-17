@@ -1,7 +1,11 @@
 use crate::ScanResult;
 
 mod html;
+mod osv;
+mod stix;
 pub use html::export_html;
+pub use osv::export_osv;
+pub use stix::export_stix;
 
 /// Map numeric risk score to severity level string.
 pub fn risk_score_to_level(score: u8) -> &'static str {
@@ -738,9 +742,44 @@ pub fn export_github(result: &ScanResult) -> String {
 }
 
 fn gh_escape_data(s: &str) -> String {
-    s.replace('%', "%25")
-        .replace('\r', "%0D")
-        .replace('\n', "%0A")
+    inert(
+        &s.replace('%', "%25")
+            .replace('\r', "%0D")
+            .replace('\n', "%0A"),
+    )
+}
+
+/// Scanned content inside a text report or a CI log. A control character is
+/// shown as its escape and a line break continues under a `|`: a context
+/// line or a file name used to clear the line above (ESC [2K), rewrite the
+/// verdict (CR) or forge a report line. A tab is left alone, code is full
+/// of them.
+pub(crate) fn inert(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        match c {
+            '\n' => out.push_str("\n     | "),
+            c if c.is_control() && c != '\t' => out.extend(c.escape_default()),
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+/// A GitHub runner reads a log line that starts with `::` as a workflow
+/// command, whatever the indent: a file named `::error::...` in the diff's
+/// file list forged an annotation. Such a line gets a `\` in front.
+pub(crate) fn no_workflow_commands(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for line in text.split_inclusive('\n') {
+        let command = line.trim_start();
+        out.push_str(&line[..line.len() - command.len()]);
+        if command.starts_with("::") {
+            out.push('\\');
+        }
+        out.push_str(command);
+    }
+    out
 }
 
 fn gh_escape_prop(s: &str) -> String {
@@ -1024,7 +1063,7 @@ mod tests {
         }
     }
 
-    fn sample_result() -> ScanResult {
+    pub(super) fn sample_result() -> ScanResult {
         ScanResult {
             id: "test-123".into(),
             repo_url: "https://github.com/example/repo".into(),
@@ -1378,6 +1417,21 @@ mod tests {
         assert!(out.starts_with("::error file="));
         assert!(out.contains("src/a%2Cb.ts"));
         assert!(out.contains("100%25%0Adone"));
+    }
+
+    #[test]
+    fn github_annotations_and_text_show_control_characters_inert() {
+        let mut r = sample_result();
+        r.rule_matches[0].context = "\u{1b}]0;T\u{7}eval(".into();
+        let out = export_github(&r);
+        assert!(!out.contains(['\u{1b}', '\u{7}']), "{:?}", out);
+        assert!(out.contains("\\u{1b}]0;T\\u{7}eval("), "{:?}", out);
+
+        assert_eq!(inert("a\tb\r\nc\u{9b}"), "a\tb\\r\n     | c\\u{9b}");
+        assert_eq!(
+            no_workflow_commands("x ::ok\n  ::error::y\n::notice::z"),
+            "x ::ok\n  \\::error::y\n\\::notice::z"
+        );
     }
 
     #[test]

@@ -111,6 +111,34 @@ fn sarif_driver_carries_the_version() {
 }
 
 #[test]
+fn stix_bundle_describes_the_scan() {
+    let cwd = tempfile::tempdir().unwrap();
+    let v = scan_json(cwd.path(), &[&fixture("suspicious"), "--format", "stix"]);
+    assert_eq!(v["type"], "bundle");
+    let objects = v["objects"].as_array().unwrap();
+    for o in objects {
+        assert_eq!(o["spec_version"], "2.1", "{}", o);
+    }
+    let types: Vec<&str> = objects
+        .iter()
+        .map(|o| o["type"].as_str().unwrap())
+        .collect();
+    assert_eq!(types.first(), Some(&"identity"));
+    assert_eq!(types.last(), Some(&"report"));
+    assert!(types.contains(&"attack-pattern"), "{:?}", types);
+}
+
+#[test]
+fn osv_refuses_a_directory() {
+    // A directory has no registry identity; the registry targets are
+    // covered offline by the unit tests in src/export/osv.rs.
+    let cwd = tempfile::tempdir().unwrap();
+    let run = scan(cwd.path(), &[&fixture("suspicious"), "--format", "osv"]).failure();
+    assert!(stderr(&run).contains("exact version"), "{}", stderr(&run));
+    assert!(run.get_output().stdout.is_empty());
+}
+
+#[test]
 fn fail_on_risk_sets_the_exit_code() {
     let cwd = tempfile::tempdir().unwrap();
     scan(cwd.path(), &[&fixture("suspicious"), "--fail-on-risk", "1"]).code(1);
@@ -371,11 +399,23 @@ fn rules_sbom_and_import_print_their_reports() {
 struct Server {
     child: std::process::Child,
     base: String,
-    _cwd: tempfile::TempDir,
+    cwd: tempfile::TempDir,
 }
 
 impl Server {
     async fn start() -> Server {
+        Server::start_with(&[]).await
+    }
+
+    /// `envs` on top of a clean environment, e.g. a KALASCAN_HOME that
+    /// outlives this server so a second one can resume its queue.
+    async fn start_with(envs: &[(&str, &str)]) -> Server {
+        Server::start_in(tempfile::tempdir().unwrap(), envs).await
+    }
+
+    /// `cwd` may already hold a kalascan.db with users; the server's log
+    /// goes to `server.log` in it.
+    async fn start_in(cwd: tempfile::TempDir, envs: &[(&str, &str)]) -> Server {
         // Free port: bind to 0, read it back, release it for the server.
         let port = std::net::TcpListener::bind("127.0.0.1:0")
             .unwrap()
@@ -383,18 +423,20 @@ impl Server {
             .unwrap()
             .port();
         // Own cwd: kalascan.db is created there.
-        let cwd = tempfile::tempdir().unwrap();
         let child = std::process::Command::new(env!("CARGO_BIN_EXE_kalascan"))
             .current_dir(cwd.path())
             .env_remove("KALASCAN_TOKEN")
+            .env_remove("KALASCAN_ALLOW_PRIVATE_TARGETS")
             .env("RUST_LOG", "off")
+            .envs(envs.iter().copied())
+            .stderr(std::fs::File::create(cwd.path().join("server.log")).unwrap())
             .args(["serve", "--addr", &format!("127.0.0.1:{}", port)])
             .spawn()
             .unwrap();
         let server = Server {
             child,
             base: format!("http://127.0.0.1:{}", port),
-            _cwd: cwd,
+            cwd,
         };
         for _ in 0..100 {
             if reqwest::get(format!("{}/healthz", server.base))
@@ -407,6 +449,10 @@ impl Server {
         }
         panic!("server did not come up on {}", server.base);
     }
+
+    fn log(&self) -> String {
+        std::fs::read_to_string(self.cwd.path().join("server.log")).unwrap()
+    }
 }
 
 impl Drop for Server {
@@ -414,6 +460,164 @@ impl Drop for Server {
         let _ = self.child.kill();
         let _ = self.child.wait();
     }
+}
+
+/// A one-file .vsix as the body of a `multipart/form-data; boundary=kalascan-test` upload.
+fn upload_body() -> Vec<u8> {
+    use std::io::Write;
+    let mut zip_bytes = std::io::Cursor::new(Vec::new());
+    let mut w = zip::ZipWriter::new(&mut zip_bytes);
+    w.start_file("extension/a.js", zip::write::SimpleFileOptions::default())
+        .unwrap();
+    w.write_all(b"console.log(1);\n").unwrap();
+    w.finish().unwrap();
+    let mut body = b"--kalascan-test\r\nContent-Disposition: form-data; name=\"file\"; \
+        filename=\"a.vsix\"\r\nContent-Type: application/zip\r\n\r\n"
+        .to_vec();
+    body.extend_from_slice(zip_bytes.get_ref());
+    body.extend_from_slice(b"\r\n--kalascan-test--\r\n");
+    body
+}
+
+async fn upload(http: &reqwest::Client, base: &str) -> reqwest::Response {
+    http.post(format!("{}/api/scan/upload", base))
+        .header(
+            "content-type",
+            "multipart/form-data; boundary=kalascan-test",
+        )
+        .body(upload_body())
+        .send()
+        .await
+        .unwrap()
+}
+
+fn entries(dir: &Path) -> usize {
+    std::fs::read_dir(dir).unwrap().count()
+}
+
+#[tokio::test]
+async fn a_full_queue_refuses_new_scans() {
+    let tmp = tempfile::tempdir().unwrap();
+    // No slots: every accepted scan stays queued, so nothing is downloaded.
+    let server = Server::start_with(&[
+        ("KALASCAN_MAX_CONCURRENT_SCANS", "0"),
+        ("KALASCAN_SCAN_RATE_LIMIT", "1000"),
+        ("TMPDIR", tmp.path().to_str().unwrap()),
+    ])
+    .await;
+    let http = reqwest::Client::new();
+    let submit = || {
+        http.post(format!("{}/api/scan", server.base))
+            .json(&serde_json::json!({ "repo_url": "npm:left-pad" }))
+            .send()
+    };
+    // MAX_PENDING_SCANS in src/server.rs.
+    for i in 0..64 {
+        assert_eq!(submit().await.unwrap().status(), 200, "scan {}", i);
+    }
+    let full = submit().await.unwrap();
+    assert_eq!(full.status(), 429);
+    let error: serde_json::Value = full.json().await.unwrap();
+    assert!(
+        error["error"].as_str().unwrap().contains("queue is full"),
+        "{}",
+        error
+    );
+    // A refused upload does not leave its extracted tree behind.
+    assert_eq!(upload(&http, &server.base).await.status(), 429);
+    assert_eq!(entries(tmp.path()), 0);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_stopped_server_drops_its_trees_and_resumes_under_the_current_policy() {
+    let home = tempfile::tempdir().unwrap();
+    let tmp = tempfile::tempdir().unwrap();
+    let envs = [
+        ("KALASCAN_HOME", home.path().to_str().unwrap()),
+        ("TMPDIR", tmp.path().to_str().unwrap()),
+    ];
+    // Stands in for an internal service: a connection means it was fetched.
+    let internal = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    internal.set_nonblocking(true).unwrap();
+    let target = format!(
+        "http://127.0.0.1:{}/queued.vsix",
+        internal.local_addr().unwrap().port()
+    );
+    let http = reqwest::Client::new();
+
+    // Boot 1 allows internal targets and has no slots, so both scans queue.
+    let mut first = Server::start_with(
+        &[
+            &envs[..],
+            &[
+                ("KALASCAN_ALLOW_PRIVATE_TARGETS", "1"),
+                ("KALASCAN_MAX_CONCURRENT_SCANS", "0"),
+            ],
+        ]
+        .concat(),
+    )
+    .await;
+    let queued: serde_json::Value = http
+        .post(format!("{}/api/scan", first.base))
+        .json(&serde_json::json!({ "repo_url": target }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(queued["status"], "queued", "{}", queued);
+    let uploaded: serde_json::Value = upload(&http, &first.base).await.json().await.unwrap();
+    assert_eq!(uploaded["status"], "queued", "{}", uploaded);
+    assert_eq!(entries(tmp.path()), 1, "the queued upload's tree");
+
+    // `docker stop`: the queued upload's tree goes with the server.
+    let term = std::process::Command::new("kill")
+        .args(["-TERM", &first.child.id().to_string()])
+        .status()
+        .unwrap();
+    assert!(term.success());
+    for _ in 0..100 {
+        if first.child.try_wait().unwrap().is_some() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    assert!(
+        first.child.try_wait().unwrap().is_some(),
+        "server ignored SIGTERM"
+    );
+    assert_eq!(entries(tmp.path()), 0, "trees left behind by the stop");
+
+    // Boot 2 no longer allows internal targets: neither scan is run.
+    let second = Server::start_with(&envs).await;
+    for id in [&queued["result_id"], &uploaded["result_id"]] {
+        let status: serde_json::Value = http
+            .get(format!(
+                "{}/api/scan/{}/status",
+                second.base,
+                id.as_str().unwrap()
+            ))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert!(
+            status["status"]
+                .as_str()
+                .unwrap()
+                .starts_with("failed: not resumed: "),
+            "{}",
+            status["status"]
+        );
+    }
+    assert!(
+        internal.accept().is_err(),
+        "the internal target was fetched"
+    );
 }
 
 #[tokio::test]
@@ -534,10 +738,149 @@ async fn web_api_scans_an_upload_and_refuses_local_paths() {
         status["result"]["rule_matches"]
     );
 
+    let report = |format: &str| http.get(url(&format!("/api/report/{}/{}", id, format)));
+    let stix = report("stix").send().await.unwrap();
+    assert_eq!(stix.status(), 200);
+    assert_eq!(
+        stix.headers()["content-type"],
+        "application/stix+json;version=2.1"
+    );
+    let bundle: serde_json::Value = stix.json().await.unwrap();
+    assert_eq!(bundle["type"], "bundle");
+    // An uploaded archive is not a registry package: no OSV record.
+    assert_eq!(report("osv").send().await.unwrap().status(), 422);
+
     let missing = http
         .get(url("/api/scan/no-such-id/status"))
         .send()
         .await
         .unwrap();
     assert_eq!(missing.status(), 404);
+}
+
+#[tokio::test]
+async fn rebinding_host_is_refused_on_the_dashboard_page_too() {
+    let server = Server::start().await;
+    let port = server.base.rsplit(':').next().unwrap();
+    let page = |host: String| {
+        reqwest::Client::new()
+            .get(format!("{}/", server.base))
+            .header("host", host)
+            .send()
+    };
+    // Without auth `/` embeds the scan history.
+    let rebound = page(format!("evil.example:{}", port)).await.unwrap();
+    assert_eq!(rebound.status(), 403);
+    let local = page(format!("127.0.0.1:{}", port)).await.unwrap();
+    assert_eq!(local.status(), 200);
+}
+
+#[tokio::test]
+async fn removing_the_last_user_does_not_open_the_server() {
+    let cwd = tempfile::tempdir().unwrap();
+    let dir = cwd.path().to_path_buf();
+    let user = |args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_kalascan"))
+            .current_dir(&dir)
+            .arg("user")
+            .args(args)
+            .assert()
+            .success();
+    };
+    user(&["add", "dummy-op", "--role", "operator"]);
+    let server = Server::start_in(cwd, &[("RUST_LOG", "off")]).await;
+    let audit = || reqwest::get(format!("{}/api/audit", server.base));
+    assert_eq!(audit().await.unwrap().status(), 401);
+    // Revoking the only token: no credentials used to mean anonymous admin.
+    user(&["remove", "dummy-op"]);
+    assert_eq!(audit().await.unwrap().status(), 401);
+}
+
+#[tokio::test]
+async fn unauthenticated_requests_cannot_flood_the_audit_log() {
+    let env = [("RUST_LOG", "off"), ("KALASCAN_TOKEN", "dummy-token")];
+    let server = Server::start_in(tempfile::tempdir().unwrap(), &env).await;
+    let http = reqwest::Client::new();
+    let long_path = format!("{}/api/results/{}", server.base, "A".repeat(2000));
+    for _ in 0..40 {
+        assert_eq!(http.get(&long_path).send().await.unwrap().status(), 401);
+    }
+    let audit: serde_json::Value = http
+        .get(format!("{}/api/audit", server.base))
+        .bearer_auth("dummy-token")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let denied: Vec<&str> = audit["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|e| e["action"] == "auth.denied")
+        .map(|e| e["detail"].as_str().unwrap())
+        .collect();
+    // 30 rows a minute, 512 characters each.
+    assert_eq!(denied.len(), 30);
+    assert!(denied.iter().all(|d| d.len() == 512), "{:?}", denied);
+}
+
+#[tokio::test]
+async fn failed_download_does_not_show_the_credentials_in_its_url() {
+    let env = [
+        ("RUST_LOG", "kalascan=info"),
+        ("KALASCAN_ALLOW_PRIVATE_TARGETS", "1"),
+    ];
+    let server = Server::start_in(tempfile::tempdir().unwrap(), &env).await;
+    let http = reqwest::Client::new();
+    // The server's own 404 stands in for the artifact host.
+    let target = server.base.replace("://", "://dummy-bot:DUMMY-SECRET@") + "/dl/pkg.vsix";
+    let accepted: serde_json::Value = http
+        .post(format!("{}/api/scan", server.base))
+        .json(&serde_json::json!({ "repo_url": target, "check_cve": false }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let id = accepted["result_id"].as_str().unwrap();
+    let mut status = serde_json::Value::Null;
+    for _ in 0..300 {
+        status = http
+            .get(format!("{}/api/scan/{}/status", server.base, id))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        if status["done"] == true {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    let shown = status["status"].as_str().unwrap();
+    assert!(shown.starts_with("failed: Failed to download"), "{}", shown);
+    assert!(shown.contains("HTTP 404"), "{}", shown);
+    assert!(!status.to_string().contains("DUMMY-SECRET"), "{}", status);
+    let log = server.log();
+    assert!(log.contains("Failed to download"), "{}", log);
+    assert!(!log.contains("DUMMY-SECRET"), "{}", log);
+}
+
+#[tokio::test]
+async fn line_break_in_a_scan_id_stays_inside_one_log_record() {
+    let env = [("RUST_LOG", "kalascan=info")];
+    let server = Server::start_in(tempfile::tempdir().unwrap(), &env).await;
+    let gone = reqwest::Client::new()
+        .delete(format!("{}/api/scan/x%0D%0AFORGED%20record", server.base))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(gone.status(), 404);
+    let log = server.log();
+    assert!(log.contains("x\\r\\nFORGED record"), "{}", log);
+    assert!(!log.lines().any(|l| l.starts_with("FORGED")), "{}", log);
 }

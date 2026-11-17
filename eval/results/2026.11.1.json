@@ -1,0 +1,84 @@
+{
+ "date": "2026-11-17",
+ "ruleset": "2026.11.1",
+ "source": "Transcribed on 2026-11-17 from eval/README.md (results table and holdout sets, threshold 50, score model v1) and docs/scoring.md (holdout at thresholds 30 and 70, v1 columns); not written by a run. The Wilson bounds are recomputed from the published counts with wilson() in eval/run_eval.py; the documents print them in whole percent. Left out because those documents do not give them: dev at thresholds 30 and 70, the two holdout sets at thresholds 30 and 70, error counts other than the 5 pypi_malregistry archives that do not unpack, and the sets dev/tune-2026-11, dev/fit-2026-11, dev/random-2026-11 and holdout/random-2026-11. No score_model field: the published run used the default model (v1).",
+ "groups": {
+  "dev": {
+   "malicious": {
+    "total": 173,
+    "50": {
+     "flagged": 135,
+     "lo": 0.7129,
+     "hi": 0.8356
+    }
+   },
+   "clean": {
+    "total": 365,
+    "50": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0104
+    }
+   }
+  },
+  "holdout": {
+   "malicious": {
+    "total": 302,
+    "30": {
+     "flagged": 194,
+     "lo": 0.5868,
+     "hi": 0.6943
+    },
+    "50": {
+     "flagged": 193,
+     "lo": 0.5835,
+     "hi": 0.6912
+    },
+    "70": {
+     "flagged": 193,
+     "lo": 0.5835,
+     "hi": 0.6912
+    }
+   },
+   "clean": {
+    "total": 457,
+    "30": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0083
+    },
+    "50": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0083
+    },
+    "70": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0083
+    }
+   }
+  },
+  "holdout/recent-2026-11": {
+   "malicious": {
+    "total": 60,
+    "50": {
+     "flagged": 24,
+     "lo": 0.2857,
+     "hi": 0.5263
+    }
+   }
+  },
+  "holdout/malregistry-2026-11": {
+   "malicious": {
+    "total": 95,
+    "errors": 5,
+    "50": {
+     "flagged": 70,
+     "lo": 0.6403,
+     "hi": 0.8149
+    }
+   }
+  }
+ }
+}

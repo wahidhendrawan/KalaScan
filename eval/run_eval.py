@@ -14,6 +14,8 @@ against a previous run.
 Gate a change with --min-recall / --max-fpr (exit 1 when violated).
 Rates are printed with their 95% Wilson interval. --rule-stats lists every
 finding with how often it fires on malicious and on clean samples.
+--summary FILE writes the aggregate counts of the run, without sample names:
+the per-release record kept in eval/results/.
 
 --scanner guarddog runs DataDog's GuardDog (Docker image) on the same
 samples, for a like-for-like comparison:
@@ -197,6 +199,28 @@ def rule_stats(done, split):
         print(f"  {lr:>7.1f}  {m:>9}  {c:>5}  {severity:8}  {name}")
 
 
+def summarize(samples):
+    """--summary: per split and per set, flagged / scanned at every threshold
+    with its Wilson bounds, and the samples that could not be scanned. No
+    sample names, so a holdout result can be published (eval/results/)."""
+    keys = sorted({(s.get("split", "dev"), "") for s in samples} | {(s.get("split", "dev"), s["set"]) for s in samples if s.get("set")})
+    groups = {}
+    for split, name in keys:
+        inside = [s for s in samples if s.get("split", "dev") == split and (not name or s.get("set") == name)]
+        group = groups[split + ("/" + name if name else "")] = {}
+        for label in ("malicious", "clean"):
+            scanned = [s for s in inside if s["label"] == label and "risk" in s]
+            errors = sum(s["label"] == label and "error" in s for s in inside)
+            if scanned or errors:
+                # Errors are outside `total`, as in the printed rates.
+                group[label] = {"total": len(scanned), "errors": errors}
+                for t in THRESHOLDS:
+                    hit = sum(s["risk"] >= t for s in scanned)
+                    lo, hi = wilson(hit, len(scanned))
+                    group[label][str(t)] = {"flagged": hit, "lo": round(lo, 4), "hi": round(hi, 4)}
+    return groups
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--corpus", default=os.path.join(os.path.dirname(__file__), "corpus.json"))
@@ -212,12 +236,15 @@ def main():
     ap.add_argument("--timeout", type=int, default=300)
     ap.add_argument("--out", help="write per-sample results JSON")
     ap.add_argument("--compare", help="previous --out file; print score changes")
+    ap.add_argument("--summary", help="write aggregate counts JSON (no sample names): one per ruleset version in eval/results/")
     ap.add_argument("--threshold", type=int, default=50, help="threshold the gates apply to")
     ap.add_argument("--min-recall", type=float, help="fail if malicious recall is below this (0-1)")
     ap.add_argument("--max-fpr", type=float, help="fail if clean false-positive rate is above this (0-1)")
     ap.add_argument("--allow-errors", action="store_true", help="don't fail on download/scan errors (flaky registries in CI)")
     ap.add_argument("--show-holdout", action="store_true", help="also list holdout misses and score changes (then move what you read to dev)")
     args = ap.parse_args()
+    if args.summary and args.scanner != "kalascan":
+        ap.error("--summary records a KalaScan ruleset version; not with --scanner guarddog")
 
     samples = [s for s in json.load(open(args.corpus))["samples"] if not args.only or s["label"] == args.only]
     if any(s["source"] == "dataset" for s in samples) and not args.dataset:
@@ -289,6 +316,17 @@ def main():
 
     if args.out:
         json.dump(samples, open(args.out, "w"), indent=1)
+
+    if args.summary:
+        rules = subprocess.run([args.kalascan, "rules"], capture_output=True, text=True, check=True).stdout
+        summary = {"date": time.strftime("%Y-%m-%d"), "ruleset": rules.splitlines()[0].split(": ")[-1]}
+        words = " ".join(args.flag).replace("=", " ").split()
+        if "--score-model" in words[:-1]:
+            summary["score_model"] = words[words.index("--score-model") + 1]
+        summary["groups"] = summarize(samples)
+        with open(args.summary, "w") as f:
+            json.dump(summary, f, indent=1)
+            f.write("\n")
 
     mal = [s for s in done if s["label"] == "malicious"]
     cln = [s for s in done if s["label"] == "clean"]

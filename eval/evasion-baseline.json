@@ -1,0 +1,978 @@
+[
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "file-placement",
+  "mutator": "main-as-doc",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "file-placement",
+  "mutator": "no-extension",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "file-placement",
+  "mutator": "git-dir-archive",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "comment-whitespace",
+  "mutator": "hash-prefixed-js",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "comment-whitespace",
+  "mutator": "block-comment-earlier",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "comment-whitespace",
+  "mutator": "thousand-spaces",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "split-concat",
+  "risk": 5,
+  "caught": false
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "hex-escape",
+  "risk": 5,
+  "caught": false
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "char-codes",
+  "risk": 10,
+  "caught": false
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "base64-layer",
+  "risk": 11,
+  "caught": false
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "reversed-strings",
+  "risk": 10,
+  "caught": false
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "indirection",
+  "mutator": "alias-require",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "indirection",
+  "mutator": "second-file",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "packaging",
+  "mutator": "node-modules-dir",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "packaging",
+  "mutator": "minify-one-line",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "packaging",
+  "mutator": "pad-past-dataflow",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "file-placement",
+  "mutator": "main-as-doc",
+  "risk": 82,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "file-placement",
+  "mutator": "no-extension",
+  "risk": 82,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "file-placement",
+  "mutator": "git-dir-archive",
+  "risk": 82,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "comment-whitespace",
+  "mutator": "hash-prefixed-js",
+  "risk": 82,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "comment-whitespace",
+  "mutator": "block-comment-earlier",
+  "risk": 82,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "comment-whitespace",
+  "mutator": "thousand-spaces",
+  "risk": 82,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "split-concat",
+  "risk": 6,
+  "caught": false
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "hex-escape",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "char-codes",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "base64-layer",
+  "risk": 7,
+  "caught": false
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "reversed-strings",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "indirection",
+  "mutator": "alias-require",
+  "risk": 82,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "indirection",
+  "mutator": "globalthis",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "indirection",
+  "mutator": "second-file",
+  "risk": 82,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "packaging",
+  "mutator": "node-modules-dir",
+  "risk": 82,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "packaging",
+  "mutator": "minify-one-line",
+  "risk": 82,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "packaging",
+  "mutator": "pad-past-dataflow",
+  "risk": 82,
+  "caught": true
+ },
+ {
+  "seed": "npm-reverse-shell",
+  "eco": "npm",
+  "category": "file-placement",
+  "mutator": "main-as-doc",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "npm-reverse-shell",
+  "eco": "npm",
+  "category": "file-placement",
+  "mutator": "no-extension",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "npm-reverse-shell",
+  "eco": "npm",
+  "category": "file-placement",
+  "mutator": "git-dir-archive",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "npm-reverse-shell",
+  "eco": "npm",
+  "category": "comment-whitespace",
+  "mutator": "hash-prefixed-js",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "npm-reverse-shell",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "split-concat",
+  "risk": 21,
+  "caught": false
+ },
+ {
+  "seed": "npm-reverse-shell",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "hex-escape",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "npm-reverse-shell",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "char-codes",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "npm-reverse-shell",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "base64-layer",
+  "risk": 7,
+  "caught": false
+ },
+ {
+  "seed": "npm-reverse-shell",
+  "eco": "npm",
+  "category": "indirection",
+  "mutator": "alias-require",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "npm-reverse-shell",
+  "eco": "npm",
+  "category": "indirection",
+  "mutator": "second-file",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "npm-reverse-shell",
+  "eco": "npm",
+  "category": "packaging",
+  "mutator": "node-modules-dir",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "npm-reverse-shell",
+  "eco": "npm",
+  "category": "packaging",
+  "mutator": "minify-one-line",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "npm-reverse-shell",
+  "eco": "npm",
+  "category": "packaging",
+  "mutator": "pad-past-dataflow",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "npm-dep-confusion",
+  "eco": "npm",
+  "category": "file-placement",
+  "mutator": "git-dir-archive",
+  "risk": 84,
+  "caught": true
+ },
+ {
+  "seed": "npm-dep-confusion",
+  "eco": "npm",
+  "category": "comment-whitespace",
+  "mutator": "thousand-spaces",
+  "risk": 84,
+  "caught": true
+ },
+ {
+  "seed": "npm-dep-confusion",
+  "eco": "npm",
+  "category": "comment-whitespace",
+  "mutator": "line-continuation",
+  "risk": 83,
+  "caught": true
+ },
+ {
+  "seed": "npm-dep-confusion",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "split-concat",
+  "risk": 84,
+  "caught": true
+ },
+ {
+  "seed": "npm-dep-confusion",
+  "eco": "npm",
+  "category": "packaging",
+  "mutator": "node-modules-dir",
+  "risk": 84,
+  "caught": true
+ },
+ {
+  "seed": "npm-dep-confusion",
+  "eco": "npm",
+  "category": "packaging",
+  "mutator": "minify-one-line",
+  "risk": 83,
+  "caught": true
+ },
+ {
+  "seed": "npm-dep-confusion",
+  "eco": "npm",
+  "category": "packaging",
+  "mutator": "pad-past-dataflow",
+  "risk": 84,
+  "caught": true
+ },
+ {
+  "seed": "pypi-import-loader",
+  "eco": "pypi",
+  "category": "file-placement",
+  "mutator": "git-dir-archive",
+  "risk": 77,
+  "caught": true
+ },
+ {
+  "seed": "pypi-import-loader",
+  "eco": "pypi",
+  "category": "file-placement",
+  "mutator": "pth-file",
+  "risk": 84,
+  "caught": true
+ },
+ {
+  "seed": "pypi-import-loader",
+  "eco": "pypi",
+  "category": "comment-whitespace",
+  "mutator": "thousand-spaces",
+  "risk": 77,
+  "caught": true
+ },
+ {
+  "seed": "pypi-import-loader",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "split-concat",
+  "risk": 72,
+  "caught": true
+ },
+ {
+  "seed": "pypi-import-loader",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "hex-escape",
+  "risk": 72,
+  "caught": true
+ },
+ {
+  "seed": "pypi-import-loader",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "char-codes",
+  "risk": 72,
+  "caught": true
+ },
+ {
+  "seed": "pypi-import-loader",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "base64-layer",
+  "risk": 78,
+  "caught": true
+ },
+ {
+  "seed": "pypi-import-loader",
+  "eco": "pypi",
+  "category": "indirection",
+  "mutator": "second-file",
+  "risk": 77,
+  "caught": true
+ },
+ {
+  "seed": "pypi-import-loader",
+  "eco": "pypi",
+  "category": "packaging",
+  "mutator": "node-modules-dir",
+  "risk": 77,
+  "caught": true
+ },
+ {
+  "seed": "pypi-import-loader",
+  "eco": "pypi",
+  "category": "packaging",
+  "mutator": "minify-one-line",
+  "risk": 77,
+  "caught": true
+ },
+ {
+  "seed": "pypi-import-loader",
+  "eco": "pypi",
+  "category": "packaging",
+  "mutator": "pad-past-dataflow",
+  "risk": 77,
+  "caught": true
+ },
+ {
+  "seed": "pypi-setup-hook",
+  "eco": "pypi",
+  "category": "file-placement",
+  "mutator": "git-dir-archive",
+  "risk": 87,
+  "caught": true
+ },
+ {
+  "seed": "pypi-setup-hook",
+  "eco": "pypi",
+  "category": "file-placement",
+  "mutator": "pth-file",
+  "risk": 88,
+  "caught": true
+ },
+ {
+  "seed": "pypi-setup-hook",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "split-concat",
+  "risk": 82,
+  "caught": true
+ },
+ {
+  "seed": "pypi-setup-hook",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "base64-layer",
+  "risk": 83,
+  "caught": true
+ },
+ {
+  "seed": "pypi-setup-hook",
+  "eco": "pypi",
+  "category": "indirection",
+  "mutator": "getattr-import",
+  "risk": 83,
+  "caught": true
+ },
+ {
+  "seed": "pypi-setup-hook",
+  "eco": "pypi",
+  "category": "packaging",
+  "mutator": "node-modules-dir",
+  "risk": 17,
+  "caught": false
+ },
+ {
+  "seed": "pypi-setup-hook",
+  "eco": "pypi",
+  "category": "packaging",
+  "mutator": "minify-one-line",
+  "risk": 87,
+  "caught": true
+ },
+ {
+  "seed": "pypi-setup-hook",
+  "eco": "pypi",
+  "category": "packaging",
+  "mutator": "pad-past-dataflow",
+  "risk": 87,
+  "caught": true
+ },
+ {
+  "seed": "pypi-cred-exfil",
+  "eco": "pypi",
+  "category": "file-placement",
+  "mutator": "git-dir-archive",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "pypi-cred-exfil",
+  "eco": "pypi",
+  "category": "file-placement",
+  "mutator": "pth-file",
+  "risk": 87,
+  "caught": true
+ },
+ {
+  "seed": "pypi-cred-exfil",
+  "eco": "pypi",
+  "category": "comment-whitespace",
+  "mutator": "thousand-spaces",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "pypi-cred-exfil",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "split-concat",
+  "risk": 75,
+  "caught": true
+ },
+ {
+  "seed": "pypi-cred-exfil",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "base64-layer",
+  "risk": 78,
+  "caught": true
+ },
+ {
+  "seed": "pypi-cred-exfil",
+  "eco": "pypi",
+  "category": "indirection",
+  "mutator": "second-file",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "pypi-cred-exfil",
+  "eco": "pypi",
+  "category": "packaging",
+  "mutator": "node-modules-dir",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "pypi-cred-exfil",
+  "eco": "pypi",
+  "category": "packaging",
+  "mutator": "minify-one-line",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "pypi-cred-exfil",
+  "eco": "pypi",
+  "category": "packaging",
+  "mutator": "pad-past-dataflow",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "pypi-download-cradle",
+  "eco": "pypi",
+  "category": "file-placement",
+  "mutator": "git-dir-archive",
+  "risk": 86,
+  "caught": true
+ },
+ {
+  "seed": "pypi-download-cradle",
+  "eco": "pypi",
+  "category": "file-placement",
+  "mutator": "pth-file",
+  "risk": 87,
+  "caught": true
+ },
+ {
+  "seed": "pypi-download-cradle",
+  "eco": "pypi",
+  "category": "comment-whitespace",
+  "mutator": "thousand-spaces",
+  "risk": 86,
+  "caught": true
+ },
+ {
+  "seed": "pypi-download-cradle",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "base64-layer",
+  "risk": 82,
+  "caught": true
+ },
+ {
+  "seed": "pypi-download-cradle",
+  "eco": "pypi",
+  "category": "indirection",
+  "mutator": "getattr-import",
+  "risk": 82,
+  "caught": true
+ },
+ {
+  "seed": "pypi-download-cradle",
+  "eco": "pypi",
+  "category": "packaging",
+  "mutator": "node-modules-dir",
+  "risk": 86,
+  "caught": true
+ },
+ {
+  "seed": "pypi-download-cradle",
+  "eco": "pypi",
+  "category": "packaging",
+  "mutator": "minify-one-line",
+  "risk": 86,
+  "caught": true
+ },
+ {
+  "seed": "pypi-download-cradle",
+  "eco": "pypi",
+  "category": "packaging",
+  "mutator": "pad-past-dataflow",
+  "risk": 86,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "file-placement",
+  "mutator": "main-as-doc",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "file-placement",
+  "mutator": "no-extension",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "file-placement",
+  "mutator": "git-dir-archive",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "comment-whitespace",
+  "mutator": "hash-prefixed-js",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "comment-whitespace",
+  "mutator": "block-comment-earlier",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "comment-whitespace",
+  "mutator": "thousand-spaces",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "string-construction",
+  "mutator": "split-concat",
+  "risk": 0,
+  "caught": false
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "string-construction",
+  "mutator": "hex-escape",
+  "risk": 75,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "string-construction",
+  "mutator": "char-codes",
+  "risk": 75,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "string-construction",
+  "mutator": "base64-layer",
+  "risk": 7,
+  "caught": false
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "string-construction",
+  "mutator": "reversed-strings",
+  "risk": 75,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "indirection",
+  "mutator": "alias-require",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "indirection",
+  "mutator": "second-file",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "packaging",
+  "mutator": "node-modules-dir",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "packaging",
+  "mutator": "minify-one-line",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "packaging",
+  "mutator": "pad-past-dataflow",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "file-placement",
+  "mutator": "main-as-doc",
+  "risk": 72,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "file-placement",
+  "mutator": "no-extension",
+  "risk": 72,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "file-placement",
+  "mutator": "git-dir-archive",
+  "risk": 72,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "comment-whitespace",
+  "mutator": "hash-prefixed-js",
+  "risk": 72,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "comment-whitespace",
+  "mutator": "block-comment-earlier",
+  "risk": 72,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "comment-whitespace",
+  "mutator": "thousand-spaces",
+  "risk": 72,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "split-concat",
+  "risk": 21,
+  "caught": false
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "hex-escape",
+  "risk": 71,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "char-codes",
+  "risk": 71,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "base64-layer",
+  "risk": 7,
+  "caught": false
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "reversed-strings",
+  "risk": 71,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "indirection",
+  "mutator": "alias-require",
+  "risk": 72,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "indirection",
+  "mutator": "globalthis",
+  "risk": 71,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "indirection",
+  "mutator": "second-file",
+  "risk": 72,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "packaging",
+  "mutator": "node-modules-dir",
+  "risk": 72,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "packaging",
+  "mutator": "minify-one-line",
+  "risk": 72,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "packaging",
+  "mutator": "pad-past-dataflow",
+  "risk": 72,
+  "caught": true
+ }
+]

@@ -1,3 +1,4 @@
+use crate::vsix;
 use crate::AiAnalysis;
 use serde_json::Value;
 use std::sync::OnceLock;
@@ -20,6 +21,51 @@ Output HARUS berupa JSON valid dengan format:
   "suspicious_lines": ["Daftar baris kode/fungsi berbahaya"],
   "recommendation": "Safe" | "High Risk" | "Do Not Execute"
 }"#;
+
+/// Endpoints the server falls back to on its own (local Ollama, 9Router). An
+/// API caller may name them although they are loopback.
+const DEFAULT_LOCAL_ENDPOINTS: [&str; 2] = [
+    "http://localhost:11434/api/generate",
+    "http://localhost:20128/v1/chat/completions",
+];
+
+/// An answer to max_tokens=1024 is a few KB, and an API caller picks the
+/// endpoint: a 2 MiB reply grew `kalascan serve` by 74 MiB.
+const MAX_LLM_RESPONSE_BYTES: u64 = 1024 * 1024;
+
+/// An API caller picks the endpoint like it picks the scan target, so the
+/// same hosts are refused: cloud metadata, admin ports, a private LLM. The
+/// CLI is the operator's own tool and skips this. shortcut: resolved once,
+/// before the request; a host that re-resolves to an internal address in
+/// between (DNS rebinding) still passes.
+async fn check_endpoint(endpoint: &str) -> anyhow::Result<()> {
+    if crate::operator_scan()
+        || vsix::allow_private_targets()
+        || DEFAULT_LOCAL_ENDPOINTS.contains(&endpoint)
+    {
+        return Ok(());
+    }
+    let url =
+        url::Url::parse(endpoint).map_err(|e| anyhow::anyhow!("Invalid LLM endpoint: {}", e))?;
+    let host = url.host_str().unwrap_or_default().trim_matches(['[', ']']);
+    if vsix::resolves_internal(host, url.port_or_known_default().unwrap_or(443)).await {
+        anyhow::bail!(
+            "LLM endpoint host '{}' is an internal address; set \
+             KALASCAN_ALLOW_PRIVATE_TARGETS=1 to use an LLM on an internal server",
+            host
+        );
+    }
+    Ok(())
+}
+
+/// One client for both providers. No redirects: the endpoint's host was
+/// checked, and a 307 would carry the POST and its key to another one.
+fn http_client() -> reqwest::Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+}
 
 /// Detect if running inside a Docker container.
 fn in_docker() -> bool {
@@ -74,11 +120,10 @@ async fn ollama_analyze(
     endpoint: &Option<String>,
     code_snippets: &str,
 ) -> anyhow::Result<AiAnalysis> {
-    let base_url = resolve_host(
-        endpoint
-            .as_deref()
-            .unwrap_or("http://localhost:11434/api/generate"),
-    );
+    if let Some(ep) = endpoint {
+        check_endpoint(ep).await?;
+    }
+    let base_url = resolve_host(endpoint.as_deref().unwrap_or(DEFAULT_LOCAL_ENDPOINTS[0]));
 
     let user_prompt = format!(
         "Analisis potongan kode berikut dari hasil pemindaian statis (RegEx). Indikator yang terdeteksi telah ditandai.\n\nKODE:\n{}",
@@ -96,9 +141,7 @@ async fn ollama_analyze(
         }
     });
 
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(120))
-        .build()?;
+    let client = http_client()?;
 
     info!("Calling Ollama API at {} with model {}", base_url, model);
 
@@ -110,7 +153,8 @@ async fn ollama_analyze(
         .map_err(|e| anyhow::anyhow!("Ollama connection failed: {}. Is Ollama running?", e))?;
 
     let status = resp.status();
-    let raw: Value = resp.json().await?;
+    let raw: Value =
+        serde_json::from_slice(&vsix::read_capped(resp, MAX_LLM_RESPONSE_BYTES).await?)?;
 
     if !status.is_success() {
         return Err(anyhow::anyhow!(
@@ -122,8 +166,8 @@ async fn ollama_analyze(
 
     let response_text = raw["response"]
         .as_str()
-        .unwrap_or(&raw.to_string())
-        .to_string();
+        .map(str::to_string)
+        .unwrap_or_else(|| raw.to_string());
 
     parse_ai_response(&response_text)
 }
@@ -137,9 +181,12 @@ async fn openai_analyze(
     code_snippets: &str,
     require_key: bool,
 ) -> anyhow::Result<AiAnalysis> {
+    if let Some(ep) = endpoint {
+        check_endpoint(ep).await?;
+    }
     let base_url = resolve_host(match (endpoint.as_deref(), require_key) {
         // 9Router local proxy default
-        (None, false) => "http://localhost:20128/v1/chat/completions",
+        (None, false) => DEFAULT_LOCAL_ENDPOINTS[1],
         // OpenAI default
         (None, true) => "https://api.openai.com/v1/chat/completions",
         (Some(ep), _) => ep,
@@ -173,9 +220,7 @@ async fn openai_analyze(
         body.as_object_mut().map(|o| o.remove("response_format"));
     }
 
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(120))
-        .build()?;
+    let client = http_client()?;
 
     info!("Calling OpenAI API at {} with model {}", base_url, model);
 
@@ -190,8 +235,8 @@ async fn openai_analyze(
         .map_err(|e| anyhow::anyhow!("OpenAI API connection failed: {}", e))?;
 
     let status = resp.status();
-    let response_text = match resp.text().await {
-        Ok(t) => t,
+    let response_text = match vsix::read_capped(resp, MAX_LLM_RESPONSE_BYTES).await {
+        Ok(b) => String::from_utf8_lossy(&b).into_owned(),
         Err(e) => return Err(anyhow::anyhow!("Failed to read response body: {}", e)),
     };
 
@@ -317,6 +362,94 @@ fn analysis_from(val: &Value) -> AiAnalysis {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    /// A loopback endpoint that answers one request with `response`. Returns
+    /// its URL and whether a request arrived.
+    async fn endpoint(response: Vec<u8>) -> (String, tokio::task::JoinHandle<bool>) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/v1", listener.local_addr().unwrap());
+        let served = tokio::spawn(async move {
+            let Ok(Ok((mut sock, _))) =
+                tokio::time::timeout(std::time::Duration::from_millis(200), listener.accept())
+                    .await
+            else {
+                return false;
+            };
+            // The whole request first: closing on unread bytes resets the
+            // connection under the response.
+            let mut request = Vec::new();
+            while !request.ends_with(b"}") {
+                let mut buf = [0u8; 8192];
+                match sock.read(&mut buf).await {
+                    Ok(n) if n > 0 => request.extend_from_slice(&buf[..n]),
+                    _ => break,
+                }
+            }
+            let _ = sock.write_all(&response).await;
+            true
+        });
+        (url, served)
+    }
+
+    /// The CLI's view: a loopback endpoint is allowed.
+    async fn analyze(provider: &str, url: String) -> anyhow::Result<AiAnalysis> {
+        crate::OPERATOR_SCAN
+            .scope((), analyze_with_llm(provider, "m", &None, &Some(url), "x"))
+            .await
+    }
+
+    #[tokio::test]
+    async fn api_endpoint_gets_the_internal_host_check() {
+        for bad in [
+            "http://127.0.0.1:9999/x",
+            "http://169.254.169.254/latest/meta-data/",
+            "http://localhost:11434/api/pull",
+        ] {
+            assert!(check_endpoint(bad).await.is_err(), "{}", bad);
+        }
+        for ok in [
+            "http://localhost:11434/api/generate",
+            "https://93.184.216.34/v1/chat/completions",
+        ] {
+            assert!(check_endpoint(ok).await.is_ok(), "{}", ok);
+        }
+        // The check sits in front of the request, for both request shapes.
+        for provider in ["custom", "ollama"] {
+            let (url, served) = endpoint(Vec::new()).await;
+            let refused = analyze_with_llm(provider, "m", &None, &Some(url), "x").await;
+            assert!(refused
+                .unwrap_err()
+                .to_string()
+                .contains("internal address"));
+            assert!(!served.await.unwrap(), "{} was sent", provider);
+        }
+    }
+
+    #[tokio::test]
+    async fn redirect_is_not_followed() {
+        let (inner, reached) = endpoint(Vec::new()).await;
+        let redirect = format!(
+            "HTTP/1.1 307 Temporary Redirect\r\nLocation: {}\r\nContent-Length: 0\r\n\r\n",
+            inner
+        );
+        let (url, _) = endpoint(redirect.into_bytes()).await;
+        assert!(analyze("custom", url).await.is_err());
+        assert!(!reached.await.unwrap(), "the POST followed the redirect");
+    }
+
+    #[tokio::test]
+    async fn oversized_reply_is_refused_not_buffered() {
+        for provider in ["custom", "ollama"] {
+            // No Content-Length: only counting the bytes read can stop it.
+            let mut reply = b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n".to_vec();
+            reply.extend(std::iter::repeat_n(b' ', 2 * 1024 * 1024));
+            reply.extend(br#"{"response":"{}","choices":[]}"#);
+            let (url, _) = endpoint(reply).await;
+            let err = analyze(provider, url).await.unwrap_err().to_string();
+            assert!(err.contains("too large"), "{}: {}", provider, err);
+        }
+    }
 
     #[test]
     fn test_parse_malicious_json() {

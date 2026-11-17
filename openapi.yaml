@@ -79,6 +79,7 @@ paths:
               schema: { $ref: "#/components/schemas/ScanAccepted" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/RateLimited" }
   /api/scan/{id}/status:
     get:
       summary: Poll scan progress
@@ -132,10 +133,11 @@ paths:
         - name: format
           in: path
           required: true
-          schema: { type: string, enum: [md, html, sarif, csv, junit, github] }
+          schema: { type: string, enum: [md, html, sarif, csv, junit, github, stix, osv] }
       responses:
         "200": { description: Report body }
         "404": { description: Not found }
+        "422": { description: "The scan cannot be written as `osv` (not an npm / PyPI package with an exact version, or below the danger level)" }
   /api/sbom:
     get:
       summary: CycloneDX 1.5 SBOM for a directory under the server working dir
@@ -156,7 +158,7 @@ paths:
         "401": { description: Missing or invalid bearer token }
   /api/audit:
     get:
-      summary: Append-only audit log (admin only), newest 200 entries
+      summary: Append-only audit log (admin only), newest 200 entries plus newest 200 denied requests
       responses:
         "200":
           description: Audit entries
@@ -182,7 +184,7 @@ components:
     Forbidden:
       description: Role too low for this action
     RateLimited:
-      description: Submission budget exhausted (KALASCAN_SCAN_RATE_LIMIT)
+      description: Scan queue full (64 queued or running), or submission budget exhausted (KALASCAN_SCAN_RATE_LIMIT)
   schemas:
     ScanRequest:
       type: object

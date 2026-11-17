@@ -121,6 +121,17 @@ pub fn is_internal_ip(ip: IpAddr) -> bool {
     }
 }
 
+/// Whether `host` is, or resolves to, an internal address. Unresolvable is
+/// not internal: the request fails on its own.
+pub(crate) async fn resolves_internal(host: &str, port: u16) -> bool {
+    match host.parse() {
+        Ok(ip) => is_internal_ip(ip),
+        Err(_) => tokio::net::lookup_host((host, port))
+            .await
+            .is_ok_and(|mut found| found.any(|a| is_internal_ip(a.ip()))),
+    }
+}
+
 /// `KALASCAN_ALLOW_PRIVATE_TARGETS=1`: scan an internal Git server or mirror.
 pub fn allow_private_targets() -> bool {
     std::env::var("KALASCAN_ALLOW_PRIVATE_TARGETS").is_ok_and(|v| v == "1")
@@ -158,22 +169,21 @@ pub(crate) fn http_client() -> anyhow::Result<reqwest::Client> {
         .build()?)
 }
 
-/// Read a response body, refusing anything past `MAX_ARCHIVE_BYTES` before
-/// it is buffered (`bytes()` used to read an unbounded body into memory).
-async fn download_capped(mut resp: reqwest::Response) -> anyhow::Result<Vec<u8>> {
-    if resp.content_length().is_some_and(|n| n > MAX_ARCHIVE_BYTES) {
-        anyhow::bail!(
-            "Package too large (> {} MiB limit)",
-            MAX_ARCHIVE_BYTES / (1024 * 1024)
-        );
+/// Read a response body, refusing anything past `limit` before it is
+/// buffered (`bytes()` used to read an unbounded body into memory).
+pub(crate) async fn read_capped(
+    mut resp: reqwest::Response,
+    limit: u64,
+) -> anyhow::Result<Vec<u8>> {
+    let too_large =
+        || anyhow::anyhow!("Response too large (> {} MiB limit)", limit / (1024 * 1024));
+    if resp.content_length().is_some_and(|n| n > limit) {
+        return Err(too_large());
     }
     let mut body = Vec::new();
     while let Some(chunk) = resp.chunk().await? {
-        if (body.len() + chunk.len()) as u64 > MAX_ARCHIVE_BYTES {
-            anyhow::bail!(
-                "Package too large (> {} MiB limit)",
-                MAX_ARCHIVE_BYTES / (1024 * 1024)
-            );
+        if (body.len() + chunk.len()) as u64 > limit {
+            return Err(too_large());
         }
         body.extend_from_slice(&chunk);
     }
@@ -275,13 +285,20 @@ pub fn parse_marketplace_id(target: &str) -> Option<(&str, &str, Option<&str>)> 
         .then_some((publisher, name, version))
 }
 
-/// Download or extract a VSIX, Open VSX, JetBrains, CRX, or ZIP extension into destination directory
-pub async fn unpack_extension(target: &str, dest_dir: &Path) -> anyhow::Result<PathBuf> {
+/// Download or extract a VSIX, Open VSX, JetBrains, CRX, or ZIP extension into destination directory.
+/// `local`: the target may name a file on this machine. The CLI only: the API
+/// admits `budget.xlsx` as a marketplace id, and it was read from the
+/// server's working directory.
+pub async fn unpack_extension(
+    target: &str,
+    dest_dir: &Path,
+    local: bool,
+) -> anyhow::Result<PathBuf> {
     let t = target.trim();
 
     // Check if it is an existing local file
     let path = Path::new(t);
-    if path.is_file() {
+    if local && path.is_file() {
         let mut bytes = Vec::new();
         File::open(path)?
             .take(MAX_ARCHIVE_BYTES + 1)
@@ -318,12 +335,12 @@ pub async fn unpack_extension(target: &str, dest_dir: &Path) -> anyhow::Result<P
     if !resp.status().is_success() {
         return Err(anyhow::anyhow!(
             "Failed to download extension package from {}: HTTP {}",
-            download_url,
+            crate::redact_credentials(&download_url),
             resp.status()
         ));
     }
 
-    let bytes = download_capped(resp).await?;
+    let bytes = read_capped(resp, MAX_ARCHIVE_BYTES).await?;
     // A .crate is a gzipped tarball too.
     if [".tgz", ".tar.gz", ".crate"]
         .iter()
@@ -661,6 +678,24 @@ mod tests {
 
         let tmp = tempfile::tempdir().unwrap();
         let out = extract_zip(&crx, tmp.path()).unwrap();
+        assert!(out.join("extension.js").is_file());
+    }
+
+    #[tokio::test]
+    async fn only_the_cli_reads_a_local_package_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = tmp.path().join("budget.xlsx");
+        std::fs::write(&file, build_test_zip()).unwrap();
+        let target = file.to_str().unwrap();
+        let dest = tmp.path().join("out");
+        std::fs::create_dir(&dest).unwrap();
+
+        // The server: a path is not an id, so this fails before any network call.
+        let err = unpack_extension(target, &dest, false).await.unwrap_err();
+        assert!(err.to_string().contains("identifier format"), "{}", err);
+        assert_eq!(std::fs::read_dir(&dest).unwrap().count(), 0);
+
+        let out = unpack_extension(target, &dest, true).await.unwrap();
         assert!(out.join("extension.js").is_file());
     }
 

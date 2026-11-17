@@ -8,6 +8,11 @@ published on GitHub; their features are listed with version markers in `README.m
 ## [Unreleased]
 
 ### Added
+- `--format stix`: a STIX 2.1 bundle of the scan (identity, report, one indicator per IOC, an attack-pattern per ATT&CK technique, `indicates` relationships where a finding's matched line holds the URL). Ids are stable for the same scan. Also at `/api/report/{id}/stix`.
+- `--format osv`: an OSV malicious-package record (`x_KALASCAN-<scan id>`, a local id, not an assigned MAL- id) for an `npm:name@version` or `pypi:name==version` scan that reached the danger level; refused otherwise. Also at `/api/report/{id}/osv` (422 when refused).
+- Evasion-resistance eval (`eval/evasion.py`, `docs/evasion.md`): 10 inert seed packages x 20 rewrites from public malware write-ups, measuring how often a caught payload stays caught. 108 of 122 variants (89%) are still caught at risk 50; string-construction rewrites are the weak spot (62%). `--baseline eval/evasion-baseline.json` fails when a caught variant is lost.
+- `docs/methodology.md`: what KalaScan claims and does not, the threat model, how detection quality is measured, how to reproduce the numbers and the known limits.
+- Evaluation: `eval/run_eval.py --summary FILE` writes the aggregate counts of a run (per split and sample set, thresholds 30 / 50 / 70 with Wilson bounds, errors; no sample names). `eval/results/` holds one file per ruleset version.
 - `score_breakdown` in the JSON result (and one line in text and Markdown reports): the score model and the parts the risk score is the sum of. Stored with the scan (database schema v5).
 - `--score-model v2` (also `score_model` in `kalascan.toml` and in API requests): a weight per finding, fitted on the `dev` split of the evaluation corpus by `eval/fit_weights.py` (`rules/weights.toml`), combined with the accumulation THOR uses; known vulnerabilities are counted apart from the score. On the holdout it is level with v1 at the default gate (193 of 302 malicious, 0 of 457 clean) and adds a range between 30 and 70 that v1 does not have, so v1 stays the default. `docs/scoring.md` has the model and the numbers.
 - SARIF rules carry `security-severity` (and the `security` tag), so GitHub Code Scanning shows critical / high / medium / low and its severity gate applies.
@@ -28,7 +33,24 @@ published on GitHub; their features are listed with version markers in `README.m
 - `eval/run_eval.py --scanner guarddog` measures GuardDog on the same corpus.
 - Evaluation corpus: 120 fresh malicious samples (2026 npm and PyPI packages, extensions) join the holdout split. The published detection rate is now the holdout figure, 82 of 147 (56%); the earlier 26 of 27 came from too few samples.
 
+### Security
+- A failed package download no longer shows credentials from its URL in the scan status, history, reports or the server log.
+- A server that started with a token or users keeps requiring auth when its last user is removed or its database cannot be read; it used to grant anonymous admin. `kalascan user remove` prints a note when it removes the last user.
+- Requests without valid credentials write at most 30 audit rows per minute, audit details are cut at 512 characters, and `GET /api/audit` returns the newest 200 denied requests plus the newest 200 other entries, so a flood of 401s cannot hide real actions.
+- On a loopback server without auth, the DNS-rebinding Host check covers every path, including the dashboard page `/` that embeds scan history.
+- Each server log record is one line: CR and LF inside logged values are written as `\r` and `\n`.
+- Web API: a target shaped like a marketplace id (`budget.xlsx`) is no longer read from the server's working directory; only the CLI opens a local package file.
+- `kalascan serve`: scans resumed after a restart are checked against the current target rules again (`KALASCAN_ALLOW_PRIVATE_TARGETS` included). One that no longer passes is marked `failed: not resumed`, as is a queued upload.
+- `kalascan serve`: at most 64 scans are queued or running at once; further submissions get HTTP 429.
+- API scans: `llm_endpoint` gets the same internal-address refusal as the scan target, except the built-in local Ollama and 9Router defaults; `KALASCAN_ALLOW_PRIVATE_TARGETS=1` allows it. LLM requests no longer follow redirects, and replies are read through a 1 MiB cap.
+- `--git-history`: a file larger than 1 MiB in an old commit is no longer read into memory before it is skipped.
+- API, upload and resumed scans run `git clone` / `git fetch` without the server user's credential helpers, `~/.netrc`, ssh keys or agent, and without prompting. Private repositories need credentials in the URL. The CLI is unchanged.
+- Sandbox: at most 2 MiB of container stdout and 64 KiB of stderr are held; a container that prints more is stopped and its truncated trace analysed.
+- Text output of `scan`, `import`, `diff` and the `deps` package column shows control characters from scanned content as escapes, continues embedded line breaks under `|`, and never starts a line with `::`; `--format github` escapes ESC and other control characters.
+
 ### Fixed
+- `kalascan serve` stops cleanly on Ctrl-C or SIGTERM (`docker stop`) and removes the temp dirs of its queued and running scans.
+- The triage, correlation, deobfuscation and emulation passes run on the blocking pool, so a one-CPU server keeps answering (`/healthz` included) during a scan and the scan timeout can fire.
 - ATT&CK techniques of KalaScan's own findings are written out per finding instead of guessed from keywords in the name: `GitHub Actions Script Injection` was Process Injection, `Make File Executable` a script interpreter, and install-time findings were all Event Triggered Execution.
 - Four false positives found in a fresh random draw of 297 clean packages: a link to a `.sh` source line inside a webpack `eval` module, a `curl … .EXE` in `circle.yml` counted as reachable from an npm install script, a curl command line kept in a variable read as downloaded content, and zc.buildout's `bootstrap.py` fetching `ez_setup.py`. With the first draw the measured rate on random packages is 5 in 595 (0.8%, 0.4-2.0).
 - The eval harness scanned a `sources/` checkout instead of the wheel for some PyPI samples.
@@ -36,6 +58,8 @@ published on GitHub; their features are listed with version markers in `README.m
 - CI: the `false-positives` check runs on every pull request and skips the scan when no detection code or corpus changed. With a paths filter it never reported on Dockerfile- or workflow-only PRs, so Dependabot updates could not be merged.
 
 ### Changed
+- The Detection eval workflow also runs weekly, so registry drift under the fixed clean corpus shows up without a pull request.
+- An oversized package download reports "Response too large" instead of "Package too large".
 - Timestamps come from the `time` crate (already in the dependency tree) instead of `chrono`, which RustSec lists as unmaintained (RUSTSEC-2026-0543). New timestamps end in `Z` instead of `+00:00`; both are RFC 3339.
 - The crate is a library (`src/lib.rs`) with a thin binary (`src/main.rs`), so the fuzz targets can call the parsers. No behaviour change.
 

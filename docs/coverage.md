@@ -34,7 +34,7 @@ The attack tree of Ladisa et al., *SoK: Taxonomy of Attacks on Open-Source Softw
 | AV-306 | Exploit Unicode Bidirectional Algorithm | direct | Trojan Source Bi-Directional Character (CVE-2021-42574) |  |
 | AV-307 | Use Homoglyphs | direct | Confusable Homoglyph Character (Supply Chain Spoofing), Publisher Impersonation (look-alike name) |  |
 | AV-308 | Prevent Display of File Differences | payload only | - | Files are read whole, whatever a diff view shows. |
-| AV-309 | Hide in Generated/Compiled/Minified Code | partial | Obfuscator.io Output, High-Entropy Suspicious Blob, Chain: Obfuscated Process Execution, Chain: Obfuscated Download and Execute | Bundles and obfuscated scripts are scanned; compiled binaries only with `--triage`. |
+| AV-309 | Hide in Generated/Compiled/Minified Code | partial | Obfuscator.io Output, High-Entropy Suspicious Blob, Chain: Obfuscated Process Execution, Chain: Obfuscated Download and Execute | Bundles and obfuscated scripts are scanned; compiled binaries get metadata triage on every scan and capa / FLOSS only with `--deep-triage`. |
 | AV-302 | Contribute as Maintainer | payload only | - |  |
 | AV-303 | Tamper with Version Control System | payload only | - | `--git-history` scans earlier commits. |
 | AV-400 | Inject During the Build of Legitimate Package | partial | GitHub Actions Pwn Request (pull_request_target + PR checkout), GitHub Actions Script Injection | GitHub Actions workflows only. |

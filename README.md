@@ -65,6 +65,7 @@
 - **Kill-Chain Ordering** — groups techniques by ATT&CK tactic in execution order with per-tactic observation counts
 - **Current ATT&CK** — technique ids, names and tactics follow Enterprise ATT&CK v20.1, including the Stealth and Defense Impairment tactics that replaced Defense Evasion
 - **Coverage Scoring** — reports technique/tactic coverage and contributes a capped risk signal without overriding the primary risk model
+- **Written-out mapping** — the ATT&CK techniques of every built-in finding are listed by hand in `src/attack.rs`, not guessed from keywords; each finding also has an MBC (Malware Behavior Catalog) objective and, where it is evidence of how code reached a package, a supply-chain attack vector. `kalascan rules <id>` prints them and `kalascan rules --coverage` prints the whole table ([`docs/coverage.md`](docs/coverage.md))
 - **Safe by Design** — pure metadata aggregation; no sample execution or network access
 
 ### Opt-in Docker Sandbox (v1.5)
@@ -133,6 +134,7 @@ For `npm:` and `pypi:` targets, what the registry says about the scanned version
 ### Indicators of Compromise
 - Every scan lists the external URLs and public IPs the code refers to (`iocs` in JSON, an INDICATORS section in text), skipping documentation/registry hosts
 - Set `URLHAUS_AUTH_KEY` (abuse.ch) to check each URL exactly against URLhaus; a listed URL is a critical `Known Malicious URL (URLhaus)` finding
+- `--format stix` exports them as a STIX 2.1 bundle (indicators, ATT&CK attack-patterns, a report) for MISP or OpenCTI; `--format osv` writes an OSV malicious-package record for an `npm:name@version` / `pypi:name==version` scan that reached "danger" (a local `x_KALASCAN-` id, not an assigned `MAL-` id)
 
 ### Rules as Data
 - Built-in RegEx rules live in [`rules/builtin.toml`](rules/builtin.toml) with stable ids (`KS-EXF-001`, …), severity, scope and `matches` / `ignores` examples that are verified every time the rules load
@@ -151,7 +153,14 @@ For `npm:` and `pypi:` targets, what the registry says about the scanned version
 
 ### Detection Quality
 - [`eval/`](eval/README.md) holds a labelled corpus (DataDog malicious-package samples + popular clean packages and extensions) and the harness that measures it. Current: **193 of the 302 malicious samples never used for tuning are caught (64%, 95% interval 58-69): 99 of 147 in the original holdout, 70 of 95 from a second, independent source, and 24 of 60 of the newest npm samples. No false positive across 822 clean packages/extensions (227 popular ones and 595 drawn at random from npm and PyPI); 5 of those 595 were flagged before they were looked at (0.8%)**. On the original 147 GuardDog 3.2.0 catches 107 and flags 128 of 223 clean packages; the eval README has the method and the caveats; CI fails a PR that makes any clean sample cross risk 50
-- [`docs/coverage.md`](docs/coverage.md) (`kalascan rules --coverage`) places every finding in ATT&CK and MBC and lists which supply-chain attack vectors (Ladisa et al., IEEE S&P 2023) are covered, which are gaps and which a package scan cannot see; [`docs/scoring.md`](docs/scoring.md) explains the risk score and the opt-in `--score-model v2`
+- [`docs/coverage.md`](docs/coverage.md) (`kalascan rules --coverage`) places every finding in ATT&CK and MBC and lists which supply-chain attack vectors (Ladisa et al., IEEE S&P 2023) are covered, which are gaps and which a package scan cannot see; [`docs/scoring.md`](docs/scoring.md) explains the risk score and the opt-in `--score-model v2`; [`docs/methodology.md`](docs/methodology.md) states what is claimed, the threat model and the known limits, and [`eval/results/`](eval/results/README.md) keeps the aggregate result of each ruleset version
+- [`docs/evasion.md`](docs/evasion.md) (`python3 eval/evasion.py`) measures how often a caught payload stays caught when it is rewritten the way attackers rewrite code: 108 of 122 variants (89%). Placement, comment, indirection and packaging tricks are resisted; split and encoded API names are the weak spot (62%)
+
+### Risk Score
+- Every scan ends in one number from 0 to 100 (0-29 safe, 30-69 warning, 70-100 danger). The JSON result carries `score_breakdown`, the parts the score is the sum of, and text and Markdown reports print them on one line (`Score Parts: critical findings 70 + high findings 5`)
+- **v1 (default)**: tiers set by hand. One critical finding alone is a lead (20); a behaviour chain or two criticals is a verdict (70 or more)
+- **v2 (opt-in, `--score-model v2`)**: a weight per finding, fitted on the evaluation corpus (`rules/weights.toml`, `eval/fit_weights.py`). Known vulnerabilities are counted apart from the score. On the holdout it is level with v1 at the default gate and adds a usable range between 30 and 70, which is why it is opt-in
+- The models, how the weights are fitted and the holdout numbers: [`docs/scoring.md`](docs/scoring.md)
 
 ### GitHub Actions Workflow Checks
 - **Pwn request** (critical) — `pull_request_target` that checks out the PR head (`ref: ${{ github.event.pull_request.head.sha }}`)
@@ -185,10 +194,10 @@ An agent reads `SKILL.md`, `CLAUDE.md`, `AGENTS.md`, `.cursorrules`, `.cursor/ru
 ### Standalone CLI Subcommands (CI/CD Gates)
 - Run headless scans in terminal or automated pipelines without starting the web server
 - Configurable quality gates via `--fail-on-risk <SCORE>` (exits with code 1 if risk threshold is exceeded)
-- Multiple export formats: `--format <text|json|md|html|sarif>` and `--output <FILE>`
+- Export formats: `--format <text|json|md|html|sarif|csv|junit|github|stix|osv>` and `--output <FILE>`
 
 ### CI Workflow Features (v1.6)
-- **SARIF 2.1.0 output** (`--format sarif`) for GitHub Code Scanning, with stable partial fingerprints per finding
+- **SARIF 2.1.0 output** (`--format sarif`) for GitHub Code Scanning, with stable partial fingerprints per finding and a `security-severity` per rule, so GitHub shows critical / high / medium / low and its severity gate applies
 - **Baselines** — `--baseline <FILE> --update-baseline` records the current findings; `--baseline <FILE> --new-only` reports only findings not yet recorded and never writes the file. Fingerprints use the matched text, not the line number, so edits elsewhere in a file do not re-report its findings (baselines written by v1.11 or earlier must be rebuilt once)
 - **Path suppression** — `.kalascanignore` (or `--ignore <FILE>`) accepts globs such as `src/generated/*` and `*.min.js`. `./.kalascanignore` applies to a checkout scanned in place only; `--ignore` applies to any target
 - **Inline suppression** — add `kalascan:ignore` on a line, or `kalascan:ignore-file` anywhere in a file. Honoured only when scanning your own checkout in place; ignored in anything cloned, downloaded or uploaded, and with `--untrusted`
@@ -198,18 +207,19 @@ An agent reads `SKILL.md`, `CLAUDE.md`, `AGENTS.md`, `.cursorrules`, `.cursor/ru
 ### API Authentication
 - Set `KALASCAN_TOKEN` to require `Authorization: Bearer <token>` on all routes
 - When bound to a non-loopback address without a token, KalaScan logs a prominent warning at startup
-- No CORS headers are sent, and a request whose `Origin` is another site gets 403: a web page cannot drive the API through a visitor's browser. A loopback server without a token also answers only to `localhost` / `127.0.0.1` / `[::1]` as `Host` (DNS rebinding)
+- No CORS headers are sent, and a request whose `Origin` is another site gets 403: a web page cannot drive the API through a visitor's browser. A loopback server without a token also answers only to `localhost` / `127.0.0.1` / `[::1]` as `Host`, on every path (DNS rebinding)
 - Responses carry a strict `Content-Security-Policy` (self-hosted assets only), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and `Referrer-Policy: no-referrer`
 
 ### Multi-User Auth & RBAC (v1.8)
 - `kalascan user add <name> --role viewer|operator|admin` prints a bearer token once (stored as a salted `sha256`, never recoverable)
 - Roles: **viewer** (read results), **operator** (submit/cancel scans), **admin** (view audit log)
 - `kalascan user list` / `kalascan user remove <name>`; `KALASCAN_TOKEN` still works as a legacy admin token
-- Every submit, cancel, login failure and user change is written to an append-only `audit_log` (`GET /api/audit`, admin only)
+- Every submit, cancel, login failure and user change is written to an append-only `audit_log` (`GET /api/audit`, admin only). Requests without valid credentials write at most 30 rows a minute and are listed apart from real actions, so a flood of 401s cannot hide them
+- A server that started with a token or users keeps requiring auth when its last user is removed
 
 ### Observability & Standards (v1.8)
 - `GET /healthz` — liveness probe; `GET /metrics` — Prometheus metrics (queue depth, active scans, durations, rule hits)
-- `GET /openapi.yaml` — OpenAPI 3.0 spec; extra report formats `csv`, `junit`, `github` (workflow annotations)
+- `GET /openapi.yaml` — OpenAPI 3.0 spec; extra report formats `csv`, `junit`, `github` (workflow annotations), `stix` (STIX 2.1 bundle: IOCs as indicators, ATT&CK techniques as attack-patterns) and `osv` (OSV malicious-package record for an `npm:name@version` / `pypi:name==version` scan that scored "danger")
 - `kalascan rules` lists built-in rules; `kalascan rules <name>` explains a rule and shows its pattern
 - `GET /api/sbom?path=…` — CycloneDX 1.5 SBOM for a directory under the server working dir (auth required, path traversal blocked)
 
@@ -218,7 +228,7 @@ An agent reads `SKILL.md`, `CLAUDE.md`, `AGENTS.md`, `.cursorrules`, `.cursor/ru
 
 ### Persistence Bounds & Resume (v1.8)
 - `KALASCAN_HISTORY_LIMIT` (default 500) caps rows in SQLite; `KALASCAN_MEMORY_SCANS` (default 100) caps the in-memory list
-- Queued scans are persisted with their request; on restart they are requeued automatically (API keys are stripped before storage)
+- Queued scans are persisted with their request; on restart they are checked against the current target rules again and requeued (API keys are stripped before storage; a queued upload is not resumed). At most 64 scans are queued or running at once
 
 ### Async Web Scans
 - `POST /scan` and `POST /api/scan` return `{ "success": true, "result_id": "...", "status": "queued" }` immediately
@@ -234,7 +244,7 @@ An agent reads `SKILL.md`, `CLAUDE.md`, `AGENTS.md`, `.cursorrules`, `.cursor/ru
 | `KALASCAN_SCAN_RATE_LIMIT` | `30` | Submissions allowed per minute (HTTP `429` beyond that) |
 | `KALASCAN_TOKEN` | unset | Bearer token required on every route |
 | `KALASCAN_HISTORY_LIMIT` | `500` | Scans kept in SQLite; older finished scans are pruned |
-| `KALASCAN_ALLOW_PRIVATE_TARGETS` | unset | `1` lets API scans and download redirects reach loopback / private / link-local hosts (an internal Git server) |
+| `KALASCAN_ALLOW_PRIVATE_TARGETS` | unset | `1` lets API scans, download redirects and an API-chosen `llm_endpoint` reach loopback / private / link-local hosts (an internal Git server, a local LLM on a non-default port) |
 | `KALASCAN_MEMORY_SCANS` | `100` | Scans kept in the in-memory cache |
 
 ### Local Directory Scans (v1.7)
@@ -363,6 +373,17 @@ kalascan scan . --format github
 kalascan scan . --format junit -o kalascan-junit.xml
 kalascan scan . --format csv -o kalascan.csv
 
+# Threat-intel exports: STIX 2.1 bundle, OSV malicious-package record
+kalascan scan ./suspicious-repo --format stix -o scan.stix.json
+kalascan scan npm:some-package@1.2.3 --format osv -o report.osv.json
+
+# Score with the fitted weights instead of the default tiers
+kalascan scan npm:some-package@1.2.3 --score-model v2 --format json
+
+# Where a rule sits in ATT&CK and MBC; the whole coverage table
+kalascan rules KS-SUP-008
+kalascan rules --coverage
+
 # CycloneDX SBOM from lockfiles and manifests (no network calls)
 kalascan sbom . -o sbom.json
 
@@ -464,7 +485,8 @@ The scan pipeline, the risk model and the output formats are described in
 KalaScan/
 ├── src/
 │   ├── main.rs            # Binary entry point (calls kalascan::run)
-│   ├── lib.rs             # Scan orchestrator, risk score & CLI dispatch
+│   ├── lib.rs             # Scan orchestrator & CLI dispatch
+│   ├── score.rs           # Risk score models v1 / v2 and the score breakdown
 │   ├── server.rs          # Axum web server: routes, auth middleware, scan queue, upload
 │   ├── commands.rs        # CLI subcommands & text report
 │   ├── cli.rs             # Clap CLI subcommand argument parser
@@ -485,7 +507,8 @@ KalaScan/
 │   ├── import.rs          # Scanner report import (Nessus, Nmap, Burp, ZAP, ...)
 │   ├── diff.rs            # Version diff (new capabilities)
 │   ├── installed.rs       # Installed IDE / browser extension and Claude Code plugin discovery
-│   ├── attack.rs          # MITRE ATT&CK technique mapping
+│   ├── attack.rs          # MITRE ATT&CK technique table and per-finding mapping
+│   ├── taxonomy.rs        # MBC objectives, supply-chain attack vectors, coverage table
 │   ├── triage.rs          # Deep static binary triage (goblin, capa/FLOSS/DIE)
 │   ├── deobfuscate.rs     # Recursive decoding chains & recovered payloads
 │   ├── emulate.rs         # Bounded x86/x64 static emulation (iced-x86)
@@ -498,13 +521,15 @@ KalaScan/
 │   ├── metrics.rs         # Prometheus counters/gauges (atomic, lock-free)
 │   ├── git_history.rs     # Commit history scanner
 │   ├── baseline.rs        # Finding fingerprints, baselines & .kalascanignore
-│   └── export.rs          # MD + SARIF + CSV + JUnit + GitHub export (HTML in export/html.rs)
+│   └── export.rs          # MD + SARIF + CSV + JUnit + GitHub export (HTML, STIX, OSV in export/)
 ├── rules/
 │   ├── builtin.toml       # Built-in RegEx rules with ids and verified examples
 │   ├── secrets.toml       # Secret patterns generated from gitleaks (opt-in `--secrets`)
+│   ├── weights.toml       # Score model v2 weights, fitted by eval/fit_weights.py
 │   ├── popular_extensions.tsv
 │   └── yara/              # Built-in YARA rules
-├── eval/                  # Labelled corpus + detection-quality harness
+├── eval/                  # Labelled corpus, detection-quality harness, score fitting, evasion suite
+│   └── results/           # One aggregate result file per ruleset version
 ├── templates/
 │   ├── index.html         # Dashboard with drag-and-drop upload & scan form
 │   └── result.html        # Redirect shim to the single-page result view
@@ -513,7 +538,7 @@ KalaScan/
 │   ├── release.yml        # Cross-platform binary upload on tags
 │   ├── security.yml       # Gitleaks + Trivy container scan
 │   ├── dependency-review.yml
-│   ├── eval.yml           # False-positive gate on the clean corpus
+│   ├── eval.yml           # False-positive gate on the clean corpus (PRs and weekly)
 │   ├── docker.yml         # Multi-arch build + push to ghcr.io
 │   ├── dependabot-auto-merge.yml
 │   └── scorecard.yml      # OpenSSF Scorecard
@@ -522,7 +547,7 @@ KalaScan/
 │   └── Dockerfile         # Minimal strace-enabled sandbox runtime image
 ├── Dockerfile             # Multi-stage Rust container build
 ├── docker-compose.yml     # KalaScan stack
-├── docs/                  # Architecture, detection rules, web UI security
+├── docs/                  # Architecture, rules, scoring, coverage, methodology, evasion, web UI security
 ├── deny.toml              # cargo-deny policy (advisories, licences, duplicates)
 ├── Cargo.toml
 ├── CHANGELOG.md
@@ -588,7 +613,7 @@ KALASCAN_ADDR=0.0.0.0:8080 cargo run --release
 - **Security**: Gitleaks (secret detection) + Trivy (vuln + secret + misconfig scan)
 - **Docker**: Multi-stage build published to `ghcr.io/wahidhendrawan/kalascan` on push to main
 - **Dependency Review**: Audits dependency changes on PRs
-- **Detection eval**: scans the clean corpus on PRs touching `src/` or `eval/`; any clean sample at risk ≥ 50 fails the build
+- **Detection eval**: scans the clean corpus on PRs touching `src/`, `rules/`, `eval/` or `Cargo.lock` and once a week; any clean sample at risk ≥ 50 fails the build. The malicious half is never run in CI (live malware); recall is measured by hand and recorded in `eval/results/`
 - All third-party actions are pinned to commit SHAs
 
 ## Security

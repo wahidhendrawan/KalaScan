@@ -3,6 +3,7 @@
 //! next version adds a stealer) show up here even when the absolute score of
 //! a large codebase hides them.
 
+use crate::export::{inert, no_workflow_commands};
 use crate::{RuleMatch, ScanResult};
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -99,7 +100,10 @@ pub fn severity_rank(severity: &str) -> u8 {
 pub fn format_text(d: &VersionDiff) -> String {
     let mut out = format!(
         "KalaScan version diff\n  old: {} (risk {})\n  new: {} (risk {})\n\n",
-        d.old_target, d.old_risk, d.new_target, d.new_risk
+        inert(&d.old_target),
+        d.old_risk,
+        inert(&d.new_target),
+        d.new_risk
     );
     if d.new_capabilities.is_empty() {
         out.push_str("No new capabilities in the new version.\n");
@@ -109,19 +113,23 @@ pub fn format_text(d: &VersionDiff) -> String {
             d.new_capabilities.len()
         ));
         for c in &d.new_capabilities {
-            out.push_str(&format!("  [{}] {}\n", c.severity.to_uppercase(), c.rule));
+            out.push_str(&format!(
+                "  [{}] {}\n",
+                c.severity.to_uppercase(),
+                inert(&c.rule)
+            ));
             for f in &c.files {
-                out.push_str(&format!("      {}\n", f));
+                out.push_str(&format!("      {}\n", inert(f)));
             }
         }
     }
     if !d.removed_capabilities.is_empty() {
         out.push_str(&format!(
             "\nNo longer present: {}\n",
-            d.removed_capabilities.join(", ")
+            inert(&d.removed_capabilities.join(", "))
         ));
     }
-    out
+    no_workflow_commands(&out)
 }
 
 #[cfg(test)]
@@ -183,6 +191,27 @@ mod tests {
         assert_eq!(d.new_capabilities[0].files, vec!["lib/telemetry.js"]);
         assert_eq!(d.removed_capabilities, vec!["eval() Usage"]);
         assert!(format_text(&d).contains("[CRITICAL] Chain: Credential Exfiltration"));
+    }
+
+    #[test]
+    fn a_file_name_cannot_start_a_workflow_command_or_a_line() {
+        let old = result("npm:lib@1.0.0", 0, &[]);
+        let new = result(
+            "npm:lib@1.0.1",
+            21,
+            &[
+                ("::notice::diffname.js", "Discord Webhook", "medium"),
+                ("a\n::error::b\u{1b}[2K.js", "Discord Webhook", "medium"),
+            ],
+        );
+        let text = format_text(&diff(&old, &new));
+        assert!(!text.contains('\u{1b}'), "{:?}", text);
+        assert!(
+            text.lines().all(|l| !l.trim_start().starts_with("::")),
+            "{}",
+            text
+        );
+        assert!(text.contains("      \\::notice::diffname.js\n"), "{}", text);
     }
 
     #[test]
