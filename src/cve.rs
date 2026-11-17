@@ -443,13 +443,29 @@ fn own_package(root: &Path) -> Option<DependencyPackage> {
             "package.json",
         ));
     }
-    if let Some(info) = read("PKG-INFO") {
+    // A wheel (what pip installs, and what a registry scan downloads when
+    // one exists) has no PKG-INFO: its identity is `<name>.dist-info/METADATA`.
+    let wheel = || {
+        let dir = std::fs::read_dir(root).ok()?.flatten().find(|e| {
+            e.file_name().to_string_lossy().ends_with(".dist-info")
+                && e.path().join("METADATA").is_file()
+        })?;
+        let file = format!("{}/METADATA", dir.file_name().to_string_lossy());
+        Some((
+            std::fs::read_to_string(dir.path().join("METADATA")).ok()?,
+            file,
+        ))
+    };
+    if let Some((info, file)) = read("PKG-INFO")
+        .map(|info| (info, "PKG-INFO".to_string()))
+        .or_else(wheel)
+    {
         let field = |k: &str| info.lines().find_map(|l| l.strip_prefix(k));
         return Some(pkg(
             field("Name: ")?,
             field("Version: ").unwrap_or("0"),
             "PyPI",
-            "PKG-INFO",
+            &file,
         ));
     }
     let setup = read("setup.py")?;
@@ -635,6 +651,26 @@ mod tests {
         assert_eq!(
             names,
             vec!["Typo-squat Suspect: asyncoi (looks like asyncio)".to_string()]
+        );
+
+        // A wheel: no PKG-INFO, the identity is in `<name>.dist-info/METADATA`.
+        let wheel = tempfile::tempdir().unwrap();
+        let info = wheel.path().join("keystackutilities-99.99.1.dist-info");
+        std::fs::create_dir(&info).unwrap();
+        std::fs::write(
+            info.join("METADATA"),
+            "Metadata-Version: 2.1\nName: keystackutilities\nVersion: 99.99.1\n",
+        )
+        .unwrap();
+        let found = own_package_matches(wheel.path());
+        assert_eq!(found.len(), 1);
+        assert_eq!(
+            found[0].matched_pattern,
+            crate::correlate::DEP_CONFUSION_VERSION
+        );
+        assert_eq!(
+            found[0].file_path,
+            "keystackutilities-99.99.1.dist-info/METADATA"
         );
 
         let setup = tempfile::tempdir().unwrap();

@@ -209,6 +209,7 @@ components:
         ignore: { type: string, description: "CLI-only; rejected by the API" }
         changed_only: { type: boolean }
         base_ref: { type: string }
+        score_model: { type: string, enum: [v1, v2], description: "Risk score model (default v1); see docs/scoring.md" }
     ScanAccepted:
       type: object
       properties:
@@ -260,6 +261,20 @@ components:
         sandbox: { type: object, nullable: true }
         status: { type: string }
         duration_ms: { type: integer, nullable: true }
+        score_breakdown:
+          type: object
+          nullable: true
+          description: The parts risk_score is the sum of (capped at 100)
+          properties:
+            model: { type: string, enum: [v1, v2] }
+            parts:
+              type: array
+              items:
+                type: object
+                properties:
+                  name: { type: string }
+                  points: { type: integer }
+            known_vulnerabilities: { type: integer, description: "v2 only: counted apart from the score" }
         iocs:
           type: array
           description: External URLs / public IPs referenced by the scanned code

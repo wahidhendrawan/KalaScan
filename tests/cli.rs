@@ -83,6 +83,21 @@ fn json_report_has_the_documented_shape_and_a_duration() {
     ] {
         assert!(!v[key].is_null(), "missing {}", key);
     }
+    // The score is the sum of its listed parts, under either model.
+    for (model, flags) in [("v1", &[][..]), ("v2", &["--score-model", "v2"][..])] {
+        let mut args = vec![fixture("suspicious"), "--format".into(), "json".into()];
+        args.extend(flags.iter().map(|f| f.to_string()));
+        let args: Vec<&str> = args.iter().map(String::as_str).collect();
+        let v = scan_json(cwd.path(), &args);
+        assert_eq!(v["score_breakdown"]["model"], model);
+        let parts: u64 = v["score_breakdown"]["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| p["points"].as_u64().unwrap())
+            .sum();
+        assert_eq!(parts.min(100), v["risk_score"].as_u64().unwrap(), "{model}");
+    }
 }
 
 #[test]

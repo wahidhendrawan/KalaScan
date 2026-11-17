@@ -875,6 +875,20 @@ pattern = '''(?i)(?:72657175697265|6368696c645f70726f63657373|70726f636573732e65
 matches = ['''g('72657175697265')''', ''''68747470733A2F2F6C6F672D7365727665722E76657263656C2E617070'''']
 ignores = ['''String.fromCharCode(parseInt('7265', 16))''']
 
+# The same names as decimal character codes, fed to String.fromCharCode in a
+# loop: `d([112,114,111,99,101,115,115])` is `process` (dax-hooks,
+# 999.999.999). The whole array or argument list is the word: the same
+# bytes inside a long table are data (the Brotli dictionary in fontkit).
+[[rule]]
+id = "KS-EXE-032"
+name = "Char-Code Encoded API Name"
+severity = "high"
+category = "obfuscation"
+description = "require / child_process / process / a URL spelled as decimal character codes"
+pattern = '''[\[(]\s*(?:99\s*,\s*104\s*,\s*105\s*,\s*108\s*,\s*100\s*,\s*95\s*,\s*112\s*,\s*114\s*,\s*111\s*,\s*99\s*,\s*101\s*,\s*115\s*,\s*115|114\s*,\s*101\s*,\s*113\s*,\s*117\s*,\s*105\s*,\s*114\s*,\s*101|112\s*,\s*114\s*,\s*111\s*,\s*99\s*,\s*101\s*,\s*115\s*,\s*115|95\s*,\s*108\s*,\s*111\s*,\s*97\s*,\s*100|101\s*,\s*120\s*,\s*101\s*,\s*99\s*,\s*83\s*,\s*121\s*,\s*110\s*,\s*99|104\s*,\s*111\s*,\s*115\s*,\s*116\s*,\s*110\s*,\s*97\s*,\s*109\s*,\s*101|104\s*,\s*116\s*,\s*116\s*,\s*112\s*,\s*115\s*,\s*58\s*,\s*47\s*,\s*47|104\s*,\s*116\s*,\s*116\s*,\s*112\s*,\s*58\s*,\s*47\s*,\s*47)\s*[\])]'''
+matches = ['''let P=global[d([112,114,111,99,101,115,115])];''', '''x([99, 104, 105, 108, 100, 95, 112, 114, 111, 99, 101, 115, 115])''']
+ignores = ['''[1112,114,111,99,101,115,1155]''', '''const sizes = [112, 114, 116, 118]''', '''116,115,114,117,110,110,105,110,103,112,114,111,99,101,115,115,119,114,105,116,105,110,103''']
+
 [[rule]]
 id = "KS-SUP-012"
 name = "Install Script Network Command"

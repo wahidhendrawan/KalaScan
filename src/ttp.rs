@@ -75,7 +75,7 @@ pub fn build(
             continue;
         }
         let source = format!("rule:{}", rule_match.matched_pattern);
-        for technique in attack::map_text(&rule_match.matched_pattern) {
+        for technique in attack::for_finding(&rule_match.matched_pattern) {
             record(&mut techniques, technique, &source, &rule_match.severity);
         }
     }

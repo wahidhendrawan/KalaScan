@@ -743,7 +743,11 @@ pub(crate) async fn run_diff_command(
     Ok(())
 }
 
-pub(crate) fn run_rules_command(name: Option<String>) -> anyhow::Result<()> {
+pub(crate) fn run_rules_command(name: Option<String>, coverage: bool) -> anyhow::Result<()> {
+    if coverage {
+        print!("{}", crate::taxonomy::coverage_markdown());
+        return Ok(());
+    }
     let rules = scanner::build_rules();
     match name {
         Some(query) => {
@@ -763,6 +767,16 @@ pub(crate) fn run_rules_command(name: Option<String>) -> anyhow::Result<()> {
                     println!("{}", rule.description);
                     println!();
                     println!("Pattern: {}", rule.pattern.as_str());
+                    let techniques = crate::attack::for_finding(&rule.name);
+                    for t in &techniques {
+                        let objective = crate::taxonomy::mbc_objective(t)
+                            .map(|(id, name)| format!("  [MBC {} {}]", id, name))
+                            .unwrap_or_default();
+                        println!("ATT&CK: {} {} ({}){}", t.id, t.name, t.tactic, objective);
+                    }
+                    for vector in crate::taxonomy::vectors_for(&rule.name) {
+                        println!("Supply-chain vector: {}", vector);
+                    }
                 }
                 [] => {
                     eprintln!(
@@ -877,6 +891,9 @@ fn format_cli_text(result: &ScanResult) -> String {
         "Risk Score:    {} / 100 [{}]\n",
         result.risk_score, level
     ));
+    if let Some(parts) = export::score_parts(result) {
+        out.push_str(&format!("Score Parts:   {}\n", parts));
+    }
     out.push_str("------------------------------------------------------------\n");
 
     if result.rule_matches.is_empty() {

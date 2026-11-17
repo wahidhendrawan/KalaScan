@@ -4,10 +4,13 @@
 # not 30k). Samples are LIVE MALWARE: never extract them outside a scratch
 # directory and never execute them. run_eval.py only scans them statically.
 #
-# usage: eval/fetch_malicious.sh <dest-dir>
+# With a second directory, also the samples listed from pypi_malregistry
+# (source "malregistry": an independent second source, PyPI only).
+#
+# usage: eval/fetch_malicious.sh <dest-dir> [<malregistry-dir>]
 set -euo pipefail
 
-dest=${1:?usage: eval/fetch_malicious.sh <dest-dir>}
+dest=${1:?usage: eval/fetch_malicious.sh <dest-dir> [<malregistry-dir>]}
 here=$(cd "$(dirname "$0")" && pwd)
 
 if [ ! -d "$dest/.git" ]; then
@@ -23,3 +26,17 @@ for s in json.load(open(sys.argv[1]))["samples"]:
 ' "$here/corpus.json" | xargs git -C "$dest" checkout HEAD --
 
 echo "fetched into $dest/samples"
+
+if [ -n "${2:-}" ]; then
+  if [ ! -d "$2/.git" ]; then
+    git clone -q --filter=blob:none --no-checkout --depth 1 \
+      https://github.com/lxyeternal/pypi_malregistry.git "$2"
+  fi
+  python3 -I -c '
+import json, sys
+for s in json.load(open(sys.argv[1]))["samples"]:
+    if s["source"] == "malregistry":
+        print(s["target"])
+' "$here/corpus.json" | xargs -r git -C "$2" checkout HEAD --
+  echo "fetched into $2"
+fi

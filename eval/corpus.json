@@ -1,5 +1,5 @@
 {
- "_comment": "Labelled corpus for eval/run_eval.py. 'dataset' paths are relative to a checkout of github.com/DataDog/malicious-software-packages-dataset (fetch with eval/fetch_malicious.sh). Clean targets are fetched from public registries. 'split': rules were tuned on 'dev'; report 'holdout' for an honest estimate. 'set': 'random-2026-11' marks clean packages drawn at random from npm and PyPI (eval/sample_clean.py) instead of picked. 'set': 'tune-2026-11' marks malicious samples drawn for tuning (split dev): every 2026 PyPI package not used before, 19 from 2025, 40 npm from 2026.",
+ "_comment": "Labelled corpus for eval/run_eval.py. 'dataset' paths are relative to a checkout of github.com/DataDog/malicious-software-packages-dataset (fetch with eval/fetch_malicious.sh). Clean targets are fetched from public registries. 'split': rules were tuned on 'dev'; report 'holdout' for an honest estimate. 'set': 'random-2026-11' marks clean packages drawn at random from npm and PyPI (eval/sample_clean.py) instead of picked. 'set': 'tune-2026-11' marks malicious samples drawn for tuning (split dev): every 2026 PyPI package not used before, 19 from 2025, 40 npm from 2026. 'set': 'recent-2026-11' marks 60 npm packages dated 2026-08-01 or later (eval/sample_malicious.py --since), split holdout, never read. 'source': 'malregistry' paths are relative to a checkout of github.com/lxyeternal/pypi_malregistry: 100 PyPI packages whose names the DataDog dataset does not have ('set': 'malregistry-2026-11'), split holdout, never read. 'set': 'fit-2026-11' marks clean packages drawn at random (eval/sample_clean.py --seed 20261117) into split dev: the clean half the score weights are fitted on (eval/fit_weights.py).",
  "samples": [
   {
    "target": "samples/ide_extensions/malicious_intent/Puglight.discoverito/0.0.1.vsix",
@@ -5475,6 +5475,3212 @@
    "source": "dataset",
    "split": "dev",
    "set": "tune-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@vbansal67@blooket/1.0.0/2026-08-12-@vbansal67_blooket-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@42ailab@42cc-win32-x64/0.10.14/2026-08-16-@42ailab_42cc-win32-x64-v0.10.14.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/cdn-img-fetch/1.0.2/2026-09-28-cdn-img-fetch-v1.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ai-analyzer/1.0.14/2026-08-13-ai-analyzer-v1.0.14.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/aws-blog/45.0.2/2026-08-27-aws-blog-v45.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/houdini-svelte-wasm/3.0.6/2026-09-12-houdini-svelte-wasm-v3.0.6.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/express-route-engine/3.6.3/2026-08-19-express-route-engine-v3.6.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/vite-plugin-crypto/1.0.6/2026-09-25-vite-plugin-crypto-v1.0.6.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/htps-provider/1.0.10/2026-08-26-htps-provider-v1.0.10.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/sentencex-win32-x64/1.0.31/2026-09-14-sentencex-win32-x64-v1.0.31.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@hybridaione@hybridclaw/0.39.3/2026-10-08-@hybridaione_hybridclaw-v0.39.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/3layerdipstackggjd8x/0.1.4/2026-08-26-3layerdipstackggjd8x-v0.1.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/imgbundle/1.0.0/2026-09-30-imgbundle-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/evm-validation/1.0.4/2026-08-24-evm-validation-v1.0.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/eip712-lite/1.0.3/2026-08-28-eip712-lite-v1.0.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/stillm4ddpocs-demo-sprocket/999.9.20/2026-08-22-stillm4ddpocs-demo-sprocket-v999.9.20.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@toptal@picasso-dropdown/100.0.2/2026-08-17-@toptal_picasso-dropdown-v100.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/mndsxcusiwlk1/1.0.0/2026-08-17-mndsxcusiwlk1-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chai-as-buffered/7.2.5/2026-09-18-chai-as-buffered-v7.2.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@pixelzx@genesis/2026.9.26/2026-09-26-@pixelzx_genesis-v2026.9.26.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@inpeek@odata/99.99.102/2026-10-04-@inpeek_odata-v99.99.102.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@vbansal67@flier/1.0.4/2026-08-25-@vbansal67_flier-v1.0.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/hardhat-core/2.1.2/2026-09-17-hardhat-core-v2.1.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/houdini-core-wasm/2.0.9/2026-09-12-houdini-core-wasm-v2.0.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/discord-mfa-solver/1.0.0/2026-08-29-discord-mfa-solver-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/esoftplay/0.0.269-betaa9abbcd/2026-09-21-esoftplay-v0.0.269-betaa9abbcd.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/radio-player-theme/2.0.0/2026-09-11-radio-player-theme-v2.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/stillm4ddpocs-demo-gadget/999.9.20/2026-08-22-stillm4ddpocs-demo-gadget-v999.9.20.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/dsh-waste-market/0.6.1/2026-09-03-dsh-waste-market-v0.6.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/real-browser-plus/1.1.0/2026-08-29-real-browser-plus-v1.1.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@itsmee_aizat.id@baileys2/0.0.0-stage/2026-10-03-@itsmee_aizat.id_baileys2-v0.0.0-stage.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/eyiouss/3.0.22/2026-08-13-eyiouss-v3.0.22.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/tailwind-scrollbar-hider/5.0.2/2026-08-25-tailwind-scrollbar-hider-v5.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/rust-testing-utils/2.3.0/2026-08-21-rust-testing-utils-v2.3.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ndmcmsujey/1.0.0/2026-09-20-ndmcmsujey-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/dzyclutch-baileys/1.1.19/2026-10-03-dzyclutch-baileys-v1.1.19.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@nyzzpediaa@baileys-new/1.0.9/2026-09-13-@nyzzpediaa_baileys-new-v1.0.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/stillm4ddpocs-rtest-bravo/999.9.10/2026-08-22-stillm4ddpocs-rtest-bravo-v999.9.10.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/fdhcxvnwhjiofv/1.0.0/2026-09-20-fdhcxvnwhjiofv-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ulebkit/1.0.1/2026-08-18-ulebkit-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/hydration-dim-ui/1.0.0/2026-08-23-hydration-dim-ui-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/supersignaturenature/1.0.5/2026-08-26-supersignaturenature-v1.0.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@sdgdfgdfhhhfd@multiviewr/2.0.0/2026-08-22-@sdgdfgdfhhhfd_multiviewr-v2.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/digitalexp-style-module-l9/99.0.0/2026-08-24-digitalexp-style-module-l9-v99.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@blackbelt-technology@pi-agent-dashboard/0.9.0/2026-10-06-@blackbelt-technology_pi-agent-dashboard-v0.9.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/svelte-dim-ui/1.0.0/2026-08-23-svelte-dim-ui-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@42ailab@42plugin-win32-x64/0.4.22/2026-10-03-@42ailab_42plugin-win32-x64-v0.4.22.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/faceplate-docs/99.9.9/2026-09-22-faceplate-docs-v99.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@a23842@dsh-notifier/0.2.3/2026-09-02-@a23842_dsh-notifier-v0.2.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@baanx@abis/9.9.11/2026-09-21-@baanx_abis-v9.9.11.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@hd-team@app-dnpkg-beta/1.0.20260828043500/2026-08-27-@hd-team_app-dnpkg-beta-v1.0.20260828043500.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@insiderintelligence@googleadmanager/9.9.10/2026-09-18-@insiderintelligence_googleadmanager-v9.9.10.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/cowork-os/0.5.54/2026-09-20-cowork-os-v0.5.54.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/svelte-ui-cls/1.0.0/2026-08-25-svelte-ui-cls-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/oscar-redis/5.11.3/2026-09-04-oscar-redis-v5.11.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/efhthrthrthregerht/99.9.9/2026-09-22-efhthrthrthregerht-v99.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@vbansal67@ccl/1.0.0/2026-08-12-@vbansal67_ccl-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/inspectstack/3.1.2/2026-08-17-inspectstack-v3.1.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/luftmvfiwgxydes/1.0.0/2026-09-18-luftmvfiwgxydes-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/dzyclutch/1.1.11/2026-10-03-dzyclutch-v1.1.11.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "recent-2026-11"
+  },
+  {
+   "target": "fredmi/3.9/fredmi-3.9.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "beautiulsoup4/0.1/beautiulsoup4-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "linkedin-scrape/4.4.2/linkedin-scrape-4.4.2.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "libhttps/4.6.12/libhttps-4.6.12.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "libpingvisagui/8.61/libpingvisagui-8.61.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "py-superrandompaypal/10.2/py-superrandompaypal-10.2.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "pullrand/6.8/pullrand-6.8.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "libposthacked/10.73/libposthacked-10.73.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "py-ultracraft/10.88/py-ultracraft-10.88.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "semdb/0.1/semdb-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "crypotcompare/0.1/crypotcompare-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "antchain-sdk-gatewayx/1.0.0/antchain_sdk_gatewayx-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "pycracker/1.0.0/pycracker-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "progrressbar2/0.1/progrressbar2-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "pirlow/1.0.0/pirlow-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "superpip/8.27/superpip-8.27.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "esqproofpushlib/6.2/esqproofpushlib-6.2.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "tpgrandmask/9.78/tpgrandmask-9.78.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "requests-toolbetl/0.1/requests-toolbetl-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "slintscreen/0.1.0/slintscreen-0.1.0-py3-none-any.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "huzzleup/0.1/huzzleup-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "esqstudyguiping/3.70/esqstudyguiping-3.70.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "pushsplit/10.89/pushsplit-10.89.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "tpstrmask/8.39/tpstrmask-8.39.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "zzzzthisisitwantsafecheckitzzzz/1.0.0/zzzzthisisitwantsafecheckitzzzz-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "tpvercpuencode/9.97/tpvercpuencode-9.97.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "esqvmvisa/5.63/esqvmvisa-5.63.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "loadferry/0.1.0/loadferry-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "virtualcc/3.44/virtualcc-3.44.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "hexdec/0.0.1/hexdec-0.0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "yfinanec/0.1/yfinanec-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "libcontrolvirtual/2.43/libcontrolvirtual-2.43.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "tpreinfo/9.9/tpreinfo-9.9.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "esqcvpost/8.79/esqcvpost-8.79.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "esqsplitpepcandy/9.58/esqsplitpepcandy-9.58.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "cuwtomtkinter/1.0.0/cuwtomtkinter-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "dicuser/0.0.5/dicuser-0.0.5-py3-none-any.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "echogen/1.0.0/echogen-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "esqproofrandommine/2.69/esqproofrandommine-2.69.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "esqvirtualmask/7.78/esqvirtualmask-7.78.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "tpencodereplacepush/3.11/tpencodereplacepush-3.11.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "imapping/0.1.2/imapping-0.1.2-py3-none-any.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "esqpygamevirtual/2.9/esqpygamevirtual-2.9.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "vocabblend/0.1.0/vocabblend-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "prooflib/4.70/prooflib-4.70.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "urllb/0.6/urllb-0.6.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "hexadec/0.0.1/hexadec-0.0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "py-adgame/10.79/py-adgame-10.79.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "py-paypalrandom/3.65/py-paypalrandom-3.65.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "deepmountains-lrce/deepmountains_lrce-0.0.1/deepmountains_lrce-0.0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "cycode-dev/99.9.9/cycode_dev-99.9.9.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "web3e/1.0.0/web3e-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "historic-crypt/4.5.2/historic-crypt-4.5.2.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "py32obf/0.1.6/py32obf-0.1.6.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "py-verhackedvirtual/3.71/py-verhackedvirtual-3.71.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "fdsfsdfsdfgsdg/0.0.0/fdsfsdfsdfgsdg-0.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "mineram/2.85/mineram-2.85.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "tencent-cloud-python-sdk/3.0.992/tencent_cloud_python_sdk-3.0.992-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "quarejma-botnetx/0.1/quarejma-botnetx-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "esqosintstudymine/10.44/esqosintstudymine-10.44.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "hpe-glcp-automation-lib/2.2160.0/hpe_glcp_automation_lib-2.2160.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "reqeyst/1.0.0/reqeyst-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "tphydraencodevirtual/2.79/tphydraencodevirtual-2.79.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "py-controlpymc/7.62/py-controlpymc-7.62.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "tensoflpw/1.0.0/tensoflpw-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "libintint/2.21/libintint-2.21.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "py-studyguicontrol/1.93/py-studyguicontrol-1.93.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "ultravirtual/2.57/ultravirtual-2.57.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "web3-auto/1.3.0/web3_auto-1.3.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "artifact-lab-3-package-e90915e1/0.1.4/artifact-lab-3-package-e90915e1-0.1.4.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "raft-dask/1.1.0/raft_dask-1.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "python-binanc/0.1/python-binanc-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "kokokoako/1.0.0/kokokoako-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "selflgtbpaypal/9.51/selflgtbpaypal-9.51.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "pydetectmouse/1/pydetectmouse-1.win-amd64.zip",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "selfcvpy/9.15/selfcvpy-9.15.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "selfpushramhttp/4.18/selfpushramhttp-4.18.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "adm3/1.8.0/adm3-1.8.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "lightmock/0.1.0/lightmock-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "pipkill/6.28/pipkill-6.28.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "new-reque-20222/2.28.1/new-reque-20222-2.28.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "innostage-group/7.0.6/innostage_group-7.0.6.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "vmsuper/2.28/vmsuper-2.28.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "tpgamemine/9.69/tpgamemine-9.69.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "huggingprocessor/1.0/huggingprocessor-1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "zagents-framework/6.25.30.10b5/zagents_framework-6.25.30.10b5.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "esqpywintelgrand/4.68/esqpywintelgrand-4.68.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "tpgamerandom/10.85/tpgamerandom-10.85.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "neptune-cli/2.8.23/neptune-cli-2.8.23-1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "insanepackagev1414/1.0.0/insanepackagev1414-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "postultra/9.11/postultra-9.11.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "esqadpeped/3.61/esqadpeped-3.61.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "py-postget/1.41/py-postget-1.41.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "colorwed/2.3.0/colorwed-2.3.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "legendevil1/1.0.0/legendevil1-1.0.0-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "py-httpvirtualmask/2.29/py-httpvirtualmask-2.29.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "tensorflw/0.1/tensorflw-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "pydisk2/0.0.0/pydisk2-0.0.0-py3-none-any.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "tpinfostrpost/2.92/tpinfostrpost-2.92.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "coloramas/0.22/coloramas-0.22-py3-none-any.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "malregistry-2026-11"
+  },
+  {
+   "target": "npm:ngdz-countries@0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:qsru@1.1.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:sciolyff@0.19.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@mvojjala/lotide@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:loki-dende.o2@1.1.8",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:norb-cli@1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:4-1808@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:static-transpile-enum-new-proxy@1.2.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:sanjaybadass@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@crossauth/common@1.1.10",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@microkits/micromapper@0.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:mpoblete-components@0.3.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:mind-map-vue@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:n8n-nodes-varejoonline@1.4.10",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:fukjg8@1.3.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:task-queue@1.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@fujia/react-template@0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:app.let@0.1.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:express-middleware-profiler@0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:rescale-vertices@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@pilab/pirat-common@1.0.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:bestofdview@0.4.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:rcolorpicker@1.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@mpios/global@1.1.40",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@toa.io/generic@1.0.0-alpha.208",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:eslint-plugin-lvd-plugin@0.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:grommet-addons@0.6.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:ivorypay-checkout-moon-caesar@1.1.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@datumland/arrowflightjs@0.7.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:calculadora-projeto@1.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@eo-cli/core@1.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:sapnwrfc@0.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:hono-with-drizzle@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:bs-vue-tailwind-components@0.1.12",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:rekuire@0.1.9",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@alireza-ab/vue3-persian-datepicker@1.0.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:tapava@2.3.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:react-native-circular-slider-re@1.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:leierli@0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:efficient-js@0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:storybook-addon-angularjs@1.6.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:multi-db-seeder@1.0.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@regolithjs/regolith-linux-x64-musl@0.1.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@timetales/tales-tales-sdk@1.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:grunt-images-map@0.1.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:arraydiff-papandreou@0.1.1-patch1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@eeue56/derw@0.0.3-7",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@roku-ui/icons-cif@2.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@doabit/semantic-ui-sass@2.4.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:rt4k-profile@1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:teate-thy-sonic-afidu@8.8.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:odata2openapiwithmicrosoftgraphfix@1.2.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@scotthuang/openclaw-bytedance@0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@tradie/flow-utils@1.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:unodns@0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:gitbook-plugin-restructure-navigation3@0.2.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:kanro.cookie@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:xmpp-dude@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@lemonadejs/rating@5.8.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:wbtree@0.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@toshick/html-parser@1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:react-generate-skeleton@1.0.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@lynx-example/swiper@0.5.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:jaenalyst@4.3.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:blog-js@0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:susdash@0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:03-ahao062@1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@tpkg/weber-libs@1.0.9",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@kineticist/cli@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@types/purl@2.3.34",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:redux-thunk-it@1.2.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:stimulus-multi-select@0.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:farrahi-component-package@1.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:sr-release@1.3.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:millken-inertia-vue@0.2.0-rc.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:dc-web3-eth-iban@1.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:web3-react-thor@1.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:baoshuo.css@0.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:build-plugin-store@0.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:sunden-diak-nul@1.1.10",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:regkata@1.3.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:instinct-demo-api@1.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@vit-foundation/vizvit-chart@0.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:core-utility@1.2.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:tea-young-produce-money@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:htpasswd-auth@2.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:zeus-core@0.1.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@mjcloud/reduce@1.0.8",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@malven/eslint-config@3.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:vue-email-template-vortex@0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:babel-plugin-introscope@1.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:msdapttls@2.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@g20/canvas@1.0.0-alpha.47",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:381_helloayesha@1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@fmllang/parser@0.0.11",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@infragen/util-test-cli@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:slate-stamps@1.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@its-thepoe/design-motion-principles@1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@zsean/quiz_system@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@tienhp/zenject@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:angular-sofa-radio-button@0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:eslint-plugin-testcafe-extended@0.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@awesome-cordova-plugins/purchases@9.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@js-v1/pattern@1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:node-proxy-service@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@zibuthe7j11/minus-vel-ipsa@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@paulkinlan/generate-html@0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:boost-vue@0.0.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:venetian@0.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:asap-express@0.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@ryanthedev/lotide@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@tigers/theme@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:memona_atm-machine@1.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:apex-legends-coins-no-verify@1.0.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@ez-microfrontend/at-firebase-storage@0.6.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:venom-cli@1.0.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:react-sketchapp-compatible@1.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:uu-properties-manager@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:cordova-plugin-app-updater@1.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@ybin4548/claude-autopilot@1.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:fluid-resolve@1.3.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@tosnetwork/tosdk@0.5.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:cc-pay@1.1.15",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@pengliheng/utils@1.0.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:rc-tiny-swiper@0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:cra-template-kendo@0.7.4-dev.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@bj-ui/bj-nav@1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@hyper.fun/fluentui-emoji-writing-hand-flat-default@2.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:generator-server-configs@1.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:conjure-recipe-example-api@0.6.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@malky/server@0.0.11",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@crisog/sourcecred@0.7.18",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@specialblend/generator-node@0.0.19",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@mortise-ai/runtime-document@0.1.0-rc.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@gd-kirie/ipc@0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@deboxsoft/svelte-toc@2.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:drizzle-zxy@0.4.18",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@cdx-forge/di-typescript-sdk@0.1.0-beta.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:create-turborepo-full-stack-template@1.1.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:unused-buddy@0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@suifengqi/utils@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@ppatierno/sensortag@1.3.0-10",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:bin_bash_2003@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:plugin-tmapoc-backend@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:debouncify@1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@loyaltylion/faktory-worker@4.2.1-2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:vue3-mathjax@0.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:testgamebank@0.1.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "npm:@iflow-mcp/tommybez-dbt-semantic-layer-mcp-server@0.1.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:parsero==0.81",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:TerminalWriter==1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:collective.salesforce.authplugin==1.5.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:domaintypesystem==0.1.9",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:odoo8-addons-oca-bank-statement-reconcile==8.0.20170409",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:miao-io==0.1.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:django-envsettings==1.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:processset==0.0.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:ncp-dataquery==0.333.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:cco==1.5.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:wolkenbruch==0.8.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:jappy==0.2.0a15",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:flowmesh-cli==0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:crookbook==0.0.10",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:imbalance-metrics==0.0.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:alibabacloud-cr20181201-py2==1.4.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:biNNytree==0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:tussi==1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:DataLabICB==0.1.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:metatab==0.8.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:notifyforeground==1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:idea-distiller==2025.12.21102518",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:ascii2hdf5==1.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:syncboostnote==0.1a0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:evrmore-rpc==4.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:filters-django==1.0.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:funer==0.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:nazpypak==1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:cfdna==2.5.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:donelib==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:falco==0.4.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:TorchCRF==1.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:django-repomgmt==0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:sphinx-litprog==0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:PyGraphine==1.0.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:embedding-dedupe==0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:pytenter==0.1.10",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:python-can-mcpcan==0.2.23",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:semby==1.0.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:pywinutils==0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:typelib==0.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:pydock==0.0.8",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:el-std-py==0.4.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:vmware-vsan-data-protection==9.1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:libnumerixpy==0.1.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:newspaperV3==0.3.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:polimind==0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:zernikepolpy==0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:sgota==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:brewblox-datastore==0.2.1.dev6",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:finjet==0.1.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:svchipiga-yandex==66.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:uharfbuzz==0.54.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:simpler-data==0.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:bep20==1.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:neatek-python-chat-server==0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:feu-utils==0.1.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:numasec==99.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:api-tutorial==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:Advans-ERP-Checker==0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:django-subdomain-tenancy-omladalan==0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:macrostrat.package_tools==2.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:kpkdataapi==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:neutral-auth==0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:mathgenerator==1.5.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:pyvenafi==1.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:redfish==3.3.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:xbob.paper.jmlr2013==0.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:atomcache==0.7.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:mosaik-simpy-io==0.2.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:tortoise-filters==0.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:AutoGitSemVer==0.9.13",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:neuropia-engine==1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:cdp-ts==0.1.53",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:ddopy==0.1.22",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:nonebot-plugin-bilibili-live-notify==0.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:meritous==1.2.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:notion-blockify==0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:logical-unification==0.4.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:limberframework==0.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:labasic==0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:rh-python-text-parser==0.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:azure-mgmt-dnsresolver==2.0.0b1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:PyH2==0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:sgp==0.3.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:unicsv==1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:avocado-framework-plugin-result-upload==113.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:deep-medical-toolkit==0.0.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:jax-lorax==0.3.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:deomo-py==1.0.0.dev1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:kathir-nlp==0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:drf-spectacular==0.29.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:jsonlight==0.0.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:fiftyone-devicedetection==4.5.45",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:langflow-law-base==0.0.98",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:contextify==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:odoo10-addon-pos-default-empty-image==10.0.1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:sypi==0.1.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:beam-mysql-connector==1.8.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:nanoemoji==0.15.9",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:trends-checker==0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:pymaia-learn==1.2.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:sphinxcontrib-cmtinc==0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:classgraphic==0.3.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:autolife-planning==0.3.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:scratchcon==1.4.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:sigfast==0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:tmailpy==0.0.3.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:rock-pre-h==0.1.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:pyhtime==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:polaris-cli==1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:qmlt==0.7.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:pyraftlog==3.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:DeepEnsemble==0.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:megapi==0.2.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:msgflux==0.4.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:compliance-assist==0.1.dev2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:aurore==0.0.10",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:scikit-yaml==0.2.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:website-tool==0.0.11",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:paramiko_tunnel==0.31",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:fedivertex==1.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:pysection==0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:getref==0.35",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:pjdtextblob==0.17.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:boto3-dataclass-pipes==1.40.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:datasette-atom==0.10a0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:canidrop==0.0.0.dev0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:mirrorshield==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:nostr-sdk==0.44.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:IncidentResponse==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:vtds-application-openchami==0.0.11",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:orbis-plugin-aggregation-local-cache==2.3.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:ai-django-fileupload==0.1.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:whoisguna==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:cj7==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:vnlb==0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:atmosphere-cli==1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:uliweb-comapps==0.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:quad==0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:Codetools-byfille-byfille==1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:tinydb-baseClass==1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:routesmith==0.1.8",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:fcache==0.6.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:bib2plain==0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:pyevolution==0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:wnetalign==0.9.9",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:flake8-use-fstring==1.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
+  },
+  {
+   "target": "pypi:wosfile==0.7.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "fit-2026-11"
   }
  ]
 }

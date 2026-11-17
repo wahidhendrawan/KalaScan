@@ -28,7 +28,9 @@ mod registry;
 mod reputation;
 pub mod sandbox;
 pub mod scanner;
+mod score;
 mod server;
+mod taxonomy;
 pub mod triage;
 mod ttp;
 pub mod vsix;
@@ -102,6 +104,16 @@ pub struct ScanRequest {
     /// Never read from the API: remote targets are untrusted by construction.
     #[serde(skip)]
     pub third_party: bool,
+    /// Risk score model: `v2` for the fitted weights, otherwise v1.
+    #[serde(default)]
+    pub score_model: Option<String>,
+}
+
+/// The current time as an RFC 3339 UTC timestamp, for scans, users and audit rows.
+pub(crate) fn now_rfc3339() -> String {
+    time::OffsetDateTime::now_utc()
+        .format(&time::format_description::well_known::Rfc3339)
+        .expect("a UTC time formats as RFC 3339")
 }
 
 /// `https://user:token@host/x` -> `https://host/x`, also inside error text
@@ -161,6 +173,9 @@ pub struct ScanResult {
     /// External URLs / IPs the scanned code refers to.
     #[serde(default)]
     pub iocs: Vec<iocs::Ioc>,
+    /// The parts `risk_score` is the sum of (capped at 100).
+    #[serde(default)]
+    pub score_breakdown: Option<score::ScoreBreakdown>,
 }
 
 /// The whole program: parse the command line and run the subcommand.
@@ -222,6 +237,7 @@ pub async fn run() -> anyhow::Result<()> {
             sandbox,
             sandbox_image,
             sandbox_runtime,
+            score_model,
         }) => {
             // kalascan.toml fills in whatever the command line left unset.
             // In someone else's checkout (--untrusted) ./kalascan.toml is that
@@ -232,6 +248,15 @@ pub async fn run() -> anyhow::Result<()> {
                 cli::Config::load(config.as_deref())?
             };
             let format = format.or(cfg.format).unwrap_or_else(|| "text".to_string());
+            // The flag is checked by clap; a typo in kalascan.toml must not
+            // quietly fall back to v1.
+            let score_model = score_model.or(cfg.score_model);
+            if score_model
+                .as_deref()
+                .is_some_and(|m| m != "v1" && m != "v2")
+            {
+                anyhow::bail!("score_model must be \"v1\" or \"v2\"");
+            }
             let baseline = baseline.or(cfg.baseline);
             let new_only = new_only || cfg.new_only.unwrap_or(false);
             if (new_only || update_baseline) && baseline.is_none() {
@@ -272,6 +297,7 @@ pub async fn run() -> anyhow::Result<()> {
                 ),
                 secrets: secrets || cfg.secrets.unwrap_or(false),
                 third_party: untrusted,
+                score_model,
             };
             commands::run_cli_scan(
                 req,
@@ -288,8 +314,8 @@ pub async fn run() -> anyhow::Result<()> {
         Some(Commands::User { action }) => {
             commands::run_user_command(action)?;
         }
-        Some(Commands::Rules { name }) => {
-            commands::run_rules_command(name)?;
+        Some(Commands::Rules { name, coverage }) => {
+            commands::run_rules_command(name, coverage)?;
         }
         Some(Commands::Installed {
             format,
@@ -436,7 +462,7 @@ async fn execute_scan_in(
     tmp_guard: Option<tempfile::TempDir>,
     package: bool,
 ) -> anyhow::Result<ScanResult> {
-    let timestamp = chrono::Utc::now().to_rfc3339();
+    let timestamp = crate::now_rfc3339();
     let repo_url = redact_credentials(&req.repo_url);
     // The operator's own checkout, scanned in place. Anything cloned,
     // downloaded or uploaded (it has a temp dir) is someone else's code.
@@ -664,7 +690,8 @@ async fn execute_scan_in(
         None
     };
 
-    let risk_score = calculate_risk_score(
+    let score_breakdown = score::calculate(
+        req.score_model.as_deref(),
         &rule_matches,
         &ai_result,
         Some(&triage_report),
@@ -672,6 +699,7 @@ async fn execute_scan_in(
         emulation_report.as_ref(),
         sandbox_report.as_ref(),
     );
+    let risk_score = score_breakdown.total();
 
     let result = ScanResult {
         id: scan_id.clone(),
@@ -691,6 +719,7 @@ async fn execute_scan_in(
         status: "completed".to_string(),
         duration_ms: None,
         iocs,
+        score_breakdown: Some(score_breakdown),
     };
 
     info!("Scan complete. ID: {}", scan_id);
@@ -771,100 +800,6 @@ async fn git_changed_files(
     Some(changed)
 }
 
-fn calculate_risk_score(
-    matches: &[RuleMatch],
-    ai: &Option<AiAnalysis>,
-    triage: Option<&triage::TriageReport>,
-    deobfuscation: Option<&deobfuscate::DeobfuscationReport>,
-    emulation: Option<&emulate::EmulationReport>,
-    sandbox: Option<&sandbox::SandboxReport>,
-) -> u8 {
-    use std::collections::HashSet;
-
-    // Count each (file, rule) pair once: the same regex firing 40 times in a
-    // minified bundle is one finding, not 40. The old code added every hit at
-    // full weight, so a legitimate extension with a few hundred benign matches
-    // saturated the static cap by itself and every later pass pushed it to 100.
-    let mut seen: HashSet<(&str, &str)> = HashSet::new();
-    let (mut critical, mut high, mut medium, mut cve) = (0u16, 0u16, 0u16, 0u16);
-
-    for m in matches {
-        // History hits (`<hash>:<path>`) count as the file they belong to.
-        let file = git_history::tree_path(&m.file_path);
-        if !seen.insert((file, m.matched_pattern.as_str())) {
-            continue;
-        }
-        if m.matched_pattern.starts_with("Known Vulnerability:") {
-            cve += 1;
-            continue;
-        }
-        // A chain is two corroborating hard signals by construction. Listing
-        // spoofs (invisible characters, look-alike publisher, a popular
-        // extension's repository under a stranger's name), an install script
-        // hidden from the registry's manifest, text hidden in Unicode tags and
-        // code decoded straight into exec (none of 526 clean packages) have no
-        // benign reading at all, so they weigh the same.
-        if m.matched_pattern.starts_with(correlate::CHAIN_PREFIX)
-            || m.matched_pattern == reputation::INVISIBLE_NAME
-            || m.matched_pattern == reputation::PUBLISHER_LOOKALIKE
-            || m.matched_pattern == reputation::REPACKAGED_COPY
-            || m.matched_pattern == reputation::AI_VENDOR_REPO
-            || m.matched_pattern == registry::MANIFEST_CONFUSION
-            || m.matched_pattern == iocs::URLHAUS_HIT
-            || m.matched_pattern == agent::TAG_TEXT
-            || m.matched_pattern == scanner::B64_EXEC
-            || m.matched_pattern == scanner::IMPORT_LOADER
-            || m.matched_pattern == cve::REMOTE_URL_DEP
-        {
-            critical += 2;
-            continue;
-        }
-        match m.severity.as_str() {
-            "critical" => critical += 1,
-            "high" => high += 1,
-            "medium" => medium += 1,
-            _ => {}
-        }
-    }
-
-    // Hard signals dominate (exfil endpoints, encoded commands). Soft ones
-    // (`process.env`, loopback IPs, `exec()` in a Python extension) are
-    // ubiquitous in legitimate code, so they saturate quickly.
-    // One critical on its own (a `ghp_x…` placeholder, one `vssadmin` in a
-    // forensics playbook) is a lead, not a verdict: a chain or a second
-    // critical makes it one. Caps are unchanged.
-    let critical_score = match critical {
-        0 => 0,
-        1 => 20,
-        n => (n * 35).min(70),
-    };
-    let static_score = critical_score + (high * 5).min(15) + medium.min(5);
-
-    // Vulnerable dependencies are a hygiene issue, not malware evidence.
-    let cve_score = cve.min(5);
-
-    // The deep passes overlap heavily. One shared budget keeps them from
-    // stacking five separate ceilings on the same evidence.
-    let dynamic = triage.map_or(0, |r| triage::risk_contribution(r) as u16)
-        + deobfuscation.map_or(0, |r| deobfuscate::risk_contribution(r) as u16)
-        + emulation.map_or(0, |r| emulate::risk_contribution(r) as u16)
-        + sandbox.map_or(0, |r| sandbox::risk_contribution(r) as u16);
-    let dynamic_score = dynamic.min(20);
-
-    // AI corroborates the static result; a benign verdict never raises it.
-    // TTP is derived from the matches above, so it is reported but not scored
-    // twice.
-    let ai_score = ai.as_ref().map_or(0, |a| {
-        if a.is_malicious {
-            (a.risk_score as u16 / 2).min(25)
-        } else {
-            0
-        }
-    });
-
-    (static_score + cve_score + dynamic_score + ai_score).min(100) as u8
-}
-
 #[cfg(test)]
 mod git_injection_tests {
     use super::*;
@@ -928,142 +863,5 @@ mod git_injection_tests {
         .unwrap();
         assert!(execute_scan(req).await.is_err());
         assert!(!marker.exists(), "injected --upload-pack ran");
-    }
-}
-
-#[cfg(test)]
-mod risk_score_tests {
-    use super::*;
-
-    fn hit(file: &str, rule: &str, severity: &str) -> RuleMatch {
-        RuleMatch {
-            file_path: file.to_string(),
-            line_number: 1,
-            matched_pattern: rule.to_string(),
-            severity: severity.to_string(),
-            context: String::new(),
-        }
-    }
-
-    fn benign_ai() -> Option<AiAnalysis> {
-        Some(AiAnalysis {
-            is_malicious: false,
-            risk_score: 15,
-            malware_type: "None".to_string(),
-            threat_summary: String::new(),
-            suspicious_lines: Vec::new(),
-            recommendation: String::new(),
-        })
-    }
-
-    #[test]
-    fn repeated_benign_hits_do_not_reach_high_risk() {
-        // Real case: legitimate Python extension, 310 files, 570 matches and
-        // 14 CVEs, AI says benign — the score was pinned at 100.
-        let mut matches = Vec::new();
-        for file in 0..300 {
-            for rule in ["Environment Variable Dump", "Hardcoded IP Address"] {
-                for line in 0..3 {
-                    let mut m = hit(&format!("out/{}", file), rule, "medium");
-                    m.line_number = line;
-                    matches.push(m);
-                }
-            }
-            matches.push(hit(&format!("out/{}", file), "exec() Usage", "high"));
-        }
-        for id in 0..14 {
-            matches.push(hit(
-                "package.json",
-                &format!("Known Vulnerability: GHSA-{} in lodash@4.17.15", id),
-                "high",
-            ));
-        }
-
-        let score = calculate_risk_score(&matches, &benign_ai(), None, None, None, None);
-        assert!(score < 70, "benign extension scored {}", score);
-    }
-
-    #[test]
-    fn single_hit_per_rule_per_file() {
-        let many: Vec<_> = (0..50)
-            .map(|_| hit("a.js", "Environment Variable Dump", "medium"))
-            .collect();
-        let one = vec![hit("a.js", "Environment Variable Dump", "medium")];
-        assert_eq!(
-            calculate_risk_score(&many, &None, None, None, None, None),
-            calculate_risk_score(&one, &None, None, None, None, None)
-        );
-    }
-
-    #[test]
-    fn real_malware_chain_stays_high_risk() {
-        let matches = vec![
-            hit("out/extension.js", "Discord Webhook", "critical"),
-            hit("out/extension.js", "SSH Key Access", "high"),
-            // What correlate_file emits for that pair in a real scan.
-            hit("out/extension.js", correlate::CREDENTIAL_EXFIL, "critical"),
-            hit("out/extension.js", "exec() Usage", "high"),
-            hit("out/extension.js", "Environment Variable Dump", "medium"),
-        ];
-        let score = calculate_risk_score(&matches, &benign_ai(), None, None, None, None);
-        assert!(score >= 40, "malware chain scored {}", score);
-    }
-
-    #[test]
-    fn malicious_package_scores_as_critical_not_hygiene() {
-        let vuln = vec![hit(
-            "requirements.txt",
-            "Known Vulnerability: GHSA-x in requests@2.25.1",
-            "high",
-        )];
-        let mal = vec![hit(
-            "requirements.txt",
-            "Malicious Package: MAL-2024-1 in evilpkg@1.0",
-            "critical",
-        )];
-        assert_eq!(
-            calculate_risk_score(&vuln, &None, None, None, None, None),
-            1
-        );
-        assert_eq!(
-            calculate_risk_score(&mal, &None, None, None, None, None),
-            20
-        );
-    }
-
-    #[test]
-    fn listing_spoof_alone_is_high_risk() {
-        let m = vec![hit("package.json", reputation::INVISIBLE_NAME, "critical")];
-        assert_eq!(calculate_risk_score(&m, &None, None, None, None, None), 70);
-    }
-
-    #[test]
-    fn one_unchained_critical_is_a_lead_not_a_verdict() {
-        let one = vec![hit("db.js", "Shadow Copy Deletion", "critical")];
-        assert_eq!(
-            calculate_risk_score(&one, &None, None, None, None, None),
-            20
-        );
-        let two = vec![
-            hit("db.js", "Shadow Copy Deletion", "critical"),
-            hit("enc.js", "Discord Webhook", "critical"),
-        ];
-        assert_eq!(
-            calculate_risk_score(&two, &None, None, None, None, None),
-            70
-        );
-        let chained = vec![hit("enc.js", correlate::RANSOMWARE, "critical")];
-        assert_eq!(
-            calculate_risk_score(&chained, &None, None, None, None, None),
-            70
-        );
-    }
-
-    #[test]
-    fn benign_ai_never_raises_score() {
-        let base = vec![hit("a.js", "exec() Usage", "high")];
-        let without = calculate_risk_score(&base, &None, None, None, None, None);
-        let with = calculate_risk_score(&base, &benign_ai(), None, None, None, None);
-        assert_eq!(without, with);
     }
 }

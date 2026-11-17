@@ -81,6 +81,9 @@ pub fn export_markdown(result: &ScanResult) -> String {
         },
         level,
     ));
+    if let Some(parts) = score_parts(result) {
+        md.push_str(&format!("Score: {}\n\n", md_cell(&parts)));
+    }
 
     // AI analysis section
     if let Some(ref ai) = result.ai_analysis {
@@ -521,6 +524,8 @@ pub fn export_sarif(result: &ScanResult) -> String {
                 "name": m.matched_pattern,
                 "shortDescription": { "text": m.matched_pattern },
                 "defaultConfiguration": { "level": sarif_level(&m.severity) },
+                // GitHub shows and gates on this (critical / high / medium / low), not on `level`.
+                "properties": { "security-severity": security_severity(&m.severity), "tags": ["security"] },
             }));
         }
     }
@@ -596,6 +601,29 @@ pub fn sarif_level(severity: &str) -> &'static str {
         "medium" => "warning",
         _ => "note",
     }
+}
+
+/// A CVSS-style score inside GitHub's band for the severity: critical 9.0+,
+/// high 7.0-8.9, medium 4.0-6.9, low below 4.
+fn security_severity(severity: &str) -> &'static str {
+    match severity {
+        "critical" => "9.5",
+        "high" => "8.0",
+        "medium" => "5.5",
+        _ => "2.0",
+    }
+}
+
+/// `critical findings 70 + high findings 5`: what the risk score is the sum of.
+pub fn score_parts(result: &ScanResult) -> Option<String> {
+    let parts = &result.score_breakdown.as_ref()?.parts;
+    (!parts.is_empty()).then(|| {
+        parts
+            .iter()
+            .map(|p| format!("{} {}", p.name, p.points))
+            .collect::<Vec<_>>()
+            .join(" + ")
+    })
 }
 
 /// CSV export: one row per finding, suitable for spreadsheets and CI artifacts.
@@ -775,7 +803,7 @@ pub fn export_cyclonedx(
         "serialNumber": format!("urn:uuid:{}", uuid::Uuid::new_v4()),
         "version": 1,
         "metadata": {
-            "timestamp": chrono::Utc::now().to_rfc3339(),
+            "timestamp": crate::now_rfc3339(),
             "tools": {
                 "components": [
                     {
@@ -1047,6 +1075,7 @@ mod tests {
             status: "completed".into(),
             duration_ms: None,
             iocs: Vec::new(),
+            score_breakdown: None,
         }
     }
 
@@ -1269,6 +1298,20 @@ mod tests {
             "src/old%20file%231.js"
         );
         assert_eq!(result["properties"]["commit"], commit);
+    }
+
+    #[test]
+    fn sarif_rules_carry_a_security_severity() {
+        let parsed: serde_json::Value =
+            serde_json::from_str(&export_sarif(&sample_result())).unwrap();
+        let rules = parsed["runs"][0]["tool"]["driver"]["rules"]
+            .as_array()
+            .unwrap();
+        let discord = rules
+            .iter()
+            .find(|r| r["name"] == "Discord Webhook")
+            .unwrap();
+        assert_eq!(discord["properties"]["security-severity"], "9.5");
     }
 
     #[test]

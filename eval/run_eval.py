@@ -12,6 +12,8 @@ against a previous run.
   python3 eval/run_eval.py ... --compare eval-results.json   # after a change
 
 Gate a change with --min-recall / --max-fpr (exit 1 when violated).
+Rates are printed with their 95% Wilson interval. --rule-stats lists every
+finding with how often it fires on malicious and on clean samples.
 
 --scanner guarddog runs DataDog's GuardDog (Docker image) on the same
 samples, for a like-for-like comparison:
@@ -20,24 +22,33 @@ samples, for a like-for-like comparison:
 """
 
 import argparse
+import collections
 import concurrent.futures as cf
 import json
+import math
 import os
 import subprocess
 import sys
+import tarfile
 import tempfile
 import time
 import zipfile
 
 THRESHOLDS = (30, 50, 70)
+# Sources kept on disk: corpus `source` -> (argument holding the checkout, how to fetch it).
+LOCAL = {
+    "dataset": ("dataset", "eval/fetch_malicious.sh"),
+    "malregistry": ("malregistry", "eval/fetch_malicious.sh"),
+}
 MANIFESTS = ("package.json", "setup.py", "pyproject.toml", "PKG-INFO")
 
 
 def package_root(path):
     """Shallowest dir holding a manifest, so dependency checks see it."""
     best = None
-    for root, _dirs, files in os.walk(path):
-        if any(m in files for m in MANIFESTS):
+    for root, dirs, files in os.walk(path):
+        # A wheel's manifest is its `<name>.dist-info` directory.
+        if any(m in files for m in MANIFESTS) or any(d.endswith(".dist-info") for d in dirs):
             depth = root.count(os.sep)
             if best is None or depth < best[0]:
                 best = (depth, root)
@@ -48,6 +59,8 @@ def ecosystem(sample):
     t = sample["target"]
     if sample["source"] == "dataset":
         return t.split("/")[1]  # samples/<eco>/...
+    if sample["source"] == "malregistry":
+        return "pypi"
     if t.startswith("npm:"):
         return "npm"
     if t.startswith("pypi:"):
@@ -95,17 +108,27 @@ def scan(sample, args):
     started = time.time()
     with tempfile.TemporaryDirectory(prefix="kalascan-eval-") as tmp:
         target = sample["target"]
-        if sample["source"] == "dataset":
-            path = os.path.join(args.dataset, target)
+        if sample["source"] in LOCAL:
+            root = getattr(args, LOCAL[sample["source"]][0])
+            path = os.path.join(root, target)
             if not os.path.exists(path):
-                return {"error": "missing; run eval/fetch_malicious.sh"}
-            if path.endswith(".zip"):
-                # Dataset archives use ZipCrypto with the published password.
-                # zipfile drops `..` and absolute member names on extract.
-                with zipfile.ZipFile(path) as z:
-                    z.extractall(os.path.join(tmp, "x"), pwd=b"infected")
-                target = package_root(os.path.join(tmp, "x"))
-            else:
+                return {"error": f"missing; run {LOCAL[sample['source']][1]}"}
+            dest = os.path.join(tmp, "x")
+            try:
+                if path.endswith((".zip", ".whl")):
+                    # Dataset archives use ZipCrypto with the published password.
+                    # zipfile drops `..` and absolute member names on extract.
+                    with zipfile.ZipFile(path) as z:
+                        z.extractall(dest, pwd=b"infected")
+                    target = package_root(dest)
+                elif path.endswith((".tar.gz", ".tgz")):
+                    with tarfile.open(path) as t:
+                        t.extractall(dest, filter="data")
+                    target = package_root(dest)
+            except (zipfile.BadZipFile, tarfile.TarError, OSError, RuntimeError) as e:
+                # A broken archive is an error, not a miss: it leaves the denominators.
+                return {"error": f"cannot extract: {str(e).splitlines()[0][:160]}"}
+            if target == sample["target"]:
                 target = path
         if args.scanner == "guarddog":
             found = guarddog(sample, target, args)
@@ -128,17 +151,58 @@ def scan(sample, args):
         "risk": result["risk_score"],
         "seconds": round(time.time() - started, 1),
         "strong": strong[:12],
+        # Every finding once, for --rule-stats and eval/fit_weights.py.
+        "rules": sorted({(m["matched_pattern"], m["severity"]) for m in result["rule_matches"]}),
     }
 
 
+def wilson(num, den, z=1.96):
+    """95% Wilson score interval: honest at 0/n and n/n, where the normal one collapses."""
+    if not den:
+        return 0.0, 1.0
+    p = num / den
+    mid = (p + z * z / (2 * den)) / (1 + z * z / den)
+    half = z * math.sqrt(p * (1 - p) / den + z * z / (4 * den * den)) / (1 + z * z / den)
+    return max(0.0, mid - half), min(1.0, mid + half)
+
+
 def rate(num, den):
-    return f"{num}/{den} ({100 * num / den:.0f}%)" if den else "-"
+    if not den:
+        return "-"
+    lo, hi = wilson(num, den)
+    return f"{num}/{den} ({100 * num / den:.0f}%, {100 * lo:.0f}-{100 * hi:.0f})"
+
+
+def rule_stats(done, split):
+    """How often each finding fires per class, and the likelihood ratio
+    P(fires | malicious) / P(fires | clean) with Jeffreys smoothing (+0.5),
+    so a finding never seen on clean samples gets a finite ratio that grows
+    with the number of clean samples it was tested on."""
+    group = [s for s in done if split == "all" or s.get("split", "dev") == split]
+    mal = [s for s in group if s["label"] == "malicious"]
+    cln = [s for s in group if s["label"] == "clean"]
+    hits = collections.defaultdict(lambda: [0, 0, ""])
+    for samples, col in ((mal, 0), (cln, 1)):
+        for s in samples:
+            for name, severity in s.get("rules", []):
+                hits[name][col] += 1
+                hits[name][2] = severity
+    rows = []
+    for name, (m, c, severity) in hits.items():
+        lr = ((m + 0.5) / (len(mal) + 1)) / ((c + 0.5) / (len(cln) + 1)) if mal and cln else 0.0
+        rows.append((lr, name, severity, m, c))
+    print(f"\n== findings on split '{split}' ({len(mal)} malicious, {len(cln)} clean), by likelihood ratio")
+    print(f"  {'LR':>7}  {'malicious':>9}  {'clean':>5}  {'severity':8}  finding")
+    for lr, name, severity, m, c in sorted(rows, reverse=True):
+        print(f"  {lr:>7.1f}  {m:>9}  {c:>5}  {severity:8}  {name}")
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--corpus", default=os.path.join(os.path.dirname(__file__), "corpus.json"))
     ap.add_argument("--dataset", help="checkout of the DataDog dataset (for malicious samples)")
+    ap.add_argument("--malregistry", help="checkout of pypi_malregistry (second, independent malicious source)")
+    ap.add_argument("--rule-stats", nargs="?", const="dev", metavar="SPLIT", help="per-finding hit counts and likelihood ratio on SPLIT (dev, holdout, all) [dev]")
     ap.add_argument("--kalascan", default="target/release/kalascan")
     ap.add_argument("--scanner", choices=("kalascan", "guarddog"), default="kalascan", help="tool to measure")
     ap.add_argument("--guarddog-image", default="ghcr.io/datadog/guarddog:latest")
@@ -152,11 +216,15 @@ def main():
     ap.add_argument("--min-recall", type=float, help="fail if malicious recall is below this (0-1)")
     ap.add_argument("--max-fpr", type=float, help="fail if clean false-positive rate is above this (0-1)")
     ap.add_argument("--allow-errors", action="store_true", help="don't fail on download/scan errors (flaky registries in CI)")
+    ap.add_argument("--show-holdout", action="store_true", help="also list holdout misses and score changes (then move what you read to dev)")
     args = ap.parse_args()
 
     samples = [s for s in json.load(open(args.corpus))["samples"] if not args.only or s["label"] == args.only]
     if any(s["source"] == "dataset" for s in samples) and not args.dataset:
         ap.error("--dataset is required for malicious samples (or use --only clean)")
+    if not args.malregistry:
+        # The second source is optional: without its checkout those samples are left out.
+        samples = [s for s in samples if s["source"] != "malregistry"]
 
     with cf.ThreadPoolExecutor(args.jobs) as pool:
         futures = {pool.submit(scan, s, args): s for s in samples}
@@ -170,20 +238,23 @@ def main():
     errors = [s for s in samples if "error" in s]
 
     print("\n== detection by threshold (risk >= T counts as flagged)")
-    print(f"{'T':>4}  {'malicious recall':<22}{'clean false positives':<22}")
+    print(f"{'T':>4}  {'malicious recall':<26}{'clean false positives':<26}")
     for t in THRESHOLDS:
         mal = [s for s in done if s["label"] == "malicious"]
         cln = [s for s in done if s["label"] == "clean"]
-        print(f"{t:>4}  {rate(sum(s['risk'] >= t for s in mal), len(mal)):<22}"
-              f"{rate(sum(s['risk'] >= t for s in cln), len(cln)):<22}")
+        print(f"{t:>4}  {rate(sum(s['risk'] >= t for s in mal), len(mal)):<26}"
+              f"{rate(sum(s['risk'] >= t for s in cln), len(cln)):<26}")
 
-    splits = sorted({s.get("split", "dev") for s in done})
-    if len(splits) > 1:
-        print(f"\n== per split at T={args.threshold} (rules are tuned on 'dev'; 'holdout' is the honest number)")
-        for split in splits:
-            mal = [s for s in done if s["label"] == "malicious" and s.get("split", "dev") == split]
-            cln = [s for s in done if s["label"] == "clean" and s.get("split", "dev") == split]
-            print(f"  {split:8} recall {rate(sum(s['risk'] >= args.threshold for s in mal), len(mal)):<16}"
+    # Per split, and per sample set inside it: a set drawn later or from
+    # another source is its own measurement (see eval/README.md).
+    groups = sorted({(s.get("split", "dev"), "") for s in done} | {(s.get("split", "dev"), s["set"]) for s in done if s.get("set")})
+    if len(groups) > 1:
+        print(f"\n== per split and set at T={args.threshold} (rules are tuned on 'dev'; 'holdout' is the honest number)")
+        for split, name in groups:
+            inside = [s for s in done if s.get("split", "dev") == split and (not name or s.get("set") == name)]
+            mal = [s for s in inside if s["label"] == "malicious"]
+            cln = [s for s in inside if s["label"] == "clean"]
+            print(f"  {split + ('/' + name if name else ''):28} recall {rate(sum(s['risk'] >= args.threshold for s in mal), len(mal)):<24}"
                   f"false positives {rate(sum(s['risk'] >= args.threshold for s in cln), len(cln))}")
 
     print(f"\n== per ecosystem at T={args.threshold}")
@@ -194,21 +265,26 @@ def main():
                 hit = sum(s["risk"] >= args.threshold for s in group)
                 print(f"  {eco:15} {label:9} flagged {rate(hit, len(group))}")
 
-    print(f"\n== misses at T={args.threshold}")
+    # Holdout misses are counted, not listed: a sample somebody has looked at
+    # is no longer a holdout sample (move it to dev before reading it).
+    print(f"\n== misses at T={args.threshold}" + ("" if args.show_holdout else " (dev only; holdout misses are counted above, not listed)"))
     for s in done:
         missed = (s["label"] == "malicious") != (s["risk"] >= args.threshold)
-        if missed:
+        if missed and (args.show_holdout or s.get("split", "dev") == "dev"):
             kind = "FN" if s["label"] == "malicious" else "FP"
             print(f"  {kind} {s['risk']:>3} {s['target']}  {', '.join(s['strong'][:4])}")
     for s in errors:
         print(f"  ERR {s['target']}: {s['error']}")
+
+    if args.rule_stats:
+        rule_stats(done, args.rule_stats)
 
     if args.compare and os.path.exists(args.compare):
         before = {s["target"]: s.get("risk") for s in json.load(open(args.compare))}
         print("\n== score changes vs", args.compare)
         for s in done:
             old = before.get(s["target"])
-            if old is not None and old != s["risk"]:
+            if old is not None and old != s["risk"] and (args.show_holdout or s.get("split", "dev") == "dev"):
                 print(f"  {s['label']:9} {old:>3} -> {s['risk']:>3}  {s['target']}")
 
     if args.out:
