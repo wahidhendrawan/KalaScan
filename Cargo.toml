@@ -27,7 +27,8 @@ zip = "9"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 url = "2"
-chrono = { version = "0.4", features = ["serde"] }
+# Already in the tree through yara-x; chrono was declared unmaintained (RUSTSEC-2026-0543).
+time = { version = "0.3", features = ["formatting", "parsing"] }
 rusqlite = { version = "0.41", features = ["bundled"] }
 clap = { version = "4", features = ["derive", "env"] }
 yara-x = "1.22.0"

@@ -803,7 +803,7 @@ pub fn export_cyclonedx(
         "serialNumber": format!("urn:uuid:{}", uuid::Uuid::new_v4()),
         "version": 1,
         "metadata": {
-            "timestamp": chrono::Utc::now().to_rfc3339(),
+            "timestamp": crate::now_rfc3339(),
             "tools": {
                 "components": [
                     {

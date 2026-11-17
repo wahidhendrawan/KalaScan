@@ -36,6 +36,7 @@ published on GitHub; their features are listed with version markers in `README.m
 - CI: the `false-positives` check runs on every pull request and skips the scan when no detection code or corpus changed. With a paths filter it never reported on Dockerfile- or workflow-only PRs, so Dependabot updates could not be merged.
 
 ### Changed
+- Timestamps come from the `time` crate (already in the dependency tree) instead of `chrono`, which RustSec lists as unmaintained (RUSTSEC-2026-0543). New timestamps end in `Z` instead of `+00:00`; both are RFC 3339.
 - The crate is a library (`src/lib.rs`) with a thin binary (`src/main.rs`), so the fuzz targets can call the parsers. No behaviour change.
 
 ### Changed

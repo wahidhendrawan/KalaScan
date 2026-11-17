@@ -429,7 +429,7 @@ fn pending_scan(id: &str, target: &str) -> ScanResult {
     ScanResult {
         id: id.to_string(),
         repo_url: target.to_string(),
-        timestamp: chrono::Utc::now().to_rfc3339(),
+        timestamp: crate::now_rfc3339(),
         total_files: 0,
         scanned_files: 0,
         total_matches: 0,
@@ -580,7 +580,7 @@ async fn begin_scan(
             .into_response());
     }
     let id = uuid::Uuid::new_v4().to_string();
-    let timestamp = chrono::Utc::now().to_rfc3339();
+    let timestamp = crate::now_rfc3339();
     let shown = redact_credentials(&req.repo_url);
     state.scans.lock().await.push(pending_scan(&id, &shown));
     // Persist the queued row (with the request) so a restart can resume it.

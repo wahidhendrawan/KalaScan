@@ -109,6 +109,13 @@ pub struct ScanRequest {
     pub score_model: Option<String>,
 }
 
+/// The current time as an RFC 3339 UTC timestamp, for scans, users and audit rows.
+pub(crate) fn now_rfc3339() -> String {
+    time::OffsetDateTime::now_utc()
+        .format(&time::format_description::well_known::Rfc3339)
+        .expect("a UTC time formats as RFC 3339")
+}
+
 /// `https://user:token@host/x` -> `https://host/x`, also inside error text
 /// such as git's stderr. Scan targets are shown in logs, the audit log, the
 /// history table and every report.
@@ -455,7 +462,7 @@ async fn execute_scan_in(
     tmp_guard: Option<tempfile::TempDir>,
     package: bool,
 ) -> anyhow::Result<ScanResult> {
-    let timestamp = chrono::Utc::now().to_rfc3339();
+    let timestamp = crate::now_rfc3339();
     let repo_url = redact_credentials(&req.repo_url);
     // The operator's own checkout, scanned in place. Anything cloned,
     // downloaded or uploaded (it has a temp dir) is someone else's code.

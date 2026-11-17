@@ -498,13 +498,7 @@ pub fn audit_insert(
     conn.execute(
         "INSERT INTO audit_log (timestamp, actor, action, target, detail)
          VALUES (?1, ?2, ?3, ?4, ?5)",
-        rusqlite::params![
-            chrono::Utc::now().to_rfc3339(),
-            actor,
-            action,
-            target,
-            detail
-        ],
+        rusqlite::params![crate::now_rfc3339(), actor, action, target, detail],
     )
     .context("Failed to write audit log")?;
     Ok(())

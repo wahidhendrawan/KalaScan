@@ -326,8 +326,10 @@ pub async fn marketplace_matches(publisher: &str, name: &str) -> Vec<RuleMatch> 
     let age_days = ext
         .published_date
         .as_deref()
-        .and_then(|d| chrono::DateTime::parse_from_rfc3339(d).ok())
-        .map(|d| (chrono::Utc::now() - d.with_timezone(&chrono::Utc)).num_days());
+        .and_then(|d| {
+            time::OffsetDateTime::parse(d, &time::format_description::well_known::Rfc3339).ok()
+        })
+        .map(|d| (time::OffsetDateTime::now_utc() - d).whole_days());
     reputation_findings(ext.publisher.flags.contains("verified"), installs, age_days)
 }
 

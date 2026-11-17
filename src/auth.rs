@@ -132,7 +132,7 @@ pub fn create_user(name: &str, role: Role) -> Result<String> {
             prefix,
             hash,
             salt,
-            chrono::Utc::now().to_rfc3339(),
+            crate::now_rfc3339(),
         ],
     )
     .context("Failed to insert user")?;
@@ -204,7 +204,7 @@ pub fn authenticate(token: &str) -> Option<Principal> {
     let role = Role::parse(&role)?;
     let _ = conn.execute(
         "UPDATE users SET last_used_at = ?1 WHERE name = ?2",
-        rusqlite::params![chrono::Utc::now().to_rfc3339(), name],
+        rusqlite::params![crate::now_rfc3339(), name],
     );
     Some(Principal { name, role })
 }
