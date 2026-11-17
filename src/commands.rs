@@ -106,12 +106,17 @@ pub(crate) fn run_import_command(
     }
     if let Some(threshold) = fail_on {
         let limit = import::rank(threshold);
-        if imported
-            .findings
-            .iter()
-            .any(|f| import::rank(f.severity) <= limit)
+        // Findings past the cap were never read, so they cannot pass the gate.
+        if imported.truncated
+            || imported
+                .findings
+                .iter()
+                .any(|f| import::rank(f.severity) <= limit)
         {
-            eprintln!("Finding at or above '{}' severity", threshold);
+            eprintln!(
+                "Finding at or above '{}' severity, or the report was too large to check",
+                threshold
+            );
             std::process::exit(1);
         }
     }
@@ -178,7 +183,8 @@ pub(crate) async fn run_deps_command(
             path.display()
         );
     }
-    if locked.len() > max {
+    let skipped = locked.len().saturating_sub(max);
+    if skipped > 0 {
         eprintln!(
             "{} packages locked; scanning the first {} (--max)",
             locked.len(),
@@ -280,6 +286,14 @@ pub(crate) async fn run_deps_command(
         eprintln!("{} scanned, {} failed", rows.len(), failed);
     }
     if let Some(threshold) = fail_on_risk {
+        // Fail closed: a package that was not scanned is not a pass.
+        if failed > 0 || skipped > 0 {
+            eprintln!(
+                "{} package(s) failed to scan and {} were past --max; failing the gate",
+                failed, skipped
+            );
+            std::process::exit(1);
+        }
         if rows.iter().any(|(_, r)| r.risk_score >= threshold) {
             std::process::exit(1);
         }
@@ -341,11 +355,15 @@ pub(crate) async fn run_installed_command(
         });
     }
     let mut rows = Vec::new();
+    let mut failed = 0;
     while let Some(joined) = tasks.join_next().await {
         let (ext, result) = joined?;
         match result {
             Ok(r) => rows.push((ext, r)),
-            Err(e) => eprintln!("  failed {}: {}", ext.path.display(), e),
+            Err(e) => {
+                failed += 1;
+                eprintln!("  failed {}: {}", ext.path.display(), e);
+            }
         }
     }
     rows.sort_by(|a, b| {
@@ -389,6 +407,11 @@ pub(crate) async fn run_installed_command(
         }
     }
     if let Some(threshold) = fail_on_risk {
+        // Fail closed: an extension that could not be scanned is not a pass.
+        if failed > 0 {
+            eprintln!("{} extension(s) failed to scan; failing the gate", failed);
+            std::process::exit(1);
+        }
         if rows.iter().any(|(_, r)| r.risk_score >= threshold) {
             std::process::exit(1);
         }
@@ -398,7 +421,9 @@ pub(crate) async fn run_installed_command(
 
 /// What an install command would fetch, as scan targets, or `None` when the
 /// command installs nothing (`npm test`). An empty list means "whatever the
-/// lockfile says" (`npm ci`, a bare `npm install`).
+/// lockfile says" (`npm ci`, a bare `npm install`). Fails closed: a spec it
+/// cannot scan (alias, git, URL, path) or a command that installs something
+/// it cannot name (`npm update`, `npx`) is an error, so the guard refuses.
 /// shortcut: only the packages named on the command line (and the lockfile
 /// for a bare install) are scanned, not what they pull in; a range
 /// (`lodash@^4`) scans the latest version. `kalascan deps` after the install
@@ -437,6 +462,8 @@ fn install_targets(command: &[String]) -> anyhow::Result<Option<Vec<String>>> {
         "--python",
         "-p",
         "--group",
+        "-r",
+        "--requirement",
     ];
     let positional = |from: usize| -> Vec<&str> {
         let mut out = Vec::new();
@@ -454,19 +481,58 @@ fn install_targets(command: &[String]) -> anyhow::Result<Option<Vec<String>>> {
     };
     let verb_at = |verbs: &[&str]| args.iter().position(|a| verbs.contains(a));
 
+    let refuse = || {
+        anyhow::anyhow!(
+            "kalascan guard cannot tell what `{}` installs, so it is not running it; \
+             run it without `kalascan guard --` to install anyway",
+            command.join(" ")
+        )
+    };
+    // Every named spec must map to a scan target: one that does not
+    // (`x@npm:y`, git, URL, path) would install unscanned.
+    let all = |specs: Vec<&str>, map: fn(&str) -> Option<String>| -> anyhow::Result<Vec<String>> {
+        specs
+            .into_iter()
+            .map(|s| map(s).ok_or_else(refuse))
+            .collect()
+    };
+
     match prog {
         "npm" | "pnpm" | "yarn" | "bun" => {
+            // Install from the lockfile.
+            if args.is_empty() && prog != "npm" {
+                return Ok(Some(Vec::new()));
+            }
+            if verb_at(&["install-test", "it", "install-ci-test", "cit"]).is_some() {
+                return Ok(Some(Vec::new()));
+            }
+            // Fetch or run packages the guard cannot name.
+            const FETCHES: &[&str] = &[
+                "update", "upgrade", "up", "exec", "x", "dlx", "create", "init", "link",
+                "rebuild", "import",
+            ];
+            if args.first().is_some_and(|a| FETCHES.contains(a)) {
+                return Err(refuse());
+            }
             let Some(at) = verb_at(&["install", "i", "add", "ci"]) else {
+                // `npm test`, `npm run x`, `yarn build`: a script, nothing fetched.
                 return Ok(None);
             };
-            Ok(Some(positional(at + 1).into_iter().filter_map(npm_target).collect()))
+            Ok(Some(all(positional(at + 1), npm_target)?))
         }
         "pip" | "pip3" | "uv" | "python" | "python3" => {
-            let Some(at) = verb_at(&["install", "add"]) else {
+            if prog == "uv" && args.first().is_some_and(|a| ["sync", "run"].contains(a)) {
+                return Ok(Some(Vec::new())); // installs what uv.lock pins
+            }
+            // The first verb decides (`pip install wheel` installs `wheel`).
+            // `pip download` / `pip wheel` build sdists, which runs setup.py.
+            let Some(at) = verb_at(&["install", "add", "download", "wheel", "sync"]) else {
                 return Ok(None);
             };
-            let mut targets: Vec<String> =
-                positional(at + 1).into_iter().filter_map(pypi_target).collect();
+            if !["install", "add"].contains(&args[at]) {
+                return Err(refuse());
+            }
+            let mut targets = all(positional(at + 1), pypi_target)?;
             // -r / --requirement files: one spec per line.
             for (i, a) in args.iter().enumerate() {
                 let file = match *a {
@@ -476,12 +542,16 @@ fn install_targets(command: &[String]) -> anyhow::Result<Option<Vec<String>>> {
                 if let Some(file) = file {
                     let text = std::fs::read_to_string(file)
                         .map_err(|e| anyhow::anyhow!("cannot read {}: {}", file, e))?;
-                    targets.extend(
-                        text.lines()
-                            .map(|l| l.split('#').next().unwrap_or("").trim())
-                            .filter(|l| !l.is_empty() && !l.starts_with('-'))
-                            .filter_map(pypi_target),
-                    );
+                    let lines: Vec<&str> = text
+                        .lines()
+                        .map(|l| l.split('#').next().unwrap_or("").trim())
+                        .filter(|l| !l.is_empty())
+                        .collect();
+                    // `-e .`, `--index-url`, a nested `-r`: not scannable here.
+                    if lines.iter().any(|l| l.starts_with('-')) {
+                        return Err(refuse());
+                    }
+                    targets.extend(all(lines, pypi_target)?);
                 }
             }
             Ok(Some(targets))
@@ -568,7 +638,7 @@ pub(crate) async fn run_guard_command(
                     fail_on_risk,
                     Some(fail_on_risk),
                     jobs,
-                    500,
+                    usize::MAX, // every locked package: one past a cap would install unscanned
                     false,
                 )
                 .await?;
@@ -641,10 +711,13 @@ pub(crate) async fn run_diff_command(
     cve: bool,
 ) -> anyhow::Result<()> {
     let request = |target: &str| -> anyhow::Result<ScanRequest> {
-        Ok(serde_json::from_value(serde_json::json!({
+        let mut req: ScanRequest = serde_json::from_value(serde_json::json!({
             "repo_url": target,
             "check_cve": cve,
-        }))?)
+        }))?;
+        // Both versions are someone else's code, even as local directories.
+        req.third_party = true;
+        Ok(req)
     };
     // Sequential: both may download from the same registry.
     let old_result = execute_scan(request(old)?).await?;
@@ -1064,7 +1137,9 @@ mod guard_tests {
     #[test]
     fn install_commands_become_scan_targets() {
         assert_eq!(
-            targets("npm install --save-dev left-pad lodash@4.17.21 @scope/pkg@1.0.0 react@^19 ./local git+https://x/y.git -w app"),
+            targets(
+                "npm install --save-dev left-pad lodash@4.17.21 @scope/pkg@1.0.0 react@^19 -w app"
+            ),
             Some(vec![
                 "npm:left-pad".to_string(),
                 "npm:lodash@4.17.21".to_string(),
@@ -1079,7 +1154,7 @@ mod guard_tests {
         assert_eq!(targets("npm ci"), Some(vec![]));
         assert_eq!(targets("npm test"), None);
         assert_eq!(
-            targets("/usr/bin/pip3 install -i https://pypi.org/simple requests==2.32.3 rich[jupyter]>=13 ./dist/x.whl"),
+            targets("/usr/bin/pip3 install -i https://pypi.org/simple requests==2.32.3 rich[jupyter]>=13"),
             Some(vec!["pypi:requests==2.32.3".to_string(), "pypi:rich".to_string()])
         );
         assert_eq!(
@@ -1101,7 +1176,7 @@ mod guard_tests {
     fn requirement_files_are_read() {
         let dir = tempfile::tempdir().unwrap();
         let req = dir.path().join("requirements.txt");
-        std::fs::write(&req, "# deps\nflask==3.1.0  # web\n-e .\nrequests>=2\n\n").unwrap();
+        std::fs::write(&req, "# deps\nflask==3.1.0  # web\nrequests>=2\n\n").unwrap();
         let cmd = format!("pip install -r {}", req.display());
         assert_eq!(
             targets(&cmd),
@@ -1109,6 +1184,57 @@ mod guard_tests {
                 "pypi:flask==3.1.0".to_string(),
                 "pypi:requests".to_string()
             ])
+        );
+        // An option line installs something the guard cannot scan.
+        std::fs::write(&req, "flask==3.1.0\n-e .\n").unwrap();
+        assert!(
+            install_targets(&cmd.split_whitespace().map(String::from).collect::<Vec<_>>()).is_err()
+        );
+    }
+
+    fn refused(cmd: &str) -> bool {
+        let argv: Vec<String> = cmd.split_whitespace().map(String::from).collect();
+        install_targets(&argv).is_err()
+    }
+
+    #[test]
+    fn unscannable_installs_are_refused() {
+        // Specs that cannot become a scan target would install unscanned.
+        assert!(refused("npm install lodash@npm:evil-pkg@1.0.0"));
+        assert!(refused("npm install ./local"));
+        assert!(refused("npm install git+https://x/y.git"));
+        assert!(refused("pip install ./dist/x.whl"));
+        assert!(refused("pip install https://evil.example/x.tar.gz"));
+        // Commands that fetch or run packages the guard cannot name.
+        for cmd in [
+            "npm update",
+            "npm exec evil-pkg",
+            "pnpm dlx x",
+            "yarn create x",
+            "pip download x",
+            "uv pip sync r.txt",
+        ] {
+            assert!(refused(cmd), "{cmd}");
+        }
+        // Lockfile installs go through the lockfile audit.
+        for cmd in [
+            "yarn",
+            "pnpm",
+            "bun",
+            "npm install-test",
+            "npm cit",
+            "uv sync",
+            "uv run app.py",
+        ] {
+            assert_eq!(targets(cmd), Some(vec![]), "{cmd}");
+        }
+        // Scripts and queries fetch nothing; `pip install wheel` installs `wheel`.
+        assert_eq!(targets("npm run build"), None);
+        assert_eq!(targets("yarn build"), None);
+        assert_eq!(targets("pip list"), None);
+        assert_eq!(
+            targets("pip install wheel"),
+            Some(vec!["pypi:wheel".to_string()])
         );
     }
 }

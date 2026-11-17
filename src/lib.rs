@@ -224,7 +224,13 @@ pub async fn run() -> anyhow::Result<()> {
             sandbox_runtime,
         }) => {
             // kalascan.toml fills in whatever the command line left unset.
-            let cfg = cli::Config::load(config.as_deref())?;
+            // In someone else's checkout (--untrusted) ./kalascan.toml is that
+            // author's policy (ignore globs, a baseline): only --config counts.
+            let cfg = if untrusted && config.is_none() {
+                cli::Config::default()
+            } else {
+                cli::Config::load(config.as_deref())?
+            };
             let format = format.or(cfg.format).unwrap_or_else(|| "text".to_string());
             let baseline = baseline.or(cfg.baseline);
             let new_only = new_only || cfg.new_only.unwrap_or(false);
@@ -365,11 +371,18 @@ async fn execute_scan_with_id(req: ScanRequest, id: String) -> anyhow::Result<Sc
     // A local directory is scanned in place (no clone, no temp dir). This keeps
     // PR scans fast and avoids a second clone when the caller already has a
     // checkout. Packages (.vsix/.zip/.jar/.crx) still go through unpacking.
+    // An existing directory is a directory whatever its name ends with
+    // (an installed extension folder `x-1.0.0.zip` used to fail as a package);
+    // only a registry or marketplace id still goes to unpack_extension.
     let local_path = std::path::Path::new(&req.repo_url);
-    if local_path.is_dir() && !vsix::is_vsix_target(&req.repo_url) {
+    let t = req.repo_url.trim();
+    if local_path.is_dir()
+        && vsix::parse_package_target(t).is_none()
+        && vsix::parse_marketplace_id(t).is_none()
+    {
         let path = local_path.to_path_buf();
         info!("Scanning local directory {:?} in place", path);
-        return execute_scan_in(req, path, id, None).await;
+        return execute_scan_in(req, path, id, None, false).await;
     }
 
     let tmp_dir = tempfile::tempdir()?;
@@ -411,20 +424,30 @@ async fn execute_scan_with_id(req: ScanRequest, id: String) -> anyhow::Result<Sc
         target_dir
     };
 
-    execute_scan_in(req, scan_dir, id, Some(tmp_dir)).await
+    execute_scan_in(req, scan_dir, id, Some(tmp_dir), is_extension).await
 }
 
+/// `package`: `scan_dir` was extracted from an archive, so even its `.git`
+/// is the author's (see `scanner::Tree`).
 async fn execute_scan_in(
     req: ScanRequest,
     scan_dir: std::path::PathBuf,
     scan_id: String,
     tmp_guard: Option<tempfile::TempDir>,
+    package: bool,
 ) -> anyhow::Result<ScanResult> {
     let timestamp = chrono::Utc::now().to_rfc3339();
     let repo_url = redact_credentials(&req.repo_url);
     // The operator's own checkout, scanned in place. Anything cloned,
     // downloaded or uploaded (it has a temp dir) is someone else's code.
-    let own_tree = tmp_guard.is_none() && !req.third_party;
+    let tree = if tmp_guard.is_none() && !req.third_party {
+        scanner::Tree::Own
+    } else if package {
+        scanner::Tree::Package
+    } else {
+        scanner::Tree::Checkout
+    };
+    let own_tree = tree == scanner::Tree::Own;
 
     info!(
         "Source ready at {:?}. Running static + YARA + entropy scan...",
@@ -458,7 +481,7 @@ async fn execute_scan_in(
             custom_yara.as_deref(),
             &extra_rules,
             changed_clone.as_ref(),
-            own_tree,
+            tree,
         )
     })
     .await
@@ -478,7 +501,7 @@ async fn execute_scan_in(
 
     // IOCs, and exact-URL threat intel when an abuse.ch key is configured.
     let ioc_dir = scan_dir.clone();
-    let mut iocs = tokio::task::spawn_blocking(move || iocs::extract(&ioc_dir, own_tree))
+    let mut iocs = tokio::task::spawn_blocking(move || iocs::extract(&ioc_dir, tree))
         .await
         .unwrap_or_default();
     if let Ok(key) = std::env::var("URLHAUS_AUTH_KEY") {

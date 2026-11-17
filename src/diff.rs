@@ -44,6 +44,13 @@ fn by_capability(result: &ScanResult) -> BTreeMap<String, Vec<&RuleMatch>> {
     for m in &result.rule_matches {
         map.entry(capability_key(m)).or_default().push(m);
     }
+    // Most severe hit first: it sets the capability's severity, files and
+    // example. Walk order let a medium decoy (a prose agent file quoting the
+    // same URL) stand in for a critical hit in code. Stable: walk order is
+    // kept within one severity.
+    for hits in map.values_mut() {
+        hits.sort_by_key(|m| severity_rank(&m.severity));
+    }
     map
 }
 
@@ -176,5 +183,21 @@ mod tests {
         assert_eq!(d.new_capabilities[0].files, vec!["lib/telemetry.js"]);
         assert_eq!(d.removed_capabilities, vec!["eval() Usage"]);
         assert!(format_text(&d).contains("[CRITICAL] Chain: Credential Exfiltration"));
+    }
+
+    #[test]
+    fn a_capability_takes_its_most_severe_hit() {
+        let old = result("npm:lib@1.0.0", 0, &[]);
+        let new = result(
+            "npm:lib@1.0.1",
+            21,
+            &[
+                ("SKILL.md", "Discord Webhook", "medium"),
+                ("index.js", "Discord Webhook", "critical"),
+            ],
+        );
+        let d = diff(&old, &new);
+        assert_eq!(d.new_capabilities[0].severity, "critical");
+        assert_eq!(d.new_capabilities[0].files[0], "index.js");
     }
 }

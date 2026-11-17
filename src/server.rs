@@ -1186,7 +1186,7 @@ async fn api_scan_upload(
 
     // The temp dir must outlive the scan task; move it into the task.
     let work_id = scan_id.clone();
-    let work = async move { execute_scan_in(req, scan_dir, work_id, Some(tmp_dir)).await };
+    let work = async move { execute_scan_in(req, scan_dir, work_id, Some(tmp_dir), true).await };
     spawn_task(state.clone(), scan_id.clone(), work).await;
 
     Json(serde_json::json!({
