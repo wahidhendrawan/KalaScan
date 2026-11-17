@@ -444,6 +444,7 @@ fn pending_scan(id: &str, target: &str) -> ScanResult {
         status: "queued".to_string(),
         duration_ms: None,
         iocs: Vec::new(),
+        score_breakdown: None,
     }
 }
 
@@ -1177,6 +1178,7 @@ async fn api_scan_upload(
         base_ref: None,
         secrets: false,
         third_party: true,
+        score_model: None,
     };
 
     let scan_id = match begin_scan(&state, &req, &principal.name).await {

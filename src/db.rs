@@ -29,7 +29,7 @@ pub(crate) fn open_db() -> Result<Connection> {
 }
 
 /// Schema version applied by `migrate`. Bump when adding a migration step.
-const SCHEMA_VERSION: i64 = 4;
+const SCHEMA_VERSION: i64 = 5;
 
 pub fn init_db() -> Result<()> {
     let conn = open_db()?;
@@ -131,6 +131,15 @@ fn migrate(conn: &Connection) -> Result<()> {
         conn.execute_batch("PRAGMA user_version = 4")?;
     }
 
+    if current < 5 {
+        // v5: how the risk score was put together.
+        if !column_exists(conn, "scan_history", "score_json")? {
+            conn.execute("ALTER TABLE scan_history ADD COLUMN score_json TEXT", [])
+                .context("Failed to add score_json column")?;
+        }
+        conn.execute_batch("PRAGMA user_version = 5")?;
+    }
+
     Ok(())
 }
 
@@ -208,6 +217,11 @@ pub fn save_scan(result: &ScanResult) -> Result<bool> {
         .map(serde_json::to_string)
         .transpose()?;
     let iocs_json = serde_json::to_string(&result.iocs)?;
+    let score_json = result
+        .score_breakdown
+        .as_ref()
+        .map(serde_json::to_string)
+        .transpose()?;
 
     let updated = conn
         .execute(
@@ -225,7 +239,8 @@ pub fn save_scan(result: &ScanResult) -> Result<bool> {
             ttp_json = ?12,
             sandbox_json = ?13,
             iocs_json = ?14,
-            duration_ms = COALESCE(?15, duration_ms)
+            duration_ms = COALESCE(?15, duration_ms),
+            score_json = ?16
          WHERE id = ?1",
             rusqlite::params![
                 result.id,
@@ -243,6 +258,7 @@ pub fn save_scan(result: &ScanResult) -> Result<bool> {
                 sandbox_json,
                 iocs_json,
                 result.duration_ms.map(|d| d as i64),
+                score_json,
             ],
         )
         .context("Failed to save scan result")?;
@@ -324,7 +340,7 @@ pub fn get_scan(id: &str) -> Result<Option<ScanResult>> {
     ensure_schema(&conn)?;
     let mut stmt = conn
         .prepare(
-            "SELECT id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, ai_analysis_json, rule_matches_json, triage_json, deobfuscation_json, emulation_json, ttp_json, sandbox_json, duration_ms, iocs_json
+            "SELECT id, repo_url, timestamp, total_files, scanned_files, risk_score, total_matches, status, ai_analysis_json, rule_matches_json, triage_json, deobfuscation_json, emulation_json, ttp_json, sandbox_json, duration_ms, iocs_json, score_json
              FROM scan_history WHERE id = ?1",
         )
         .context("Failed to prepare get_scan statement")?;
@@ -372,6 +388,9 @@ pub fn get_scan(id: &str) -> Result<Option<ScanResult>> {
                 .get::<_, Option<String>>(16)?
                 .and_then(|j| serde_json::from_str(&j).ok())
                 .unwrap_or_default();
+            let score_breakdown = row
+                .get::<_, Option<String>>(17)?
+                .and_then(|j| serde_json::from_str(&j).ok());
 
             Ok(Some(ScanResult {
                 id: row.get(0)?,
@@ -391,6 +410,7 @@ pub fn get_scan(id: &str) -> Result<Option<ScanResult>> {
                 sandbox,
                 duration_ms: duration_ms.map(|d| d as u64),
                 iocs,
+                score_breakdown,
             }))
         }
         None => Ok(None),
@@ -576,6 +596,7 @@ mod tests {
         assert!(column_exists(&conn, "scan_history", "request_json").unwrap());
         assert!(column_exists(&conn, "scan_history", "duration_ms").unwrap());
         assert!(column_exists(&conn, "scan_history", "iocs_json").unwrap());
+        assert!(column_exists(&conn, "scan_history", "score_json").unwrap());
         let users: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='users'",

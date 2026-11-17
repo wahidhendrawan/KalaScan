@@ -150,7 +150,8 @@ For `npm:` and `pypi:` targets, what the registry says about the scanned version
 - `kalascan rules` lists ids; `kalascan rules KS-SUP-009` explains one
 
 ### Detection Quality
-- [`eval/`](eval/README.md) holds a labelled corpus (DataDog malicious-package samples + popular clean packages and extensions) and the harness that measures it. Current: **94 of the 147 malicious samples never used for tuning are caught (64%; 223 of 320 overall), 0 false positives across 526 clean packages/extensions (227 popular ones and 299 drawn at random from npm and PyPI)**. On the same 147 GuardDog 3.2.0 catches 107 and flags 128 of 223 clean packages; the eval README has the method and the caveats; CI fails a PR that makes any clean sample cross risk 50
+- [`eval/`](eval/README.md) holds a labelled corpus (DataDog malicious-package samples + popular clean packages and extensions) and the harness that measures it. Current: **193 of the 302 malicious samples never used for tuning are caught (64%, 95% interval 58-69): 99 of 147 in the original holdout, 70 of 95 from a second, independent source, and 24 of 60 of the newest npm samples. No false positive across 822 clean packages/extensions (227 popular ones and 595 drawn at random from npm and PyPI); 5 of those 595 were flagged before they were looked at (0.8%)**. On the original 147 GuardDog 3.2.0 catches 107 and flags 128 of 223 clean packages; the eval README has the method and the caveats; CI fails a PR that makes any clean sample cross risk 50
+- [`docs/coverage.md`](docs/coverage.md) (`kalascan rules --coverage`) places every finding in ATT&CK and MBC and lists which supply-chain attack vectors (Ladisa et al., IEEE S&P 2023) are covered, which are gaps and which a package scan cannot see; [`docs/scoring.md`](docs/scoring.md) explains the risk score and the opt-in `--score-model v2`
 
 ### GitHub Actions Workflow Checks
 - **Pwn request** (critical) — `pull_request_target` that checks out the PR head (`ref: ${{ github.event.pull_request.head.sha }}`)
@@ -255,7 +256,7 @@ max_commits = 500
 since = "2025-01-01"
 ```
 
-Accepted keys: `format`, `fail_on_risk`, `baseline`, `new_only`, `ignore`, `secrets`, `cve`, `yara_dir`, `rules`, `git_history`, `max_commits`, `since`, `deep_triage`, `deobfuscate`, `emulate`, `base_ref`; an unknown key fails the scan. The GitHub Action always passes its `fail_on_risk` input (default 60), so set that threshold in the workflow, not in the file.
+Accepted keys: `format`, `fail_on_risk`, `baseline`, `new_only`, `ignore`, `secrets`, `cve`, `yara_dir`, `rules`, `git_history`, `max_commits`, `since`, `deep_triage`, `deobfuscate`, `emulate`, `base_ref`, `score_model`; an unknown key fails the scan. The GitHub Action always passes its `fail_on_risk` input (default 60), so set that threshold in the workflow, not in the file.
 
 ### Database Migrations (v1.7)
 - `PRAGMA user_version` tracks schema state; versions upgrade in place on startup

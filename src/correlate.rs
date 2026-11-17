@@ -6,11 +6,12 @@
 //! critical hits by the risk score.
 
 use crate::scanner::{
-    ACCOUNT_ENUM, AI_BASE_URL, ARCHIVE_EXTRACTION, DETACHED_SPAWN, DNS_BUILT, DOWNLOAD_CRADLE,
-    ESCAPED_EVAL, EXFIL_SERVICE, FETCH_EVAL, FUNCTION_REQUIRE, HEX_API, HOST_RECON, IMPORT_LOADER,
-    INSTALL_HOOK_OVERRIDE, INSTALL_NET, INSTALL_RECON, IP_LOOKUP, IP_URL, LOCAL_SERVER,
-    MAKE_EXECUTABLE, NPM_PUBLISH, OBFUSCATOR_IO, RAW_SOCKET, REMOTE_BINARY, SEED_ACCESS,
-    SETUP_PY_EXEC, SETUP_PY_STAGER, SHELL_PROFILE, SHELL_START, SIDELOAD, UPLOAD_HANDLER,
+    ACCOUNT_ENUM, AI_BASE_URL, ARCHIVE_EXTRACTION, CHARCODE_API, DETACHED_SPAWN, DNS_BUILT,
+    DOWNLOAD_CRADLE, ESCAPED_EVAL, EXFIL_SERVICE, FETCH_EVAL, FUNCTION_REQUIRE, HEX_API,
+    HOST_RECON, IMPORT_LOADER, INSTALL_HOOK_OVERRIDE, INSTALL_NET, INSTALL_RECON, IP_LOOKUP,
+    IP_URL, LOCAL_SERVER, MAKE_EXECUTABLE, NPM_PUBLISH, OBFUSCATOR_IO, RAW_SOCKET, REMOTE_BINARY,
+    SEED_ACCESS, SETUP_PY_EXEC, SETUP_PY_STAGER, SHELL_PROFILE, SHELL_START, SIDELOAD,
+    UPLOAD_HANDLER,
 };
 use crate::RuleMatch;
 use regex::Regex;
@@ -38,6 +39,7 @@ pub const NPM_SPAM: &str = "Chain: Registry Spam Publisher";
 pub const OBFUSCATED_RECON: &str = "Chain: Obfuscated Reconnaissance";
 pub const RANSOMWARE: &str = "Chain: Ransomware";
 pub const PHISHING_REDIRECT: &str = "Chain: Phishing Redirect Package";
+pub const DEP_CONFUSION_HOOK: &str = "Chain: Dependency Confusion Install Hook";
 /// Emitted by `cve::own_package_matches` for versions like 99.0.0 / 999.9.9.
 pub const DEP_CONFUSION_VERSION: &str = "Dependency Confusion Version";
 
@@ -98,6 +100,7 @@ const STAGERS: &[&str] = &[
     OBFUSCATOR_IO,
     FETCH_EVAL,
     HEX_API,
+    CHARCODE_API,
     IMPORT_LOADER,
 ];
 
@@ -221,14 +224,20 @@ pub fn correlate_file(
 
     // File-wide on purpose: javascript-obfuscator output is a property of the
     // whole file, and legitimate extensions are minified, not obfuscated.
-    if let (Some(obf), Some(ex)) = (has(&[OBFUSCATOR_IO, ESCAPED_EVAL, HEX_API]), has(EXECUTORS)) {
+    if let (Some(obf), Some(ex)) = (
+        has(&[OBFUSCATOR_IO, ESCAPED_EVAL, HEX_API, CHARCODE_API]),
+        has(EXECUTORS),
+    ) {
         out.push(chain(rel_path, OBFUSCATED_EXEC, obf, ex));
     }
 
     // Host identity gathered by code that hides its API names: the hex-decoded
     // `axios.post` to a C2 never shows up as a sink, but the recon does.
     // Not OBFUSCATOR_IO: Live Share ships obfuscated code that reads os.hostname.
-    if let (Some(obf), Some(recon)) = (has(&[HEX_API, ESCAPED_EVAL]), has(&[HOST_RECON])) {
+    if let (Some(obf), Some(recon)) = (
+        has(&[HEX_API, CHARCODE_API, ESCAPED_EVAL]),
+        has(&[HOST_RECON]),
+    ) {
         out.push(chain(rel_path, OBFUSCATED_RECON, obf, recon));
     }
 
@@ -341,7 +350,33 @@ fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
             .copied()
             .find(|m| names.contains(&m.matched_pattern.as_str()))
     };
+    // What an install script can reach. CI and infra YAML is the author's
+    // pipeline: a `curl … .EXE` in circle.yml never runs at `npm install`
+    // (sapnwrfc).
+    let shipped = |names: &[&str]| {
+        matches.iter().copied().find(|m| {
+            names.contains(&m.matched_pattern.as_str())
+                && !m.file_path.ends_with(".yml")
+                && !m.file_path.ends_with(".yaml")
+        })
+    };
     let mut out = remote_file_write(matches);
+
+    // 99.99.99 or 999.999.999 is a version nobody releases: it exists to
+    // outrank a private package of the same name. With code that runs at
+    // install, the package is the dependency-confusion probe itself.
+    // Nines only: chromedriver's major is the Chrome version (131).
+    if let Some(hook) = first(INSTALL_HOOKS).filter(|_| hooks_run) {
+        let nines = |m: &&RuleMatch| {
+            let version = m.context.split(':').next().unwrap_or_default();
+            let major = version.rsplit('@').next().unwrap_or_default();
+            let major = major.split('.').next().unwrap_or_default();
+            major.len() >= 2 && major.bytes().all(|b| b == b'9')
+        };
+        if let Some(version) = first(&[DEP_CONFUSION_VERSION]).filter(nines) {
+            out.push(chain(&hook.file_path, DEP_CONFUSION_HOOK, hook, version));
+        }
+    }
 
     // Install hook + anything that ships data out = dependency-confusion probe
     // or install-time stealer. Recon + a plain HTTP call also counts here:
@@ -350,7 +385,7 @@ fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
     if let Some(hook) = first(INSTALL_HOOKS).filter(|_| hooks_run) {
         // An npm script that runs `curl` / `nslookup` itself, next to the user
         // or host name or a dependency-confusion version, is the probe.
-        let sink = first(EXFIL_CHANNELS)
+        let sink = shipped(EXFIL_CHANNELS)
             .or_else(|| first(&[HOST_RECON]).and(first(&["URL Fetch Command"])))
             .or_else(|| {
                 first(&[INSTALL_NET]).filter(|_| {
@@ -360,7 +395,7 @@ fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
         if let Some(sink) = sink {
             out.push(chain(&sink.file_path, INSTALL_EXFIL, hook, sink));
         }
-        if let Some(stager) = first(STAGERS) {
+        if let Some(stager) = shipped(STAGERS) {
             out.push(chain(&stager.file_path, INSTALL_PAYLOAD, hook, stager));
         }
     }
@@ -990,6 +1025,47 @@ mod tests {
             vec![OBFUSCATED_RECON]
         );
         assert!(correlate_file("w.js", "", &m[1..], &[]).is_empty());
+    }
+
+    #[test]
+    fn install_hook_with_a_version_of_nines_is_dependency_confusion() {
+        let version = |v: &str| RuleMatch {
+            context: format!("@acme/internal@{v}: an implausibly high version"),
+            ..hit("package.json", DEP_CONFUSION_VERSION, 1)
+        };
+        let names = |m: &[RuleMatch]| -> Vec<String> {
+            correlate_package(m)
+                .into_iter()
+                .map(|c| c.matched_pattern)
+                .collect()
+        };
+        let hook = hit("package.json", "Post-Install Script", 9);
+        assert_eq!(
+            names(&[hook.clone(), version("999.999.999")]),
+            vec![DEP_CONFUSION_HOOK]
+        );
+        assert_eq!(
+            names(&[hook.clone(), version("99.0.1")]),
+            vec![DEP_CONFUSION_HOOK]
+        );
+        // chromedriver: the major is the Chrome version, and it has an install script.
+        assert!(names(&[hook.clone(), version("131.0.0")]).is_empty());
+        // No code runs at install: only the version, which stays a lead.
+        assert!(names(&[version("99.99.99")]).is_empty());
+    }
+
+    #[test]
+    fn ci_yaml_is_not_reachable_from_an_install_script() {
+        let hook = hit("package.json", "Post-Install Script", 35);
+        let names = |file: &str| -> Vec<String> {
+            correlate_package(&[hook.clone(), hit(file, REMOTE_BINARY, 24)])
+                .into_iter()
+                .map(|c| c.matched_pattern)
+                .collect()
+        };
+        // sapnwrfc: circle.yml downloads SAPCAR.EXE for the author's CI.
+        assert!(names("circle.yml").is_empty());
+        assert_eq!(names("preinstall.js"), vec![INSTALL_EXFIL, INSTALL_PAYLOAD]);
     }
 
     #[test]

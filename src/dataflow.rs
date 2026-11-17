@@ -92,6 +92,11 @@ static INLINE_CODE: LazyLock<Regex> = LazyLock::new(|| {
         .unwrap()
 });
 
+/// A call whose value is the output of the command it is given.
+static RUNS_COMMAND: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?:subprocess\.\w+|os\.popen|getoutput|execSync|spawnSync|execFileSync|(?:^|[^\w.])(?:exec|run|popen|check_output))\s*\(").unwrap()
+});
+
 static WITH_AS: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?:^|,)\s*(?:async\s+)?(?:with\s+)?(.+?)\s+as\s+([A-Za-z_]\w*)").unwrap()
 });
@@ -210,7 +215,13 @@ fn carried(
                 .as_str()
                 .trim_start_matches(|c: char| !c.is_alphanumeric())
                 .to_string();
-            return Some((Kind::Download, Origin { line, what }));
+            // `cmd = 'curl -o f url'` is a command line: running `cmd` later
+            // runs curl, not what curl fetched (ckan-cloud-operator). Only
+            // the output of a call that runs it is a download.
+            let literal = what.starts_with("curl") || what.starts_with("wget");
+            if !literal || RUNS_COMMAND.is_match(&text[..m.start()]) {
+                return Some((Kind::Download, Origin { line, what }));
+            }
         }
     }
     idents(text)
@@ -594,6 +605,9 @@ def main():
         // todo-tree, pm2: running curl / wget is not running what they fetch.
         let fetch_tool = "execSync('curl -sL https://x.example/codicons.css -o codicons.css');\nspawn('wget', [url, '-O', dest]);\n";
         assert!(names("buildCodiconNames.js", fetch_tool).is_empty());
+        // ckan-cloud-operator: a curl command line kept in a variable.
+        let command = "cmd = f'curl -f -s --header \"PRIVATE-TOKEN: {t}\" https://gitlab.com/api/v4/{u} > {name}'\nsubprocess.check_call(cmd, shell=True)\n";
+        assert!(names("gitlab.py", command).is_empty());
         // next: named variables picked out of the environment.
         let picked = "const { NEXT_TRACE_UPLOAD_DEBUG, NEXT_TRACE_UPLOAD_FULL } = process.env;\nawait fetch(url, { body: JSON.stringify({ full: NEXT_TRACE_UPLOAD_FULL }) });\n";
         assert!(names("trace-uploader.js", picked).is_empty());

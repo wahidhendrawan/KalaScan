@@ -38,6 +38,11 @@ const TECHNIQUE_TABLE: &[(&str, &str, &str)] = &[
     ),
     ("T1039", "Data from Network Shared Drive", "Collection"),
     ("T1041", "Exfiltration Over C2 Channel", "Exfiltration"),
+    (
+        "T1048",
+        "Exfiltration Over Alternative Protocol",
+        "Exfiltration",
+    ),
     ("T1053.005", "Scheduled Task", "Persistence"),
     ("T1055", "Process Injection", "Stealth"),
     ("T1056.001", "Keylogging", "Collection"),
@@ -87,6 +92,11 @@ const TECHNIQUE_TABLE: &[(&str, &str, &str)] = &[
     ),
     ("T1176", "Software Extensions", "Persistence"),
     (
+        "T1195.001",
+        "Compromise Software Dependencies and Development Tools",
+        "Initial Access",
+    ),
+    (
         "T1195.002",
         "Compromise Software Supply Chain",
         "Initial Access",
@@ -129,9 +139,15 @@ const TECHNIQUE_TABLE: &[(&str, &str, &str)] = &[
     ),
     ("T1552", "Unsecured Credentials", "Credential Access"),
     ("T1552.001", "Credentials In Files", "Credential Access"),
+    ("T1552.004", "Private Keys", "Credential Access"),
     (
         "T1555",
         "Credentials from Password Stores",
+        "Credential Access",
+    ),
+    (
+        "T1555.003",
+        "Credentials from Web Browsers",
         "Credential Access",
     ),
     ("T1557", "Adversary-in-the-Middle", "Credential Access"),
@@ -142,6 +158,7 @@ const TECHNIQUE_TABLE: &[(&str, &str, &str)] = &[
     ("T1566", "Phishing", "Initial Access"),
     ("T1566.001", "Spearphishing Attachment", "Initial Access"),
     ("T1567", "Exfiltration Over Web Service", "Exfiltration"),
+    ("T1567.004", "Exfiltration Over Webhook", "Exfiltration"),
     ("T1568", "Dynamic Resolution", "Command and Control"),
     (
         "T1568.002",
@@ -654,6 +671,197 @@ pub fn map_text(text: &str) -> Vec<AttackTechnique> {
     out
 }
 
+/// Techniques of KalaScan's own findings, by name. Written out rather than
+/// guessed from keywords (`map_text`), so each line can be checked against
+/// attack.mitre.org. An empty list is deliberate: the finding is a
+/// capability, a listing fact or a weakness, not an adversary technique.
+#[rustfmt::skip]
+const FINDING_TABLE: &[(&str, &[&str])] = &[
+    // rules/builtin.toml
+    ("Discord Webhook", &["T1567.004"]),
+    ("Telegram Bot API Token", &["T1567", "T1102"]),
+    ("Slack Webhook", &["T1567.004"]),
+    ("Hardcoded IP Address", &["T1071"]),
+    ("AWS Access Key", &["T1552.001"]),
+    ("AWS Secret Key", &["T1552.001"]),
+    ("GitHub Token", &["T1552.001"]),
+    ("Generic API Key", &["T1552.001"]),
+    ("Generic Webhook URL", &["T1567.004"]),
+    ("Slack Bot Token", &["T1552.001"]),
+    ("Browser Profile Access", &["T1555.003", "T1539"]),
+    ("Crypto Wallet Access", &["T1005", "T1657"]),
+    ("Password Manager Access", &["T1555", "T1552.001"]),
+    ("Browser Database Access", &["T1539", "T1555.003"]),
+    ("Discord Token Harvesting", &["T1528"]),
+    ("SSH Key Access", &["T1552.004"]),
+    ("Environment Variable Dump", &["T1552"]),
+    ("eval() Usage", &["T1059"]),
+    ("exec() Usage", &["T1059"]),
+    ("b64decode + exec Chain", &["T1140", "T1059.006"]),
+    ("nested b64decode", &["T1027", "T1140"]),
+    ("child_process (Node.js)", &["T1059"]),
+    ("subprocess (Python)", &["T1059"]),
+    ("os.system", &["T1059"]),
+    ("PowerShell Encoded Command", &["T1059.001", "T1027.010"]),
+    ("Base64 Overuse", &["T1027"]),
+    ("Dynamic Import/Load", &["T1620"]),
+    ("Hex Encoding", &["T1027"]),
+    ("XOR Decode Pattern", &["T1027", "T1140"]),
+    ("Long Encoded String", &["T1027"]),
+    ("os.popen", &["T1059"]),
+    ("Process Injection", &["T1055"]),
+    ("Reflective DLL Loading", &["T1620", "T1055"]),
+    ("Mass File Encryption", &["T1486"]),
+    ("Shadow Copy Deletion", &["T1490"]),
+    ("Encrypted File Extension", &["T1486"]),
+    ("Ransom Note", &["T1486"]),
+    ("Bitcoin Payment Address", &["T1657"]),
+    ("Post-Install Script", &["T1195.001"]),
+    ("Local Network Server", &[]),
+    ("HTTP File Upload Handler", &[]),
+    ("Archive Extraction", &[]),
+    ("Remote Script Download", &["T1105"]),
+    ("URL Fetch Command", &["T1105"]),
+    ("Hidden Directory Script", &["T1564.001"]),
+    ("VS Code Session/Token Stealing", &["T1528"]),
+    ("VS Code Clipboard Harvesting", &["T1115"]),
+    ("VS Code Workspace File Reading", &["T1005"]),
+    ("Installed Extension Tampering", &["T1176"]),
+    ("VS Code Wildcard Activation", &["T1176"]),
+    ("JetBrains Dynamic Classloading", &["T1620"]),
+    ("JetBrains Process Execution", &["T1059"]),
+    ("JetBrains Malicious Reflection", &["T1620"]),
+    ("JetBrains Raw Socket Exfiltration", &["T1095"]),
+    ("Browser Extension Dangerous Permissions", &["T1176"]),
+    ("Browser Extension Dynamic Code Execution", &["T1059.007"]),
+    ("Browser Extension Keystroke Logger", &["T1056.001"]),
+    ("Browser Extension Cookie/Token Theft", &["T1539"]),
+    ("Exfiltration Service Endpoint", &["T1567"]),
+    ("Public IP URL", &["T1071.001"]),
+    ("IP Lookup Service", &["T1016"]),
+    ("Host Reconnaissance", &["T1082", "T1033"]),
+    ("Remote Executable Download", &["T1105"]),
+    ("Shell Process Start", &["T1059.004"]),
+    ("Raw Socket Connection", &["T1095"]),
+    ("Detached Process Spawn", &["T1059"]),
+    ("Make File Executable", &["T1222"]),
+    ("Obfuscator.io Output", &["T1027"]),
+    ("Wallet Seed / Private Key Handling", &["T1552.004", "T1657"]),
+    ("setup.py Install Hook Override", &["T1195.001"]),
+    ("setup.py Install-time Execution", &["T1195.001", "T1059"]),
+    ("setup.py Payload Decode/Fetch", &["T1195.001", "T1140", "T1105"]),
+    ("Download Cradle (fetch piped to interpreter)", &["T1105", "T1059"]),
+    ("Function Constructor with require", &["T1059.007", "T1027"]),
+    ("Escaped eval Payload", &["T1027", "T1059"]),
+    ("VS Code Extension Side-loading", &["T1176"]),
+    ("Account Enumeration Command", &["T1087", "T1033"]),
+    ("AI API Base URL Override", &["T1557"]),
+    ("Shell Profile Modification", &["T1546.004"]),
+    ("npm Publish from Code", &["T1195.001"]),
+    ("Download Cradle (fetch then eval)", &["T1105", "T1059"]),
+    ("Hex String Decoder", &["T1027", "T1140"]),
+    ("GitLab Token", &["T1552.001"]),
+    ("JWT Token", &["T1552.001"]),
+    ("Azure Storage Connection String", &["T1552.001"]),
+    ("GCP Service Account Key", &["T1552.001"]),
+    ("Private Key Material", &["T1552.004"]),
+    ("Database Connection String with Password", &["T1552.001"]),
+    ("Hex-Encoded API Name", &["T1027"]),
+    ("Char-Code Encoded API Name", &["T1027"]),
+    ("Install Script Network Command", &["T1195.001", "T1105"]),
+    ("Install Script Host Reconnaissance", &["T1195.001", "T1082", "T1033"]),
+    ("DNS Lookup of Built Hostname", &["T1071.004", "T1048"]),
+    ("Python Import-Obfuscated Loader", &["T1027", "T1140"]),
+    // Raised by code (taxonomy::CODE_FINDINGS). Instructions aimed at an AI
+    // agent have no Enterprise technique (ATLAS AML.T0051 is theirs).
+    ("Agent Instruction: Hidden Unicode Tag Text", &["T1027"]),
+    ("Agent Instruction: Invisible Characters", &["T1027"]),
+    ("Agent Instruction: Directive in HTML Comment", &["T1564"]),
+    ("Agent Instruction: Conceal Action from User", &["T1564"]),
+    ("Agent Instruction: Override Prior Instructions", &[]),
+    ("Agent Instruction: Credential or Agent Config Path", &["T1552.001"]),
+    ("Chain: Malicious Agent Instruction", &[]),
+    ("Chain: Agent Config Runs Remote Code", &["T1105", "T1059"]),
+    ("Zip Slip: Archive Extraction Without Path Validation", &[]),
+    ("Chain: Credential Exfiltration", &["T1552", "T1041"]),
+    ("Chain: Download and Execute", &["T1105", "T1059"]),
+    ("Chain: Remote File Write via Local Server", &[]),
+    ("Chain: Reverse Shell", &["T1059", "T1095"]),
+    ("Chain: Drop and Execute Binary", &["T1105", "T1059"]),
+    ("Chain: Install-time Exfiltration", &["T1195.001", "T1041"]),
+    ("Chain: Reconnaissance Beacon", &["T1082", "T1041"]),
+    ("Chain: Obfuscated Process Execution", &["T1027", "T1059"]),
+    ("Chain: Install-time Payload Execution", &["T1195.001", "T1059"]),
+    ("Chain: Install-time Reconnaissance", &["T1195.001", "T1082"]),
+    ("Chain: Remote Code Execution", &["T1105", "T1059"]),
+    ("Chain: Extension Side-loading", &["T1176"]),
+    ("Chain: System Discovery", &["T1082", "T1087"]),
+    ("Chain: AI API Traffic Hijack", &["T1557"]),
+    ("Chain: Registry Spam Publisher", &["T1195.001"]),
+    ("Chain: Obfuscated Reconnaissance", &["T1027", "T1082"]),
+    ("Chain: Ransomware", &["T1486"]),
+    ("Chain: Phishing Redirect Package", &["T1566"]),
+    ("Chain: Dependency Confusion Install Hook", &["T1195.001"]),
+    ("Chain: Obfuscated Credential Theft", &["T1027", "T1552"]),
+    ("Chain: Obfuscated Download and Execute", &["T1027", "T1105", "T1059"]),
+    ("Chain: Install-time Credential Access (sandbox)", &["T1195.001", "T1552"]),
+    ("Dependency Confusion Version", &["T1195.001"]),
+    ("Remote URL Dependency", &["T1195.001", "T1105"]),
+    ("Known Malicious URL (URLhaus)", &["T1071.001"]),
+    ("Extension Name Spoofing (invisible characters)", &["T1036"]),
+    ("Publisher Impersonation (look-alike name)", &["T1036.005"]),
+    ("Possible Brand Impersonation", &["T1036.005"]),
+    ("Unverified Publisher", &[]),
+    ("Low Install Count", &[]),
+    ("Recently Published Extension", &[]),
+    ("Repackaged Copy of Popular Extension", &["T1036.005"]),
+    ("AI Vendor Repository Under Another Publisher", &["T1036.005"]),
+    ("npm Manifest Confusion", &["T1195.001", "T1036"]),
+    ("Install Script Added in This Version", &["T1195.001"]),
+    ("New Dependencies in This Version", &["T1195.001"]),
+    ("npm Provenance Dropped", &["T1195.001"]),
+    ("Maintainer Email Domain Unregistered", &["T1195.001"]),
+    ("GitHub Actions Pwn Request (pull_request_target + PR checkout)", &["T1195.002"]),
+    ("GitHub Actions Script Injection", &["T1195.002", "T1059"]),
+    ("GitHub Actions Unpinned Third-Party Action", &["T1195.001"]),
+    ("GitHub Actions Spoofable Bot Check (github.actor)", &["T1195.002"]),
+    ("Typo-squat Suspect", &["T1195.001", "T1036.005"]),
+    ("Trojan Source Bi-Directional Character (CVE-2021-42574)", &["T1027"]),
+    ("Confusable Homoglyph Character (Supply Chain Spoofing)", &["T1036"]),
+    ("High-Entropy Suspicious Blob", &["T1027.013"]),
+    ("Invisible Zero-Width Character (Steganography/Obfuscation)", &["T1027"]),
+    ("Malicious Package", &["T1195.001"]),
+    ("Known Vulnerability", &[]),
+];
+
+/// The table entry for a finding name; names that carry a value
+/// (`Typo-squat Suspect: x`, `… Blob (Entropy: 7.9)`) match on their prefix.
+fn finding_entry(name: &str) -> Option<&'static [&'static str]> {
+    FINDING_TABLE
+        .iter()
+        .find(|(key, _)| {
+            name.strip_prefix(key).is_some_and(|rest| {
+                rest.is_empty() || rest.starts_with(':') || rest.starts_with(" (")
+            })
+        })
+        .map(|(_, ids)| *ids)
+}
+
+/// True when the finding has a written-out mapping (possibly an empty one).
+#[cfg(test)]
+pub fn is_mapped(name: &str) -> bool {
+    finding_entry(name).is_some()
+}
+
+/// Techniques of a finding: the written-out mapping for KalaScan's own
+/// findings, keywords for anything else (custom rules, YARA rule names).
+pub fn for_finding(name: &str) -> Vec<AttackTechnique> {
+    match finding_entry(name) {
+        Some(ids) => ids.iter().filter_map(|id| lookup(id)).collect(),
+        None => map_text(name),
+    }
+}
+
 pub fn from_capa_meta(meta: &serde_json::Value) -> Vec<AttackTechnique> {
     let mut out = Vec::new();
 
@@ -688,6 +896,36 @@ pub fn from_capa_meta(meta: &serde_json::Value) -> Vec<AttackTechnique> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn written_out_mappings_name_real_techniques() {
+        for (finding, ids) in FINDING_TABLE {
+            for id in *ids {
+                assert!(
+                    TECHNIQUE_TABLE.iter().any(|(known, _, _)| known == id),
+                    "{finding}: {id} is not in TECHNIQUE_TABLE"
+                );
+            }
+        }
+        let id = |name: &str| {
+            for_finding(name)
+                .into_iter()
+                .map(|t| t.id)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            id("Typo-squat Suspect: expresss (looks like express)")[0],
+            "T1195.001"
+        );
+        assert_eq!(
+            id("High-Entropy Suspicious Blob (Entropy: 7.91)"),
+            ["T1027.013"]
+        );
+        // A capability, not a technique; and not a prefix match for "exec() Usage".
+        assert!(id("Local Network Server").is_empty());
+        // Unknown names (custom rules, YARA) still go through the keywords.
+        assert!(!id("YARA Rule: discord_webhook_stealer").is_empty());
+    }
 
     #[test]
     fn table_follows_attack_v20() {

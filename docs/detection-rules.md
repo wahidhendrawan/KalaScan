@@ -1,10 +1,10 @@
 # Detection rules
 
-KalaScan has three rule families. All are data, embedded at compile time. `kalascan rules` lists the regex rules with the ruleset version; `kalascan rules KS-SUP-009` explains one rule and prints its pattern.
+KalaScan has three rule families. All are data, embedded at compile time. `kalascan rules` lists the regex rules with the ruleset version; `kalascan rules KS-SUP-009` explains one rule and prints its pattern, its ATT&CK techniques and MBC objective. `kalascan rules --coverage` prints [coverage.md](coverage.md): the supply-chain attack vectors covered, and where every finding sits in ATT&CK and MBC.
 
 | Family | Where | Count | When |
 |---|---|---|---|
-| Regex rules | `rules/builtin.toml` (ruleset version `2026.10.1`) | 89 | always; `--rules FILE` adds yours |
+| Regex rules | `rules/builtin.toml` (ruleset version `2026.11.1`) | 94 | always; `--rules FILE` adds yours |
 | Secret patterns | `rules/secrets.toml` (generated from gitleaks v8.30.1, MIT) | 208 | opt-in with `--secrets` |
 | YARA rules | `src/yara_engine.rs` (3 built-in), `rules/yara/guarddog/` (2), `--yara-dir DIR` | | every file except prose |
 
@@ -27,7 +27,7 @@ ignores = ['''fGh0AKIAAAB0AAAAAAAAAKMAa''']
 |---|---|---|
 | `id` | yes | Stable identifier `KS-<AREA>-<NNN>`. Never reused or renumbered: baselines and SARIF key on the name, people on the id. |
 | `name` | yes | Finding title in reports; chains and the risk model key on it. |
-| `severity` | yes | `critical`, `high`, `medium` or `low` (weights in [architecture.md](architecture.md#risk-model)). |
+| `severity` | yes | `critical`, `high`, `medium` or `low` (weights in [scoring.md](scoring.md)). |
 | `category` | yes | Decides which files the rule runs on (table below). |
 | `description` | yes | One line shown next to the finding. |
 | `pattern` | yes | Rust `regex` syntax (no look-around, no back-references). Use `(?-u:\b)` instead of `\b`: a Unicode word boundary makes the engine fall back to its slowest mode on any non-ASCII byte, i.e. on most bundles. |
@@ -45,10 +45,10 @@ A rule whose examples fail aborts the scan with the reason, so a typo in a patte
 |---|---|---|---|
 | `KS-EXF` | `exfiltration` | script extensions and manifest files | 22 |
 | `KS-ACC` | `file_access` | script extensions | 11 |
-| `KS-EXE` | `obfuscation` | every scanned file | 30 |
-| `KS-SUP` | `supply_chain`, `npm_hook` | every scanned file; `npm_hook` only `package.json` | 11 |
+| `KS-EXE` | `obfuscation` | every scanned file | 32 |
+| `KS-SUP` | `supply_chain`, `npm_hook` | every scanned file; `npm_hook` only `package.json` | 13 |
 | `KS-RAN` | `ransomware` | every scanned file | 5 |
-| `KS-REC` | `recon` | every scanned file | 3 |
+| `KS-REC` | `recon` | every scanned file | 4 |
 | `KS-NET` | `network` | every scanned file | 3 |
 | `KS-INS` | `install_hook` | `setup.py` only (code there runs at `pip install`) | 2 |
 | `KS-FSW` | `file_write` | every scanned file | 2 |

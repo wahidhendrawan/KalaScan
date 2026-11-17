@@ -148,6 +148,11 @@ pub enum Commands {
         /// stronger boundary than Docker's default shared kernel
         #[arg(long, env = "KALASCAN_SANDBOX_RUNTIME")]
         sandbox_runtime: Option<String>,
+
+        /// Risk score model: v1 (tiers set by hand) or v2 (weights fitted on
+        /// the eval corpus, see docs/scoring.md) [default: v1]
+        #[arg(long, value_parser = ["v1", "v2"])]
+        score_model: Option<String>,
     },
     /// Manage API users (RBAC tokens for the web server)
     User {
@@ -158,6 +163,10 @@ pub enum Commands {
     Rules {
         /// Rule name (or unique substring) to explain; omit to list all rules
         name: Option<String>,
+
+        /// Print docs/coverage.md: supply-chain attack vectors covered, and the ATT&CK technique and MBC objective of every finding
+        #[arg(long, conflicts_with = "name")]
+        coverage: bool,
     },
     /// Emit a CycloneDX SBOM of the dependencies declared in a directory
     Sbom {
@@ -313,6 +322,7 @@ pub struct Config {
     pub deobfuscate: Option<bool>,
     pub emulate: Option<bool>,
     pub base_ref: Option<String>,
+    pub score_model: Option<String>,
 }
 
 impl Config {

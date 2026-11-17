@@ -26,7 +26,9 @@ KalaScan is one Rust binary (`src/main.rs`, a thin entry point over the library 
 | Context and intel | `cve.rs` | Manifest / lockfile package extraction, OSV batch client (`--cve`), offline typo-squat and dependency-confusion checks |
 | | `reputation.rs` | Listing spoofing, look-alike publishers, repackaged popular extensions, marketplace statistics |
 | | `iocs.rs` | URL / IP extraction and URLhaus lookups (`URLHAUS_AUTH_KEY`) |
-| | `attack.rs`, `ttp.rs` | ATT&CK technique tables and the unified technique / tactic / kill-chain aggregation |
+| | `attack.rs`, `ttp.rs` | ATT&CK technique tables, the written-out technique list of every finding, and the unified technique / tactic / kill-chain aggregation |
+| | `taxonomy.rs` | MBC objectives and supply-chain attack vectors per finding; `kalascan rules --coverage` |
+| Scoring | `score.rs` | Risk score models v1 and v2 and the score breakdown |
 | Deep passes | `triage.rs` | PE / ELF / Mach-O metadata via goblin, section entropy, packer and import heuristics, optional capa / FLOSS / DIE |
 | | `deobfuscate.rs` | Recursive base64 / hex / URL / PowerShell / char-code / ROT13 / XOR / gzip / zlib decoding |
 | | `emulate.rs` | Bounded x86 / x64 entry-point emulation with iced-x86: API call tracing, stack strings |
@@ -37,7 +39,7 @@ KalaScan is one Rust binary (`src/main.rs`, a thin entry point over the library 
 | | `installed.rs` | Discovers IDE and browser extensions on this machine (`kalascan installed`) |
 | | `import.rs` | Nessus, Nmap, Burp, ZAP, Nuclei, Qualys and CSV report normalization (`kalascan import`) |
 | Server | `auth.rs` | Users, salted token hashes, roles, audit helpers |
-| | `db.rs` | SQLite history, migrations (schema v3), bounded retention |
+| | `db.rs` | SQLite history, migrations (schema v5), bounded retention |
 | | `metrics.rs` | Prometheus counters and gauges (atomics) |
 | Output | `export.rs`, `export/html.rs` | Markdown, HTML, SARIF, CSV, JUnit and GitHub-annotation exporters; risk levels |
 
@@ -60,19 +62,21 @@ Rules are data: `rules/builtin.toml` (89 regex rules), `rules/secrets.toml` (208
 
 ## Risk model
 
-`calculate_risk_score` (`src/lib.rs`) turns the finding list into a 0-100 score:
+`score::calculate` (`src/score.rs`) turns the finding list into a 0-100 score and a breakdown of the parts it is the sum of (`score_breakdown` in the JSON result). [scoring.md](scoring.md) has both models in full; in short, for the default (v1):
 
-1. **Dedup.** Each `(file, rule name)` pair counts once; a regex firing 40 times in a minified bundle is one finding. History hits (`<commit>:<path>`) count as the file they belong to.
-2. **Buckets.** `Known Vulnerability:` findings go to a CVE counter. A behaviour chain, an invisible-character or look-alike publisher listing, a repackaged popular extension, an AI-vendor repository spoof, npm manifest confusion or a URLhaus hit counts as **two** criticals (they have no benign reading). Everything else is counted by its severity.
-3. **Static score** = `min(critical x 35, 70) + min(high x 5, 15) + min(medium, 5)`. One critical finding alone is 35; two (or one chain) saturate the 70 cap.
-4. **CVE score** = `min(cves, 5)`: vulnerable dependencies are hygiene, not malware evidence.
-5. **Dynamic score** = `min(triage + deobfuscation + emulation + sandbox contributions, 20)`: the deep passes share one budget because they overlap heavily.
-6. **AI score** = `min(ai.risk_score / 2, 25)` only when the model says malicious; a benign verdict adds 0.
-7. **Total** = `min(static + cve + dynamic + ai, 100)`.
+1. Each `(file, finding name)` pair counts once.
+2. A behaviour chain and the few findings with no benign reading count as two criticals; everything else by its severity.
+3. Critical findings: one 20, two or more `min(n x 35, 70)`. High `min(n x 5, 15)`, medium `min(n, 5)`.
+4. Known vulnerabilities `min(n, 5)`, the deep passes together `min(sum, 20)`, a malicious AI verdict `min(risk / 2, 25)`.
+5. The total is capped at 100.
 
 Levels (`export::risk_score_to_level`): 0-29 **safe**, 30-69 **warning**, 70-100 **danger**. `--fail-on-risk N` exits 1 at `score >= N`; the GitHub Action defaults to 60. TTP coverage is reported but not scored, because it is derived from the same findings.
 
-Consequences worth knowing: a single uncorroborated critical rule hit puts a clean repository at 35-40, and two put it at 70 or more. That is why new rules must ship `ignores` examples and pass the clean-corpus gate (`eval/`), and why a signal that only means something next to another one belongs in a chain rather than at `critical`.
+Consequences worth knowing: a single uncorroborated critical rule hit puts a clean repository at 20-40, and two put it at 70 or more. That is why new rules must ship `ignores` examples and pass the clean-corpus gate (`eval/`), and why a signal that only means something next to another one belongs in a chain rather than at `critical`.
+
+`--score-model v2` replaces the tiers with a weight per finding, fitted on the evaluation corpus (`rules/weights.toml`). On the holdout it is level with v1 at the default gate and adds a usable range between 30 and 70; it is opt-in.
+
+Findings are placed in ATT&CK (written out per finding in `src/attack.rs`), in MBC objectives and, where a finding is evidence of how code reached a package, in the supply-chain attack tree of Ladisa et al.: [coverage.md](coverage.md), printed by `kalascan rules --coverage`.
 
 ## Output formats
 
