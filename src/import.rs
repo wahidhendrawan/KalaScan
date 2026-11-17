@@ -4,7 +4,7 @@
 //! VulnBoard's parsers (backend/src/routes/scanner.ts), except that
 //! informational items stay `info` instead of becoming `low`.
 
-use crate::export;
+use crate::export::{self, inert, no_workflow_commands};
 use anyhow::{anyhow, bail, Context};
 use quick_xml::events::{BytesRef, BytesStart, Event};
 use quick_xml::{Reader, XmlVersion};
@@ -695,23 +695,23 @@ pub fn format_text(imp: &Imported, file: &Path) -> String {
     let mut out = format!(
         "KalaScan import: {} report {}\n{} findings: {}\n\n",
         imp.format,
-        file.display(),
+        inert(&file.display().to_string()),
         imp.findings.len(),
         summary.join(", ")
     );
     for f in &imp.findings {
-        let loc = location(f);
+        let loc = inert(&location(f));
         out.push_str(&format!(
             "  [{}] {}  {}",
             f.severity.to_uppercase(),
             if loc.is_empty() { "-" } else { &loc },
-            f.title
+            inert(&f.title)
         ));
         if !f.id.is_empty() && !f.title.contains(&f.id) {
-            out.push_str(&format!(" ({})", f.id));
+            out.push_str(&format!(" ({})", inert(&f.id)));
         }
         if !f.cves.is_empty() {
-            out.push_str(&format!("  {}", f.cves.join(", ")));
+            out.push_str(&format!("  {}", inert(&f.cves.join(", "))));
         }
         if let Some(score) = f.cvss {
             out.push_str(&format!("  CVSS {score}"));
@@ -719,7 +719,7 @@ pub fn format_text(imp: &Imported, file: &Path) -> String {
         out.push('\n');
     }
     out.truncate(out.trim_end().len()); // the caller's println! ends the last line
-    out
+    no_workflow_commands(&out)
 }
 
 pub fn format_json(imp: &Imported, file: &Path) -> String {
@@ -815,6 +815,27 @@ mod tests {
         assert!(format_text(&i, Path::new("x")).contains(
             "[CRITICAL] 192.168.1.100:22  SSH Weak Cipher Enabled (67890)  CVE-2008-5161, CVE-2023-48795  CVSS 5.9"
         ));
+    }
+
+    #[test]
+    fn report_fields_are_printed_inert() {
+        let imported = Imported {
+            format: "csv",
+            truncated: false,
+            findings: vec![Finding {
+                severity: "low",
+                host: "10.0.0.6".into(),
+                title: "\u{1b}[1A\u{1b}[2K\rAll clear\n::error::fake".into(),
+                ..Default::default()
+            }],
+        };
+        let text = format_text(&imported, Path::new("r.csv"));
+        assert!(!text.contains(['\u{1b}', '\r']), "{:?}", text);
+        assert!(
+            text.lines().all(|l| !l.trim_start().starts_with("::")),
+            "{}",
+            text
+        );
     }
 
     #[test]

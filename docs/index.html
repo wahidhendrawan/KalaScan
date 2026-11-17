@@ -114,11 +114,11 @@ brew install kalascan</code></pre>
                 <h2>Measured, not claimed</h2>
                 <p class="sub">The repository holds a labelled corpus and the harness that scores it. These are the current numbers at risk threshold 50.</p>
                 <div class="measure">
-                    <div class="glass"><b>94 of 147</b><span>malicious samples it had never seen, flagged (DataDog malicious-packages dataset)</span></div>
-                    <div class="glass"><b>0 of 526</b><span>clean packages and extensions flagged, 299 of them drawn at random from npm and PyPI</span></div>
-                    <div class="glass"><b>89 rules</b><span>built in, plus 208 opt-in secret patterns and YARA</span></div>
+                    <div class="glass"><b>193 of 302</b><span>malicious samples it had never seen, flagged (two independent datasets; 24 of 60 on the newest npm samples)</span></div>
+                    <div class="glass"><b>0 of 822</b><span>clean packages and extensions flagged, 595 of them drawn at random from npm and PyPI (5 of those were flagged before they were looked at)</span></div>
+                    <div class="glass"><b>94 rules</b><span>built in, plus 208 opt-in secret patterns and YARA</span></div>
                 </div>
-                <p class="note">The 147 samples were never looked at while writing rules; counting the 173 that were, the total is 223 of 320. On the same corpus GuardDog 3.2.0 catches more of the malware (107 of 147) and flags 128 of 223 clean packages. Among the 299 random packages, one legitimate package was flagged before a rule was fixed. The method, the caveats and the samples that get through are written up in the <a href="https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md">evaluation notes</a>. CI fails any change that makes a clean sample cross the threshold.</p>
+                <p class="note">The 302 samples were never looked at while writing rules; counting the 173 that were, the total is 328 of 475. On 147 of them GuardDog 3.2.0 catches more of the malware (107 against 99) and flags 128 of 223 clean packages. Among 595 random packages, five legitimate ones were flagged before rules were fixed (0.8%). The method, the caveats and the samples that get through are written up in the <a href="https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md">evaluation notes</a>. CI fails any change that makes a clean sample cross the threshold.</p>
             </div>
         </section>
 
@@ -130,7 +130,9 @@ brew install kalascan</code></pre>
                     <li><a class="glass" href="architecture.html"><strong>Architecture</strong><span>Module map, the scan pipeline and how the risk score is computed.</span></a></li>
                     <li><a class="glass" href="detection-rules.html"><strong>Detection rules</strong><span>The rule format, writing your own rules and YARA.</span></a></li>
                     <li><a class="glass" href="scoring.html"><strong>Risk score</strong><span>Both score models, how the weights are fitted and what the holdout says.</span></a></li>
+                    <li><a class="glass" href="evasion.html"><strong>Evasion resistance</strong><span>How often a caught payload stays caught when it is rewritten, and where it does not.</span></a></li>
                     <li><a class="glass" href="coverage.html"><strong>Detection coverage</strong><span>Supply-chain attack vectors covered; ATT&amp;CK and MBC for every finding.</span></a></li>
+                    <li><a class="glass" href="methodology.html"><strong>Methodology</strong><span>What is claimed, the threat model, how detection is measured and its known limits.</span></a></li>
                     <li><a class="glass" href="web-ui-security.html"><strong>Web UI and API security</strong><span>Tokens, roles, what the API refuses to scan.</span></a></li>
                     <li><a class="glass" href="https://github.com/wahidhendrawan/KalaScan#readme"><strong>README</strong><span>Every command, flag and output format.</span></a></li>
                     <li><a class="glass" href="https://github.com/wahidhendrawan/KalaScan/blob/main/CHANGELOG.md"><strong>Changelog</strong><span>What changed in each release.</span></a></li>

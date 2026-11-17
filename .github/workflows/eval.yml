@@ -6,8 +6,13 @@ name: Detection eval
 # workflow left out by a paths filter never reports it, so the PR stays
 # blocked. A PR that touches no detection code or corpus skips the job, and
 # a skipped job counts as passed.
+# Runs weekly as well: the corpus is fixed, the registries under it are not
+# (see docs/methodology.md). The `changes` filter only applies to pull
+# requests, so a scheduled run always scans.
 on:
   pull_request:
+  schedule:
+    - cron: "43 4 * * 1"
   workflow_dispatch:
 permissions:
   contents: read

@@ -4,7 +4,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::ffi::OsString;
 use std::path::Path;
+use std::process::Stdio;
 use std::time::{Duration, Instant};
+use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::time::timeout;
 
@@ -557,6 +559,59 @@ fn fakenet_contact(line: &str) -> Option<String> {
         .then(|| truncate(&format!("{} {}", kind.to_ascii_lowercase(), rest), 240))
 }
 
+/// `Command::output` for a child whose output someone else controls: at most
+/// `limit + 1` bytes of stdout and 64 KiB of stderr are kept, and a child
+/// that prints more is killed. `output()` buffered all of it: an install
+/// hook that swaps /tmp/fakenet.log for a /dev/zero symlink, or a 1 GiB blob
+/// in a cloned history, grew the scanner until the timeout or the OOM killer.
+pub(crate) async fn output_capped(
+    cmd: &mut Command,
+    limit: usize,
+) -> std::io::Result<std::process::Output> {
+    let mut child = cmd
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    let (mut stdout, mut stderr) = (child.stdout.take(), child.stderr.take());
+    let read_stdout = async {
+        let mut kept = Vec::new();
+        if let Some(pipe) = stdout.as_mut() {
+            pipe.take(limit as u64 + 1).read_to_end(&mut kept).await?;
+        }
+        if kept.len() > limit {
+            let _ = child.start_kill();
+        }
+        Ok::<_, std::io::Error>(kept)
+    };
+    let read_stderr = async {
+        let mut kept = Vec::new();
+        if let Some(pipe) = stderr.as_mut() {
+            let _ = pipe.take(64 * 1024).read_to_end(&mut kept).await;
+            // Drained, not kept: a full pipe would block the child forever.
+            let _ = tokio::io::copy(pipe, &mut tokio::io::sink()).await;
+        }
+        kept
+    };
+    let (stdout, stderr) = tokio::join!(read_stdout, read_stderr);
+    Ok(std::process::Output {
+        status: child.wait().await?,
+        stdout: stdout?,
+        stderr,
+    })
+}
+
+async fn remove_container(name: &str) {
+    let _ = timeout(
+        Duration::from_secs(10),
+        Command::new("docker")
+            .args(["rm", "-f", name])
+            .kill_on_drop(true)
+            .output(),
+    )
+    .await;
+}
+
 /// Run `docker` and parse the strace output it prints: exit code, duration,
 /// raw trace and its analysis. The traced program is bounded by `timeout`
 /// inside the container, so hitting `limit` means Docker itself is stuck:
@@ -569,10 +624,10 @@ async fn run_docker(
     let started = Instant::now();
     let result = timeout(
         limit,
-        Command::new("docker")
-            .args(args)
-            .kill_on_drop(true)
-            .output(),
+        output_capped(
+            Command::new("docker").args(args).kill_on_drop(true),
+            MAX_TRACE_BYTES,
+        ),
     )
     .await;
     let duration_ms = started.elapsed().as_millis() as u64;
@@ -580,17 +635,15 @@ async fn run_docker(
         Ok(Ok(output)) => output,
         Ok(Err(error)) => return Err(error.to_string()),
         Err(_) => {
-            let _ = timeout(
-                Duration::from_secs(10),
-                Command::new("docker")
-                    .args(["rm", "-f", name])
-                    .kill_on_drop(true)
-                    .output(),
-            )
-            .await;
+            remove_container(name).await;
             return Err(format!("docker did not finish within {}s", limit.as_secs()));
         }
     };
+    // Only the docker client was killed at the cap: the container is still
+    // printing.
+    if output.stdout.len() > MAX_TRACE_BYTES {
+        remove_container(name).await;
+    }
     // Cut the bytes, then decode: `String::truncate` panics inside a
     // multi-byte char.
     let trace = &output.stdout[..output.stdout.len().min(MAX_TRACE_BYTES)];
@@ -1037,6 +1090,30 @@ fn truncate(value: &str, max_chars: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn output_capped_stops_reading_a_child_that_never_stops_printing() {
+        // `yes` prints forever: `output()` would buffer it until the test is killed.
+        let flood = timeout(
+            Duration::from_secs(30),
+            output_capped(Command::new("yes").kill_on_drop(true), 4096),
+        )
+        .await
+        .expect("read past the cap")
+        .unwrap();
+        assert_eq!(flood.stdout.len(), 4097);
+        assert!(!flood.status.success(), "the child was not killed");
+
+        let noisy = output_capped(
+            Command::new("sh").args(["-c", "head -c 1000000 /dev/zero >&2; echo ok"]),
+            4096,
+        )
+        .await
+        .unwrap();
+        assert_eq!(noisy.stdout, b"ok\n");
+        assert_eq!(noisy.stderr.len(), 64 * 1024);
+        assert!(noisy.status.success());
+    }
 
     #[test]
     fn parses_network_credential_and_exec_memory() {

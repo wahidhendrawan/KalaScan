@@ -170,7 +170,8 @@ pub fn remove_user(name: &str) -> Result<bool> {
 }
 
 /// True when at least one user exists. Errors are treated as "no users" so a
-/// missing/unavailable DB cannot lock the server out.
+/// missing/unavailable DB cannot lock out a server that started without auth;
+/// one that started with auth does not ask (`AppState::open` in server.rs).
 pub fn any_users() -> bool {
     db::ready_conn()
         .and_then(|conn| {

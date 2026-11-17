@@ -6,7 +6,7 @@ KalaScan is one Rust binary (`src/main.rs`, a thin entry point over the library 
 
 | Area | Module | Role |
 |---|---|---|
-| Entry points | `lib.rs` | Scan orchestrator (`execute_scan_in`), CLI dispatch, `calculate_risk_score`; `main.rs` only calls `kalascan::run()` |
+| Entry points | `lib.rs` | Scan orchestrator (`execute_scan_in`), CLI dispatch; `main.rs` only calls `kalascan::run()` |
 | | `server.rs` | Axum routes, auth and security-header middleware, scan queue, upload endpoint |
 | | `commands.rs` | The CLI subcommands (`scan`, `user`, `sbom`, `import`, `deps`, `installed`, `diff`, `rules`) and the text formatter |
 | | `cli.rs` | clap definitions: `serve`, `scan`, `user`, `rules`, `sbom`, `installed`, `deps`, `diff`, `import` |
@@ -42,8 +42,9 @@ KalaScan is one Rust binary (`src/main.rs`, a thin entry point over the library 
 | | `db.rs` | SQLite history, migrations (schema v5), bounded retention |
 | | `metrics.rs` | Prometheus counters and gauges (atomics) |
 | Output | `export.rs`, `export/html.rs` | Markdown, HTML, SARIF, CSV, JUnit and GitHub-annotation exporters; risk levels |
+| | `export/stix.rs`, `export/osv.rs` | STIX 2.1 bundle and OSV malicious-package record, for threat-intel tooling |
 
-Rules are data: `rules/builtin.toml` (89 regex rules), `rules/secrets.toml` (208 gitleaks patterns, opt-in), `rules/yara/` (GuardDog rules) and `rules/popular_extensions.tsv` are embedded at compile time. See [detection-rules.md](detection-rules.md).
+Rules are data: `rules/builtin.toml` (94 regex rules), `rules/secrets.toml` (208 gitleaks patterns, opt-in), `rules/yara/` (GuardDog rules) and `rules/popular_extensions.tsv` are embedded at compile time. See [detection-rules.md](detection-rules.md).
 
 ## Scan pipeline
 
@@ -87,6 +88,8 @@ Findings are placed in ATT&CK (written out per finding in `src/attack.rs`), in M
 | `sarif` | GitHub Code Scanning | SARIF 2.1.0 with `partialFingerprints` (`kalascan/v2`) that survive line moves |
 | `md`, `html` | reports | the HTML report is self-contained |
 | `csv`, `junit`, `github` | CI systems | CSV cells are formula-safe; `github` prints workflow annotations |
+| `stix` | threat-intel platforms | STIX 2.1 bundle: an `indicator` per IOC, an `attack-pattern` per ATT&CK technique, `indicates` only where a finding's own line holds the URL; ids are stable per scan |
+| `osv` | malicious-package reports | one OSV record (`x_KALASCAN-<scan id>`, not an assigned `MAL-` id) for an `npm:name@version` / `pypi:name==version` target; refused below the danger level or without an exact version |
 
 The web API returns the same JSON (`GET /api/scan/{id}/status`) and serves every format at `/api/report/{id}/{format}`.
 

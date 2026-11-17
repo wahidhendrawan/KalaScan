@@ -111,6 +111,34 @@ pub struct ToolStatus {
 }
 
 pub async fn analyze_directory(dir: &Path, rule_matches: &[RuleMatch], deep: bool) -> TriageReport {
+    // Walking the tree and parsing binaries is CPU-bound: inline it held an
+    // async worker, and with one worker every request waited for the pass.
+    let (walk_dir, walk_matches) = (dir.to_path_buf(), rule_matches.to_vec());
+    let mut report =
+        tokio::task::spawn_blocking(move || analyze_files(&walk_dir, &walk_matches, deep))
+            .await
+            .expect("triage pass panicked");
+
+    if deep {
+        run_deep_tools(dir, &mut report).await;
+    }
+
+    report.capabilities.sort_by(|a, b| {
+        severity_rank(&a.severity)
+            .cmp(&severity_rank(&b.severity))
+            .then(a.name.cmp(&b.name))
+    });
+    report.capabilities.truncate(MAX_CAPABILITIES);
+
+    for capability in &report.capabilities {
+        attack::merge(&mut report.attack_techniques, capability.attack.clone());
+    }
+    report.attack_techniques.sort_by(|a, b| a.id.cmp(&b.id));
+
+    report
+}
+
+fn analyze_files(dir: &Path, rule_matches: &[RuleMatch], deep: bool) -> TriageReport {
     let mut report = TriageReport {
         engine: ENGINE.to_string(),
         deep,
@@ -252,22 +280,6 @@ pub async fn analyze_directory(dir: &Path, rule_matches: &[RuleMatch], deep: boo
             },
         );
     }
-
-    if deep {
-        run_deep_tools(dir, &mut report).await;
-    }
-
-    report.capabilities.sort_by(|a, b| {
-        severity_rank(&a.severity)
-            .cmp(&severity_rank(&b.severity))
-            .then(a.name.cmp(&b.name))
-    });
-    report.capabilities.truncate(MAX_CAPABILITIES);
-
-    for capability in &report.capabilities {
-        attack::merge(&mut report.attack_techniques, capability.attack.clone());
-    }
-    report.attack_techniques.sort_by(|a, b| a.id.cmp(&b.id));
 
     report
 }

@@ -47,7 +47,7 @@ so the strongest evidence sets the score and the rest corroborates, with less to
 - **A verdict needs one strong finding.** Without a weight of 75 or more the score stops at 69, below "danger", whatever the number of weaker findings (THOR requires the same of an alert).
 - **Known vulnerabilities are counted apart** (`score_breakdown.known_vulnerabilities`) and add nothing: the score is about malice.
 
-The deep passes and the AI verdict were not part of the corpus scans, so there is nothing to fit them on. They enter as two more weights, their v1 budgets doubled (at most 40 and 50), and neither reaches "danger" by itself.
+The opt-in deep passes and the AI verdict were not part of the corpus scans (only the metadata triage every scan runs was), so there is nothing to fit them on. They enter as two more weights, their v1 budgets doubled (at most 40 and 50), and neither reaches "danger" by itself.
 
 ### How the weights were fitted
 

@@ -22,7 +22,7 @@ const BASELINE_VERSION: u64 = 2;
 /// The text a finding was found in: the matched line as the context shows
 /// it (`before\n>>> match <<<\nafter`), whitespace collapsed. Findings whose
 /// context has no marker (entropy, YARA) use the whole context.
-fn matched_text(context: &str) -> String {
+pub(crate) fn matched_text(context: &str) -> String {
     let line = context.split_once("\n>>> ").and_then(|(before, rest)| {
         let (matched, after) = rest.split_once(" <<<")?;
         let left = before.rsplit('\n').next().unwrap_or_default();

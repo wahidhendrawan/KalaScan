@@ -1,3 +1,4 @@
+use crate::sandbox::output_capped;
 use crate::scanner::{build_rules, get_context, get_extension, is_critical_file};
 use crate::RuleMatch;
 use std::collections::HashSet;
@@ -178,6 +179,9 @@ fn parse_git_log(log: &str) -> Vec<(String, Vec<String>)> {
     entries
 }
 
+/// A history file larger than this is skipped (1 MiB).
+const MAX_FILE_BYTES: usize = 1_048_576;
+
 /// Get file content at a specific commit via `git show <commit>:<path>`.
 ///
 /// Returns `None` if the file was deleted, is binary, or exceeds 1 MiB.
@@ -187,16 +191,27 @@ async fn get_file_at_commit(
     file_path: &str,
 ) -> Option<String> {
     let spec = format!("{}:{}", commit_hash, file_path);
-    // `None`: deleted or binary at this commit
-    let content = git(repo_path, &["show", &spec]).await?;
+    // Read through the cap: a 1 GiB blob of zeros is a few MiB packed, and
+    // `output()` buffered all of it before the size was looked at.
+    let output = output_capped(
+        Command::new("git")
+            .arg("-C")
+            .arg(repo_path)
+            .args(["show", &spec])
+            .kill_on_drop(true),
+        MAX_FILE_BYTES,
+    )
+    .await
+    .ok()?;
+    // Deleted at this commit, or over the cap
+    if !output.status.success() || output.stdout.len() > MAX_FILE_BYTES {
+        return None;
+    }
+    // `None`: not UTF-8, so binary
+    let content = String::from_utf8(output.stdout).ok()?;
 
     // Binary content contains null bytes
     if content.contains('\0') {
-        return None;
-    }
-
-    // Cap at 1 MiB
-    if content.len() > 1_048_576 {
         return None;
     }
 
@@ -206,6 +221,40 @@ async fn get_file_at_commit(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn history_file_over_the_cap_is_skipped() {
+        let tmp = tempfile::tempdir().unwrap();
+        let git = |args: &[&str]| {
+            let ok = std::process::Command::new("git")
+                .arg("-C")
+                .arg(tmp.path())
+                .args(args)
+                .output()
+                .unwrap()
+                .status
+                .success();
+            assert!(ok, "git {:?} failed", args);
+        };
+        git(&["init", "-q"]);
+        std::fs::write(tmp.path().join("big.js"), "x".repeat(MAX_FILE_BYTES + 1)).unwrap();
+        std::fs::write(tmp.path().join("small.js"), "x;").unwrap();
+        git(&["add", "."]);
+        git(&[
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@t",
+            "commit",
+            "-qm",
+            "init",
+        ]);
+
+        let at_head = |file| get_file_at_commit(tmp.path(), "HEAD", file);
+        assert_eq!(at_head("small.js").await.as_deref(), Some("x;"));
+        assert_eq!(at_head("big.js").await, None);
+        assert_eq!(at_head("deleted.js").await, None);
+    }
 
     #[test]
     fn test_parse_git_log_two_commits() {

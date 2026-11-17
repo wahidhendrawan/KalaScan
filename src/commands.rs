@@ -45,6 +45,15 @@ pub(crate) fn run_user_command(action: UserAction) -> anyhow::Result<()> {
             if auth::remove_user(&name)? {
                 auth::audit("cli", "user.remove", Some(&name), None);
                 println!("User '{}' removed", name);
+                if !auth::any_users() {
+                    // Easy to miss when revoking a leaked token: the next
+                    // start of a loopback server finds no auth configured.
+                    eprintln!(
+                        "No users left. A running server keeps refusing requests without a \
+                         valid token; after a restart a loopback server runs without auth \
+                         unless KALASCAN_TOKEN is set or a user is added"
+                    );
+                }
             } else {
                 eprintln!("User '{}' not found", name);
                 std::process::exit(2);
@@ -239,7 +248,7 @@ pub(crate) async fn run_deps_command(
             }
             Err(e) => {
                 failed += 1;
-                eprintln!("  failed {}: {}", pkg.target(), e);
+                eprintln!("  failed {}: {}", export::inert(&pkg.target()), e);
             }
         }
     }
@@ -279,7 +288,7 @@ pub(crate) async fn run_deps_command(
             println!(
                 "{:>4}  {:<56} {}",
                 r.risk_score,
-                p.target(),
+                export::inert(&p.target()),
                 r.critical.join(", ")
             );
         }
@@ -845,6 +854,8 @@ pub(crate) async fn run_cli_scan(
         "csv" => export::export_csv(&result),
         "junit" | "junit.xml" => export::export_junit(&result),
         "github" => export::export_github(&result),
+        "stix" => export::export_stix(&result)?,
+        "osv" => export::export_osv(&result)?,
         _ => format_cli_text(&result),
     };
 
@@ -869,11 +880,12 @@ pub(crate) async fn run_cli_scan(
 }
 
 fn format_cli_text(result: &ScanResult) -> String {
+    use export::inert;
     let mut out = String::new();
     out.push_str("============================================================\n");
     out.push_str("🛡️  KalaScan Security & Malware Audit Report\n");
     out.push_str("============================================================\n");
-    out.push_str(&format!("Target:        {}\n", result.repo_url));
+    out.push_str(&format!("Target:        {}\n", inert(&result.repo_url)));
     out.push_str(&format!("Scan ID:       {}\n", result.id));
     out.push_str(&format!("Timestamp:     {}\n", result.timestamp));
     out.push_str(&format!(
@@ -905,10 +917,10 @@ fn format_cli_text(result: &ScanResult) -> String {
                 "\n[{}] [{}] {}\n     File:    {}:{}\n     Context: {}\n",
                 i + 1,
                 m.severity.to_uppercase(),
-                m.matched_pattern,
-                m.file_path,
+                inert(&m.matched_pattern),
+                inert(&m.file_path),
                 m.line_number,
-                m.context.trim()
+                inert(m.context.trim())
             ));
         }
     }
@@ -916,9 +928,9 @@ fn format_cli_text(result: &ScanResult) -> String {
     if let Some(ai) = &result.ai_analysis {
         out.push_str("\n------------------------------------------------------------\n");
         out.push_str("AI DEEP ANALYSIS:\n");
-        out.push_str(&format!("Malware Type:   {}\n", ai.malware_type));
-        out.push_str(&format!("Threat Summary: {}\n", ai.threat_summary));
-        out.push_str(&format!("Recommendation: {}\n", ai.recommendation));
+        out.push_str(&format!("Malware Type:   {}\n", inert(&ai.malware_type)));
+        out.push_str(&format!("Threat Summary: {}\n", inert(&ai.threat_summary)));
+        out.push_str(&format!("Recommendation: {}\n", inert(&ai.recommendation)));
     }
 
     if let Some(triage) = &result.triage {
@@ -950,7 +962,7 @@ fn format_cli_text(result: &ScanResult) -> String {
         for binary in &triage.binaries {
             out.push_str(&format!(
                 "\nBinary: {} [{} {}] entropy {:.2}\n",
-                binary.path,
+                inert(&binary.path),
                 binary.file_type,
                 binary.architecture.as_deref().unwrap_or("unknown"),
                 binary.entropy
@@ -959,11 +971,16 @@ fn format_cli_text(result: &ScanResult) -> String {
             if let Some(packer) = &binary.packer {
                 out.push_str(&format!(
                     "  Packer:  {} ({}) - {}\n",
-                    packer.name, packer.confidence, packer.evidence
+                    packer.name,
+                    packer.confidence,
+                    inert(&packer.evidence)
                 ));
             }
             if !binary.indicators.is_empty() {
-                out.push_str(&format!("  Indicators: {}\n", binary.indicators.join("; ")));
+                out.push_str(&format!(
+                    "  Indicators: {}\n",
+                    inert(&binary.indicators.join("; "))
+                ));
             }
         }
         if !triage.attack_techniques.is_empty() {
@@ -992,18 +1009,18 @@ fn format_cli_text(result: &ScanResult) -> String {
             out.push_str(&format!(
                 "\n[{}] {}:{} ({})\n",
                 artifact.confidence.to_uppercase(),
-                artifact.file_path,
+                inert(&artifact.file_path),
                 artifact.line_number,
                 artifact.encoding
             ));
             out.push_str(&format!(
                 "  Decoded: {}\n",
-                artifact.decoded.replace('\n', " ")
+                inert(&artifact.decoded.replace('\n', " "))
             ));
             if !artifact.indicators.is_empty() {
                 out.push_str(&format!(
                     "  Indicators: {}\n",
-                    artifact.indicators.join("; ")
+                    inert(&artifact.indicators.join("; "))
                 ));
             }
         }
@@ -1017,20 +1034,29 @@ fn format_cli_text(result: &ScanResult) -> String {
         for trace in &emulation.traces {
             out.push_str(&format!(
                 "\n{} [{}] entry {} instructions {}\n",
-                trace.file_path, trace.architecture, trace.entrypoint, trace.instructions
+                inert(&trace.file_path),
+                trace.architecture,
+                trace.entrypoint,
+                trace.instructions
             ));
-            out.push_str(&format!("  Stopped: {}\n", trace.stopped_reason));
+            out.push_str(&format!("  Stopped: {}\n", inert(&trace.stopped_reason)));
             if !trace.api_calls.is_empty() {
-                out.push_str(&format!("  API Calls: {}\n", trace.api_calls.join(", ")));
+                out.push_str(&format!(
+                    "  API Calls: {}\n",
+                    inert(&trace.api_calls.join(", "))
+                ));
             }
             if !trace.recovered_strings.is_empty() {
                 out.push_str(&format!(
                     "  Recovered Strings: {}\n",
-                    trace.recovered_strings.join(" | ")
+                    inert(&trace.recovered_strings.join(" | "))
                 ));
             }
             if !trace.indicators.is_empty() {
-                out.push_str(&format!("  Indicators: {}\n", trace.indicators.join("; ")));
+                out.push_str(&format!(
+                    "  Indicators: {}\n",
+                    inert(&trace.indicators.join("; "))
+                ));
             }
         }
     }
@@ -1048,7 +1074,7 @@ fn format_cli_text(result: &ScanResult) -> String {
         for execution in &sandbox.executions {
             out.push_str(&format!(
                 "\n{} [{}] exit {:?} in {}ms ({} syscalls)\n",
-                execution.file_path,
+                inert(&execution.file_path),
                 execution.architecture,
                 execution.exit_code,
                 execution.duration_ms,
@@ -1060,30 +1086,30 @@ fn format_cli_text(result: &ScanResult) -> String {
             if !execution.processes.is_empty() {
                 out.push_str(&format!(
                     "  Processes: {}\n",
-                    execution.processes.join(", ")
+                    inert(&execution.processes.join(", "))
                 ));
             }
             if !execution.network_attempts.is_empty() {
                 out.push_str(&format!(
                     "  Network Attempts: {}\n",
-                    execution.network_attempts.join(" | ")
+                    inert(&execution.network_attempts.join(" | "))
                 ));
             }
             if !execution.file_accesses.is_empty() {
                 out.push_str(&format!(
                     "  Sensitive Files: {}\n",
-                    execution.file_accesses.join(" | ")
+                    inert(&execution.file_accesses.join(" | "))
                 ));
             }
             if !execution.indicators.is_empty() {
                 out.push_str(&format!(
                     "  Indicators: {}\n",
-                    execution.indicators.join("; ")
+                    inert(&execution.indicators.join("; "))
                 ));
             }
         }
         for note in &sandbox.notes {
-            out.push_str(&format!("  Note: {}\n", note));
+            out.push_str(&format!("  Note: {}\n", inert(note)));
         }
     }
 
@@ -1105,7 +1131,10 @@ fn format_cli_text(result: &ScanResult) -> String {
                 technique.tactic,
                 technique.observations
             ));
-            out.push_str(&format!("  Sources: {}\n", technique.sources.join(", ")));
+            out.push_str(&format!(
+                "  Sources: {}\n",
+                inert(&technique.sources.join(", "))
+            ));
         }
         if !ttp.tactics.is_empty() {
             out.push_str("\nKill Chain:\n");
@@ -1129,8 +1158,8 @@ fn format_cli_text(result: &ScanResult) -> String {
             out.push_str(&format!(
                 "  [{}] {}  ({})\n",
                 ioc.kind,
-                ioc.value,
-                ioc.files.join(", ")
+                inert(&ioc.value),
+                inert(&ioc.files.join(", "))
             ));
         }
         if result.iocs.len() > 30 {
@@ -1139,7 +1168,43 @@ fn format_cli_text(result: &ScanResult) -> String {
     }
 
     out.push_str("============================================================\n");
-    out
+    export::no_workflow_commands(&out)
+}
+
+#[cfg(test)]
+mod text_report_tests {
+    use super::*;
+
+    #[test]
+    fn scanned_content_is_printed_inert() {
+        let result: ScanResult = serde_json::from_value(serde_json::json!({
+            "id": "x", "repo_url": "fx", "timestamp": "t", "status": "completed",
+            "total_files": 1, "scanned_files": 1, "total_matches": 1, "risk_score": 10,
+            "ai_analysis": null,
+            "rule_matches": [{
+                "file_path": "c\n::error::y", "line_number": 1, "severity": "high",
+                "matched_pattern": "eval() Usage",
+                "context": "\u{1b}[2K\n::warning::x\r>>> eval( <<<"
+            }],
+            "iocs": [{
+                "kind": "url", "value": "http://x.invalid/\u{7}", "host": "x.invalid",
+                "files": ["c\n::error::y"]
+            }]
+        }))
+        .unwrap();
+        let text = format_cli_text(&result);
+        assert!(!text.contains(['\u{1b}', '\r', '\u{7}']), "{:?}", text);
+        assert!(
+            text.lines().all(|l| !l.trim_start().starts_with("::")),
+            "{}",
+            text
+        );
+        assert!(
+            text.contains("     | ::warning::x\\r>>> eval( <<<"),
+            "{}",
+            text
+        );
+    }
 }
 
 #[cfg(test)]
