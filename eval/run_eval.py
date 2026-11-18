@@ -30,6 +30,7 @@ import concurrent.futures as cf
 import json
 import math
 import os
+import re
 import subprocess
 import sys
 import tarfile
@@ -222,6 +223,14 @@ def summarize(samples):
     return groups
 
 
+def dated(samples, since):
+    """--since: holdout malware whose DataDog file name carries a date on or
+    after `since`. A slice across sets: what is newer than the tuning batches."""
+    day = re.compile(r"/(\d{4}-\d{2}-\d{2})-")
+    return [s for s in samples if s["label"] == "malicious" and s.get("split") == "holdout"
+            and (m := day.search(s["target"])) and m.group(1) >= since]
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--corpus", default=os.path.join(os.path.dirname(__file__), "corpus.json"))
@@ -238,6 +247,7 @@ def main():
     ap.add_argument("--out", help="write per-sample results JSON")
     ap.add_argument("--compare", help="previous --out file; print score changes")
     ap.add_argument("--summary", help="write aggregate counts JSON (no sample names): one per ruleset version in eval/results/")
+    ap.add_argument("--since", metavar="YYYY-MM-DD", help="also report the holdout malware dated on or after this day")
     ap.add_argument("--threshold", type=int, default=50, help="threshold the gates apply to")
     ap.add_argument("--min-recall", type=float, help="fail if malicious recall is below this (0-1)")
     ap.add_argument("--max-fpr", type=float, help="fail if clean false-positive rate is above this (0-1)")
@@ -292,6 +302,10 @@ def main():
             print(f"  {split + ('/' + name if name else ''):28} recall {rate(sum(s['risk'] >= args.threshold for s in mal), len(mal)):<24}"
                   f"false positives {rate(sum(s['risk'] >= args.threshold for s in cln), len(cln))}")
 
+    if args.since:
+        late = dated(done, args.since)
+        print(f"  {'holdout, dated ' + args.since + ' or later':28} recall {rate(sum(s['risk'] >= args.threshold for s in late), len(late))}")
+
     print(f"\n== per ecosystem at T={args.threshold}")
     for eco in sorted({ecosystem(s) for s in done}):
         for label in ("malicious", "clean"):
@@ -332,6 +346,8 @@ def main():
         if "--score-model" in words[:-1]:
             summary["score_model"] = words[words.index("--score-model") + 1]
         summary["groups"] = summarize(samples)
+        if args.since:
+            summary["groups"]["holdout/since-" + args.since] = summarize(dated(samples, args.since)).get("holdout", {})
         with open(args.summary, "w") as f:
             json.dump(summary, f, indent=1)
             f.write("\n")

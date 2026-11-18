@@ -219,6 +219,7 @@ ATT&CK technique ids follow Enterprise ATT&CK v20.1. The MBC objective (Malware 
 | Chain: SSH Key Planted | code | T1098.004 | OB0012 Persistence | - |
 | Chain: Platform Binary Under Another Name | code | T1195.001, T1036 | OB0006 Defense Evasion | - |
 | Code Hidden Behind Whitespace Padding | code | T1027.001 | OB0002 Anti-Static Analysis | - |
+| Chain: Malicious New Dependency | code | T1195.001 | - | - |
 | Remote URL Dependency | code | T1195.001, T1105 | OB0004 Command and Control | AV-501 |
 | Known Malicious URL (URLhaus) | code | T1071.001 | OB0004 Command and Control | - |
 | Extension Name Spoofing (invisible characters) | code | T1036 | OB0006 Defense Evasion | AV-207 |

@@ -23,12 +23,15 @@ The malicious samples are **live malware**. `run_eval.py` scans them statically 
 
 CI (`.github/workflows/eval.yml`) runs only the clean half, as a false-positive gate: `--only clean --max-fpr 0`, on every pull request that touches `src/`, `rules/`, `eval/` or `Cargo.lock`.
 
-Results at threshold 50 (ruleset 2026.11.5, score model v1, measured 2026-11-18; 95% interval in brackets; the aggregate is in [`results/2026.11.5.json`](results/2026.11.5.json)):
+Results at threshold 50 (ruleset 2026.11.6, score model v1, measured 2026-11-18; 95% interval in brackets; the aggregate is in [`results/2026.11.6.json`](results/2026.11.6.json)):
 
 | split | malicious recall | clean false positives |
 |---|---|---|
 | dev | 480/626 (77%, 73-80) | 0/369 (0%, 0-1) |
-| holdout | 465/657 (71%, 67-74) | 0/453 (0%, 0-1) |
+| holdout | 478/683 (70%, 66-73) | 0/453 (0%, 0-1) |
+| holdout, dated 2026-08-01 or later | 87/195 (45%, 38-52) | |
+
+**The last row is the one to expect on new malware.** It is every holdout sample whose file name in the DataDog dataset carries a date of August 2026 or later (`run_eval.py --since 2026-08-01`): 194 npm packages and one PyPI package, from four sets. npm in the holdout dated before August is at 148 of 193 (77%). The gap is what tuning on the same months is worth: the batches the rules were written from are mostly January to June, and so is `fresh2-2026-11`.
 
 Five tuning batches of new samples joined `dev` in November (below), which is why its rate moves with each one.
 
@@ -41,8 +44,30 @@ The holdout by sample set:
 | `malregistry-2026-11` | 100 PyPI packages from pypi_malregistry whose names the DataDog dataset does not have; 5 archives do not unpack | 83/95 (87%, 79-93) |
 | `fresh-2026-11` | 161 packages drawn on 2026-11-18, after ruleset 2026.11.2: 100 npm and 1 PyPI dated 2026-08-01 or later (DataDog), 60 PyPI from pypi_malregistry; 2 archives do not unpack | 90/159 (57%, 49-64) |
 | `fresh2-2026-11` | 200 packages drawn on 2026-11-18, before ruleset 2026.11.5: 150 npm dated 2026-01-01 or later (DataDog), 50 PyPI from pypi_malregistry; 4 archives do not unpack | 156/196 (80%, 73-85) |
+| `late-2026-11` | the 26 npm names dated 2026-08-01 or later that were left in the dataset, drawn on 2026-11-18 | 13/26 (50%, 32-68) |
 
-**The holdout number is the one to quote, and the `recent` row is the one to worry about**: on the newest npm malware KalaScan catches about half (24 of 60 with ruleset 2026.11.1, before the tuning described below). The second source says the PyPI rules are not fitted to one dataset's taste: 87% there, 37 of 48 (77%) on the original DataDog PyPI holdout samples. By ecosystem the whole holdout is IDE extensions 32/48 (67%, 53-78), npm 221/361 (61%, 56-66), PyPI 212/248 (85%, 81-89).
+**The holdout number is the one to quote, and the `recent` row is the one to worry about**: on the newest npm malware KalaScan catches about half (24 of 60 with ruleset 2026.11.1, before the tuning described below). The second source says the PyPI rules are not fitted to one dataset's taste: 87% there, 37 of 48 (77%) on the original DataDog PyPI holdout samples. By ecosystem the whole holdout is IDE extensions 32/48 (67%, 53-78), npm 234/387 (60%, 56-65), PyPI 212/248 (85%, 81-89).
+
+### One hop into the dependencies, and a time slice (ruleset 2026.11.6)
+
+**What was left.** After the npm round below, about a third of each npm batch had nothing malicious in the package's own files. The largest part of that third that a scanner can still reach is a payload kept in a dependency: `debug-fmt` is a copy of a known library plus one dependency, `debug-glitz`, published the same day; the hijacked `@mastra/*` releases add `easy-day-js`.
+
+**Measured before it was built.** For every npm sample and every clean npm package the direct dependencies were looked up in the registry (npm keeps the publish times of a package it has replaced with a security placeholder). A dependency is *young* when its first version came out at most 30 days before the package that needs it:
+
+| | packages | with a young dependency | whose young dependency scans at 50 or more |
+|---|---|---|---|
+| clean npm | 394 | 29 | 0 |
+| `dev`, missed | 107 | 22 | 11 |
+| holdout, missed | 153 | 26 | 12 |
+| `dev` and holdout, already caught | 571 | 13 | 9 |
+
+The dependency was scanned from the DataDog dataset when it is a sample there (the registry copy is gone), for clean packages from the registry. Young dependencies of clean packages are monorepo siblings and platform builds, published by the same release; none scans above 15. For 5 missed holdout packages and 3 `dev` ones the young dependency is in neither place, so the count is a lower bound.
+
+**What was built.** A scan of `npm:name@version` now looks up the dependencies that this version added (all of them while the package has five versions or fewer), skips siblings (`@scope/…`, `name-<platform>`), reads the registry document of each up to 256 KB (an established package is cut off there and never read in full), and scans the ones that were young, three at most, one hop deep (`young_dependencies` in `src/registry.rs`, `malicious_dependencies` in `src/lib.rs`). A dependency at risk 50 or more gives the package `Chain: Malicious New Dependency`. Replayed on the registry documents the dataset keeps, the rule for which dependencies to look at keeps all 23 packages of the table. On the 393 clean npm packages, scanned live with it: 0 flagged, no package carries the chain, median scan time 1.9 s.
+
+**What it does to the numbers: nothing in the table at the top, and that is deliberate.** The harness scans extracted archives; a registry lookup needs the name and the day. The replay says a live scan on the day would have caught 12 more holdout samples: **490 of 683 (72%, 68-75)**, 9 of the 12 in `fresh2-2026-11`. Of the samples dated August or later it adds 3 (90 of 195). This is a registry check like the others: it works on `kalascan scan npm:…`, `kalascan guard` and lockfile audits, not on a tarball handed over as a file.
+
+**The time slice.** A holdout drawn from later months than every tuning batch was the plan, and the dataset does not allow it: 744 files are dated August to October, and only 26 package names among them were unused. Those 26 are `late-2026-11` (13 of 26 on first count). The slice in the table at the top is the substitute: every holdout sample dated August or later, whatever its set. Tuning batches from here on are drawn from before August (`sample_malicious.py --since 2026-01-01 --before 2026-08-01`), so that the slice stays ahead of what the rules were written from. One caveat: `tune-recent-2026-11` (80 samples, read for ruleset 2026.11.2) is from the same months.
 
 ### npm tuning with GuardDog as a second reader (ruleset 2026.11.5)
 

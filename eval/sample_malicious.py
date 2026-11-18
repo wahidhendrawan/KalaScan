@@ -48,6 +48,7 @@ def main():
     ap.add_argument("--malregistry", help="blobless clone of pypi_malregistry; draw from it instead")
     ap.add_argument("--ecosystem", choices=("npm", "pypi", "ide_extensions"), default="npm", help="DataDog ecosystem to draw from")
     ap.add_argument("--since", default="0000-00-00", help="DataDog only: samples dated on or after YYYY-MM-DD")
+    ap.add_argument("--before", default="9999-99-99", help="DataDog only: samples dated before YYYY-MM-DD (a tuning batch stays behind the newest holdout)")
     ap.add_argument("--size", type=int, default=100)
     ap.add_argument("--seed", type=int, default=20261117)
     ap.add_argument("--set", required=True, help="name recorded on every entry, e.g. recent-2026-11")
@@ -75,7 +76,7 @@ def main():
                 # samples/ide_extensions/<kind>/<id>/<version>.vsix: no date in the name.
                 wanted = len(parts) == 5 and path.endswith(".vsix")
             else:
-                wanted = len(parts) >= 6 and dated and dated.group() >= args.since
+                wanted = len(parts) >= 6 and dated and args.since <= dated.group() < args.before
             if wanted and norm(parts[3]) not in used:
                 by_name.setdefault(norm(parts[3]), []).append(path)
 

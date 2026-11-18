@@ -408,6 +408,8 @@ pub async fn run() -> anyhow::Result<()> {
 tokio::task_local! {
     /// Set around a CLI scan (see `operator_scan`).
     pub(crate) static OPERATOR_SCAN: ();
+    /// Set around the scan of a dependency: one hop, never a second.
+    static DEPENDENCY_SCAN: ();
 }
 
 /// The CLI is the operator's own tool: its scans may use the host's git
@@ -512,6 +514,69 @@ async fn execute_scan_with_id(req: ScanRequest, id: String) -> anyhow::Result<Sc
     execute_scan_in(req, scan_dir, id, Some(tmp_dir), is_extension).await
 }
 
+/// Scan the dependencies that were days old when this npm version was
+/// published (`registry::young_dependencies`) and report the ones that are
+/// malware on their own. A package whose files are clean and whose payload
+/// is a dependency published the same week is otherwise invisible: `debug-fmt`
+/// needs `debug-glitz`, the hijacked `@mastra/*` releases need `easy-day-js`.
+async fn malicious_dependencies(
+    req: &ScanRequest,
+    pkg: &vsix::PackageTarget,
+    scan_dir: &std::path::Path,
+) -> Vec<RuleMatch> {
+    let mut out = Vec::new();
+    for dep in registry::young_dependencies(pkg, scan_dir).await {
+        let target = format!("npm:{}@{}", dep.name, dep.version);
+        info!(
+            "Scanning {} ({} days old when this version was published)",
+            target, dep.days
+        );
+        // The default scan only: no deep pass, AI call or baseline of the parent's.
+        let nested = ScanRequest {
+            repo_url: target.clone(),
+            ai_analysis_enabled: false,
+            check_cve: Some(false),
+            git_history: false,
+            deep_triage: false,
+            deobfuscate: false,
+            emulate: false,
+            sandbox: false,
+            new_only: false,
+            baseline: None,
+            ignore: None,
+            changed_only: false,
+            ..req.clone()
+        };
+        let id = uuid::Uuid::new_v4().to_string();
+        let scan = DEPENDENCY_SCAN.scope((), Box::pin(execute_scan_with_id(nested, id)));
+        let Ok(result) = scan.await else {
+            continue; // unpublished since, or unreachable: nothing to report
+        };
+        if result.risk_score >= DEPENDENCY_VERDICT {
+            let why = result
+                .rule_matches
+                .iter()
+                .find(|m| m.severity == "critical")
+                .map(|m| format!(": {}", m.matched_pattern))
+                .unwrap_or_default();
+            out.push(RuleMatch {
+                file_path: "package.json".to_string(),
+                line_number: 1,
+                matched_pattern: registry::MALICIOUS_DEPENDENCY.to_string(),
+                severity: "critical".to_string(),
+                context: format!(
+                    "Depends on {target}, first published {} days before this version, which scans at risk {}{why}",
+                    dep.days, result.risk_score
+                ),
+            });
+        }
+    }
+    out
+}
+
+/// A dependency at or above this risk makes the package that needs it a finding.
+const DEPENDENCY_VERDICT: u8 = 50;
+
 /// `package`: `scan_dir` was extracted from an archive, so even its `.git`
 /// is the author's (see `scanner::Tree`).
 async fn execute_scan_in(
@@ -587,6 +652,9 @@ async fn execute_scan_in(
     }
     if let Some(pkg) = vsix::parse_package_target(&repo_url) {
         rule_matches.extend(registry::findings(&pkg, &scan_dir).await);
+        if DEPENDENCY_SCAN.try_with(|_| ()).is_err() {
+            rule_matches.extend(malicious_dependencies(&req, &pkg, &scan_dir).await);
+        }
     }
 
     // IOCs, and exact-URL threat intel when an abuse.ch key is configured.
