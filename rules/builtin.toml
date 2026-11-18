@@ -196,6 +196,21 @@ pattern = '''(?im)(?:(?:^|[^.\w$\n])(?:exec|eval)\s*\([^\n]{0,120}?(?:b64decode|
 matches = ['''exec(base64.b64decode(payload))''', '''eval(atob(s))''', '''code = b64decode(blob); exec(code)''']
 ignores = ['''from_base64 from_days ftp full function general generated get_lock run''', '''atob(h)))}function l(h){return h.split(",").pop()}function c(h,m){var f=r.mapFileCommentRegex.exec(m)''']
 
+# Node's form of the same thing. A lead, not a verdict (it does not count
+# twice like the rule above): Quokka ships a base64 blob it evals as licence
+# protection. `'base64'` must be Buffer.from's own argument: webpack's eval
+# devtool has `Buffer.from(x,"utf8").toString("base64")` next to an eval.
+[[rule]]
+id = "KS-EXE-034"
+name = "Buffer Decode + eval"
+severity = "critical"
+category = "obfuscation"
+description = "Code decoded from a Buffer and passed to eval / new Function"
+pattern = '''(?m)(?:(?:^|[^.\w$\n])(?:eval|new\s+Function)\s*\(\s*Buffer\.from\s*\(|Buffer\.from\s*\([^()\n]{0,200}?,\s*["']base64["']\s*\)[^\n]{0,80}\n?[^\n]{0,120}?[^.\w$](?:eval|new\s+Function)\s*\()'''
+matches = ['''eval(Buffer.from('ZXZpbA==', 'base64').toString());''', '''new Function(Buffer.from(b, "base64").toString())()''', '''const data = Buffer.from(certs, 'base64');
+      eval(data.toString('utf8'));''']
+ignores = ['''const b = Buffer.from(s, "base64"); return b.map(function (x) { return x })''', '''base64,${Buffer.from(JSON.stringify(Ke),"utf8").toString("base64")}`)}\n//# sourceURL=x\n`;return eval(re)''']
+
 [[rule]]
 id = "KS-EXE-004"
 name = "nested b64decode"
@@ -638,9 +653,12 @@ id = "KS-EXE-024"
 name = "Obfuscator.io Output"
 severity = "high"
 category = "obfuscation"
-description = "javascript-obfuscator output (_0x string-array decoder)"
-pattern = '''(?:var|const|let|function)\s+_0x[0-9a-f]{4,6}(?-u:\b)'''
-matches = ['''function _0x2470(){return _0x2e306f;}''']
+description = "javascript-obfuscator output (string-array decoder)"
+# The second form is the tool's base64 string decoder itself: with
+# `identifierNamesGenerator: mangled` nothing is called _0x… any more, and the
+# arithmetic stays (date-fns-formatter).
+pattern = '''(?:(?:var|const|let|function)\s+_0x[0-9a-f]{4,6}(?-u:\b)|0xff\s*&\s*[\w$]+\s*>>\s*\(\s*-0x2\s*\*\s*[\w$]+\s*&\s*0x6\s*\))'''
+matches = ['''function _0x2470(){return _0x2e306f;}''', '''R+=String['fromCharCode'](0xff&d>>(-0x2*N&0x6)):0x0''']
 ignores = ['''var a=0x1f;''']
 
 [[rule]]
@@ -888,6 +906,18 @@ description = "require / child_process / process / a URL spelled as decimal char
 pattern = '''[\[(]\s*(?:99\s*,\s*104\s*,\s*105\s*,\s*108\s*,\s*100\s*,\s*95\s*,\s*112\s*,\s*114\s*,\s*111\s*,\s*99\s*,\s*101\s*,\s*115\s*,\s*115|114\s*,\s*101\s*,\s*113\s*,\s*117\s*,\s*105\s*,\s*114\s*,\s*101|112\s*,\s*114\s*,\s*111\s*,\s*99\s*,\s*101\s*,\s*115\s*,\s*115|95\s*,\s*108\s*,\s*111\s*,\s*97\s*,\s*100|101\s*,\s*120\s*,\s*101\s*,\s*99\s*,\s*83\s*,\s*121\s*,\s*110\s*,\s*99|104\s*,\s*111\s*,\s*115\s*,\s*116\s*,\s*110\s*,\s*97\s*,\s*109\s*,\s*101|104\s*,\s*116\s*,\s*116\s*,\s*112\s*,\s*115\s*,\s*58\s*,\s*47\s*,\s*47|104\s*,\s*116\s*,\s*116\s*,\s*112\s*,\s*58\s*,\s*47\s*,\s*47)\s*[\])]'''
 matches = ['''let P=global[d([112,114,111,99,101,115,115])];''', '''x([99, 104, 105, 108, 100, 95, 112, 114, 111, 99, 101, 115, 115])''']
 ignores = ['''[1112,114,111,99,101,115,1155]''', '''const sizes = [112, 114, 116, 118]''', '''116,115,114,117,110,110,105,110,103,112,114,111,99,101,115,115,119,114,105,116,105,110,103''']
+
+# `aHR0cHM6Ly` is `https://` in base64: a URL the author did not want read
+# (selfsigned-certificate keeps its payload host this way).
+[[rule]]
+id = "KS-EXE-033"
+name = "Base64-Encoded URL"
+severity = "high"
+category = "obfuscation"
+description = "A string literal that is a base64-encoded http(s) URL"
+pattern = '''["'`]aHR0c(?:HM6Ly|DovL)[A-Za-z0-9+/]{4,}={0,2}["'`]'''
+matches = ['''Buffer.from('aHR0cHM6Ly9qZXRwYWNrLmN2L3dwLWpzb24=', 'base64')''', '''atob("aHR0cDovL2V2aWwuZXhhbXBsZS9h")''']
+ignores = ['''"aHR0cHM6"''', '''data:image/png;base64,iVBORw0KGgoaHR0cHM6Ly9leGFtcGxl''']
 
 [[rule]]
 id = "KS-SUP-012"

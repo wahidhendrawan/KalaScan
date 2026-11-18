@@ -18,6 +18,79 @@ use regex::Regex;
 use std::collections::BTreeSet;
 use std::sync::LazyLock;
 
+/// `'…' + '…'` on one line, whatever the quotes: the join to remove.
+static CONCAT: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"['"`][ \t]*\+[ \t]*['"`]"#).unwrap());
+static CHAR_ESCAPE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\\(?:x([0-9a-fA-F]{2})|u00([0-9a-fA-F]{2})|u\{([0-9a-fA-F]{2})\})").unwrap()
+});
+static CHAR_CODES: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?:String\.fromCharCode\(\s*(\d{2,3}(?:\s*,\s*\d{2,3}){1,63})\s*\)|bytes\(\[\s*(\d{2,3}(?:\s*,\s*\d{2,3}){1,63})\s*\]\)\.decode\(\))").unwrap()
+});
+static REVERSED: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"['"]([A-Za-z0-9_./:-]{3,60})['"](?:\.split\(\s*['"]{2}\s*\)\.reverse\(\)\.join\(\s*['"]{2}\s*\)|\[::-1\])"#).unwrap()
+});
+
+/// `obj['name']`, which is `obj.name` to the engine and not to a rule.
+static BRACKET_NAME: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"\[\s*['"]([A-Za-z_$][\w$]{1,40})['"]\s*\]"#).unwrap());
+
+/// `content` with five cheap string disguises undone, so the rules see the
+/// name a line spells: `'fe'+'tch'`, `\x66etch`, `String.fromCharCode(102,
+/// 101,…)`, `'hctef'.split('').reverse().join('')` and `globalThis['fetch']`.
+/// Borrowed when the file uses none of them. No line is added or removed, so a line number in
+/// the result is the line number in the file.
+pub fn plain(content: &str) -> std::borrow::Cow<'_, str> {
+    use std::borrow::Cow;
+    // Letters, digits and what names and URLs are made of: never a quote, a
+    // backslash or a line break, which would change what the text means.
+    let name_char = |c: char| c.is_ascii_alphanumeric() || "._-/: ".contains(c);
+    let mut text = Cow::Borrowed(content);
+    let escapes = CHAR_ESCAPE.replace_all(&text, |c: &regex::Captures| {
+        let hex = c.iter().skip(1).flatten().next().map_or("", |m| m.as_str());
+        match u8::from_str_radix(hex, 16).map(char::from) {
+            Ok(ch) if name_char(ch) => ch.to_string(),
+            _ => c[0].to_string(),
+        }
+    });
+    if let Cow::Owned(s) = escapes {
+        text = Cow::Owned(s);
+    }
+    let codes = CHAR_CODES.replace_all(&text, |c: &regex::Captures| {
+        let list = c.get(1).or(c.get(2)).map_or("", |m| m.as_str());
+        let decoded: Option<String> = list
+            .split(',')
+            .map(|n| {
+                n.trim()
+                    .parse::<u8>()
+                    .ok()
+                    .map(char::from)
+                    .filter(|ch| name_char(*ch))
+            })
+            .collect();
+        decoded.map_or_else(|| c[0].to_string(), |s| format!("'{s}'"))
+    });
+    if let Cow::Owned(s) = codes {
+        text = Cow::Owned(s);
+    }
+    let reversed = REVERSED.replace_all(&text, |c: &regex::Captures| {
+        format!("'{}'", c[1].chars().rev().collect::<String>())
+    });
+    if let Cow::Owned(s) = reversed {
+        text = Cow::Owned(s);
+    }
+    if let Cow::Owned(s) = CONCAT.replace_all(&text, "") {
+        text = Cow::Owned(s);
+    }
+    if let Cow::Owned(s) = BRACKET_NAME.replace_all(&text, ".$1") {
+        text = Cow::Owned(s);
+    }
+    match text {
+        Cow::Owned(s) if s != content => Cow::Owned(s),
+        _ => Cow::Borrowed(content),
+    }
+}
+
 pub const OBFUSCATED_CREDENTIAL_THEFT: &str = "Chain: Obfuscated Credential Theft";
 pub const OBFUSCATED_DOWNLOAD_EXEC: &str = "Chain: Obfuscated Download and Execute";
 
@@ -296,6 +369,34 @@ pub fn chains(rel_path: &str, table: &[String]) -> Vec<RuleMatch> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn plain_undoes_the_string_disguises_and_keeps_the_lines() {
+        let src = "const f = globalThis['fe'+'tch'];\nconst r = \"\\x72\\x65quire\";\n\
+                   const c = String.fromCharCode(99,104,105,108,100,95,112,114,111,99,101,115,115);\n\
+                   w['hctef'.split('').reverse().join('')](u);\nh = 'emantsoh'[::-1]\n";
+        let plain = plain(src);
+        for name in [
+            "globalThis.fetch;",
+            "\"require\"",
+            "'child_process'",
+            "w.fetch(u)",
+            "'hostname'",
+        ] {
+            assert!(plain.contains(name), "{name} not in {plain}");
+        }
+        assert_eq!(plain.lines().count(), src.lines().count());
+        // Nothing to undo: no copy. An escaped quote or line break stays escaped.
+        assert!(matches!(
+            plain_of("let a = b + 'c';"),
+            std::borrow::Cow::Borrowed(_)
+        ));
+        assert_eq!(plain_of("s = '\\x27\\x0a'"), "s = '\\x27\\x0a'");
+    }
+
+    fn plain_of(s: &str) -> std::borrow::Cow<'_, str> {
+        plain(s)
+    }
 
     fn names(v: &[RuleMatch]) -> Vec<&str> {
         v.iter().map(|m| m.matched_pattern.as_str()).collect()

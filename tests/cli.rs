@@ -260,11 +260,11 @@ fn diff_lists_what_only_the_new_version_does() {
         .iter()
         .map(|c| c["rule"].as_str().unwrap())
         .collect();
-    assert_eq!(rules, vec!["eval() Usage"]);
+    assert_eq!(rules, vec!["Buffer Decode + eval", "eval() Usage"]);
     assert!(v["new_risk"].as_u64() > v["old_risk"].as_u64());
 
     kalascan(&["diff", &old, &new, "--fail-on-new", "high"]).code(1);
-    kalascan(&["diff", &old, &new, "--fail-on-new", "critical"]).success();
+    kalascan(&["diff", &old, &new, "--fail-on-new", "critical"]).code(1);
     // The other way round nothing is new.
     kalascan(&["diff", &new, &old, "--fail-on-new", "low"]).success();
     kalascan(&["diff", &old, &new, "--fail-on-new", "severe"]).failure();

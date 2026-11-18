@@ -16,7 +16,7 @@ The attack tree of Ladisa et al., *SoK: Taxonomy of Attacks on Open-Source Softw
 
 | Vector | Name | Coverage | Evidence | Note |
 |---|---|---|---|---|
-| AV-100 | Develop and Advertise Distinct Malicious Package from Scratch | partial | Chain: Registry Spam Publisher, Unverified Publisher, Low Install Count, Recently Published Extension | The package is the payload: it is judged by what its code does. Listing age and reach are hints, for IDE extensions only. |
+| AV-100 | Develop and Advertise Distinct Malicious Package from Scratch | partial | Chain: Registry Spam Publisher, Chain: Web Page Published as a Package, Unverified Publisher, Low Install Count, Recently Published Extension | The package is the payload: it is judged by what its code does. Listing age and reach are hints, for IDE extensions only. |
 | AV-200 | Create Name Confusion with Legitimate Package | partial | Typo-squat Suspect, Possible Brand Impersonation | See the forms below. |
 | AV-201 | Combosquatting | gap | - | A popular name plus a word (`lodash-utils`) is not compared. |
 | AV-202 | Altering Word Order | gap | - |  |
@@ -93,6 +93,7 @@ ATT&CK technique ids follow Enterprise ATT&CK v20.1. The MBC objective (Malware 
 | eval() Usage | KS-EXE-001 | T1059 | OB0009 Execution | - |
 | exec() Usage | KS-EXE-002 | T1059 | OB0009 Execution | - |
 | b64decode + exec Chain | KS-EXE-003 | T1140, T1059.006 | OB0002 Anti-Static Analysis, OB0009 Execution | - |
+| Buffer Decode + eval | KS-EXE-034 | T1140, T1059.007 | OB0002 Anti-Static Analysis, OB0009 Execution | - |
 | nested b64decode | KS-EXE-004 | T1027, T1140 | OB0002 Anti-Static Analysis | - |
 | child_process (Node.js) | KS-EXE-005 | T1059 | OB0009 Execution | - |
 | subprocess (Python) | KS-EXE-006 | T1059 | OB0009 Execution | - |
@@ -163,6 +164,7 @@ ATT&CK technique ids follow Enterprise ATT&CK v20.1. The MBC objective (Malware 
 | Database Connection String with Password | KS-EXF-022 | T1552.001 | OB0005 Credential Access | - |
 | Hex-Encoded API Name | KS-EXE-030 | T1027 | OB0002 Anti-Static Analysis | - |
 | Char-Code Encoded API Name | KS-EXE-032 | T1027 | OB0002 Anti-Static Analysis | - |
+| Base64-Encoded URL | KS-EXE-033 | T1027 | OB0002 Anti-Static Analysis | - |
 | Install Script Network Command | KS-SUP-012 | T1195.001, T1105 | OB0004 Command and Control | - |
 | Install Script Host Reconnaissance | KS-SUP-013 | T1195.001, T1082, T1033 | OB0007 Discovery | - |
 | DNS Lookup of Built Hostname | KS-REC-004 | T1071.004, T1048 | OB0004 Command and Control, OB0010 Exfiltration | - |
@@ -196,6 +198,8 @@ ATT&CK technique ids follow Enterprise ATT&CK v20.1. The MBC objective (Malware 
 | Chain: Phishing Redirect Package | code | T1566 | - | - |
 | Dependency Confusion Version | code | T1195.001 | - | AV-502, AV-509 |
 | Chain: Dependency Confusion Install Hook | code | T1195.001 | - | AV-502, AV-509 |
+| Chain: Web Page Published as a Package | code | T1566, T1036 | OB0006 Defense Evasion | AV-100 |
+| Package Entry Point Is a Web Page | code | - | - | - |
 | Remote URL Dependency | code | T1195.001, T1105 | OB0004 Command and Control | AV-501 |
 | Known Malicious URL (URLhaus) | code | T1071.001 | OB0004 Command and Control | - |
 | Extension Name Spoofing (invisible characters) | code | T1036 | OB0006 Defense Evasion | AV-207 |

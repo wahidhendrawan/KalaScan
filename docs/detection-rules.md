@@ -4,7 +4,7 @@ KalaScan has three rule families. All are data, embedded at compile time. `kalas
 
 | Family | Where | Count | When |
 |---|---|---|---|
-| Regex rules | `rules/builtin.toml` (ruleset version `2026.11.1`) | 94 | always; `--rules FILE` adds yours |
+| Regex rules | `rules/builtin.toml` (ruleset version `2026.11.2`) | 96 | always; `--rules FILE` adds yours |
 | Secret patterns | `rules/secrets.toml` (generated from gitleaks v8.30.1, MIT) | 208 | opt-in with `--secrets` |
 | YARA rules | `src/yara_engine.rs` (3 built-in), `rules/yara/guarddog/` (2), `--yara-dir DIR` | | every file except prose |
 
@@ -45,7 +45,7 @@ A rule whose examples fail aborts the scan with the reason, so a typo in a patte
 |---|---|---|---|
 | `KS-EXF` | `exfiltration` | script extensions and manifest files | 22 |
 | `KS-ACC` | `file_access` | script extensions | 11 |
-| `KS-EXE` | `obfuscation` | every scanned file | 32 |
+| `KS-EXE` | `obfuscation` | every scanned file | 34 |
 | `KS-SUP` | `supply_chain`, `npm_hook` | every scanned file; `npm_hook` only `package.json` | 13 |
 | `KS-RAN` | `ransomware` | every scanned file | 5 |
 | `KS-REC` | `recon` | every scanned file | 4 |

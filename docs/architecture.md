@@ -44,7 +44,7 @@ KalaScan is one Rust binary (`src/main.rs`, a thin entry point over the library 
 | Output | `export.rs`, `export/html.rs` | Markdown, HTML, SARIF, CSV, JUnit and GitHub-annotation exporters; risk levels |
 | | `export/stix.rs`, `export/osv.rs` | STIX 2.1 bundle and OSV malicious-package record, for threat-intel tooling |
 
-Rules are data: `rules/builtin.toml` (94 regex rules), `rules/secrets.toml` (208 gitleaks patterns, opt-in), `rules/yara/` (GuardDog rules) and `rules/popular_extensions.tsv` are embedded at compile time. See [detection-rules.md](detection-rules.md).
+Rules are data: `rules/builtin.toml` (96 regex rules), `rules/secrets.toml` (208 gitleaks patterns, opt-in), `rules/yara/` (GuardDog rules) and `rules/popular_extensions.tsv` are embedded at compile time. See [detection-rules.md](detection-rules.md).
 
 ## Scan pipeline
 

@@ -576,6 +576,11 @@ async fn execute_scan_in(
     let pkgs = cve::extract_manifest_packages(&scan_dir);
     rule_matches.extend(cve::typosquat_matches(&pkgs));
     rule_matches.extend(cve::own_package_matches(&scan_dir));
+    // An unpacked package, not a repository: a web app's own checkout has
+    // `"main": "index.html"` too (NW.js), and it has a `.git`.
+    if !own_tree && !scan_dir.join(".git").exists() {
+        rule_matches.extend(cve::web_page_entry(&scan_dir));
+    }
     rule_matches.extend(reputation::identity_matches(&scan_dir));
     if let Some((publisher, name, _)) = vsix::parse_marketplace_id(&repo_url) {
         rule_matches.extend(reputation::marketplace_matches(publisher, name).await);
