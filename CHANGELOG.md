@@ -7,6 +7,8 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-11-18
+
 ### Added
 - Detection (ruleset 2026.11.3): `Decrypted Code Executed` (`exec(Fernet(…).decrypt(…))`, the PyPI stealer loader), `Builtin Name Built From Characters` (`getattr(__builtins__, oct.__str__()[…] + …)`), `Code Imported From Disguised Archive` (a zip of Python modules named `server.crt` or `_websocket.typed`, loaded through `zipimport` or `sys.path`); all three are verdicts on their own. `Systemd User Service Installed` and `Chain: Install-time Persistence` (an install script that leaves a user service behind); `npm Maintainer Package Enumeration` and `Chain: npm Worm` (list every package an account maintains, then `npm publish`); javascript-obfuscator output recognised by its `['\x..']===undefined` decoder check; pinggy tunnels as an exfiltration endpoint; `npm publish` run through a script's own wrapper.
 - Evaluation: a tuning batch of 150 samples in `dev` (`"set": "tune-fresh-2026-11"`: 100 npm from 2026, 50 PyPI from pypi_malregistry). Before the changes it scored 96, after them 120. On the untouched holdout: 281 → 306 of 461 (66%, 62-71), `fresh-2026-11` 78 → 89 of 159, `malregistry-2026-11` 70 → 83 of 95; clean still 0 of 822, no sample's score went down, evasion suite unchanged.
@@ -230,7 +232,8 @@ published on GitHub; their features are listed with version markers in `README.m
 ### Fixed
 - `openapi.yaml` is copied into the Docker builder stage.
 
-[Unreleased]: https://github.com/wahidhendrawan/KalaScan/compare/v1.15.0...HEAD
+[Unreleased]: https://github.com/wahidhendrawan/KalaScan/compare/v1.16.0...HEAD
+[1.16.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.15.0...v1.16.0
 [1.15.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.14.0...v1.15.0
 [1.14.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.13.0...v1.14.0
 [1.13.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.12.0...v1.13.0
