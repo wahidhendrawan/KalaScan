@@ -9241,6 +9241,2183 @@
    "source": "dataset",
    "split": "dev",
    "set": "tune-recent-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/array-frames/2.3.2/2026-09-05-array-frames-v2.3.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/internallib_v788/0.0.0-stage/2026-10-08-internallib_v788-v0.0.0-stage.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@postman-cse@okta-aio-linux-arm64/0.11.6/2026-08-21-@postman-cse_okta-aio-linux-arm64-v0.11.6.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@cat-gen@materia/1.0.0/2026-09-12-@cat-gen_materia-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/3layerdipstackuew4bh/0.1.4/2026-08-26-3layerdipstackuew4bh-v0.1.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/blueai-cli/0.5.3/2026-08-24-blueai-cli-v0.5.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/action-slack-message-root/1.0.1/2026-09-19-action-slack-message-root-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@wizloft@harness-plugin-file-memory/0.1.0-alpha.2/2026-08-25-@wizloft_harness-plugin-file-memory-v0.1.0-alpha.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/depcruise-wrap-stream-in-html/99.9.1/2026-08-15-depcruise-wrap-stream-in-html-v99.9.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/kiki-baileys/1.0.2/2026-09-05-kiki-baileys-v1.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/autbank-core/99.0.2/2026-08-14-autbank-core-v99.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/kartyk-github-token-pkg/1.0.0/2026-09-16-kartyk-github-token-pkg-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@rdateam@godbles/0.1.3/2026-08-27-@rdateam_godbles-v0.1.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@toptal@picasso-container/100.0.1/2026-08-17-@toptal_picasso-container-v100.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/internal-module/1.0.1/2026-09-23-internal-module-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/randompkga/1.0.20/2026-08-19-randompkga-v1.0.20.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/3layerdipstack6mpbze/0.1.4/2026-08-26-3layerdipstack6mpbze-v0.1.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@toptal@picasso-grid/100.0.1/2026-08-17-@toptal_picasso-grid-v100.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/eslint-plugin-skywagon-web/100.0.0/2026-09-26-eslint-plugin-skywagon-web-v100.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@42ailab@42cc-darwin-universal/0.10.14/2026-08-16-@42ailab_42cc-darwin-universal-v0.10.14.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@znan@wabot/0.2.2-beta.1/2026-08-20-@znan_wabot-v0.2.2-beta.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/snavbox/1.0.3/2026-08-23-snavbox-v1.0.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@toptal@picasso-button/100.0.2/2026-08-17-@toptal_picasso-button-v100.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@vbansal67@npm-official-publisher/1.0.0/2026-09-11-@vbansal67_npm-official-publisher-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@yongot@canary-mcp-isolation/1.0.1/2026-09-06-@yongot_canary-mcp-isolation-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/math-universe/1.0.0/2026-09-16-math-universe-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@codexed@codex/0.151.0-codexed.1/2026-08-30-@codexed_codex-v0.151.0-codexed.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/external-process-live-log/13.5.2/2026-08-12-external-process-live-log-v13.5.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/dzvchorehui2/1.0.0/2026-08-12-dzvchorehui2-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/random-certs/0.0.0-stage/2026-10-07-random-certs-v0.0.0-stage.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/afhmxiewpsf/1.0.4/2026-09-11-afhmxiewpsf-v1.0.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@pilllesss@yorn/1.0.81/2026-08-23-@pilllesss_yorn-v1.0.81.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/strapi-plugin-running-services-meeb322k/3.6.8/2026-09-14-strapi-plugin-running-services-meeb322k-v3.6.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/fund-calculator/999.9.12/2026-08-23-fund-calculator-v999.9.12.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/securitywatch/1.0.9/2026-08-30-securitywatch-v1.0.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@convertics@script/0.3.0/2026-09-06-@convertics_script-v0.3.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/tailwindcss-ui-extensions/2.0.6/2026-09-28-tailwindcss-ui-extensions-v2.0.6.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/tailwind-extension-kit/1.3.2/2026-08-17-tailwind-extension-kit-v1.3.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/morglog/1.2.1/2026-08-24-morglog-v1.2.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/react-remove-properties/6.14.1/2026-08-22-react-remove-properties-v6.14.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/cloudfcrxz/1.0.1/2026-08-30-cloudfcrxz-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@subql@common/5.8.3/2026-10-05-@subql_common-v5.8.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/express-session-handler/2.3.3/2026-08-20-express-session-handler-v2.3.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@toptal@picasso-rich-text-editor/100.0.4/2026-08-25-@toptal_picasso-rich-text-editor-v100.0.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/hardhat-base/2.2.2/2026-09-14-hardhat-base-v2.2.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/vexium-kit/10.0.2/2026-08-13-vexium-kit-v10.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/aliftech-ui/99.9.9/2026-09-24-aliftech-ui-v99.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/truffle-kit/3.3.2/2026-10-09-truffle-kit-v3.3.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/prediction-trader/2.3.0/2026-08-12-prediction-trader-v2.3.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@42ailab@42plugin-darwin-arm64/0.4.21/2026-08-31-@42ailab_42plugin-darwin-arm64-v0.4.21.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@42ailab@42plugin-linux-x64/0.4.21/2026-08-31-@42ailab_42plugin-linux-x64-v0.4.21.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@web2apk@baileys/9.0.9/2026-08-29-@web2apk_baileys-v9.0.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@wizloft@harness-validation/0.1.0-alpha.2/2026-08-19-@wizloft_harness-validation-v0.1.0-alpha.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/gas-price-checker/1.0.0/2026-09-05-gas-price-checker-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/kartyk-github-single-ver-pkg/1.0.0/2026-09-16-kartyk-github-single-ver-pkg-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/in-install/99.9.1/2026-08-13-in-install-v99.9.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/vs-modules/1.2.2/2026-08-27-vs-modules-v1.2.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/agentgg/0.1.20/2026-08-23-agentgg-v0.1.20.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@vbansal67@npm-is-tuff-bruh/1.0.0/2026-09-11-@vbansal67_npm-is-tuff-bruh-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/houdini-core-win32-x64/2.0.9/2026-09-12-houdini-core-win32-x64-v2.0.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@liuliang520500@sinataoke_cn/2.0.10/2026-09-06-@liuliang520500_sinataoke_cn-v2.0.10.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@toptal@picasso-alert/100.0.2/2026-08-17-@toptal_picasso-alert-v100.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/pulse-pwn-9f3a2/1.0.0/2026-09-17-pulse-pwn-9f3a2-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/bare-build-win32-x64/1.2.0/2026-09-28-bare-build-win32-x64-v1.2.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/cloufcrxz/1.0.0/2026-08-30-cloufcrxz-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/mq-bridge-win32-x64-msvc/0.4.2/2026-08-16-mq-bridge-win32-x64-msvc-v0.4.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/get-power/1.0.3/2026-09-12-get-power-v1.0.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/houdini-react-win32-arm64/2.3.1/2026-09-12-houdini-react-win32-arm64-v2.3.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@toptal@picasso-icons/100.0.1/2026-08-24-@toptal_picasso-icons-v100.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/gclassroom/1.0.0/2026-08-26-gclassroom-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/mobiwaefhxc3/1.0.0/2026-08-24-mobiwaefhxc3-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/nito-ai-win32-x64/0.1.0-beta.7/2026-08-19-nito-ai-win32-x64-v0.1.0-beta.7.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/model-poc-suhail/1.0.12/2026-08-26-model-poc-suhail-v1.0.12.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/3layerdipstackcrikda/0.1.4/2026-08-26-3layerdipstackcrikda-v0.1.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@myorder-frontend-commons@analytics/101.0.0/2026-10-12-@myorder-frontend-commons_analytics-v101.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/pflag29424/0.0.0-stage/2026-10-01-pflag29424-v0.0.0-stage.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/tailwindcss-3d-animate/1.2.0/2026-08-27-tailwindcss-3d-animate-v1.2.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@42ailab@42cc/0.10.15/2026-09-06-@42ailab_42cc-v0.10.15.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/svelte-dim-kit/1.0.0/2026-08-22-svelte-dim-kit-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/opiumbest/1.1.1/2026-08-30-opiumbest-v1.1.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/3layerdipstackmjdc98/0.1.4/2026-08-26-3layerdipstackmjdc98-v0.1.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@sdgdfgdfhhhfd@chainvista/2.0.2/2026-08-22-@sdgdfgdfhhhfd_chainvista-v2.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/3layerdipstackkg0gfy/0.1.4/2026-08-26-3layerdipstackkg0gfy-v0.1.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/lumen-pages-community/9.9.9/2026-08-21-lumen-pages-community-v9.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/desmosmathwork/1.0.0/2026-08-25-desmosmathwork-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@mohamed_nowisar@token3-check/0.0.1/2026-08-18-@mohamed_nowisar_token3-check-v0.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/tanksync/1.0.6/2026-08-31-tanksync-v1.0.6.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/eslint-generate-release/99.9.1/2026-08-13-eslint-generate-release-v99.9.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/base_parts_ai/1.0.55/2026-08-21-base_parts_ai-v1.0.55.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@toptal@davinci-cloudflare-requests-handler/1.0.0/2026-08-28-@toptal_davinci-cloudflare-requests-handler-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/atomic-meta-check/0.0.1/2026-08-14-atomic-meta-check-v0.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/native-runner/1.0.1/2026-09-26-native-runner-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@toptal@picasso-form/100.0.2/2026-08-17-@toptal_picasso-form-v100.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@baanx@solana-lib/9.9.10/2026-09-21-@baanx_solana-lib-v9.9.10.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/luftzxyuiwgbgsp/1.0.0/2026-09-10-luftzxyuiwgbgsp-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/eslint-publish-release/99.9.1/2026-08-13-eslint-publish-release-v99.9.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/fund-list-filter/999.9.12/2026-08-23-fund-list-filter-v999.9.12.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/mcp-secure-server/0.0.20-security/2026-08-24-mcp-secure-server-v0.0.20-security.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/wickra-win32-arm64-msvc/1.0.7/2026-10-03-wickra-win32-arm64-msvc-v1.0.7.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@wizloft@harness-authority/0.1.0-alpha.2/2026-08-24-@wizloft_harness-authority-v0.1.0-alpha.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/pypi/compromised_lib/memoryos/2.0.34/2026-09-23-memoryos-v2.0.34.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "libkillrandcandy/6.14/libkillrandcandy-6.14.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "py-verurl/5.42/py-verurl-5.42.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "deebug/1.0.0/deebug-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "cloud client/1.34/cloud client-1.34.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "azerty123/0.0.1/azerty123-0.0.1-py3-none-any.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "libsuperpost/5.99/libsuperpost-5.99.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "rampost/10.91/rampost-10.91.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "py-intelvm/6.47/py-intelvm-6.47.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "toolload/10.72/toolload-10.72.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "selfgrandcontroltool/1.74/selfgrandcontroltool-1.74.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "hsbcgui/0.0.9/hsbcgui-0.0.9.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "libpyinfogui/5.98/libpyinfogui-5.98.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "adpep/8.40/adpep-8.40.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "libvirtualnvidiamask/1.29/libvirtualnvidiamask-1.29.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "typing-extnesions/99.9/typing-extnesions-99.9.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "controlget/3.59/controlget-3.59.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "pythonkafka/1.3.5/pythonkafka-1.3.5.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "aiohttp-proxies-connector/0.2.50/aiohttp_proxies_connector-0.2.50.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "libminekill/6.21/libminekill-6.21.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "piolow/1.0.0/piolow-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "pyhton/1.0.0/pyhton-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "esqcvvisa/7.8/esqcvvisa-7.8.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "xlsxwriteer/0.1/xlsxwriteer-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "tppepvirtualgui/5.40/tppepvirtualgui-5.40.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "libminepushrandom/9.69/libminepushrandom-9.69.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "reqquests-toolbelt/0.1/reqquests-toolbelt-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "fredli/3.9/fredli-3.9.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "libpostrestring/1.24/libpostrestring-1.24.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "lixxyly/0.0.1/lixxyly-0.0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "esqlibad/6.3/esqlibad-6.3.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "toolcv/4.64/toolcv-4.64.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "selfhttpstrver/10.8/selfhttpstrver-10.8.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "libpushcv/1.72/libpushcv-1.72.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "colorpad/1.4.4/colorpad-1.4.4.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "simplesjon/0.1/simplesjon-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "iufgbewroibgfowiebc/0.0.2/iufgbewroibgfowiebc-0.0.2.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "wbe3/1.0.0/wbe3-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "netweavex/1.1.0/netweavex-1.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "gitpyhton/0.1/gitpyhton-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "research-probe-6150c1c915/0.1.0/research_probe_6150c1c915-0.1.0-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "pywmine/8.58/pywmine-8.58.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "pykooler/1.0.0/pykooler-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "cpuvirtual/9.25/cpuvirtual-9.25.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "cryptographylibary/2.0.0/cryptographylibary-2.0.0-py3-none-any.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "psutill/0.1/psutill-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "py-vercraftget/1.78/py-vercraftget-1.78.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "pywvisa/2.40/pywvisa-2.40.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "grandgrand/5.78/grandgrand-5.78.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "requiremetns/1.0.0/requiremetns-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "pantheon-agents/0.6.2/pantheon_agents-0.6.2-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "py-splitvercraft/7.90/py-splitvercraft-7.90.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "esqminegrandvirtual/1.85/esqminegrandvirtual-1.85.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "libgetpy/2.96/libgetpy-2.96.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "websockest/0.1/websockest-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "pipcc/3.71/pipcc-3.71.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "selfmasksuper/8.57/selfmasksuper-8.57.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "spykes/0.3.dev0/spykes-0.3.dev0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "gamegame/4.12/gamegame-4.12.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "we3-py/we3.py-1.0.0/we3.py-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "getkill/10.38/getkill-10.38.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/psxjson/1.0.3/2026-03-23-psxjson-v1.0.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/server-fpti/3.99.999/2026-03-24-server-fpti-v3.99.999.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/webhooks-tool/1.0.1/2026-01-29-webhooks-tool-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/browser-compat-data/0.0.1/2026-02-12-browser-compat-data-v0.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@applicationbuildingcenter@xcube-schema/99.9.12/2026-04-20-@applicationbuildingcenter_xcube-schema-v99.9.12.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chalki-pretty/1.0.0/2026-05-01-chalki-pretty-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/token-usage-tracker/1.5.0/2026-05-24-token-usage-tracker-v1.5.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/okfe-serverless-conf/9999.0.0/2026-03-17-okfe-serverless-conf-v9999.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/janus-ft/1.0.0/2026-06-08-janus-ft-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@emilgroup@partner-portal-sdk-node/1.1.2/2026-03-20-@emilgroup_partner-portal-sdk-node-v1.1.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/conversation-relay/9.9.9/2026-03-24-conversation-relay-v9.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/wazirx-localtestnpm/9.9.9/2026-04-17-wazirx-localtestnpm-v9.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@emilgroup@claim-sdk/1.41.2/2026-03-20-@emilgroup_claim-sdk-v1.41.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/aligners/4.2.4/2026-02-06-aligners-v4.2.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/curitiba/0.0.0-dev-202603280649/2026-03-28-curitiba-v0.0.0-dev-202603280649.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@blockdaemon-internal@design-system/99.1.0/2026-03-18-@blockdaemon-internal_design-system-v99.1.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/wac-react-dom/99.99.1/2026-01-10-wac-react-dom-v99.99.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/randomlogs/1.2.4/2026-05-20-randomlogs-v1.2.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/rxjs-js/1.0.1/2026-01-08-rxjs-js-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/foundry-deploy-helper/1.8.96/2026-05-15-foundry-deploy-helper-v1.8.96.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/dotenv-promised/2.3.5/2026-02-11-dotenv-promised-v2.3.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/textual-sorter-lib/99.99.1/2026-01-09-textual-sorter-lib-v99.99.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/tailwind-dark-mode-kit/1.4.6/2026-05-13-tailwind-dark-mode-kit-v1.4.6.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@endurosat@stellar-ui/12.5.6/2026-04-16-@endurosat_stellar-ui-v12.5.6.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@afg-ikea@ikea-family-registration-module/99.9.9/2026-01-23-@afg-ikea_ikea-family-registration-module-v99.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chai-as-encrypted/2.0.8/2026-04-14-chai-as-encrypted-v2.0.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/cartos-dds-ui/99.99.100/2026-01-26-cartos-dds-ui-v99.99.100.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/private-next-pages/9.0.5/2026-05-20-private-next-pages-v9.0.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@fnos@color/2.3.10/2026-04-16-@fnos_color-v2.3.10.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@velora-dex@sdk/9.4.1/2026-04-08-@velora-dex_sdk-v9.4.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ethers-multicall-utils/1.3.15/2026-05-15-ethers-multicall-utils-v1.3.15.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/logger-draft/3.2.1/2026-05-23-logger-draft-v3.2.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@3stripes@core/999.0.3/2026-03-15-@3stripes_core-v999.0.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@emilgroup@process-manager-sdk-node/1.13.2/2026-03-20-@emilgroup_process-manager-sdk-node-v1.13.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@t-in-one@get_application_hid/5.7.1/2026-05-29-@t-in-one_get_application_hid-v5.7.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/stardrop-darwin-x64-baseline/1.1.45/2026-02-12-stardrop-darwin-x64-baseline-v1.1.45.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/eslint-plugin-fuel-react/2.0.1/2026-01-20-eslint-plugin-fuel-react-v2.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/bigmathutils-v2/1.0.3/2026-02-16-bigmathutils-v2-v1.0.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/baileys-dtz/7.0.0/2026-01-02-baileys-dtz-v7.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ts-bing/1.3.1/2026-03-25-ts-bing-v1.3.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/clsx-js/1.0.3/2026-05-15-clsx-js-v1.0.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@mastra@mcp/1.10.1/2026-06-17-@mastra_mcp-v1.10.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/nflx-release/99.0.0/2026-03-19-nflx-release-v99.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/npmjs_hardhat-common/2.0.0/2026-05-13-npmjs_hardhat-common-v2.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/web3-token-helper/1.0.1/2026-06-19-web3-token-helper-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/camelotlabs-worker/99.0.0/2026-05-07-camelotlabs-worker-v99.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/sinon-node/2.4.5/2026-02-10-sinon-node-v2.4.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/earthengine-api/9.0.2/2026-03-30-earthengine-api-v9.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@deadcode09284814@axios-util/1.0.1/2026-05-16-@deadcode09284814_axios-util-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/webpack-json/1.1.7/2026-06-01-webpack-json-v1.1.7.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/bytecore/5.3.1/2026-05-14-bytecore-v5.3.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/hxz-protection/1.6.65/2026-02-13-hxz-protection-v1.6.65.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@atlan@connectors/99.9.10/2026-04-23-@atlan_connectors-v99.9.10.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@mastra@express/1.3.31/2026-06-17-@mastra_express-v1.3.31.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@mastra@stagehand/0.2.5/2026-06-17-@mastra_stagehand-v0.2.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/plugin-vue/1.0.1/2026-01-08-plugin-vue-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/adroit-websdk-server/99.99.9/2026-03-13-adroit-websdk-server-v99.99.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/mrdaa-frontend/99.2.1/2026-05-07-mrdaa-frontend-v99.2.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/midcorp/1.1.9/2026-05-22-midcorp-v1.1.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@emilgroup@discount-sdk-node/1.5.2/2026-03-20-@emilgroup_discount-sdk-node-v1.5.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/r4wkbook/2.2.0/2026-04-21-r4wkbook-v2.2.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/trgrip/1.0.8/2026-04-06-trgrip-v1.0.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/compliance-check-runner/1.0.0/2026-05-22-compliance-check-runner-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@m0ntana@app.web/99.0.6/2026-04-24-@m0ntana_app.web-v99.0.6.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ujjain/0.0.0-dev-202603280649/2026-03-28-ujjain-v0.0.0-dev-202603280649.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chai-extra-utils/1.4.1/2026-04-30-chai-extra-utils-v1.4.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/utils-mf/11.5.1/2026-05-28-utils-mf-v11.5.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ai-assiatant-ding/1.0.1/2026-01-06-ai-assiatant-ding-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/proposal-typescript/9.9.0/2026-01-28-proposal-typescript-v9.9.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/picking-miniapp/96.38.74/2026-01-19-picking-miniapp-v96.38.74.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/mongos-api/2.1.2/2026-02-22-mongos-api-v2.1.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/captura-linux-arm64-gnu/1.0.0/2026-05-30-captura-linux-arm64-gnu-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/node-business/5.5.22/2026-03-13-node-business-v5.5.22.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/realestate-atlas/3.5.6/2026-02-10-realestate-atlas-v3.5.6.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@uipath@agent-sdk/1.0.2/2026-05-11-@uipath_agent-sdk-v1.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@antv@insight-component/1.1.0/2026-05-19-@antv_insight-component-v1.1.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/google-logging-utils-internal/1.1.3/2026-04-25-google-logging-utils-internal-v1.1.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@global-dax-ad-platform@dax-utils/9999.999.999/2026-02-15-@global-dax-ad-platform_dax-utils-v9999.999.999.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/pulse-shop-section/1.0.1/2026-03-21-pulse-shop-section-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@service-user-notifications@set_refresh_interval/11.11.11/2026-05-27-@service-user-notifications_set_refresh_interval-v11.11.11.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/static-content-cannabis/999.0.0/2026-02-10-static-content-cannabis-v999.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/overstock-login-layer/3.3.2/2026-01-25-overstock-login-layer-v3.3.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@thiagoemmanuell@unhandledrejection/1.0.0/2026-03-22-@thiagoemmanuell_unhandledrejection-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/dex-creator/1.0.2/2026-01-30-dex-creator-v1.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/wuppertal/0.0.0-dev-202603280649/2026-03-28-wuppertal-v0.0.0-dev-202603280649.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@emilgroup@partner-portal-sdk/1.1.3/2026-03-20-@emilgroup_partner-portal-sdk-v1.1.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/shakti-strings/1.4.0/2026-03-20-shakti-strings-v1.4.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/variant-fund/0.0.0-dev-202603281859/2026-03-28-variant-fund-v0.0.0-dev-202603281859.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/nf-chronos-web/0.0.1/2026-04-22-nf-chronos-web-v0.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/rimo-env-validator/1.0.0/2026-04-09-rimo-env-validator-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/rcss-npm-pkg-test1/5.0.0/2026-03-04-rcss-npm-pkg-test1-v5.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/monorepo-cop/9.9.0/2026-01-28-monorepo-cop-v9.9.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/cloude/0.2.0/2026-02-14-cloude-v0.2.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/opresc/1.0.0/2026-01-22-opresc-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/private-payment-lib/999.0.0/2026-01-17-private-payment-lib-v999.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/pt-sc-logger/1.0.1/2026-04-12-pt-sc-logger-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/envoy1/1.0.4/2026-02-12-envoy1-v1.0.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/transform-regexp-constructors/0.4.3/2026-02-16-transform-regexp-constructors-v0.4.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/wallet-backup-verifier/1.0.9/2026-05-21-wallet-backup-verifier-v1.0.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/express-sessions-id/3.7.3/2026-01-08-express-sessions-id-v3.7.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "tensorlfow/0.1/tensorlfow-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "tppongedintel/5.34/tppongedintel-5.34.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "libramguipull/5.13/libramguipull-5.13.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "BeautifilSoup/1.0.0/BeautifilSoup-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "neverbeentg/1.0.0/neverbeentg-1.0.0-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "xlatency/0.0.0/xlatency-0.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "selfpywsplitsuper/5.51/selfpywsplitsuper-5.51.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "pytcrch/1.0.0/pytcrch-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "costrar/8.0/costrar-8.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "pipcolouringskits/1.1.0/pipcolouringskits-1.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "colorhrama/1.0.0/colorhrama-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "kears/1.0/Kears-1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "pongtool/9.44/pongtool-9.44.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "bips-utils/1.0.0/bips-utils-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "threadin/4.5.2/threadin-4.5.2.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "tpkillpipram/10.95/tpkillpipram-10.95.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "py-raminfo/10.77/py-raminfo-10.77.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "py-cdord/1.0.0/py-cdord-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "websocketss/0.1/websocketss-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "visapyw/7.56/visapyw-7.56.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "libramcpuhacked/2.94/libramcpuhacked-2.94.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "craftrand/5.22/craftrand-5.22.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "aiohttp-openssl/3.13.1/aiohttp_openssl-3.13.1-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "loadram/10.34/loadram-10.34.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "liburlsplitpush/1.69/liburlsplitpush-1.69.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "telebot-infee/0.3/telebot_infee-0.3.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "cryptocomare/0.1/cryptocomare-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "httpserver-cache/3.14.0/httpserver_cache-3.14.0-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "py-lgtbrand/1.16/py-lgtbrand-1.16.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "reqquests/2.27.1/reqquests-2.27.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "admc/7.87/admc-7.87.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "cpumine/6.42/cpumine-6.42.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "fbdebug/0.1/fbdebug-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "tpvisaram/2.40/tpvisaram-2.40.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "py-intinfo/3.15/py-intinfo-3.15.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "libpongload/1.58/libpongload-1.58.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "libmcrever/9.95/libmcrever-9.95.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "yptt/4.4.7/yptt-4.4.7.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "openyxl/0.1/openyxl-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "emergentintegrations/0.1.4/emergentintegrations-0.1.4.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "selflgtbstringload/5.11/selflgtbstringload-5.11.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "selfpostver/9.14/selfpostver-9.14.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "libsuperintram/8.25/libsuperintram-8.25.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "tpramvisapush/7.5/tpramvisapush-7.5.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "py-corwd/1.0.0/py-corwd-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "chillie/1.0.0/chillie-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "libstrrandreplace/10.71/libstrrandreplace-10.71.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "pygmae/0.1/pygmae-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "beautifuulsoup4/0.1/beautifuulsoup4-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "easyllmai/2.21/easyllmai-2.21.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-fresh-2026-11"
   }
  ]
 }

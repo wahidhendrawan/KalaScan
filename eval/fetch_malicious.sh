@@ -23,7 +23,7 @@ import json, sys
 for s in json.load(open(sys.argv[1]))["samples"]:
     if s["source"] == "dataset":
         print(s["target"])
-' "$here/corpus.json" | xargs git -C "$dest" checkout HEAD --
+' "$here/corpus.json" | tr '\n' '\0' | xargs -0 git -C "$dest" checkout HEAD --
 
 echo "fetched into $dest/samples"
 
@@ -37,6 +37,6 @@ import json, sys
 for s in json.load(open(sys.argv[1]))["samples"]:
     if s["source"] == "malregistry":
         print(s["target"])
-' "$here/corpus.json" | xargs -r git -C "$2" checkout HEAD --
+' "$here/corpus.json" | tr '\n' '\0' | xargs -0 -r git -C "$2" checkout HEAD --
   echo "fetched into $2"
 fi

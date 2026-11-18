@@ -125,6 +125,7 @@ const TECHNIQUE_TABLE: &[(&str, &str, &str)] = &[
     ("T1539", "Steal Web Session Cookie", "Credential Access"),
     ("T1542", "Pre-OS Boot", "Persistence"),
     ("T1542.001", "System Firmware", "Persistence"),
+    ("T1543.002", "Systemd Service", "Persistence"),
     ("T1543.003", "Windows Service", "Persistence"),
     ("T1546", "Event Triggered Execution", "Persistence"),
     (
@@ -774,6 +775,11 @@ const FINDING_TABLE: &[(&str, &[&str])] = &[
     ("Install Script Host Reconnaissance", &["T1195.001", "T1082", "T1033"]),
     ("DNS Lookup of Built Hostname", &["T1071.004", "T1048"]),
     ("Python Import-Obfuscated Loader", &["T1027", "T1140"]),
+    ("Decrypted Code Executed", &["T1140", "T1059.006"]),
+    ("Builtin Name Built From Characters", &["T1027"]),
+    ("Code Imported From Disguised Archive", &["T1027", "T1036"]),
+    ("Systemd User Service Installed", &["T1543.002"]),
+    ("npm Maintainer Package Enumeration", &["T1195.001"]),
     // Raised by code (taxonomy::CODE_FINDINGS). Instructions aimed at an AI
     // agent have no Enterprise technique (ATLAS AML.T0051 is theirs).
     ("Agent Instruction: Hidden Unicode Tag Text", &["T1027"]),
@@ -804,6 +810,8 @@ const FINDING_TABLE: &[(&str, &[&str])] = &[
     ("Chain: Ransomware", &["T1486"]),
     ("Chain: Phishing Redirect Package", &["T1566"]),
     ("Chain: Dependency Confusion Install Hook", &["T1195.001"]),
+    ("Chain: Install-time Persistence", &["T1195.001", "T1543.002"]),
+    ("Chain: npm Worm", &["T1195.001", "T1552.001"]),
     ("Chain: Web Page Published as a Package", &["T1566", "T1036"]),
     ("Package Entry Point Is a Web Page", &[]),
     ("Chain: Obfuscated Credential Theft", &["T1027", "T1552"]),

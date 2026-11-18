@@ -6,12 +6,13 @@
 //! critical hits by the risk score.
 
 use crate::scanner::{
-    ACCOUNT_ENUM, AI_BASE_URL, ARCHIVE_EXTRACTION, B64_URL, BUFFER_EVAL, CHARCODE_API,
-    DETACHED_SPAWN, DNS_BUILT, DOWNLOAD_CRADLE, ESCAPED_EVAL, EXFIL_SERVICE, FETCH_EVAL,
-    FUNCTION_REQUIRE, HEX_API, HOST_RECON, IMPORT_LOADER, INSTALL_HOOK_OVERRIDE, INSTALL_NET,
-    INSTALL_RECON, IP_LOOKUP, IP_URL, LOCAL_SERVER, MAKE_EXECUTABLE, NPM_PUBLISH, OBFUSCATOR_IO,
-    RAW_SOCKET, REMOTE_BINARY, SEED_ACCESS, SETUP_PY_EXEC, SETUP_PY_STAGER, SHELL_PROFILE,
-    SHELL_START, SIDELOAD, UPLOAD_HANDLER,
+    ACCOUNT_ENUM, AI_BASE_URL, ARCHIVE_EXTRACTION, B64_URL, BUFFER_EVAL, BUILTIN_CHARS,
+    CHARCODE_API, DECRYPT_EXEC, DETACHED_SPAWN, DISGUISED_ARCHIVE, DNS_BUILT, DOWNLOAD_CRADLE,
+    ESCAPED_EVAL, EXFIL_SERVICE, FETCH_EVAL, FUNCTION_REQUIRE, HEX_API, HOST_RECON, IMPORT_LOADER,
+    INSTALL_HOOK_OVERRIDE, INSTALL_NET, INSTALL_RECON, IP_LOOKUP, IP_URL, LOCAL_SERVER,
+    MAINTAINER_ENUM, MAKE_EXECUTABLE, NPM_PUBLISH, OBFUSCATOR_IO, RAW_SOCKET, REMOTE_BINARY,
+    SEED_ACCESS, SETUP_PY_EXEC, SETUP_PY_STAGER, SHELL_PROFILE, SHELL_START, SIDELOAD,
+    SYSTEMD_USER, UPLOAD_HANDLER,
 };
 use crate::RuleMatch;
 use regex::Regex;
@@ -40,6 +41,8 @@ pub const OBFUSCATED_RECON: &str = "Chain: Obfuscated Reconnaissance";
 pub const RANSOMWARE: &str = "Chain: Ransomware";
 pub const PHISHING_REDIRECT: &str = "Chain: Phishing Redirect Package";
 pub const DEP_CONFUSION_HOOK: &str = "Chain: Dependency Confusion Install Hook";
+pub const INSTALL_PERSISTENCE: &str = "Chain: Install-time Persistence";
+pub const NPM_WORM: &str = "Chain: npm Worm";
 /// Emitted by `cve::own_package_matches` for an npm package whose entry
 /// point is an HTML or SVG document with script in it.
 pub const WEB_PAGE_PACKAGE: &str = "Chain: Web Page Published as a Package";
@@ -107,6 +110,9 @@ const STAGERS: &[&str] = &[
     B64_URL,
     BUFFER_EVAL,
     IMPORT_LOADER,
+    DECRYPT_EXEC,
+    BUILTIN_CHARS,
+    DISGUISED_ARCHIVE,
 ];
 
 /// Signals that code runs when the package is installed.
@@ -403,6 +409,16 @@ fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
         if let Some(stager) = shipped(STAGERS) {
             out.push(chain(&stager.file_path, INSTALL_PAYLOAD, hook, stager));
         }
+        // A service the install leaves behind runs long after the install.
+        if let Some(unit) = shipped(&[SYSTEMD_USER]) {
+            out.push(chain(&unit.file_path, INSTALL_PERSISTENCE, hook, unit));
+        }
+    }
+
+    // Every package the account maintains, then `npm publish`: a release
+    // tool publishes its own package, a worm republishes all of them.
+    if let (Some(list), Some(publish)) = (first(&[MAINTAINER_ENUM]), first(&[NPM_PUBLISH])) {
+        out.push(chain(&list.file_path, NPM_WORM, list, publish));
     }
 
     // setup.py runs top to bottom at `pip install`: what it fetches needs no
@@ -1057,6 +1073,28 @@ mod tests {
         assert!(names(&[hook.clone(), version("131.0.0")]).is_empty());
         // No code runs at install: only the version, which stays a lead.
         assert!(names(&[version("99.99.99")]).is_empty());
+    }
+
+    #[test]
+    fn install_hook_service_and_republishing_worm_are_chains() {
+        let hook = hit("package.json", "Post-Install Script", 9);
+        let unit = hit("index.js", SYSTEMD_USER, 17);
+        assert_eq!(
+            names(&correlate_package(&[hook.clone(), unit.clone()])),
+            vec![INSTALL_PERSISTENCE]
+        );
+        // A CLI that sets up its own user service when the user asks is no chain.
+        assert!(correlate_package(&[unit]).is_empty());
+
+        let list = hit("scripts/deploy.js", MAINTAINER_ENUM, 101);
+        let publish = hit("scripts/deploy.js", NPM_PUBLISH, 194);
+        assert_eq!(
+            names(&correlate_package(&[list.clone(), publish.clone()])),
+            vec![NPM_WORM]
+        );
+        // A release script publishes without listing the account's packages.
+        assert!(correlate_package(&[publish]).is_empty());
+        assert!(correlate_package(&[list]).is_empty());
     }
 
     #[test]

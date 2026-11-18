@@ -104,6 +104,9 @@ fn decisive(name: &str) -> bool {
             agent::TAG_TEXT,
             scanner::B64_EXEC,
             scanner::IMPORT_LOADER,
+            scanner::DECRYPT_EXEC,
+            scanner::BUILTIN_CHARS,
+            scanner::DISGUISED_ARCHIVE,
             cve::REMOTE_URL_DEP,
         ]
         .contains(&name)

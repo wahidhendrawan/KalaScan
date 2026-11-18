@@ -9,7 +9,7 @@ Each sample has a `split`. Rules were tuned while looking at `dev`. `holdout` wa
 
 ```bash
 cargo build --release
-eval/fetch_malicious.sh ~/kalascan-corpus ~/kalascan-malregistry   # ~480 files (about 1.5 GB), blobless clones
+eval/fetch_malicious.sh ~/kalascan-corpus ~/kalascan-malregistry   # ~640 files, blobless clones
 python3 eval/run_eval.py --dataset ~/kalascan-corpus --malregistry ~/kalascan-malregistry --out before.json
 # ...change rules...
 python3 eval/run_eval.py --dataset ~/kalascan-corpus --malregistry ~/kalascan-malregistry --compare before.json
@@ -19,28 +19,57 @@ Every rate is printed with its 95% Wilson interval. `--rule-stats` adds, for eac
 
 **Holdout misses are counted, not listed.** A sample somebody has looked at stops being a holdout sample, so the miss list and the score changes show `dev` only (`--show-holdout` overrides this; move what you then read to `dev`). On 2026-11-17, before this was the default, one run printed the names and rule names of ten missed `malregistry` samples. No rule or weight was changed in response; they stay in the holdout.
 
-The malicious samples are **live malware**. `run_eval.py` only scans them statically. It never passes `--sandbox`, and archives are extracted into a temp dir with the dataset password. Keep the corpus outside the repo.
+The malicious samples are **live malware**. `run_eval.py` scans them statically and extracts archives into a temp dir with the dataset password. Keep the corpus outside the repo. `--flag=--sandbox` executes them; the harness refuses it unless `--disposable-vm` is passed as well, and that flag is a promise: a throwaway VM with no host file sharing (below).
 
 CI (`.github/workflows/eval.yml`) runs only the clean half, as a false-positive gate: `--only clean --max-fpr 0`, on every pull request that touches `src/`, `rules/`, `eval/` or `Cargo.lock`.
 
-Results at threshold 50 (measured 2026-11-17, ruleset 2026.11.2, score model v1; 95% interval in brackets; the aggregate is in [`results/2026.11.2.json`](results/2026.11.2.json)):
+Results at threshold 50 (ruleset 2026.11.3, score model v1, measured 2026-11-18; 95% interval in brackets; the aggregate is in [`results/2026.11.3.json`](results/2026.11.3.json)):
 
 | split | malicious recall | clean false positives |
 |---|---|---|
-| dev | 171/253 (68%, 62-73) | 0/366 (0%, 0-1) |
-| holdout | 202/302 (67%, 61-72) | 0/456 (0%, 0-1) |
+| dev | 291/403 (72%, 68-76) | 0/366 (0%, 0-1) |
+| holdout | 306/461 (66%, 62-71) | 0/456 (0%, 0-1) |
 
-The dev figure fell from 78% because 80 of the newest npm samples joined it as a tuning batch (below), not because anything was lost.
+Two tuning batches of new samples joined `dev` in November (below), which is why its rate moves with each one.
 
 The holdout by sample set:
 
 | holdout set | what it is | malicious recall |
 |---|---|---|
-| original | 147 samples: the 27 first ones and 120 added in November 2026 | 101/147 (69%, 61-76) |
+| original | 147 samples: the 27 first ones and 120 added in November 2026 | 103/147 (70%, 62-77) |
 | `recent-2026-11` | 60 npm packages dated 2026-08-01 or later, the newest in the dataset | 31/60 (52%, 39-64) |
-| `malregistry-2026-11` | 100 PyPI packages from pypi_malregistry whose names the DataDog dataset does not have; 5 archives do not unpack | 70/95 (74%, 64-81) |
+| `malregistry-2026-11` | 100 PyPI packages from pypi_malregistry whose names the DataDog dataset does not have; 5 archives do not unpack | 83/95 (87%, 79-93) |
+| `fresh-2026-11` | 161 packages drawn on 2026-11-18, after the last rule change: 100 npm and 1 PyPI dated 2026-08-01 or later (DataDog), 60 PyPI from pypi_malregistry; 2 archives do not unpack | 89/159 (56%, 48-63) |
 
-**The holdout number is the one to quote, and the `recent` row is the one to worry about**: on the newest npm malware KalaScan catches about half (24 of 60 with ruleset 2026.11.1, before the tuning described next). The second source says the PyPI rules are not fitted to one dataset's taste: 74% there, 36 of 48 (75%) on the DataDog PyPI holdout samples. By ecosystem the holdout is IDE extensions 32/48 (67%), npm 64/111 (58%), PyPI 106/143 (74%).
+**The holdout number is the one to quote, and the `recent` row is the one to worry about**: on the newest npm malware KalaScan catches about half (24 of 60 with ruleset 2026.11.1, before the tuning described next). The second source says the PyPI rules are not fitted to one dataset's taste: 87% there, 37 of 48 (77%) on the original DataDog PyPI holdout samples. By ecosystem the whole holdout is now IDE extensions 32/48 (67%), npm 102/211 (48%), PyPI 172/202 (85%).
+
+### Tuning on 2026 samples (ruleset 2026.11.3)
+
+The `fresh` holdout below scored 78 of 159 with ruleset 2026.11.2, npm 37 of 100. To improve on that without reading it, a separate batch was drawn into `dev` and read instead (`"set": "tune-fresh-2026-11"`): 100 npm packages dated 2026-01-01 or later (`sample_malicious.py --since 2026-01-01 --seed 20261119`) and 50 PyPI packages from pypi_malregistry (`--malregistry --size 50 --seed 20261119`). It was read inside the throwaway VM; only text excerpts left it. Before any change it scored 96 of 150 (npm 63, PyPI 33). Its 54 misses:
+
+- **Fernet-wrapped loaders** (7 PyPI): a `setup.py` install hook that runs `exec(Fernet(key).decrypt(blob))` on Windows, or writes the same line to a file and starts it. Now `Decrypted Code Executed`, a verdict on its own.
+- **Builtin names spelled from other objects** (5 PyPI): `''.join(map(getattr(__builtins__, oct.__str__()[-3] + hex.__str__()[-4] + copyright.__str__()[4]), […]))` builds `chr` and then every string, with CJK variable names. Now `Builtin Name Built From Characters`, a verdict on its own.
+- **Copies of aiohttp with a hidden zip** (2 PyPI): a file named `server.crt` or `_websocket.typed` is a zip of Python modules, loaded with `zipimport.zipimporter(…).load_module()` or put on `sys.path`. Now `Code Imported From Disguised Archive`.
+- **A worm in a compromised scope** (5 npm, `@emilgroup/*`): one variant installs a Python payload as a systemd user service from `postinstall`; the other reads npm tokens from `.npmrc` and the environment, lists every package the account maintains (`/-/v1/search?text=maintainer:`) and republishes each with the payload. Now `Chain: Install-time Persistence` and `Chain: npm Worm`.
+- **Smaller fixes**: javascript-obfuscator output whose only fixed shape is the decoder's `if(t['\x..']===undefined)` check (2), a `postinstall` that downloads and runs a binary from a pinggy tunnel (2), `npm publish` run through a script's own `run()` wrapper.
+- **Out of reach or not malware** (about 30): compromised versions with no payload in the package (`@mastra/*`, the `stardrop` platform packages), proofs of concept that write to `/tmp`, a dependency-confusion probe whose payload is downloaded, an SSH key planted in `authorized_keys` by an otherwise ordinary logger, a hardcoded GitHub token that patches a gist, one-off Telegram bots.
+
+After the changes the batch scores 120 of 150 (npm 72, PyPI 48). On the holdout, which was not read: **281 → 306 of 461**, `fresh` 78 → 89 of 159, `malregistry` 70 → 83 of 95, the original 147 from 101 to 103. Every gain on `fresh` is PyPI (41 → 52 of 59); npm stays at 37 of 100. No sample's score went down, the clean corpus stays at 0 of 822 (the highest clean score is 40, Quokka), and the evasion suite catches the same pairs as before.
+
+### A fresh holdout and the sandbox (2026-11-18)
+
+**A holdout drawn after the rules.** Every holdout count since November had been read after each rule change, so a new set was drawn once ruleset 2026.11.2 was released (`sample_malicious.py --since 2026-08-01 --seed 20261118`, npm and PyPI, plus `--malregistry --size 60`; `"set": "fresh-2026-11"`). Only one PyPI name dated August or later was left unused in the DataDog dataset, so the PyPI side comes from pypi_malregistry. Nobody has read these samples. Their count has been read twice: with ruleset 2026.11.2 and after the tuning above.
+
+With ruleset 2026.11.2 they scored **78 of 159 (49%, 41-57)**: npm 37 of 100, PyPI 41 of 59. That is the number to expect on new malware; ruleset 2026.11.3 reaches 89 (56%, 48-63), all of the gain on PyPI. It is lower than the 31 of 60 on `recent-2026-11` and the 35 of 80 on the npm tuning batch: rules tuned on one batch of new npm malware carried over to the next only in part. 63 of the 100 npm samples score under 30.
+
+**The sandbox, measured once.** The same corpus was scanned again with `--sandbox`, which runs a package's install hooks (npm lifecycle scripts, `setup.py install`, `.pth` files) under strace with bait credentials in `$HOME` and a fake network. The run was in a throwaway OrbStack machine (Ubuntu 24.04 arm64, `--isolated --isolate-network`: no host file sharing, no route to the host's services), with the 1.15.0 release binary.
+
+- Every count was the same as the static run, at every threshold: 452 of 714 malicious, 0 of 822 clean. Bait credentials were opened by three malicious samples, all three already caught.
+- Why, from the 71 `dev` misses with an archive: 58 have no install hook at all, the payload runs when the package is imported or the app is started. The 13 hooks were a `chmod` of a bundled binary, an "is Electron installed" check, a proof of concept that writes `/tmp/test.txt`, and hooks that fail at once because a dependency or `bun` is missing (no network, no `node_modules`).
+- A prototype went one step further: load the entry point (`require()` the package, `import` its top-level modules) with every missing dependency replaced by a stub that accepts any call. It saw a DNS lookup on 3 of the 71 and a bait file opened on none, so it was not built into KalaScan.
+- The VM is arm64. Bundled `x86_64` binaries (one `dev` miss ships one) are not executed there.
+
+The sandbox catches install-time behaviour, and the samples that get past the static rules are mostly not that. It stays opt-in and outside the published numbers; its false-positive count on the clean corpus (0 of 822) is the one thing this run adds.
 
 ### Tuning on the newest npm samples (ruleset 2026.11.2)
 

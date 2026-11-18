@@ -114,11 +114,11 @@ brew install kalascan</code></pre>
                 <h2>Measured, not claimed</h2>
                 <p class="sub">The repository holds a labelled corpus and the harness that scores it. These are the current numbers at risk threshold 50.</p>
                 <div class="measure">
-                    <div class="glass"><b>202 of 302</b><span>malicious samples it had never seen, flagged (two independent datasets; 31 of 60 on the newest npm samples)</span></div>
+                    <div class="glass"><b>306 of 461</b><span>malicious samples it had never seen, flagged (two independent datasets; PyPI 85%, npm 48%)</span></div>
                     <div class="glass"><b>0 of 822</b><span>clean packages and extensions flagged, 595 of them drawn at random from npm and PyPI (5 of those were flagged before they were looked at)</span></div>
-                    <div class="glass"><b>96 rules</b><span>built in, plus 208 opt-in secret patterns and YARA</span></div>
+                    <div class="glass"><b>101 rules</b><span>built in, plus 208 opt-in secret patterns and YARA</span></div>
                 </div>
-                <p class="note">The 302 samples were never looked at while writing rules; counting the 173 that were, the total is 373 of 555. On 147 of them GuardDog 3.2.0 catches more of the malware (107 against 101) and flags 128 of 223 clean packages. Among 595 random packages, five legitimate ones were flagged before rules were fixed (0.8%). The method, the caveats and the samples that get through are written up in the <a href="https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md">evaluation notes</a>. CI fails any change that makes a clean sample cross the threshold.</p>
+                <p class="note">The 461 samples were never looked at while writing rules; counting the 403 that were, the total is 597 of 864. On 147 of them GuardDog 3.2.0 catches more of the malware (107 against 101) and flags 128 of 223 clean packages. Among 595 random packages, five legitimate ones were flagged before rules were fixed (0.8%). The method, the caveats and the samples that get through are written up in the <a href="https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md">evaluation notes</a>. CI fails any change that makes a clean sample cross the threshold.</p>
             </div>
         </section>
 

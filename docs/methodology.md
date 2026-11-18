@@ -2,7 +2,7 @@
 
 What KalaScan claims, how the claims are measured, and where they stop. Written for someone auditing the tool: every statement points at a file in the repository that holds the evidence.
 
-Numbers on this page are for ruleset `2026.11.2`, score model v1, measured 2026-11-17, unless a line says otherwise. They are copies. The record is [`eval/results/2026.11.2.json`](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/results/2026.11.2.json) and the [evaluation notes](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md); where this page and they disagree, they are right.
+Numbers on this page are for ruleset `2026.11.3`, score model v1, measured 2026-11-18, unless a line says otherwise. They are copies. The record is [`eval/results/2026.11.3.json`](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/results/2026.11.3.json) and the [evaluation notes](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md); where this page and they disagree, they are right.
 
 ## What KalaScan claims and what it does not
 
@@ -12,11 +12,13 @@ Numbers on this page are for ruleset `2026.11.2`, score model v1, measured 2026-
 
 | | flagged | 95% interval |
 |---|---|---|
-| malicious, all holdout samples | 202 of 302 (67%) | 61-72 |
-| malicious, npm packages dated 2026-08-01 or later | 31 of 60 (52%) | 39-64 |
+| malicious, all holdout samples | 306 of 461 (66%) | 62-71 |
+| malicious, drawn 2026-11-18 (`fresh-2026-11`) | 89 of 159 (56%) | 48-63 |
+| malicious, npm samples in the holdout | 102 of 211 (48%) | 42-55 |
+| malicious, npm packages dated 2026-08-01 or later (`recent-2026-11`) | 31 of 60 (52%) | 39-64 |
 | clean, random npm and PyPI packages, before any fix | 5 of 595 (0.8%) | 0.4-2.0 |
 
-**It does not claim that an unflagged package is safe.** 100 of the 302 malicious holdout samples score below 50. 98 of them score below 30, the band that reports label **safe** ([scoring.md](scoring.md), "What a score means": 64 + 34 in the v1 column). That label means that no combination of findings reached the warning band. It says nothing else.
+**It does not claim that an unflagged package is safe.** 155 of the 461 malicious holdout samples score below 50. 153 of them score below 30, the band that reports label **safe** ([scoring.md](scoring.md), "What a score means": 104 + 49 in the v1 column). That label means that no combination of findings reached the warning band. It says nothing else.
 
 **What "risk 50" means.** The score is a sum of parts, not a probability ([scoring.md](scoring.md)). 50 is the threshold the evaluation, the CI gate and `kalascan guard` use; the GitHub Action defaults to 60 (`action.yml`). Under v1, in a default scan, the three are the same gate:
 
@@ -24,7 +26,7 @@ Numbers on this page are for ruleset `2026.11.2`, score model v1, measured 2026-
 - Two critical findings, or one finding from the list with no benign reading (`decisive` in `src/score.rs`: every behaviour chain and ten named findings), give 70.
 - Binary triage runs on every scan and can add up to 20 when a package ships a binary that is packed, has a section both writable and executable, or shows a suspicious capability (`risk_contribution` in `src/triage.rs`). 2 of the 1,297 scanned corpus packages carry such a part ([scoring.md](scoring.md)).
 
-So a default v1 scan that reaches 50 has a chain, a decisive finding, or two critical findings (two rules, or one rule in two files); or, rarely, one critical finding next to a suspicious binary. On the holdout no package, malicious or clean, scores from 50 to 69. `--deobfuscate`, `--emulate`, `--sandbox` and `--ai` add parts that can fill that gap; they were not part of any measurement here.
+So a default v1 scan that reaches 50 has a chain, a decisive finding, or two critical findings (two rules, or one rule in two files); or, rarely, one critical finding next to a suspicious binary. On the holdout no package, malicious or clean, scores from 50 to 69. `--deobfuscate`, `--emulate`, `--sandbox` and `--ai` add parts that can fill that gap. `--sandbox` was measured once and changed no count (Known limits, 12); the others were not measured.
 
 A score is not the chance that a package is malicious. The holdout is 40% malicious and a registry is not ([scoring.md](scoring.md)). The v2 weights are stated for a base rate of 2%, which is a modelling choice, not a measurement of any registry.
 
@@ -72,7 +74,7 @@ Five more vectors are *gaps*: visible in a package or its listing, and not check
 
 The evaluation runs `kalascan scan <target> --untrusted --format json` and no other flag (`scan` in `eval/run_eval.py`). What follows from that:
 
-- The numbers describe the default scan: the static pass, manifest and registry context, chains, binary triage, the score. `--cve`, `--secrets`, `--git-history`, `--deobfuscate`, `--deep-triage`, `--emulate`, `--sandbox` and `--ai` have no measured rate.
+- The numbers describe the default scan: the static pass, manifest and registry context, chains, binary triage, the score. `--cve`, `--secrets`, `--git-history`, `--deobfuscate`, `--deep-triage`, `--emulate` and `--ai` have no measured rate; `--sandbox` has one run, outside the published numbers.
 - No lookup against a list of known-bad packages takes part. OSV `MAL-*` advisories need `--cve`. Recall is what the rules find in the code.
 - URLhaus lookups run only when `URLHAUS_AUTH_KEY` is set in the environment, and `run_eval.py` passes its environment on. The published run does not record whether the key was set. Unset it to measure the rules alone.
 - Malicious samples are scanned as extracted archives, so they get no registry or marketplace check. Clean samples are fetched by name and get all of them. Those checks are tested for false positives; what they add to recall is not measured.
@@ -87,18 +89,21 @@ The evaluation runs `kalascan scan <target> --untrusted --format json` and no ot
 |---|---|---|---|---|
 | malicious | dev | - | 73 | DataDog dataset; the samples the rules were first tuned on |
 | malicious | dev | `tune-2026-11` | 100 | DataDog dataset: 60 PyPI, 40 npm, drawn for tuning and read |
+| malicious | dev | `tune-recent-2026-11` | 80 | DataDog dataset: npm packages dated 2026-08-01 or later, drawn for tuning and read |
+| malicious | dev | `tune-fresh-2026-11` | 150 | DataDog dataset: 100 npm packages dated 2026-01-01 or later; pypi_malregistry: 50 PyPI; drawn for tuning and read |
 | malicious | holdout | - | 147 | DataDog dataset: 27 early samples and 120 added in November 2026 |
 | malicious | holdout | `recent-2026-11` | 60 | DataDog dataset: npm packages dated 2026-08-01 or later |
 | malicious | holdout | `malregistry-2026-11` | 100 | pypi_malregistry: PyPI names the DataDog dataset does not have |
+| malicious | holdout | `fresh-2026-11` | 161 | drawn 2026-11-18, after the last rule change: DataDog 100 npm and 1 PyPI dated 2026-08-01 or later; pypi_malregistry 60 PyPI |
 | clean | dev | - | 66 | picked: popular npm / PyPI packages and IDE extensions |
 | clean | dev | `fit-2026-11` | 298 | random draw from npm and PyPI |
-| clean | dev | `random-2026-11` | 3 | random draw; in dev (the evaluation notes name one, `tavallio-agent`, moved after it was read) |
+| clean | dev | `random-2026-11` | 4 | random draw; in dev (the evaluation notes name two, `tavallio-agent` and `responsive-embed`, moved after they were read) |
 | clean | holdout | - | 161 | picked, as above |
-| clean | holdout | `random-2026-11` | 296 | random draw from npm and PyPI |
+| clean | holdout | `random-2026-11` | 295 | random draw from npm and PyPI |
 
-480 malicious and 824 clean entries. The sources are the [DataDog malicious-software-packages-dataset](https://github.com/DataDog/malicious-software-packages-dataset) (380 entries: npm, PyPI, IDE extensions) and [pypi_malregistry](https://github.com/lxyeternal/pypi_malregistry) (100 entries, PyPI only). The clean side comes from the public registries and marketplaces.
+871 malicious and 824 clean entries. The sources are the [DataDog malicious-software-packages-dataset](https://github.com/DataDog/malicious-software-packages-dataset) (661 entries: npm, PyPI, IDE extensions) and [pypi_malregistry](https://github.com/lxyeternal/pypi_malregistry) (210 entries, PyPI only). The clean side comes from the public registries and marketplaces.
 
-A sample that cannot be scanned (a broken archive, a package gone from the registry) is an error. It leaves the denominator; it is not a miss (`scan` in `eval/run_eval.py`). The published denominators are 253 and 302 malicious, 366 and 456 clean. Five `malregistry` archives do not unpack, which accounts for 307 entries against 302. Two clean dev packages cannot be scanned (one fails to unpack, one has no downloadable file left on PyPI), which accounts for 368 entries against 366. A `--summary` file records the errors of each set.
+A sample that cannot be scanned (a broken archive, a package gone from the registry) is an error. It leaves the denominator; it is not a miss (`scan` in `eval/run_eval.py`). The published denominators are 403 and 461 malicious, 366 and 456 clean. Seven pypi_malregistry archives do not unpack (five in `malregistry-2026-11`, two in `fresh-2026-11`), which accounts for 468 entries against 461. Two clean dev packages cannot be scanned (one fails to unpack, one has no downloadable file left on PyPI), which accounts for 368 entries against 366. A `--summary` file records the errors of each set.
 
 ### Dev and holdout
 
@@ -109,7 +114,7 @@ Each sample has a `split`. Rules are tuned while looking at `dev`. `holdout` is 
 Where the rule was bent, on record in the evaluation notes:
 
 - On 2026-11-17, before counting was the default, one run printed the names and rule names of ten missed `malregistry` samples. No rule or weight was changed in response. They stay in the holdout.
-- The holdout total has been read after each change (82, 96, 94, 99 and 101 of 147; 193 and 202 of 302). A count leaks less than a sample, but it leaks: a change that lowers the count can be dropped.
+- The holdout total has been read after each change (82, 96, 94, 99 and 101 of 147; 193 and 202 of 302). The `fresh-2026-11` set was drawn after ruleset 2026.11.2 and has been counted twice: 78 of 159 then, 89 after the tuning on `tune-fresh-2026-11`; 281 and 306 of 461 for the whole holdout. A count leaks less than a sample, but it leaks: a change that lowers the count can be dropped.
 - Clean holdout samples that were flagged and then read were moved to `dev` and the rules fixed. The clean holdout is therefore what was never flagged. See "The clean side".
 
 ### The sample sets
@@ -122,6 +127,8 @@ A set drawn later or from another source is its own measurement and is reported 
 | `fit-2026-11` | `eval/sample_clean.py --seed 20261117` | 20261117 |
 | `recent-2026-11` | `eval/sample_malicious.py --since 2026-08-01 --ecosystem npm` | 20261117 |
 | `malregistry-2026-11` | `eval/sample_malicious.py --malregistry` | 20261117 |
+| `fresh-2026-11` | `eval/sample_malicious.py --since 2026-08-01 --ecosystem npm`, the same with `--ecosystem pypi`, and `--malregistry --size 60` | 20261118 |
+| `tune-fresh-2026-11` (dev) | `eval/sample_malicious.py --since 2026-01-01 --ecosystem npm --size 100` and `--malregistry --size 50` | 20261119 |
 
 The malicious draws take one version per package name and skip names already in the corpus. The 120 holdout samples added in November 2026 and the `tune-2026-11` batch were also drawn with a fixed seed or by a stated rule (the evaluation notes describe both), but their seeds are not written down.
 
@@ -177,7 +184,7 @@ What the gate does not check:
 
 ## Reproducing the numbers
 
-Needed: git, a Rust toolchain, Python 3.12 or later (standard library only; `tarfile` extraction filters), network access to npm, PyPI and the extension marketplaces. Docker only for the GuardDog comparison.
+Needed: git, a Rust toolchain, Python 3.12 or later (standard library only; `tarfile` extraction filters), network access to npm, PyPI and the extension marketplaces. Docker only for the GuardDog comparison and the sandbox run.
 
 **The clean half** needs no malware and is what CI runs:
 
@@ -190,7 +197,7 @@ python3 eval/run_eval.py --only clean --summary /tmp/clean.json
 **The full corpus:**
 
 ```bash
-eval/fetch_malicious.sh ~/kalascan-corpus ~/kalascan-malregistry   # about 480 files, 1.5 GB
+eval/fetch_malicious.sh ~/kalascan-corpus ~/kalascan-malregistry   # about 640 files
 python3 eval/run_eval.py --dataset ~/kalascan-corpus --malregistry ~/kalascan-malregistry \
   --out ~/kalascan-results.json --summary /tmp/summary.json
 rm -rf ~/kalascan-corpus ~/kalascan-malregistry
@@ -200,7 +207,7 @@ Compare `/tmp/summary.json` with the file for the same ruleset version in `eval/
 
 **Handling rules.** The malicious samples are live malware.
 
-1. **Static scan only.** `run_eval.py` never passes `--sandbox`. Do not add it with `--flag`. Do not install, import or run anything from the checkouts.
+1. **Static scan, unless the machine is thrown away.** Do not install, import or run anything from the checkouts. `--flag=--sandbox` executes the samples, and `run_eval.py` refuses it without `--disposable-vm`. Pass that only on a VM made for the run, with no host file sharing and nothing else on it, deleted or emptied afterwards. The one sandbox run used an OrbStack machine created with `--isolated --isolate-network`.
 2. **Outside the repository.** The checkouts go in a directory of their own, as above. Archives are unpacked one at a time into a temporary directory that is removed after the scan (`scan` in `eval/run_eval.py`; the dataset's zip password, `..` and absolute member names dropped).
 3. **Deleted afterwards.** Remove both checkouts when the run is done.
 4. **Do not read the holdout.** The `--out` file holds every sample's name, score and findings, holdout included. Give it to `fit_weights.py` and `--compare`, which read `dev` only. Do not open it. The `--summary` file has no sample names and is the one to share.
@@ -217,8 +224,8 @@ Compare `/tmp/summary.json` with the file for the same ruleset version in `eval/
 
 From the measured results, not from principle.
 
-1. **Newest npm malware: about half.** 31 of 60 (52%, 39-64) on npm packages dated 2026-08-01 or later; it was 24 of 60 before rules were tuned on a separate batch of the same kind. About a third of that batch has no malicious code in the package's own files (a payload in a sibling package, a native binary, a real library published at a hijacked version), which caps what a static scan of the artefact can reach. npm across the holdout is 64 of 111 (58%), PyPI 106 of 143 (74%), IDE extensions 32 of 48 (67%). Rules tuned on 2022-2025 samples generalise worse to newer ones: until November 2026 the holdout held 27 samples and scored 26.
-2. **A third of known malware is missed outright.** 100 of 302 holdout samples score below 50, and 98 of those below 30.
+1. **npm malware: about half, the newest about a third.** 102 of 211 npm samples in the holdout (48%); 37 of 100 on `fresh-2026-11`, unchanged by the last tuning round, which helped PyPI only; 31 of 60 (52%, 39-64) on `recent-2026-11`, which was 24 of 60 before rules were tuned on a separate batch of the same kind. PyPI is at 172 of 202 (85%). About a third of that batch has no malicious code in the package's own files (a payload in a sibling package, a native binary, a real library published at a hijacked version), which caps what a static scan of the artefact can reach. npm across the holdout is 64 of 111 (58%), PyPI 106 of 143 (74%), IDE extensions 32 of 48 (67%). Rules tuned on 2022-2025 samples generalise worse to newer ones: until November 2026 the holdout held 27 samples and scored 26.
+2. **A third of known malware is missed outright.** 155 of 461 holdout samples score below 50, and 153 of those below 30.
 3. **False positives on packages nobody picked: 0.8% (0.4-2.0).** 5 of 595 at first contact. At that rate a lockfile of 1,000 packages raises about 8 flags; that is arithmetic, not a measurement of `kalascan deps`. On popular packages the first-contact rate was 5% (9 of 176). On random IDE extensions it is not measured.
 4. **What gets through**, from the misses that were read (evaluation notes, last two paragraphs):
    - packages with no code: empty placeholders, typo-squats that copy the original, a native `.node` binary;
@@ -230,13 +237,13 @@ From the measured results, not from principle.
    - environment variables stored by one function and sent by another (the data-flow pass does not follow calls);
    - a credential stealer that reads cloud metadata endpoints.
 5. **What is not looked for**, from [coverage.md](coverage.md): 5 gaps, 6 payload-only vectors and 16 out-of-scope vectors of 50. 17 more are partial; several of those cover IDE extensions only (AV-206, AV-207) or GitHub Actions only (AV-400, AV-701).
-6. **One malicious dataset dominates.** 380 of 480 malicious entries, all 173 the rules were tuned on, and every npm and extension sample come from the DataDog dataset. The second source is PyPI only: 70 of 95 there (74%, 64-81) against 36 of 48 (75%) on the DataDog PyPI holdout. Recall on npm and on extensions has no independent check.
+6. **One malicious dataset dominates.** 661 of 871 malicious entries, 353 of the 403 the rules were tuned on, and every npm and extension sample come from the DataDog dataset. The second source is PyPI only: 83 of 95 there (87%, 79-93) against 37 of 48 (77%) on the original DataDog PyPI holdout. Recall on npm and on extensions has no independent check.
 7. **Both sources hold malware somebody already caught.** Malware no one has identified is in neither. No number here speaks about it.
 8. **The rules are public.** See the threat model: an author who tests against KalaScan is not in the corpus.
-9. **Score v2 treats findings as independent** given the class, and they are not: a chain and the two findings it is made of fire together. The halving in the accumulation dampens this and does not remove it ([scoring.md](scoring.md), "Limits"). The weights are fitted on 173 malicious packages from one dataset and 365 clean ones; a finding seen once or twice carries mostly its class prior. With no clean package flagged, v2 catches 193 of 302 and v1 194: v2 is a choice of operating point, not better detection.
+9. **Score v2 treats findings as independent** given the class, and they are not: a chain and the two findings it is made of fire together. The halving in the accumulation dampens this and does not remove it ([scoring.md](scoring.md), "Limits"). The weights are fitted on 403 malicious packages, 353 of them from one dataset, and 366 clean ones; a finding seen once or twice carries mostly its class prior. With no clean package flagged, v2 and v1 both catch 308 of 461: v2 is a choice of operating point, not better detection.
 10. **The holdout has been touched.** Ten sample names printed once, the total read after each change, flagged clean samples moved out. See "Dev and holdout".
 11. **Recall is not gated.** See "The CI gate".
-12. **Only the default scan is measured.** `--deobfuscate`, `--deep-triage`, `--emulate`, `--sandbox` and `--ai` have no measured detection or false-positive rate.
+12. **Only the default scan is measured, and the sandbox adds nothing to it.** One run with `--sandbox` (2026-11-18, in a throwaway VM) gave the same counts as the static scan at every threshold, 0 of 822 clean included: the payloads it missed run on import or at app start, not at install ([eval/README.md](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md), "A fresh holdout and the sandbox"). `--deobfuscate`, `--deep-triage`, `--emulate` and `--ai` have no measured detection or false-positive rate.
 13. **The ruleset version is set by hand** (`RULESET_VERSION` in `src/scanner.rs`), and chains, data flow and scoring live in the binary, not in the rule files. A result file is named after the ruleset version; it identifies a result only if the version was raised with the change.
 14. **The record for `2026.11.1` was transcribed** from the published tables, not written by a run. Its `source` field says so and lists what is missing. `2026.11.2` is the first record written by a run.
 

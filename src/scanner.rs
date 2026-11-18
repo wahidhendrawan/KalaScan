@@ -4,7 +4,7 @@ use std::path::Path;
 use walkdir::WalkDir;
 
 /// Human-readable ruleset version (also surfaced by `kalascan rules`).
-pub const RULESET_VERSION: &str = "2026.11.2";
+pub const RULESET_VERSION: &str = "2026.11.3";
 
 /// Critical file extensions for scanning
 // `.yml`/`.yaml` get only the exfiltration, network, supply-chain and
@@ -80,6 +80,11 @@ pub const INSTALL_RECON: &str = "Install Script Host Reconnaissance";
 pub const DNS_BUILT: &str = "DNS Lookup of Built Hostname";
 pub const B64_EXEC: &str = "b64decode + exec Chain";
 pub const IMPORT_LOADER: &str = "Python Import-Obfuscated Loader";
+pub const DECRYPT_EXEC: &str = "Decrypted Code Executed";
+pub const BUILTIN_CHARS: &str = "Builtin Name Built From Characters";
+pub const DISGUISED_ARCHIVE: &str = "Code Imported From Disguised Archive";
+pub const SYSTEMD_USER: &str = "Systemd User Service Installed";
+pub const MAINTAINER_ENUM: &str = "npm Maintainer Package Enumeration";
 
 #[derive(Clone, Debug)]
 pub struct Rule {
@@ -1322,6 +1327,11 @@ mod tests {
             DNS_BUILT,
             B64_EXEC,
             IMPORT_LOADER,
+            DECRYPT_EXEC,
+            BUILTIN_CHARS,
+            DISGUISED_ARCHIVE,
+            SYSTEMD_USER,
+            MAINTAINER_ENUM,
             "Hardcoded IP Address",
             "Post-Install Script",
             "URL Fetch Command",
