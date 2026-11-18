@@ -887,7 +887,7 @@
    "target": "ms-vscode-remote.remote-ssh",
    "label": "clean",
    "source": "remote",
-   "split": "holdout"
+   "split": "dev"
   },
   {
    "target": "vscjava.vscode-java-debug",
@@ -1871,7 +1871,7 @@
    "target": "saoudrizwan.claude-dev",
    "label": "clean",
    "source": "remote",
-   "split": "holdout"
+   "split": "dev"
   },
   {
    "target": "anthropic.claude-code",
@@ -3156,7 +3156,7 @@
    "target": "npm:liangzimixin@0.3.104-beta.4",
    "label": "clean",
    "source": "remote",
-   "split": "holdout",
+   "split": "dev",
    "set": "random-2026-11"
   },
   {
@@ -11418,6 +11418,2974 @@
    "source": "malregistry",
    "split": "dev",
    "set": "tune-fresh-2026-11"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/labfile.labfile/0.0.5.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-ext-2026-11"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/QuantumCodeLabs.ai-doc-generator/1.0.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-ext-2026-11"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/OzzyDev777.gitlens-turbo-pro/2.0.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-ext-2026-11"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/juanblan281.solid281/0.0.189.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-ext-2026-11"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/GitlensPro.aicode-companion/2.0.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-ext-2026-11"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/bphpburnsus.iconesvscode/12.15.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-ext-2026-11"
+  },
+  {
+   "target": "samples/ide_extensions/compromised_lib/amazonwebservices.amazon-q-vscode/1.84.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-ext-2026-11"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/kraftwer1.darcula-extra/0.6.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-ext-2026-11"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/ab-498.httpformat/1.1.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-ext-2026-11"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/Zeron1337.Zeron-CySec/0.0.1.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-ext-2026-11"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/WEB3Foundation.cxzczxcxz/0.2.2.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-ext-2026-11"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/7finney.ETHCode/1.0.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-ext-2026-11"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/sanchuan.kimi-copilot/1.0.7.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-ext-2026-11"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/PriyanshuMallick.clipboard-history-manager/0.1.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-ext-2026-11"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/OktayAydoan.smarty-formatter/2.1.2.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-ext-2026-11"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/CodamaSoftware.ai-docs-and-comments/0.0.8.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-ext-2026-11"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/BlockchainIndustries.solana-toolkit/0.0.1.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-ext-2026-11"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/SoliditFoundation.solidit-language/0.0.1.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-ext-2026-11"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/JosephDembele95.email-grabber/1.0.6.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-ext-2026-11"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/498-00.httpformat/1.1.2.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-ext-2026-11"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/flutcode.flutter-extension/3.122.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-ext-2026-11"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/0xS1rx58D3V.ChatGPT-B0T/0.0.1.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-ext-2026-11"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/hajoo.poisoned-extension/1.0.3.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-ext-2026-11"
+  },
+  {
+   "target": "samples/ide_extensions/malicious_intent/RabobankAI.rabobank-code-assistant/0.5.0.vsix",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-ext-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/svelte-monorepo/1.0.0/2026-01-07-svelte-monorepo-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ai-workbench/0.1.0/2026-05-07-ai-workbench-v0.1.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/despicable-me-ctf/1.0.3/2026-01-23-despicable-me-ctf-v1.0.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/islamabad/0.0.0-dev-202603280649/2026-03-28-islamabad-v0.0.0-dev-202603280649.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@mastra@gcs/0.2.3/2026-06-17-@mastra_gcs-v0.2.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/houdini-react-wasm/2.3.1/2026-09-12-houdini-react-wasm-v2.3.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@mastra@auth-studio/1.2.4/2026-06-17-@mastra_auth-studio-v1.2.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@3stripes@toolkit/999.0.2/2026-03-15-@3stripes_toolkit-v999.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/apex-trading/1.0.4/2026-05-16-apex-trading-v1.0.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@vapi-ai@server-sdk/0.11.2/2026-06-03-@vapi-ai_server-sdk-v0.11.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/kiwi-iam-cli/99.9.9/2026-05-15-kiwi-iam-cli-v99.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/jest-preset-ppf/0.0.2/2026-03-21-jest-preset-ppf-v0.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/admin1001/4.3.102/2026-01-14-admin1001-v4.3.102.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@xayz@baileys/6.0.6/2026-09-03-@xayz_baileys-v6.0.6.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/xpack-per-user/1.0.3/2026-02-07-xpack-per-user-v1.0.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/krdfonts/1.1.0/2026-03-24-krdfonts-v1.1.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/model-switch-router/1.0.5/2026-05-23-model-switch-router-v1.0.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/jodhpur/0.0.0-dev-202603280649/2026-03-28-jodhpur-v0.0.0-dev-202603280649.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/internal_insights_enabled/99.21.0/2026-04-20-internal_insights_enabled-v99.21.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/zest-product/99.0.0/2026-05-21-zest-product-v99.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@redhat-cloud-services@frontend-components-remediations/4.9.2/2026-06-01-@redhat-cloud-services_frontend-components-remediations-v4.9.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chakra-ui-2--theme-tools/99.99.1/2026-01-12-chakra-ui-2--theme-tools-v99.99.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/new-ecro-helper/5.8.0/2026-06-19-new-ecro-helper-v5.8.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@mastra@core/1.42.1/2026-06-17-@mastra_core-v1.42.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/rank4222wun/1.0.80/2026-01-26-rank4222wun-v1.0.80.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@mastra@daytona/0.4.2/2026-06-17-@mastra_daytona-v0.4.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/gpt-pilot/0.0.0-dev-202603281254/2026-03-28-gpt-pilot-v0.0.0-dev-202603281254.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@teale.io@eslint-config/1.8.14/2026-03-20-@teale.io_eslint-config-v1.8.14.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@mastra@speech-elevenlabs/0.2.1/2026-06-17-@mastra_speech-elevenlabs-v0.2.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chai-async-test/3.3.5/2026-01-09-chai-async-test-v3.3.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/browser-interaction-time-utils/1.0.0/2026-05-03-browser-interaction-time-utils-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/lit-a11y/9.9.0/2026-01-28-lit-a11y-v9.9.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@3stripes@components/999.0.3/2026-03-15-@3stripes_components-v999.0.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/strapi-plugin-hooks/3.6.8/2026-04-03-strapi-plugin-hooks-v3.6.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/openclaw-droid/1.0.1/2026-02-08-openclaw-droid-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@bingads-webui-theme-2018@theme-fluent/100.0.0/2026-01-16-@bingads-webui-theme-2018_theme-fluent-v100.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/carboniteapp/99.9.0/2026-05-06-carboniteapp-v99.9.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/awaitly-mongo/23.0.1/2026-06-04-awaitly-mongo-v23.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ak-mal-test-poc/1.0.3/2026-04-28-ak-mal-test-poc-v1.0.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@squawk@weather/0.5.6/2026-05-11-@squawk_weather-v0.5.6.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/confluence-analytics-support/99.99.1/2026-01-30-confluence-analytics-support-v99.99.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/lj-wp/1.0.9/2026-01-14-lj-wp-v1.0.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/lodash-twist/1.0.2/2026-04-21-lodash-twist-v1.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/mdp-client-web/99.99.1/2026-01-31-mdp-client-web-v99.99.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/osc-datagrid-validator/1.0.0/2026-03-09-osc-datagrid-validator-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/vvvv4234/1.0.0/2026-01-21-vvvv4234-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/prefer-let/6.0.0/2026-02-05-prefer-let-v6.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/opendevin/0.0.0-dev-202603281254/2026-03-28-opendevin-v0.0.0-dev-202603281254.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/cookie-parseflow/1.5.8/2026-04-12-cookie-parseflow-v1.5.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/strapi-plugin-config/3.6.8/2026-04-03-strapi-plugin-config-v3.6.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@apple-pay-trust@validate-merchant/99.0.2/2026-04-26-@apple-pay-trust_validate-merchant-v99.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ccl-component-resources/99.0.0/2026-06-19-ccl-component-resources-v99.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/yargs-js/1.0.1/2026-01-08-yargs-js-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chakra-ui-2--react/99.99.1/2026-01-12-chakra-ui-2--react-v99.99.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/r4wk-book/2.1.0/2026-04-21-r4wk-book-v2.1.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/svg-content-validation/1.0.14/2026-03-02-svg-content-validation-v1.0.14.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/react-hook-form-js/1.0.1/2026-01-08-react-hook-form-js-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/mongoose-apis/2.1.2/2026-02-22-mongoose-apis-v2.1.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/responses-starter-app/99.9.8/2026-02-12-responses-starter-app-v99.9.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/primebeem-db/1.0.2/2026-01-19-primebeem-db-v1.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@redhat-cloud-services@hcc-pf-mcp/0.6.1/2026-06-01-@redhat-cloud-services_hcc-pf-mcp-v0.6.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/shenxun162938/1.0.9/2026-03-27-shenxun162938-v1.0.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/whatnot-manifests/99.0.4/2026-03-19-whatnot-manifests-v99.0.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/klaw-playwright-tests/1.0.0/2026-05-29-klaw-playwright-tests-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@mastra@browser-viewer/0.1.3/2026-06-17-@mastra_browser-viewer-v0.1.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/ml-toolkit-ts/1.0.5/2026-05-11-ml-toolkit-ts-v1.0.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@rexorg@config/1.0.1/2026-03-15-@rexorg_config-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/inquirer-js/1.0.1/2026-01-08-inquirer-js-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/f0-email-verification/99.13.9/2026-03-29-f0-email-verification-v99.13.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@mastra@voice-inworld/0.3.1/2026-06-17-@mastra_voice-inworld-v0.3.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/executable-stories-vitest/7.0.3/2026-06-04-executable-stories-vitest-v7.0.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/auth0-aspnetcore-utils/1.0.0/2026-05-03-auth0-aspnetcore-utils-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/contosoapp/99.9.8/2026-02-13-contosoapp-v99.9.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@antv@algorithm/0.3.26/2026-05-19-@antv_algorithm-v0.3.26.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/visakhapatnam/0.0.0-dev-202603280649/2026-03-28-visakhapatnam-v0.0.0-dev-202603280649.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/modifiers-napi/0.0.1/2026-04-01-modifiers-napi-v0.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/logger-beauty/2.1.1/2026-05-04-logger-beauty-v2.1.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/redis-cookie-ts/2.1.1/2026-01-06-redis-cookie-ts-v2.1.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/express-configer/2.4.2/2026-02-08-express-configer-v2.4.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/fhir.base.template/1.0.0/2026-02-15-fhir.base.template-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@clearpool@streaming/100.0.0/2026-05-04-@clearpool_streaming-v100.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/react-svg-handler/1.0.2/2026-02-03-react-svg-handler-v1.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/theta-connector/1.0.0/2026-06-12-theta-connector-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@t-in-one@prefill_credit_data_token/5.7.1/2026-05-29-@t-in-one_prefill_credit_data_token-v5.7.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/nflx-ui-core/0.0.1/2026-04-22-nflx-ui-core-v0.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/urti/1.0.1/2026-01-21-urti-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ttspc-server-sample/99.9.1/2026-06-13-ttspc-server-sample-v99.9.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@squawk@airspace/0.8.2/2026-05-11-@squawk_airspace-v0.8.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/strapi-plugin-api/3.6.9/2026-04-03-strapi-plugin-api-v3.6.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/teaser-nav/19.9.5/2026-01-31-teaser-nav-v19.9.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/standalone-apps/1.0.1/2026-04-25-standalone-apps-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/react-spa-shadcn/99.0.0/2026-04-19-react-spa-shadcn-v99.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chai-as-chain/1.2.3/2026-03-08-chai-as-chain-v1.2.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/savant-listing/999.9.10/2026-06-03-savant-listing-v999.9.10.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@mesh-config@theme/99999.0.0/2026-03-22-@mesh-config_theme-v99999.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/internal-company-sdk/999.0.0/2026-01-17-internal-company-sdk-v999.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@iflow-mcp@watercrawl-watercrawl-mcp/1.3.2/2026-03-12-@iflow-mcp_watercrawl-watercrawl-mcp-v1.3.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/martinez-polygon-clipping-tony/0.9.0/2026-05-07-martinez-polygon-clipping-tony-v0.9.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ethers-logger/1.0.0/2026-05-13-ethers-logger-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/charlie_charlie_kirky/1.6.7/2026-01-05-charlie_charlie_kirky-v1.6.7.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/wac-relay-runtime/99.99.1/2026-01-10-wac-relay-runtime-v99.99.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/claud-code/0.1.0/2026-02-14-claud-code-v0.1.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@b2b_blocker@show_activation_error/99.0.2/2026-04-27-@b2b_blocker_show_activation_error-v99.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@crepo@crepo-url-query-mapper/11.11.12/2026-01-05-@crepo_crepo-url-query-mapper-v11.11.12.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/yarsg/18.0.0/2026-02-17-yarsg-v18.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chai-cli-await/2.4.5/2026-02-06-chai-cli-await-v2.4.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/admin10001/1.0.35/2026-01-16-admin10001-v1.0.35.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/pulse-axios/1.17.1/2026-05-16-pulse-axios-v1.17.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/xhjxhjhiagent/1.6.0/2026-01-13-xhjxhjhiagent-v1.6.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/uhd-setup/99.0.0/2026-06-06-uhd-setup-v99.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@redhat-cloud-services@config-manager-client/5.0.4/2026-06-01-@redhat-cloud-services_config-manager-client-v5.0.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/relay-optimizer-plugin/7.0.27/2026-02-09-relay-optimizer-plugin-v7.0.27.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/scw-core/0.0.1/2026-05-15-scw-core-v0.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/examplereactnative76/0.0.8/2026-02-24-examplereactnative76-v0.0.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/eslint-plugin-executable-stories-vitest/2.1.8/2026-06-04-eslint-plugin-executable-stories-vitest-v2.1.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@google-pay-trust@start/99.0.3/2026-04-27-@google-pay-trust_start-v99.0.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/commerce-utils/0.0.1/2026-04-05-commerce-utils-v0.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/search-savedsearch-podlet/5.4.5/2026-02-10-search-savedsearch-podlet-v5.4.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@mastra@cloud/0.1.24/2026-06-17-@mastra_cloud-v0.1.24.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@emilgroup@account-sdk/1.41.1/2026-03-20-@emilgroup_account-sdk-v1.41.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/tailwindcss-forms-bundler/1.3.8/2026-01-19-tailwindcss-forms-bundler-v1.3.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@girirajravichandran@corp-build-utils-poc/99.9.32/2026-03-04-@girirajravichandran_corp-build-utils-poc-v99.9.32.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/baserow/0.0.0-dev-202603280649/2026-03-28-baserow-v0.0.0-dev-202603280649.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@emilgroup@notification-sdk-node/1.4.1/2026-03-20-@emilgroup_notification-sdk-node-v1.4.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/syntax-jsx/9.9.0/2026-01-09-syntax-jsx-v9.9.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/camelotlabs-utils/99.0.0/2026-05-07-camelotlabs-utils-v99.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@doaction@wasm-loader/99.99.99/2026-06-08-@doaction_wasm-loader-v99.99.99.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@cloudplatform-single-spa@iam/99.99.99/2026-05-27-@cloudplatform-single-spa_iam-v99.99.99.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/bamako/0.0.0-dev-202603280649/2026-03-28-bamako-v0.0.0-dev-202603280649.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/mi-account/99.0.0/2026-04-01-mi-account-v99.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chai-as-prop/5.1.7/2026-02-11-chai-as-prop-v5.1.7.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/carbonite-internal/99.9.0/2026-05-06-carbonite-internal-v99.9.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@zentrafinance@types/2.0.0/2026-05-17-@zentrafinance_types-v2.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/solidity-deploy-guard/0.4.4/2026-05-21-solidity-deploy-guard-v0.4.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/tn-advertisement/5.0.1/2026-06-14-tn-advertisement-v5.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@yongot@canary-mcp-test/4.0.0/2026-09-06-@yongot_canary-mcp-test-v4.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/encrypted-archive/99.0.0/2026-06-06-encrypted-archive-v99.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/effect-analyzer/0.3.1/2026-06-04-effect-analyzer-v0.3.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/css-workshop/0.1.0/2026-02-03-css-workshop-v0.1.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ai-devops-helper/1.0.0/2026-04-11-ai-devops-helper-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/string-tools-be6c/1.0.0/2026-06-18-string-tools-be6c-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@mastra@editor/0.11.3/2026-06-17-@mastra_editor-v0.11.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/stardrop-linux-x64-baseline/1.1.47/2026-03-14-stardrop-linux-x64-baseline-v1.1.47.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@redhat-cloud-services@entitlements-client/4.0.11/2026-06-01-@redhat-cloud-services_entitlements-client-v4.0.11.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/uxproject11/1.0.0/2026-02-23-uxproject11-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/react-toast-cold/2.6.0/2026-01-19-react-toast-cold-v2.6.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/cross-stitch/1.1.3/2026-05-11-cross-stitch-v1.1.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/feature-flag-service/2.0.2/2026-05-03-feature-flag-service-v2.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/brisbane/0.0.0-dev-202603280649/2026-03-28-brisbane-v0.0.0-dev-202603280649.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/test-npm-style/1.0.10/2026-02-05-test-npm-style-v1.0.10.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "tpstrpycv/7.53/tpstrpycv-7.53.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "infovm/4.24/infovm-4.24.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "ponghydra/4.31/ponghydra-4.31.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "PyGacme/1.0.0/PyGacme-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "django-web2-auth/4.5.2/django-web2-auth-4.5.2.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "py-urlencodegrand/1.50/py-urlencodegrand-1.50.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "demontonto1/1.0.8/demontonto1-1.0.8-py3-none-any.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "adurl/8.60/adurl-8.60.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "jxzspwqwup/0.0.1/jxzspwqwup-0.0.1-py3-none-any.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "haqawi/1.0.0/haqawi-1.0.0-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "python-binanec/0.1/python-binanec-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "pygrata/2.1.2/pygrata-2.1.2.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "ibtcoinlib/0.1/ibtcoinlib-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "httpcpu/1.94/httpcpu-1.94.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "pythonbitcoinlib/0.1.1/pythonbitcoinlib-0.1.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "requiremmentstxt/1.0.0/requiremmentstxt-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "pyhthon/1.0.0/pyhthon-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "pycoestyle/0.1/pycoestyle-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "esqpostpongstr/4.91/esqpostpongstr-4.91.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "minead/3.42/minead-3.42.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "selenniumm/1.0.0/selenniumm-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "discord-request/1.0.0/discord_request-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "strpep/4.62/strpep-4.62.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "discord-webook/0.1/discord-webook-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "py-ramencode/8.40/py-ramencode-8.40.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "get-incorrect-name-bob/0.1.0/get_incorrect_name_bob-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "esqcctool/3.62/esqcctool-3.62.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "loadsuper/6.27/loadsuper-6.27.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "libpingstringreplace/4.67/libpingstringreplace-4.67.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "pywincompile/0.9.0/pywincompile-0.9.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "adcv/1.75/adcv-1.75.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "pyhttpxhelp/1.3.0/pyhttpxhelp-1.3.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "tprampingload/10.98/tprampingload-10.98.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "selfosintget/8.44/selfosintget-8.44.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "bh-25-req-ase/0.0.3/bh_25_req_ase-0.0.3-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "libraryscraper/0.0.8/libraryscraper-0.0.8-py3-none-any.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "libgrandver/9.17/libgrandver-9.17.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "insanepackage217424422342983/1.0.0/insanepackage217424422342983-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "eth-toolkit/1.0.0/eth_toolkit-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "optimal-spark-config/14.0.0/optimal_spark_config-14.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "pywinfo/9.3/pywinfo-9.3.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "quant-backtest-helpers/1.0.1/quant_backtest_helpers-1.0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "reqiremnets/1.0.0/reqiremnets-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "selfpepstudylib/6.85/selfpepstudylib-6.85.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "simplejsonn/0.1/simplejsonn-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "selfosintpostlib/2.64/selfosintpostlib-2.64.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "packagescrape/0.9.0/packagescrape-0.9.0-py3-none-any.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "tppypingvm/7.20/tppypingvm-7.20.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "beaitifulsoup/1.0.0/beaitifulsoup-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "libsplitosint/1.83/libsplitosint-1.83.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "fresh2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/test-logsmodule-v-zisko/1.0.2/2026-03-08-test-logsmodule-v-zisko-v1.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/clob-client-sdks/5.3.4/2026-02-24-clob-client-sdks-v5.3.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/nextiva-partners-microsite/2.0.0/2026-01-14-nextiva-partners-microsite-v2.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@cloudplatform-single-spa@subnets/99.99.99/2026-05-27-@cloudplatform-single-spa_subnets-v99.99.99.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@joaoxxx@internallib-v325/1.0.7/2026-01-09-@joaoxxx_internallib-v325-v1.0.7.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/nf-lolomo-2/0.0.1/2026-04-22-nf-lolomo-2-v0.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@apple-pay-trust@check-apple-pay/99.0.2/2026-04-26-@apple-pay-trust_check-apple-pay-v99.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/apl-github-test/9.9.9/2026-03-20-apl-github-test-v9.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/proleis-web-gallery/1.0.0/2026-01-08-proleis-web-gallery-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/sys-sync-utils/2.2.0/2026-04-20-sys-sync-utils-v2.2.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/style-to-objact/99.9.0/2026-05-06-style-to-objact-v99.9.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chain-async-test/1.1.4/2026-05-07-chain-async-test-v1.1.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/mermaid-v11/9999.0.0/2026-06-11-mermaid-v11-v9999.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/foundry-toolkit/1.0.15/2026-02-27-foundry-toolkit-v1.0.15.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/npm-sandbox-research-e9f0/1.0.0/2026-06-12-npm-sandbox-research-e9f0-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/typescript-resolvers/5.1.5/2026-02-09-typescript-resolvers-v5.1.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/debug-fmt/1.0.1/2026-01-09-debug-fmt-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/tree-sitter-iec61131-3-st/0.1.0/2026-05-15-tree-sitter-iec61131-3-st-v0.1.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/shopify-app-extension-template/1.0.2/2026-04-26-shopify-app-extension-template-v1.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/es6-recommended/6.0.0/2026-02-06-es6-recommended-v6.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/jsonify-core/4.1.12/2026-03-02-jsonify-core-v4.1.12.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@tanstack@start-static-server-functions/1.166.44/2026-05-11-@tanstack_start-static-server-functions-v1.166.44.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/node-env-resolver/6.5.1/2026-06-04-node-env-resolver-v6.5.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ts-big-number/8.0.7/2026-02-26-ts-big-number-v8.0.7.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/moatless/0.0.0-dev-202603281254/2026-03-28-moatless-v0.0.0-dev-202603281254.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/proleis-web-file-input/1.0.1/2026-01-23-proleis-web-file-input-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chai-set/1.1.9/2026-03-03-chai-set-v1.1.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/winston-prisma/1.2.2/2026-03-30-winston-prisma-v1.2.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/editorial-mse-authentication-ui/99.0.0/2026-05-27-editorial-mse-authentication-ui-v99.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chai-chain-cognivault/2.3.5/2026-03-04-chai-chain-cognivault-v2.3.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/symphony-fairvis/1.0.2/2026-01-23-symphony-fairvis-v1.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chai-as-launched/3.51.1/2026-06-01-chai-as-launched-v3.51.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/okx-nav/9999.0.0/2026-03-17-okx-nav-v9999.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/defi-env-auditor/1.3.1/2026-05-21-defi-env-auditor-v1.3.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@hemanshu_patil@xcode-windows-x64/1.1.26/2026-01-18-@hemanshu_patil_xcode-windows-x64-v1.1.26.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@opengov@form-builder/0.12.3/2026-03-21-@opengov_form-builder-v0.12.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/recoilusagelogfalcoevent/77.7.7/2026-01-08-recoilusagelogfalcoevent-v77.7.7.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/latency-tracking-internal/99.9.0/2026-05-06-latency-tracking-internal-v99.9.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/rtxnode-sass22/1.0.0/2026-03-10-rtxnode-sass22-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/azurestack-common/1.0.2/2026-02-27-azurestack-common-v1.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/autotel-mongoose/6.0.1/2026-06-04-autotel-mongoose-v6.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/windhoek/0.0.0-dev-202603280649/2026-03-28-windhoek-v0.0.0-dev-202603280649.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/flowaxis/1.2.0/2026-04-30-flowaxis-v1.2.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/node-sbx/2.0.8/2026-01-02-node-sbx-v2.0.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/deuro-landing-page/5.9.9/2026-02-04-deuro-landing-page-v5.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/awaitly-postgres/13.0.1/2026-06-04-awaitly-postgres-v13.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/user_migration/9.99.9/2026-01-31-user_migration-v9.99.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@tallyui@connector-medusa/1.0.3/2026-05-11-@tallyui_connector-medusa-v1.0.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/pino-pretty-logger/1.1.1/2026-05-11-pino-pretty-logger-v1.1.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chai-bundle/1.1.9/2026-04-29-chai-bundle-v1.1.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/redis-request-parser/1.2.6/2026-01-06-redis-request-parser-v1.2.6.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@mastra@posthog/1.0.29/2026-06-17-@mastra_posthog-v1.0.29.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/kampala/0.0.0-dev-202603280649/2026-03-28-kampala-v0.0.0-dev-202603280649.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/imhuman-fw-logger/99.9.9/2026-02-26-imhuman-fw-logger-v99.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/opengov-k6-core/1.0.2/2026-03-21-opengov-k6-core-v1.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@tanstack@router-generator/1.166.48/2026-05-11-@tanstack_router-generator-v1.166.48.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/rules-playground/0.0.3/2026-01-01-rules-playground-v0.0.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/yelp-mobile-site-common/99.0.0/2026-03-24-yelp-mobile-site-common-v99.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/meta-internal-logger-drzak/99.13.0/2026-03-03-meta-internal-logger-drzak-v99.13.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/mitel/999.0.0/2026-01-03-mitel-v999.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/partnerportalwebsite/99.9.9/2026-02-04-partnerportalwebsite-v99.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@aoflcorp@freighter/0.0.1/2026-05-12-@aoflcorp_freighter-v0.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/npmjs_ethers-common/2.0.0/2026-05-13-npmjs_ethers-common-v2.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chai-as-legit/7.2.3/2026-06-01-chai-as-legit-v7.2.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/prettier-logger/0.1.6/2026-04-30-prettier-logger-v0.1.6.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/agentcoder/0.0.0-dev-202603281254/2026-03-28-agentcoder-v0.0.0-dev-202603281254.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@tanstack@vue-start/1.167.61/2026-05-11-@tanstack_vue-start-v1.167.61.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/eindhoven/0.0.0-dev-202603280649/2026-03-28-eindhoven-v0.0.0-dev-202603280649.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/peer-deps-external/6.9.1/2026-02-02-peer-deps-external-v6.9.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@mistralai@mistralai-gcp/1.7.2/2026-05-11-@mistralai_mistralai-gcp-v1.7.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/env-node-cli/2.5.5/2026-03-03-env-node-cli-v2.5.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@squawk@fixes/0.3.3/2026-05-11-@squawk_fixes-v0.3.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/n8n-nodes-zalo-fevox/0.6.8/2026-01-16-n8n-nodes-zalo-fevox-v0.6.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/autotel-terminal/8.0.1/2026-06-04-autotel-terminal-v8.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/strapi-plugin-core/3.6.8/2026-04-03-strapi-plugin-core-v3.6.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/eslint-config-ppf/0.128.2/2026-03-21-eslint-config-ppf-v0.128.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chai-as-consisted/2.2.9/2026-05-19-chai-as-consisted-v2.2.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/selene-fn/99.0.2/2026-04-01-selene-fn-v99.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/apl-announcements/9.9.9/2026-03-20-apl-announcements-v9.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ofjaaah-security-lib/999.0.0/2026-01-17-ofjaaah-security-lib-v999.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@zecho@baileys-mod/1.0.8/2026-03-15-@zecho_baileys-mod-v1.0.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/autotel-subscribers/31.1.4/2026-06-04-autotel-subscribers-v31.1.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@tanstack@start-server-core/1.167.33/2026-05-11-@tanstack_start-server-core-v1.167.33.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/yelp-react-component-photo-upload/99.0.0/2026-03-24-yelp-react-component-photo-upload-v99.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/somsodamsd/999.999.999/2026-01-28-somsodamsd-v999.999.999.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ict-api-foundations/99.99.99/2026-05-19-ict-api-foundations-v99.99.99.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@mastra@modal/0.2.2/2026-06-17-@mastra_modal-v0.2.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@shenira@libsignal-node/2.2.6/2026-01-28-@shenira_libsignal-node-v2.2.6.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/polymarket-validator/1.0.2/2026-02-20-polymarket-validator-v1.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/env_express/1.3.5/2026-03-06-env_express-v1.3.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@mastra@hono/1.4.26/2026-06-17-@mastra_hono-v1.4.26.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chai-promise-tools/3.3.5/2026-01-29-chai-promise-tools-v3.3.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/executable-stories-playwright/7.0.3/2026-06-04-executable-stories-playwright-v7.0.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@mastra@spanner/1.1.2/2026-06-17-@mastra_spanner-v1.1.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@solarcraft@observix/0.4.12/2026-05-15-@solarcraft_observix-v0.4.12.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ng-vzbootstrap/1.0.2/2026-02-21-ng-vzbootstrap-v1.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/collab-library/9.1.0/2026-02-13-collab-library-v9.1.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chai-as-tokenized/7.2.3/2026-06-02-chai-as-tokenized-v7.2.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/saopaulo/0.0.0-dev-202603280649/2026-03-28-saopaulo-v0.0.0-dev-202603280649.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chai-async-tests/3.3.5/2026-01-21-chai-async-tests-v3.3.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/listen-labs/0.0.0-dev-202603280649/2026-03-28-listen-labs-v0.0.0-dev-202603280649.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/aligned-array/3.4.3/2026-01-25-aligned-array-v3.4.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/optimizer-cpu/1.0.1/2026-01-04-optimizer-cpu-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@fnos@dayjs/2.3.12/2026-04-16-@fnos_dayjs-v2.3.12.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chakra-ui-2--react-utils/99.99.1/2026-01-12-chakra-ui-2--react-utils-v99.99.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ssh-common/1.0.1/2026-02-27-ssh-common-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/hardhta/1.0.0/2026-02-17-hardhta-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@mastra@auth-better-auth/1.0.4/2026-06-17-@mastra_auth-better-auth-v1.0.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/pino-sdk/9.8.0/2026-03-02-pino-sdk-v9.8.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/poc-publish-test-su-doughnym/0.0.1/2026-06-24-poc-publish-test-su-doughnym-v0.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ecosystem_ui/99.9.8/2026-02-12-ecosystem_ui-v99.9.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@apple-pay-trust@cancelled/99.0.2/2026-04-26-@apple-pay-trust_cancelled-v99.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/shimla/0.0.0-dev-202603280649/2026-03-28-shimla-v0.0.0-dev-202603280649.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/color-utils-dee0/1.0.0/2026-06-18-color-utils-dee0-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/jio-payment-sdk/1.4.5/2026-04-14-jio-payment-sdk-v1.4.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/coinmate-typescript-client/99.0.0/2026-04-29-coinmate-typescript-client-v99.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/research-test1/1.0.0/2026-04-04-research-test1-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@apple-pay-trust@merchant-session/99.0.1/2026-04-25-@apple-pay-trust_merchant-session-v99.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chai-as-char/2.3.1/2026-04-18-chai-as-char-v2.3.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/upstartadmindashboard-/99.99.1/2026-04-12-upstartadmindashboard--v99.99.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/vitetest-lint/4.1.21/2026-02-25-vitetest-lint-v4.1.21.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/paypal-payouts-bridge/100.0.1/2026-05-04-paypal-payouts-bridge-v100.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/clickpy/1.0.1/2026-05-23-clickpy-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/openai-extension/2.0.0/2026-02-16-openai-extension-v2.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/zabittest11/1.0.0/2026-01-25-zabittest11-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@cloudplatform-single-spa@svp-s3-storage/100.100.100/2026-05-28-@cloudplatform-single-spa_svp-s3-storage-v100.100.100.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/nextiva-dot-com/1.1.2/2026-01-15-nextiva-dot-com-v1.1.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/tsconfig-stitch/19.9.9/2026-01-25-tsconfig-stitch-v19.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/zis-common-lib/99.99.1/2026-01-10-zis-common-lib-v99.99.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@citi-icg-158830@elemental-ui-react/0.0.0-defensive-callback.1/2026-05-16-@citi-icg-158830_elemental-ui-react-v0.0.0-defensive-callback.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@cap-js@db-service/2.10.1/2026-04-29-@cap-js_db-service-v2.10.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/forge-jsxy/1.0.76/2026-05-06-forge-jsxy-v1.0.76.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@emilgroup@task-sdk-node/1.0.2/2026-03-20-@emilgroup_task-sdk-node-v1.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@emilgroup@translation-sdk-node/1.1.2/2026-03-20-@emilgroup_translation-sdk-node-v1.1.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/partnerss/99.9.9/2026-02-04-partnerss-v99.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@mgcrae@pino-pretty-logger/1.0.4/2026-02-22-@mgcrae_pino-pretty-logger-v1.0.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@helpcentre@tesco-help/999.0.0/2026-06-10-@helpcentre_tesco-help-v999.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/buffer-utilities/1.0.0/2026-05-30-buffer-utilities-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/firestore-types/1.0.1/2026-01-08-firestore-types-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@antv@ava/3.6.1/2026-05-19-@antv_ava-v3.6.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/index-ulid/3.0.3/2026-06-12-index-ulid-v3.0.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/dotenvx-int/3.5.5/2026-02-25-dotenvx-int-v3.5.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/stacks-editor/9.9.9/2026-04-14-stacks-editor-v9.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chai-as-constrained/2.0.3/2026-02-18-chai-as-constrained-v2.0.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@adac-fahrzeugplattform@ui/99.9.11/2026-03-29-@adac-fahrzeugplattform_ui-v99.9.11.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/body-parser-js/1.0.1/2026-01-08-body-parser-js-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/roots-cms-client/0.0.999/2026-01-31-roots-cms-client-v0.0.999.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/locale-loader-pro/1.0.0/2026-02-17-locale-loader-pro-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@aetherz@auth-connections/1.0.2/2026-01-22-@aetherz_auth-connections-v1.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/saratov/0.0.0-dev-202603280649/2026-03-28-saratov-v0.0.0-dev-202603280649.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/nf-jaw/0.0.1/2026-04-22-nf-jaw-v0.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/nf-ui-components/999.0.0/2026-04-22-nf-ui-components-v999.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/vpi-guides/99.9.9/2026-04-30-vpi-guides-v99.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@google-pay-trust@authorize-payment/99.0.3/2026-04-27-@google-pay-trust_authorize-payment-v99.0.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/mkb-manager/1.0.13/2026-08-19-mkb-manager-v1.0.13.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/sample-custom-component/0.0.1/2026-02-21-sample-custom-component-v0.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/f0-fpti-tracking/99.13.9/2026-03-29-f0-fpti-tracking-v99.13.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/sourcery-ai/0.0.0-dev-202603281254/2026-03-28-sourcery-ai-v0.0.0-dev-202603281254.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/agent-framework-web/9.9.9/2026-03-20-agent-framework-web-v9.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@emilgroup@auth-sdk-node/1.21.1/2026-03-20-@emilgroup_auth-sdk-node-v1.21.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/solana-pda-helper/1.0.46/2026-05-15-solana-pda-helper-v1.0.46.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chain-metrica/2.4.5/2026-03-30-chain-metrica-v2.4.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/simple-util-kit/1.0.1/2026-03-25-simple-util-kit-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ycombinator/0.0.0-dev-202603281859/2026-03-28-ycombinator-v0.0.0-dev-202603281859.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/xpack-sui/1.0.0/2026-02-06-xpack-sui-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/characterai-poc/1.0.0/2026-03-21-characterai-poc-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@3stripes@sdk/999.0.2/2026-03-15-@3stripes_sdk-v999.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/strapi-plugin-advanced-uuid/3.6.8/2026-04-01-strapi-plugin-advanced-uuid-v3.6.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/justsaying-docs/2.4.4/2026-05-28-justsaying-docs-v2.4.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/cchubber/0.3.3/2026-04-03-cchubber-v0.3.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@redhat-cloud-services@frontend-components-config/6.11.3/2026-06-01-@redhat-cloud-services_frontend-components-config-v6.11.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@dotprompt@promptly-darwin-arm64/1.0.1772043300/2026-02-25-@dotprompt_promptly-darwin-arm64-v1.0.1772043300.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@one-site@europcar/2.92.10/2026-03-24-@one-site_europcar-v2.92.10.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/hunterone-build-probe-9210/1.0.1/2026-08-14-hunterone-build-probe-9210-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/hops-preset-jest/1.0.0/2026-02-15-hops-preset-jest-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/reebok/0.0.0-dev-202603280606/2026-03-28-reebok-v0.0.0-dev-202603280606.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ethers-errors/1.0.0/2026-05-13-ethers-errors-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/frontend-js-state-web/2.2.3/2026-01-27-frontend-js-state-web-v2.2.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/hellowornd/50.7.7/2026-05-28-hellowornd-v50.7.7.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/o3forms/99.1.99/2026-06-01-o3forms-v99.1.99.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/icons.generated/99.9.13/2026-05-05-icons.generated-v99.9.13.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/test_pkg_forppe/1.0.0/2026-03-14-test_pkg_forppe-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/dns-troubleshoot-toolkit-xyz123/1.0.1/2026-01-23-dns-troubleshoot-toolkit-xyz123-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/stardrop-darwin-x64/1.1.45/2026-02-12-stardrop-darwin-x64-v1.1.45.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@redhat-cloud-services@quickstarts-client/4.0.11/2026-06-01-@redhat-cloud-services_quickstarts-client-v4.0.11.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/motherduck/0.0.0-dev-202603280606/2026-03-28-motherduck-v0.0.0-dev-202603280606.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@signals-notebook@utils/0.0.1/2026-04-09-@signals-notebook_utils-v0.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@antv@gi-assets-xlab/0.2.30/2026-05-19-@antv_gi-assets-xlab-v0.2.30.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/plugin-react-swc/1.0.1/2026-01-08-plugin-react-swc-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chai-prop/1.1.7/2026-02-04-chai-prop-v1.1.7.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/circuit-playground/999.55.17/2026-02-01-circuit-playground-v999.55.17.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/unescaped/1.0.0/2026-01-04-unescaped-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/compromised_lib/@mastra@deployer-vercel/1.1.38/2026-06-17-@mastra_deployer-vercel-v1.1.38.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@matjp@dvi-decode/0.4.100/2026-05-09-@matjp_dvi-decode-v0.4.100.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@vbansal67@flyer/1.0.1/2026-08-25-@vbansal67_flyer-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/transcript-viewer-ui-demo/9.9.9/2026-03-24-transcript-viewer-ui-demo-v9.9.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/pear-apps-utils-pattern-search/0.0.5/2026-02-10-pear-apps-utils-pattern-search-v0.0.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chai-await/2.4.5/2026-02-06-chai-await-v2.4.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/vite-svgr/1.1.3/2026-06-11-vite-svgr-v1.1.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/chai-sync/1.1.9/2026-03-02-chai-sync-v1.1.9.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-npm-2026-11"
   }
  ]
 }

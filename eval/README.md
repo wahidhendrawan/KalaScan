@@ -23,25 +23,78 @@ The malicious samples are **live malware**. `run_eval.py` scans them statically 
 
 CI (`.github/workflows/eval.yml`) runs only the clean half, as a false-positive gate: `--only clean --max-fpr 0`, on every pull request that touches `src/`, `rules/`, `eval/` or `Cargo.lock`.
 
-Results at threshold 50 (ruleset 2026.11.3, score model v1, measured 2026-11-18; 95% interval in brackets; the aggregate is in [`results/2026.11.3.json`](results/2026.11.3.json)):
+Results at threshold 50 (ruleset 2026.11.5, score model v1, measured 2026-11-18; 95% interval in brackets; the aggregate is in [`results/2026.11.5.json`](results/2026.11.5.json)):
 
 | split | malicious recall | clean false positives |
 |---|---|---|
-| dev | 291/403 (72%, 68-76) | 0/366 (0%, 0-1) |
-| holdout | 306/461 (66%, 62-71) | 0/456 (0%, 0-1) |
+| dev | 480/626 (77%, 73-80) | 0/369 (0%, 0-1) |
+| holdout | 465/657 (71%, 67-74) | 0/453 (0%, 0-1) |
 
-Two tuning batches of new samples joined `dev` in November (below), which is why its rate moves with each one.
+Five tuning batches of new samples joined `dev` in November (below), which is why its rate moves with each one.
 
 The holdout by sample set:
 
 | holdout set | what it is | malicious recall |
 |---|---|---|
-| original | 147 samples: the 27 first ones and 120 added in November 2026 | 103/147 (70%, 62-77) |
+| original | 147 samples: the 27 first ones and 120 added in November 2026 | 105/147 (71%, 64-78) |
 | `recent-2026-11` | 60 npm packages dated 2026-08-01 or later, the newest in the dataset | 31/60 (52%, 39-64) |
 | `malregistry-2026-11` | 100 PyPI packages from pypi_malregistry whose names the DataDog dataset does not have; 5 archives do not unpack | 83/95 (87%, 79-93) |
-| `fresh-2026-11` | 161 packages drawn on 2026-11-18, after the last rule change: 100 npm and 1 PyPI dated 2026-08-01 or later (DataDog), 60 PyPI from pypi_malregistry; 2 archives do not unpack | 89/159 (56%, 48-63) |
+| `fresh-2026-11` | 161 packages drawn on 2026-11-18, after ruleset 2026.11.2: 100 npm and 1 PyPI dated 2026-08-01 or later (DataDog), 60 PyPI from pypi_malregistry; 2 archives do not unpack | 90/159 (57%, 49-64) |
+| `fresh2-2026-11` | 200 packages drawn on 2026-11-18, before ruleset 2026.11.5: 150 npm dated 2026-01-01 or later (DataDog), 50 PyPI from pypi_malregistry; 4 archives do not unpack | 156/196 (80%, 73-85) |
 
-**The holdout number is the one to quote, and the `recent` row is the one to worry about**: on the newest npm malware KalaScan catches about half (24 of 60 with ruleset 2026.11.1, before the tuning described next). The second source says the PyPI rules are not fitted to one dataset's taste: 87% there, 37 of 48 (77%) on the original DataDog PyPI holdout samples. By ecosystem the whole holdout is now IDE extensions 32/48 (67%), npm 102/211 (48%), PyPI 172/202 (85%).
+**The holdout number is the one to quote, and the `recent` row is the one to worry about**: on the newest npm malware KalaScan catches about half (24 of 60 with ruleset 2026.11.1, before the tuning described below). The second source says the PyPI rules are not fitted to one dataset's taste: 87% there, 37 of 48 (77%) on the original DataDog PyPI holdout samples. By ecosystem the whole holdout is IDE extensions 32/48 (67%, 53-78), npm 221/361 (61%, 56-66), PyPI 212/248 (85%, 81-89).
+
+### npm tuning with GuardDog as a second reader (ruleset 2026.11.5)
+
+The round before this one tuned on IDE extensions and moved no holdout number, because the largest gap is npm. This round went at npm, and used GuardDog to point at what KalaScan misses.
+
+**A new holdout first.** The `fresh-2026-11` count had been read three times, so before any rule changed a new set was drawn (`sample_malicious.py --since 2026-01-01 --ecosystem npm --size 150 --seed 20261121` and `--malregistry --size 50`; `"set": "fresh2-2026-11"`). With ruleset 2026.11.4 it scored **138 of 196 (70%)**; the whole holdout was 444 of 657.
+
+**A tuning batch, read.** Separately, 200 npm packages dated 2026 went into `dev` (`--size 200 --seed 20261122`; `"set": "tune-npm-2026-11"`, no name shared with the holdout). Before any change: 139 of 200. Of its 61 misses:
+
+- **A self-decoding `eval` wrapper** (8, compromised releases of `autotel-*`, `awaitly-postgres`, `executable-stories-playwright`, `node-env-resolver` and two `@redhat-cloud-services` packages, June 2026): a 4.5 MB `index.js` planted next to the real build, `eval(function(s,n){…fromCharCode…}([40,109,…]))`. Now `Code Decoded From a Number Array and Evaluated`, a verdict on its own.
+- **A launcher for a binary under another name** (13 + 1 binary package): packages named after companies (`ycombinator`, `motherduck`, `sourcery-ai`, cities) with a `0.0.0-dev-…` version, each a copy of an open-source CLI's npm installer whose wrapper and platform packages are called `stardrop`. The package's own code is the installer; the payload is the binary. What a scan can see is the mismatch: the command, wrapper and `stardrop-<os>-<arch>` packages carry one name, the package another, and an install hook runs. Now `Chain: Platform Binary Under Another Name` (`foreign_binary` in `src/correlate.rs`; a real CLI shares its binary's name, `turbo` / `turbo-darwin-64`).
+- **An SSH key planted by a logger** (4): `pino-pretty-logger` look-alikes that append a hard-coded public key to `~/.ssh/authorized_keys`, then walk the home directory for `.env` files and upload them. Now `Chain: SSH Key Planted`, which needs the public key in the code: Remote - SSH writes the user's own key there and was flagged by the first version (below). One of the four fetches its key and is not caught.
+- **Smaller fixes**: remote code run through `new (Function.constructor)("require", …)` and through `axios_1.default.get` (2; the chain existed, the patterns missed these spellings), `require(Buffer.from('ZnM=','base64').toString())` (`Module Name Decoded From Base64`, a lead), an install script that runs `uname -a` through its own helper and posts it, a Node `lib.request({hostname: …})` call (`URL Fetch Command`).
+- **Out of reach** (about 30): `@mastra/*` compromised versions with no payload in the package, helpers whose payload is in a dependency (`debug-fmt` → `debug-glitz`, `ts-big-number` → `npm-doc-builder`), research probes that write a file to `/tmp`, a proxy-node deployer, a WhatsApp library fork.
+
+After the changes the batch scores 166 of 200.
+
+**GuardDog as a second reader.** GuardDog 3.2.0 was run on every `dev` sample and every clean sample (not on the holdout). Of 182 `dev` samples KalaScan missed, GuardDog's threat rules caught 57. Ranked by how many of those misses a rule caught against how many of the 821 clean packages it flags, the one clean signal was `threat-runtime-obfuscation-dynamic-eval` (16 misses, 0 clean): the wrapper above, now covered. The rest flag clean packages too (`threat-process-spawn-silent` 20 misses and 11 clean, `threat-network-exfiltration` 14 and 16, `threat-filesystem-read` 23 and 56); the `dev` samples behind them were read and gave the smaller fixes above, plus one more:
+
+- **Code behind padding** (`utils-mf`, 15 MB): 11 MB of `\u00a0\u200e\n` put the obfuscated payload at 4.1 MB, between the first 3 MiB and the last 1 MiB the scanner reads. An oversized file is now read with whitespace runs longer than 64 bytes collapsed, and a script with 1 MiB or more of them gets `Code Hidden Behind Whitespace Padding` (critical, not a verdict alone). Line numbers in such a file count from the collapsed text.
+
+**The holdout, counted once after the changes: 444 → 465 of 657 (71%, 67-74).** `fresh2-2026-11` 138 → 156 of 196 (80%, 73-85), npm across the holdout 201 → 221 of 361. The 21 holdout samples that crossed 50 did so on `Code Decoded From a Number Array and Evaluated` (10), `Chain: Platform Binary Under Another Name` (9) and `Chain: SSH Key Planted` (2): the same campaigns as in the tuning batch, which is what a holdout drawn from the same months should show. The older sets barely moved (`fresh-2026-11` 89 → 90, original 103 → 105). No sample's score went down, the evasion suite catches the same pairs.
+
+**The clean side, first contact.** The first run of the new rules flagged 3 clean holdout packages at 90: `ms-vscode-remote.remote-ssh` (its help text appends `${pubKey}` to `authorized_keys`), `saoudrizwan.claude-dev` (a minified `C("hostname")` read as a recon helper call) and `liangzimixin`, a random npm draw that hides `node:child_process` behind base64 from its plugin marketplace's scanner. The SSH chain now needs a key in the code, the helper-call pattern takes `whoami` and `uname -a` only, and the base64 module rule is a lead, not a verdict. The three were read, so they are in `dev` now; the clean corpus is 0 of 822 again.
+
+Ruleset 2026.11.4 (next section) moved none of the holdout numbers.
+
+### IDE extensions, and two ideas measured and not built (ruleset 2026.11.4)
+
+**A tuning batch of extensions.** The extension rate on the holdout (32 of 48) had not moved since the first rules. `sample_malicious.py --ecosystem ide_extensions --seed 20261120` drew every extension name in the DataDog dataset that the corpus did not have yet: 24, in `dev` as `"set": "tune-ext-2026-11"`. One holds 11,859 files, over the scanner's 10,000-file limit, and counts as an error. Before any change the batch scored 9 of 23. It was read inside the throwaway VM. Its 14 misses:
+
+- **An AI agent used as the payload** (`amazon-q-vscode` 1.84.0, the compromised release): a prompt that tells the agent to delete the user's files and cloud resources, run with `q --trust-all-tools --no-interactive`. Two things hid it. The code sits at the end of a 21 MB bundle and the scanner read the first 4 MiB of a file; it now reads the first 3 MiB and the last 1 MiB of a file over the limit. And nothing in it is a known API: now `Agent CLI Run With Permissions Disabled` (the approval-bypass flags of Amazon Q, Claude Code, Codex and Gemini CLI), which every agent harness also has and so is a lead, and `Chain: Weaponised AI Agent` when the text around it asks for deletion or for keys and wallets.
+- **`child_process` cut in two** (1): a javascript-obfuscator string table holding `'child_proc'` and `'ess'`, and an ngrok TCP tunnel. Now `Split child_process Name`, which counts as process execution in the chains.
+- **Commands over DNS** (1): TXT records of an attacker's domain, joined and handed to `eval`. Now `DNS TXT Query` and `Chain: DNS Tunnel Command Execution`.
+- **Git hooks for every repository** (1): downloads, decrypts and starts a binary, then runs `git config --global core.hooksPath` towards a directory it fills. Now `Global Git Hooks Path Set` and `Chain: Git Hook Persistence`.
+- **Nothing malicious in the code** (10): hello-world extensions, themes, forks of a legitimate extension, research probes. The listing was the offence.
+
+After the changes the batch scores 13 of 23. The split-name rule catches one more `dev` sample (`tune-recent-2026-11` 35 → 36 of 80). **The holdout did not move: 306 of 461, extensions 32 of 48.** Four holdout scores changed and none crossed 50. The four behaviours are real and now have a name, and no unread sample needed them; what the 16 extension misses in the holdout are is not known, because they are not read. Treat this round as coverage of known incidents, not as a gain in the rate.
+
+Reading the end of large files cost one false positive before it was merged: `github.copilot-chat` (clean, `dev`) went from 20 to 90. In the tail of its 20 MB bundle a command descriptor, `{command: "workbench.extensions.installExtension", arguments: [id]}`, matched `VS Code Extension Side-loading` next to a `fetch`. The rule now skips descriptors (the installed thing is not visible there). The clean corpus is back at 0 of 822; the highest clean score is 40 (Quokka). The same extension bundles an agent CLI and so carries `Agent CLI Run With Permissions Disabled` as a lead. The evasion suite catches the same pairs as before.
+
+The `fresh-2026-11` count has now been read three times (78, 89, 89); the next round drew a new holdout first (above).
+
+**Registry history as a signal: measured, not built.** Malicious samples are scanned as extracted archives, so the registry checks (install script added, provenance dropped, manifest confusion, version gap) never ran on them, and what they would add to recall was unknown. The DataDog dataset keeps the registry document of each npm sample from the day it was collected: found for 243 of 244 `dev` and all 211 holdout npm samples. The checks were replayed on those documents, with ruleset 2026.11.3:
+
+- The npm misses are almost all packages that were malicious from their first version (`malicious_intent`: 78 `dev`, 108 holdout). Compromised versions of real packages, where a history exists to compare with, are 4 `dev` misses and 1 holdout miss.
+- On the missed samples: an install script added in the malicious version, 0 `dev` and 1 holdout; provenance dropped together with a new publisher, 3 `dev` (the `@mastra/*` packages) and 0 holdout; manifest confusion, 0 of 454; the version gap fires only on samples already caught.
+- On the full history of the 394 clean npm packages (23,756 steps from one version to the next, 49 packages that ever published with provenance), provenance dropped with a different publisher happened in 5 legitimate packages, axios, vue, node-gyp and mongoose among them. It cannot be a verdict.
+
+So the registry checks stay what they are, context on a live scan, and recall on new npm malware will not come from them: one holdout sample at most.
+
+**Install hooks that hand off to another package: measured, not built.** A hook that runs `npx other-package`: 1 `dev` miss, 0 in the holdout. A dependency aliased to another name (`"x": "npm:other@…"`, an ordinary npm feature): 3 `dev` misses; in the holdout 3 samples already caught and 2 missed. Too few, and too close to normal use, for a rule.
 
 ### Tuning on 2026 samples (ruleset 2026.11.3)
 
@@ -116,13 +169,17 @@ The data-flow pass was the risky part. Its first version ignored statement order
 
 `python3 eval/run_eval.py --scanner guarddog --dataset ~/kalascan-corpus` runs [GuardDog](https://github.com/DataDog/guarddog) (3.2.0, Docker image) on the same samples. GuardDog reports rule hits rather than a score, so two readings are given: a `threat-*` or metadata rule fired, and any rule at all fired (`capability-*` rules describe what code can do, not that it is malicious).
 
-| | malicious, holdout | malicious, all | clean flagged |
-|---|---|---|---|
-| KalaScan (risk >= 50) | 94/147 (64%) | 153/220 (70%) | 0/227 (0%) |
-| GuardDog, threat or metadata rule | 107/147 (73%) | 155/220 (70%) | 128/223 (57%) |
-| GuardDog, any rule | 123/147 (84%) | 187/220 (85%) | 213/223 (96%) |
+| | malicious, holdout | malicious, all | clean, picked | clean, random |
+|---|---|---|---|---|
+| KalaScan (risk >= 50) | 306/461 (66%) | 598/864 (69%) | 0/227 | 0/595 |
+| GuardDog, threat or metadata rule | 299/461 (65%) | 558/864 (65%) | 130/226 (58%) | 91/595 (15%) |
+| GuardDog, any rule | 361/461 (78%) | 685/864 (79%) | 216/226 (96%) | 318/595 (53%) |
 
-The two tools sit at different points: GuardDog finds more of the malware, most clearly on PyPI (41 of 48 holdout samples against KalaScan's 33), and flags more than half of the popular clean packages on the way; KalaScan flags none of the clean ones and misses more malware. GuardDog was run once, before the November tuning; at that time 66 holdout samples were caught by both, 16 only by KalaScan, 41 only by GuardDog and 24 by neither. The table is from that run: on the same 147 samples KalaScan is now at 101, and GuardDog has not been run on the two newer holdout sets. Read the comparison with two caveats: the malicious samples come from DataDog's own dataset, which GuardDog's rules were developed against, and four large clean PyPI packages timed out under GuardDog (300 s) and are left out of its column.
+Run on 2026-11-18 on the corpus as it stood before the extension batch, KalaScan with ruleset 2026.11.4. GuardDog was not run on `fresh2-2026-11`, so the table stays on the 461 samples both tools were measured on; on them ruleset 2026.11.5 catches 307. At GuardDog's stricter reading the two tools catch the same share of the holdout and not the same samples: 242 are caught by both, 64 only by KalaScan, 57 only by GuardDog, 98 by neither. By ecosystem on the holdout, GuardDog then KalaScan: IDE extensions 32 and 32 of 48, npm 98 and 102 of 211, PyPI 169 and 172 of 202. By holdout set: `fresh-2026-11` 84 and 89 of 159, `recent-2026-11` 27 and 31 of 60, `malregistry-2026-11` 81 and 83 of 95.
+
+The difference is on the clean side. GuardDog flags more than half of the popular packages and 15% of the random ones (48 of the 295 in the holdout). KalaScan's 0 is after its flagged clean samples were read and fixed; the number to set against GuardDog's 15% is KalaScan's first contact with the same random packages, 5 of 595 (0.8%).
+
+Caveats. The malicious samples come from DataDog's own dataset, which GuardDog's rules were developed against. KalaScan's rules were tuned on `dev` samples of that dataset between the two runs: in the first run, before the November tuning, GuardDog was ahead on the 147 holdout samples of that time (107 against 94; 66 caught by both, 16 only by KalaScan, 41 only by GuardDog, 24 by neither). Samples GuardDog could not scan are outside its columns: the 7 broken archives, and 3 clean packages against KalaScan's 2.
 
 The 60 extensions installed on the maintainer's machine (`kalascan installed`) also all score below 30. Ten of them were false positives during development and are now in the clean `dev` split.
 

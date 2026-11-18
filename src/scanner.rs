@@ -4,7 +4,7 @@ use std::path::Path;
 use walkdir::WalkDir;
 
 /// Human-readable ruleset version (also surfaced by `kalascan rules`).
-pub const RULESET_VERSION: &str = "2026.11.3";
+pub const RULESET_VERSION: &str = "2026.11.5";
 
 /// Critical file extensions for scanning
 // `.yml`/`.yaml` get only the exfiltration, network, supply-chain and
@@ -85,6 +85,13 @@ pub const BUILTIN_CHARS: &str = "Builtin Name Built From Characters";
 pub const DISGUISED_ARCHIVE: &str = "Code Imported From Disguised Archive";
 pub const SYSTEMD_USER: &str = "Systemd User Service Installed";
 pub const MAINTAINER_ENUM: &str = "npm Maintainer Package Enumeration";
+pub const AGENT_UNSAFE: &str = "Agent CLI Run With Permissions Disabled";
+pub const SPLIT_CHILD_PROCESS: &str = "Split child_process Name";
+pub const DNS_TXT: &str = "DNS TXT Query";
+pub const GIT_HOOKS_GLOBAL: &str = "Global Git Hooks Path Set";
+pub const CHARCODE_EVAL: &str = "Code Decoded From a Number Array and Evaluated";
+pub const B64_MODULE: &str = "Module Name Decoded From Base64";
+pub const PADDING: &str = "Code Hidden Behind Whitespace Padding";
 
 #[derive(Clone, Debug)]
 pub struct Rule {
@@ -645,7 +652,7 @@ fn runs_as(filename: &str, path: &Path) -> Option<&'static str> {
 /// Files a `package.json` makes npm or node run: `main`, `bin` and string
 /// `exports` targets, as root-relative paths.
 fn package_entry_points(rel_path: &str, abs_path: &Path) -> Vec<String> {
-    let Some((bytes, _)) = read_capped(abs_path) else {
+    let Some((bytes, ..)) = read_capped(abs_path) else {
         return Vec::new();
     };
     let Ok(json) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
@@ -740,14 +747,99 @@ struct Target {
     lang: Option<&'static str>,
 }
 
-/// Read at most `MAX_SCAN_BYTES`, returning the bytes and the real file size.
-fn read_capped(path: &Path) -> Option<(Vec<u8>, u64)> {
-    use std::io::Read;
-    let file = std::fs::File::open(path).ok()?;
+/// Of an oversized file, this much is read from its end: code added to a
+/// bundle is appended (amazon-q-vscode 1.84.0, 21 MB, payload in the last 13 KB).
+const TAIL_SCAN_BYTES: u64 = 1024 * 1024;
+
+/// In an oversized file, a whitespace run longer than this becomes one
+/// newline. `utils-mf` padded its 15 MB `index.js` with `\u00a0\u200e\n`
+/// so the payload sat between the two ends the scanner read.
+const PAD_RUN: usize = 64;
+/// This much collapsed padding in one script is itself a finding.
+const PADDING_FINDING_BYTES: u64 = 1024 * 1024;
+
+/// Length of the whitespace character at the start of `b` (ASCII, no-break
+/// space, zero-width and direction marks, line separators, ideographic
+/// space, BOM), or 0.
+fn pad_len(b: &[u8]) -> usize {
+    match b {
+        [b' ' | b'\t' | b'\r' | b'\n', ..] => 1,
+        [0xC2, 0xA0, ..] => 2,
+        [0xE2, 0x80, 0x8B..=0x8F | 0xA8 | 0xA9 | 0xAF, ..]
+        | [0xE3, 0x80, 0x80, ..]
+        | [0xEF, 0xBB, 0xBF, ..] => 3,
+        _ => 0,
+    }
+}
+
+/// Read at most `MAX_SCAN_BYTES`, returning the bytes, the real file size
+/// and how many bytes of padding were collapsed. A larger file is read with
+/// long whitespace runs collapsed (`PAD_RUN`) until its first part is full,
+/// then its last `TAIL_SCAN_BYTES` are added after a newline: line numbers
+/// after a collapse or the gap are off.
+fn read_capped(path: &Path) -> Option<(Vec<u8>, u64, u64)> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut file = std::fs::File::open(path).ok()?;
     let size = file.metadata().ok()?.len();
     let mut buf = Vec::new();
-    file.take(MAX_SCAN_BYTES).read_to_end(&mut buf).ok()?;
-    Some((buf, size))
+    if size <= MAX_SCAN_BYTES {
+        file.read_to_end(&mut buf).ok()?;
+        return Some((buf, size, 0));
+    }
+    let head = (MAX_SCAN_BYTES - TAIL_SCAN_BYTES) as usize;
+    let (mut run_at, mut run, mut collapsed, mut consumed) = (0usize, 0usize, 0u64, 0u64);
+    let mut end_run = |buf: &mut Vec<u8>, run: &mut usize, run_at: usize| {
+        if *run > PAD_RUN {
+            buf.truncate(run_at);
+            buf.push(b'\n');
+            collapsed += *run as u64 - 1;
+        }
+        *run = 0;
+    };
+    let mut data = Vec::new();
+    let mut chunk = vec![0u8; 1 << 20];
+    loop {
+        let n = file.read(&mut chunk).ok()?;
+        data.extend_from_slice(&chunk[..n]);
+        // Two bytes stay back while more can come: a padding character may
+        // straddle the chunk edge.
+        let end = if n == 0 {
+            data.len()
+        } else {
+            data.len().saturating_sub(2)
+        };
+        let mut i = 0;
+        while i < end && buf.len() < head {
+            let p = pad_len(&data[i..]);
+            if p == 0 {
+                end_run(&mut buf, &mut run, run_at);
+                buf.push(data[i]);
+                i += 1;
+                continue;
+            }
+            if run == 0 {
+                run_at = buf.len();
+            }
+            if run < PAD_RUN {
+                buf.extend_from_slice(&data[i..i + p]);
+            }
+            run += p;
+            i += p;
+        }
+        consumed += i as u64;
+        data.drain(..i);
+        if n == 0 || buf.len() >= head {
+            break;
+        }
+    }
+    end_run(&mut buf, &mut run, run_at);
+    if consumed < size {
+        buf.push(b'\n');
+        file.seek(SeekFrom::Start((size - TAIL_SCAN_BYTES).max(consumed)))
+            .ok()?;
+        file.take(TAIL_SCAN_BYTES).read_to_end(&mut buf).ok()?;
+    }
+    Some((buf, size, collapsed))
 }
 
 /// Scan one file. A panic in the analysis becomes a finding on that file:
@@ -769,7 +861,7 @@ fn scan_target(
     );
     let loads = if !own_tree && target.critical && js {
         read_capped(&target.abs_path)
-            .map(|(b, _)| non_code_requires(&target.rel_path, &String::from_utf8_lossy(&b)))
+            .map(|(b, ..)| non_code_requires(&target.rel_path, &String::from_utf8_lossy(&b)))
             .unwrap_or_default()
     } else {
         Vec::new()
@@ -790,7 +882,7 @@ fn scan_target_matches(
         severity: severity.to_string(),
         context,
     };
-    let Some((bytes, size)) = read_capped(&target.abs_path) else {
+    let Some((bytes, size, collapsed)) = read_capped(&target.abs_path) else {
         // Mode-0000 tar entries unpack unreadable; npm re-modes them on
         // install, so the victim runs a file the scan never saw.
         return if own_tree {
@@ -804,7 +896,7 @@ fn scan_target_matches(
         };
     };
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        scan_bytes(target, &bytes, size, rules, yara, own_tree)
+        scan_bytes(target, &bytes, (size, collapsed), rules, yara, own_tree)
     }))
     .unwrap_or_else(|panic| {
         let why = panic
@@ -826,7 +918,7 @@ fn scan_target_matches(
 fn scan_bytes(
     target: &Target,
     bytes: &[u8],
-    size: u64,
+    (size, collapsed): (u64, u64),
     rules: &[Rule],
     yara: Option<&mut yara_x::Scanner<'_>>,
     honor_markers: bool,
@@ -905,9 +997,22 @@ fn scan_bytes(
             matched_pattern: OVERSIZED_FINDING.to_string(),
             severity: "low".to_string(),
             context: format!(
-                "File is {} bytes; only the first {} MiB were scanned",
+                "File is {} bytes; with {} bytes of whitespace collapsed, at most the first {} MiB and the last {} MiB were scanned",
                 size,
-                MAX_SCAN_BYTES / (1024 * 1024)
+                collapsed,
+                (MAX_SCAN_BYTES - TAIL_SCAN_BYTES) / (1024 * 1024),
+                TAIL_SCAN_BYTES / (1024 * 1024)
+            ),
+        });
+    }
+    if collapsed >= PADDING_FINDING_BYTES && *critical {
+        out.push(RuleMatch {
+            file_path: rel_path.clone(),
+            line_number: 1,
+            matched_pattern: PADDING.to_string(),
+            severity: "critical".to_string(),
+            context: format!(
+                "{collapsed} bytes of whitespace in long runs: padding that pushes code past what a scanner reads"
             ),
         });
     }
@@ -1250,6 +1355,16 @@ mod tests {
         let mut padded = "eval(payload)\n".to_string();
         padded.push_str(&" ".repeat(MAX_SCAN_BYTES as usize));
         std::fs::write(dir.path().join("b.js"), padded).unwrap();
+        // Code appended to a bundle larger than the cap is still read.
+        let appended = format!(
+            "{}\nexec(payload)\n",
+            "x".repeat(2 * MAX_SCAN_BYTES as usize)
+        );
+        std::fs::write(dir.path().join("c.js"), appended).unwrap();
+        // Code between two runs of invisible padding, neither end of the file.
+        let pad = "\u{a0}\u{200e}\n".repeat(MAX_SCAN_BYTES as usize / 3);
+        let middle = format!("module.exports = 1;\n{pad}exec(payload)\n{pad}// end\n");
+        std::fs::write(dir.path().join("d.js"), middle).unwrap();
         // Non-script file: only YARA applies, it used to be skipped.
         std::fs::write(
             dir.path().join("payload.bin"),
@@ -1265,7 +1380,7 @@ mod tests {
 
         let (total, scanned, matches) =
             scan_directory_filtered(dir.path(), None, &[], None, Tree::Own);
-        assert_eq!((total, scanned), (4, 2));
+        assert_eq!((total, scanned), (6, 4));
         assert!(!matches.iter().any(|m| m.file_path == "README.md"));
         let has = |file: &str, rule: &str| {
             matches
@@ -1278,6 +1393,10 @@ mod tests {
             .any(|m| m.file_path == "a.js" && m.line_number == 2));
         assert!(has("b.js", "eval() Usage"));
         assert!(has("b.js", OVERSIZED_FINDING));
+        assert!(has("c.js", "exec() Usage"));
+        assert!(has("d.js", "exec() Usage"));
+        assert!(has("d.js", PADDING));
+        assert!(!has("c.js", PADDING));
         assert!(has("payload.bin", "YARA Rule: ReverseShellGeneric"));
     }
 
@@ -1332,6 +1451,12 @@ mod tests {
             DISGUISED_ARCHIVE,
             SYSTEMD_USER,
             MAINTAINER_ENUM,
+            AGENT_UNSAFE,
+            SPLIT_CHILD_PROCESS,
+            DNS_TXT,
+            GIT_HOOKS_GLOBAL,
+            CHARCODE_EVAL,
+            B64_MODULE,
             "Hardcoded IP Address",
             "Post-Install Script",
             "URL Fetch Command",

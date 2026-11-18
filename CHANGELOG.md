@@ -7,6 +7,22 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+### Added
+- Detection (ruleset 2026.11.5), from a batch of 200 npm packages dated 2026 and the `dev` samples GuardDog catches and KalaScan missed: `Code Decoded From a Number Array and Evaluated` (`eval(function(s,n){…fromCharCode…}([40,109,…]))`, the payload of the compromised `autotel-*`, `awaitly-postgres` and `@redhat-cloud-services` releases; a verdict on its own); `Chain: Platform Binary Under Another Name` (an npm launcher whose command, wrapper and per-platform packages carry another name than the package, with an install hook: the `stardrop` packages); `Chain: SSH Key Planted` (a hard-coded public key written to `authorized_keys`); `Module Name Decoded From Base64` (`require(Buffer.from('ZnM=','base64').toString())`, a lead); `Code Hidden Behind Whitespace Padding`. `new (Function.constructor)("require", …)`, `axios_1.default.get(…)`, `lib.request({hostname: …})` and `run('uname -a')` are now recognised.
+- Evaluation: a new holdout set drawn before those rules (`"set": "fresh2-2026-11"`, 200 samples: 150 npm from 2026, 50 PyPI from pypi_malregistry) and a separate npm tuning batch in `dev` (`"set": "tune-npm-2026-11"`, 200 samples). The holdout went from 444 to 465 of 657 (68% → 71%), `fresh2-2026-11` from 138 to 156 of 196, npm in the holdout from 201 to 221 of 361; the tuning batch from 139 to 166 of 200. Clean still 0 of 822 (three clean holdout packages flagged by a first version were fixed and moved to `dev`), no sample's score went down, evasion suite unchanged.
+- Detection (ruleset 2026.11.4), from a batch of malicious IDE extensions: `Agent CLI Run With Permissions Disabled` (Amazon Q, Claude Code, Codex or Gemini CLI started with approvals off; a lead, every agent harness has it) and `Chain: Weaponised AI Agent` (the same next to a prompt that asks for deletion or for keys and wallets: `amazon-q-vscode` 1.84.0); `Split child_process Name` (`'child_proc'` + `'ess'` in an obfuscator's string table), which counts as process execution in the chains; `DNS TXT Query` and `Chain: DNS Tunnel Command Execution` (TXT answers handed to `eval` / `exec`); `Global Git Hooks Path Set` and `Chain: Git Hook Persistence` (`git config --global core.hooksPath` towards a directory the code fills).
+- Evaluation: a tuning batch of 24 IDE extensions in `dev` (`"set": "tune-ext-2026-11"`, every extension name in the DataDog dataset not used before). 9 → 13 of 23. The holdout did not move (306 of 461, extensions 32 of 48); clean still 0 of 822, evasion suite unchanged.
+- Evaluation: two ideas measured and not built. The registry checks replayed on the registry documents of 454 npm samples fire on one missed holdout sample, and provenance dropped with a new publisher also happened in 5 of 394 clean packages. Install hooks that hand off to another package (`npx other`, aliased dependencies) are 1 and 5 samples.
+- Evaluation: GuardDog 3.2.0 run again on the whole corpus (see `eval/README.md`).
+- `eval/sample_malicious.py --ecosystem ide_extensions`.
+
+### Changed
+- An oversized file is read with whitespace runs longer than 64 bytes collapsed before it is cut: 11 MB of invisible padding pushed a payload between the two ends the scanner read (`utils-mf`).
+- Of a file over the 4 MiB scan limit the first 3 MiB and the last 1 MiB are scanned, not only the start: code appended to a large bundle was out of sight.
+
+### Fixed
+- `VS Code Extension Side-loading` matched a command descriptor (`{command: "workbench.extensions.installExtension", arguments: [id]}`), where the installed thing is not visible. Found on `github.copilot-chat` once the end of its bundle was read.
+
 ## [1.16.0] - 2026-11-18
 
 ### Added

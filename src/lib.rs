@@ -614,6 +614,7 @@ async fn execute_scan_in(
             correlate::correlate_package_with(&rule_matches, !cve::is_vscode_extension(&chain_dir));
         rule_matches.extend(chains);
         rule_matches.extend(correlate::redirect_package(&chain_dir));
+        rule_matches.extend(correlate::foreign_binary(&chain_dir));
         rule_matches
     })
     .await

@@ -95,6 +95,10 @@ ATT&CK technique ids follow Enterprise ATT&CK v20.1. The MBC objective (Malware 
 | b64decode + exec Chain | KS-EXE-003 | T1140, T1059.006 | OB0002 Anti-Static Analysis, OB0009 Execution | - |
 | Buffer Decode + eval | KS-EXE-034 | T1140, T1059.007 | OB0002 Anti-Static Analysis, OB0009 Execution | - |
 | Decrypted Code Executed | KS-EXE-035 | T1140, T1059.006 | OB0002 Anti-Static Analysis, OB0009 Execution | - |
+| Agent CLI Run With Permissions Disabled | KS-EXE-038 | T1059 | OB0009 Execution | - |
+| Split child_process Name | KS-EXE-039 | T1027 | OB0002 Anti-Static Analysis | - |
+| Code Decoded From a Number Array and Evaluated | KS-EXE-040 | T1027, T1140, T1059.007 | OB0002 Anti-Static Analysis, OB0009 Execution | - |
+| Module Name Decoded From Base64 | KS-EXE-041 | T1027, T1140 | OB0002 Anti-Static Analysis | - |
 | Builtin Name Built From Characters | KS-EXE-036 | T1027 | OB0002 Anti-Static Analysis | - |
 | Code Imported From Disguised Archive | KS-EXE-037 | T1027, T1036 | OB0002 Anti-Static Analysis, OB0006 Defense Evasion | - |
 | nested b64decode | KS-EXE-004 | T1027, T1140 | OB0002 Anti-Static Analysis | - |
@@ -156,6 +160,7 @@ ATT&CK technique ids follow Enterprise ATT&CK v20.1. The MBC objective (Malware 
 | Account Enumeration Command | KS-REC-003 | T1087, T1033 | OB0007 Discovery | - |
 | AI API Base URL Override | KS-EXF-016 | T1557 | OB0005 Credential Access | - |
 | Shell Profile Modification | KS-FSW-002 | T1546.004 | OB0012 Persistence | - |
+| Global Git Hooks Path Set | KS-FSW-004 | T1546 | OB0012 Persistence | - |
 | Systemd User Service Installed | KS-FSW-003 | T1543.002 | OB0012 Persistence | - |
 | npm Maintainer Package Enumeration | KS-SUP-014 | T1195.001 | - | - |
 | npm Publish from Code | KS-SUP-011 | T1195.001 | - | - |
@@ -172,6 +177,7 @@ ATT&CK technique ids follow Enterprise ATT&CK v20.1. The MBC objective (Malware 
 | Base64-Encoded URL | KS-EXE-033 | T1027 | OB0002 Anti-Static Analysis | - |
 | Install Script Network Command | KS-SUP-012 | T1195.001, T1105 | OB0004 Command and Control | - |
 | Install Script Host Reconnaissance | KS-SUP-013 | T1195.001, T1082, T1033 | OB0007 Discovery | - |
+| DNS TXT Query | KS-NET-004 | T1071.004 | OB0004 Command and Control | - |
 | DNS Lookup of Built Hostname | KS-REC-004 | T1071.004, T1048 | OB0004 Command and Control, OB0010 Exfiltration | - |
 | Python Import-Obfuscated Loader | KS-EXE-031 | T1027, T1140 | OB0002 Anti-Static Analysis | - |
 | Agent Instruction: Hidden Unicode Tag Text | code | T1027 | OB0002 Anti-Static Analysis | - |
@@ -207,6 +213,12 @@ ATT&CK technique ids follow Enterprise ATT&CK v20.1. The MBC objective (Malware 
 | Package Entry Point Is a Web Page | code | - | - | - |
 | Chain: Install-time Persistence | code | T1195.001, T1543.002 | OB0012 Persistence | - |
 | Chain: npm Worm | code | T1195.001, T1552.001 | OB0005 Credential Access | - |
+| Chain: Weaponised AI Agent | code | T1059, T1485 | OB0009 Execution, OB0008 Impact | - |
+| Chain: DNS Tunnel Command Execution | code | T1071.004, T1059 | OB0004 Command and Control, OB0009 Execution | - |
+| Chain: Git Hook Persistence | code | T1546 | OB0012 Persistence | - |
+| Chain: SSH Key Planted | code | T1098.004 | OB0012 Persistence | - |
+| Chain: Platform Binary Under Another Name | code | T1195.001, T1036 | OB0006 Defense Evasion | - |
+| Code Hidden Behind Whitespace Padding | code | T1027.001 | OB0002 Anti-Static Analysis | - |
 | Remote URL Dependency | code | T1195.001, T1105 | OB0004 Command and Control | AV-501 |
 | Known Malicious URL (URLhaus) | code | T1071.001 | OB0004 Command and Control | - |
 | Extension Name Spoofing (invisible characters) | code | T1036 | OB0006 Defense Evasion | AV-207 |

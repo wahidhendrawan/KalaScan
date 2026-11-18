@@ -222,6 +222,46 @@ matches = ['''exec(Fernet(b'FTY_skQmO0wZD673alxcN2Sb=').decrypt(b'gAAAAABmBH3k')
 ignores = ['''data = Fernet(key).decrypt(token)''', '''self.exec(query.decrypt_field)''']
 
 [[rule]]
+id = "KS-EXE-038"
+name = "Agent CLI Run With Permissions Disabled"
+severity = "high"
+category = "obfuscation"
+description = "Starts a coding agent (Claude Code, Amazon Q, Gemini, Codex) with its approval prompts switched off: whatever the prompt says is done without asking"
+pattern = '''(?:--trust-all-tools|--dangerously-skip-permissions|--dangerously-bypass-approvals-and-sandbox|(?-u:\b)(?:gemini|codex)(?-u:\b)[^\n]{0,60}--yolo(?-u:\b))'''
+matches = ['''t.exec(`q --trust-all-tools --no-interactive "${re}"`,(et,pt)=>{''', '''spawn("claude", ["--dangerously-skip-permissions", "-p", PROMPT])''', '''execSync("gemini --yolo -p " + p)''']
+ignores = ['''q chat --no-interactive''', '''claude -p "summarise"''']
+
+[[rule]]
+id = "KS-EXE-039"
+name = "Split child_process Name"
+severity = "high"
+category = "obfuscation"
+description = "A string that is the first part of `child_process` and nothing else: the module name is put together at run time (javascript-obfuscator string splitting)"
+pattern = '''["\'`]child_p(?:r(?:o(?:c(?:e(?:s)?)?)?)?)?["\'`]'''
+matches = ['''const _0x14a95e=['process','ess','log','child_proc','433068GAVVdC'];''']
+ignores = ['''require("child_process")''', '''const child_p = 1''']
+
+[[rule]]
+id = "KS-EXE-040"
+name = "Code Decoded From a Number Array and Evaluated"
+severity = "critical"
+category = "obfuscation"
+description = "eval / new Function over a decoder applied to a long array of character codes: the payload of the compromised autotel, awaitly and @redhat-cloud-services releases (June 2026)"
+pattern = '''(?:(?-u:\b)eval|new\s+Function)\s*\(\s*(?:function\s*\([^()\n]{0,40}\)\s*\{[^\n]{0,400}?\}\s*|[A-Za-z_$][\w$]{0,40}\s*)\(\s*\[\s*\d{1,3}(?:\s*,\s*\d{1,3}){19}'''
+matches = ['''try{eval(function(s,n){return s.replace(/[a-zA-Z]/g,function(c){var b=c<="Z"?65:97;return String.fromCharCode((c.charCodeAt(0)-b+n)%26+b)})}([40,109,101,107,122,111,40,41,61,62,123,102,100,107,123,10,111,97,122,101,102,32,95])''', '''eval(dec([104,116,116,112,115,58,47,47,101,120,97,109,112,108,101,46,99,111,109,47,120,121]))''']
+ignores = ['''eval(function(p,a,c,k,e,d){e=function(c){return c};return p}('0 1',2,2,'a|b'.split('|'),0,{}))''', '''eval(fn([1,2,3]))''']
+
+[[rule]]
+id = "KS-EXE-041"
+name = "Module Name Decoded From Base64"
+severity = "critical"
+category = "obfuscation"
+description = "require() of a module name kept as base64 (`require(Buffer.from('ZnM=','base64').toString())` is `require('fs')`): hides which module is loaded from a reader or a plugin scanner. Not a verdict: an OpenClaw plugin hides `child_process` this way from the marketplace check"
+pattern = '''(?-u:\b)require\s*\(\s*(?:Buffer\.from\s*\(\s*["'`][A-Za-z0-9+/]{2,}={0,2}["'`]\s*,\s*["'`]base64["'`]\s*\)|atob\s*\(\s*["'`][A-Za-z0-9+/]{2,}={0,2}["'`]\s*\))'''
+matches = ['''const _0x1a2b=require(Buffer.from('ZnM=','base64').toString());''', '''const cp = require(atob("Y2hpbGRfcHJvY2Vzcw=="))''']
+ignores = ['''const data = Buffer.from(require('./blob'), 'base64')''', '''require(path.join(__dirname, name))''']
+
+[[rule]]
 id = "KS-EXE-036"
 name = "Builtin Name Built From Characters"
 severity = "critical"
@@ -466,7 +506,7 @@ name = "URL Fetch Command"
 severity = "medium"
 category = "supply_chain"
 description = "URL fetching — possible external payload download"
-pattern = '''(?i)(?:Invoke-WebRequest|curl(?-u:\b)|wget(?-u:\b)|fetch\(|axios\.(?:get|post)|request\.get|(?-u:\b)https?\.(?:request|get)\s*\(|requests\.(?:get|post|put)\s*\(|urlopen\s*\(|urllib\.request|http\.client|XMLHttpRequest|(?-u:\b)dns\.(?:lookup|resolve\w*)\s*\(|socket\.(?:gethostbyname(?:_ex)?|getaddrinfo)\s*\(|Net\.WebClient|Download(?:String|File)\s*\()'''
+pattern = '''(?i)(?:Invoke-WebRequest|curl(?-u:\b)|wget(?-u:\b)|fetch\(|axios(?:_\d+)?(?:\.default)?\.(?:get|post)|request\.get|(?-u:\b)https?\.(?:request|get)\s*\(|\.request\s*\(\s*\{\s*(?:hostname|host)\s*:|requests\.(?:get|post|put)\s*\(|urlopen\s*\(|urllib\.request|http\.client|XMLHttpRequest|(?-u:\b)dns\.(?:lookup|resolve\w*)\s*\(|socket\.(?:gethostbyname(?:_ex)?|getaddrinfo)\s*\(|Net\.WebClient|Download(?:String|File)\s*\()'''
 
 [[rule]]
 id = "KS-SUP-004"
@@ -630,9 +670,9 @@ name = "Host Reconnaissance"
 severity = "medium"
 category = "recon"
 description = "Collects host / user identity"
-pattern = '''(?:(?-u:\b)os\.(?:hostname|userInfo|networkInterfaces)\s*\(|getpass\.getuser\s*\(|socket\.gethostname\s*\(|platform\.node\s*\(|os\.getlogin\s*\(|psutil\.net_if_addrs|os\.uname\s*\(\s*\)\s*(?:\.nodename|\[\s*1\s*\])|(?:check_output|getoutput|popen|execSync)\s*\(\s*\[?\s*["'`](?:whoami|hostname|id)["'`])'''
-matches = ['''const u = os.userInfo().username''', '''subprocess.check_output('whoami', shell=True)''', '''user = os.popen('id').read()''', '''host = os.uname().nodename''']
-ignores = ['''machine = os.uname()[4]''', '''subprocess.check_output(['git', 'rev-parse', 'HEAD'])''']
+pattern = '''(?:(?-u:\b)os\.(?:hostname|userInfo|networkInterfaces)\s*\(|getpass\.getuser\s*\(|socket\.gethostname\s*\(|platform\.node\s*\(|os\.getlogin\s*\(|psutil\.net_if_addrs|os\.uname\s*\(\s*\)\s*(?:\.nodename|\[\s*1\s*\])|(?:check_output|getoutput|popen|execSync)\s*\(\s*\[?\s*["'`](?:whoami|hostname|id)["'`]|(?:^|[^.\w$])\w+\s*\(\s*["'`](?:whoami|uname\s+-a)["'`]\s*\))'''
+matches = ['''const u = os.userInfo().username''', '''subprocess.check_output('whoami', shell=True)''', '''await send('start', run('uname -a').trim())''', '''user = os.popen('id').read()''', '''host = os.uname().nodename''']
+ignores = ['''machine = os.uname()[4]''', '''subprocess.check_output(['git', 'rev-parse', 'HEAD'])''', '''let z=C("hostname")||C("host")''']
 
 [[rule]]
 id = "KS-SUP-008"
@@ -753,8 +793,8 @@ name = "Function Constructor with require"
 severity = "high"
 category = "obfuscation"
 description = "new Function('require', code): dynamic code execution with module access"
-pattern = '''(?:(?-u:\b)new\s+Function|(?-u:\b)Function\.constructor)\s*\(\s*["'`]require["'`]'''
-matches = ['''const h = new Function.constructor("require", s);''', '''new Function(
+pattern = '''(?:(?-u:\b)new\s+Function|(?-u:\b)Function\.constructor\s*\)?)\s*\(\s*["'`]require["'`]'''
+matches = ['''const h = new Function.constructor("require", s);''', '''const handler = new (Function.constructor)("require", res.token);''', '''new Function(
   'require', 'module', data.credits)''']
 ignores = ['''new Function("return this")()''']
 
@@ -776,9 +816,10 @@ name = "VS Code Extension Side-loading"
 severity = "high"
 category = "supply_chain"
 description = "Installs a VSIX file from outside the marketplace (supply chain side-loading)"
-pattern = '''workbench\.extensions\.installExtension["'`]\s*,\s*[^"'`\s]'''
-matches = ['''executeCommand('workbench.extensions.installExtension', uri)''']
-ignores = ['''executeCommand('workbench.extensions.installExtension', 'ms-python.python')''']
+# `arguments:` after the name is a command descriptor ({command, arguments: [id]}), not a call.
+pattern = '''workbench\.extensions\.installExtension["'`]\s*,\s*(?:[^"'`\sa]|a(?:[^r]|r(?:[^g]|g[^u])))'''
+matches = ['''executeCommand('workbench.extensions.installExtension', uri)''', '''executeCommand("workbench.extensions.installExtension",a)''']
+ignores = ['''executeCommand('workbench.extensions.installExtension', 'ms-python.python')''', '''{command:"workbench.extensions.installExtension",arguments:[e.extension.id,{enable:!0}]}''']
 
 [[rule]]
 id = "KS-REC-003"
@@ -809,6 +850,16 @@ category = "file_write"
 description = "Touches shell startup files (.bashrc / .zshrc / .bash_profile): persistence"
 pattern = '''\.(?:bashrc|zshrc|bash_profile)(?-u:\b)'''
 matches = ['''path.join(homeDir, '.zshrc')''']
+
+[[rule]]
+id = "KS-FSW-004"
+name = "Global Git Hooks Path Set"
+severity = "critical"
+category = "file_write"
+description = "Points git's hooks directory at one of its own for every repository of the user (`git config --global core.hooksPath`): what is put there runs on each commit"
+pattern = '''(?:git\s+config\s+--(?:global|system)\s+core\.hooksPath\s|["\']--(?:global|system)["\']\s*,\s*["\']core\.hooksPath["\']\s*,)'''
+matches = ['''exec('git config --global core.hooksPath ' + hooksPath)''', '''spawnSync("git", ["config", "--global", "core.hooksPath", dir])''']
+ignores = ['''execSync("git config --global core.hooksPath")''', '''git config core.hooksPath .husky''', '''git config --global --get core.hooksPath''']
 
 [[rule]]
 id = "KS-FSW-003"
@@ -988,6 +1039,16 @@ description = "An npm install script reads the user name, host name or home dire
 pattern = '''(?i)"(?:pre|post)?install"\s*:\s*"(?:[^"\\\n]|\\.)*?(?:\$\(\s*(?:whoami|hostname|id|uname)(?-u:\b)|`(?:whoami|hostname|id|uname)(?-u:\b)|\$\{?(?:USER|USERNAME|HOSTNAME|HOME)(?-u:\b))'''
 matches = ['''"preinstall": "b64=$(echo \"$(whoami):$(hostname)\" | base64 -w0)"''']
 ignores = ['''"postinstall": "node install.js"''']
+
+[[rule]]
+id = "KS-NET-004"
+name = "DNS TXT Query"
+severity = "medium"
+category = "network"
+description = "Asks for a TXT record: the DNS answer that can carry text, which is how a DNS tunnel receives its commands"
+pattern = '''(?:(?-u:\b)resolveTxt\s*\(|(?-u:\b)(?:resolve|query)\s*\(\s*[^()\n]{1,80},\s*["\']TXT["\']|rdtype\s*=\s*["\']TXT["\'])'''
+matches = ['''this.resolver.resolveTxt(q, (err, addresses) => {''', '''answers = dns.resolver.resolve(name, "TXT")''']
+ignores = ['''dns.resolve4(host, cb)''']
 
 [[rule]]
 id = "KS-REC-004"
