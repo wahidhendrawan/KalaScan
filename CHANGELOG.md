@@ -7,6 +7,8 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-11-18
+
 ### Added
 - Detection: the rules also run on each file with string disguises undone (`'fe'+'tch'`, `\x66` / `\u0066` escapes, `String.fromCharCode(…)` and `bytes([…]).decode()` literals, a reversed literal, `obj['name']`), and a hit that only shows up there is reported on its line.
 - Detection: `Chain: Web Page Published as a Package` (an npm package whose entry point is an HTML or SVG document with script written into it: phishing pages and cloned sites served from the registry's CDNs); `Base64-Encoded URL`; `Buffer Decode + eval` (Node's `eval(Buffer.from(blob, 'base64'))`, a lead rather than a verdict); javascript-obfuscator output with mangled names is recognised by its decoder.
@@ -216,7 +218,8 @@ published on GitHub; their features are listed with version markers in `README.m
 ### Fixed
 - `openapi.yaml` is copied into the Docker builder stage.
 
-[Unreleased]: https://github.com/wahidhendrawan/KalaScan/compare/v1.14.0...HEAD
+[Unreleased]: https://github.com/wahidhendrawan/KalaScan/compare/v1.15.0...HEAD
+[1.15.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.14.0...v1.15.0
 [1.14.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.13.0...v1.14.0
 [1.13.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.12.0...v1.13.0
 [1.12.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.11.0...v1.12.0
