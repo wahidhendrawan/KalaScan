@@ -107,6 +107,7 @@ fn decisive(name: &str) -> bool {
             scanner::DECRYPT_EXEC,
             scanner::BUILTIN_CHARS,
             scanner::DISGUISED_ARCHIVE,
+            scanner::CHARCODE_EVAL,
             cve::REMOTE_URL_DEP,
         ]
         .contains(&name)

@@ -6,13 +6,13 @@
 //! critical hits by the risk score.
 
 use crate::scanner::{
-    ACCOUNT_ENUM, AI_BASE_URL, ARCHIVE_EXTRACTION, B64_URL, BUFFER_EVAL, BUILTIN_CHARS,
-    CHARCODE_API, DECRYPT_EXEC, DETACHED_SPAWN, DISGUISED_ARCHIVE, DNS_BUILT, DOWNLOAD_CRADLE,
-    ESCAPED_EVAL, EXFIL_SERVICE, FETCH_EVAL, FUNCTION_REQUIRE, HEX_API, HOST_RECON, IMPORT_LOADER,
-    INSTALL_HOOK_OVERRIDE, INSTALL_NET, INSTALL_RECON, IP_LOOKUP, IP_URL, LOCAL_SERVER,
-    MAINTAINER_ENUM, MAKE_EXECUTABLE, NPM_PUBLISH, OBFUSCATOR_IO, RAW_SOCKET, REMOTE_BINARY,
-    SEED_ACCESS, SETUP_PY_EXEC, SETUP_PY_STAGER, SHELL_PROFILE, SHELL_START, SIDELOAD,
-    SYSTEMD_USER, UPLOAD_HANDLER,
+    ACCOUNT_ENUM, AGENT_UNSAFE, AI_BASE_URL, ARCHIVE_EXTRACTION, B64_URL, BUFFER_EVAL,
+    BUILTIN_CHARS, CHARCODE_API, DECRYPT_EXEC, DETACHED_SPAWN, DISGUISED_ARCHIVE, DNS_BUILT,
+    DNS_TXT, DOWNLOAD_CRADLE, ESCAPED_EVAL, EXFIL_SERVICE, FETCH_EVAL, FUNCTION_REQUIRE,
+    GIT_HOOKS_GLOBAL, HEX_API, HOST_RECON, IMPORT_LOADER, INSTALL_HOOK_OVERRIDE, INSTALL_NET,
+    INSTALL_RECON, IP_LOOKUP, IP_URL, LOCAL_SERVER, MAINTAINER_ENUM, MAKE_EXECUTABLE, NPM_PUBLISH,
+    OBFUSCATOR_IO, RAW_SOCKET, REMOTE_BINARY, SEED_ACCESS, SETUP_PY_EXEC, SETUP_PY_STAGER,
+    SHELL_PROFILE, SHELL_START, SIDELOAD, SPLIT_CHILD_PROCESS, SYSTEMD_USER, UPLOAD_HANDLER,
 };
 use crate::RuleMatch;
 use regex::Regex;
@@ -43,6 +43,11 @@ pub const PHISHING_REDIRECT: &str = "Chain: Phishing Redirect Package";
 pub const DEP_CONFUSION_HOOK: &str = "Chain: Dependency Confusion Install Hook";
 pub const INSTALL_PERSISTENCE: &str = "Chain: Install-time Persistence";
 pub const NPM_WORM: &str = "Chain: npm Worm";
+pub const WEAPONISED_AGENT: &str = "Chain: Weaponised AI Agent";
+pub const DNS_TUNNEL_EXEC: &str = "Chain: DNS Tunnel Command Execution";
+pub const GIT_HOOK_PERSISTENCE: &str = "Chain: Git Hook Persistence";
+pub const SSH_KEY_PLANTED: &str = "Chain: SSH Key Planted";
+pub const FOREIGN_BINARY: &str = "Chain: Platform Binary Under Another Name";
 /// Emitted by `cve::own_package_matches` for an npm package whose entry
 /// point is an HTML or SVG document with script in it.
 pub const WEB_PAGE_PACKAGE: &str = "Chain: Web Page Published as a Package";
@@ -141,11 +146,31 @@ const EXECUTORS: &[&str] = &[
     "JetBrains Process Execution",
     SHELL_START,
     DETACHED_SPAWN,
+    SPLIT_CHILD_PROCESS,
 ];
 
 /// Process output wired to a socket: the defining move of a reverse shell.
 static SHELL_PIPE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?:\.stdout\.pipe\(|\.pipe\(\s*[\w.]*stdin\b|os\.dup2\(|pty\.spawn\()").unwrap()
+});
+
+/// A key appended to `authorized_keys` is a login for whoever holds the
+/// private half (the `pino-pretty-logger` stealers). The key has to be in
+/// the code: SSH tools write the user's own key there (Remote - SSH).
+static PUBLIC_KEY: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?:ssh-(?:rsa|ed25519|dss)|ecdsa-sha2-nistp\d+)\s+AAAA[A-Za-z0-9+/]{20}").unwrap()
+});
+static AUTHORIZED_KEYS_WRITE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"authorized_keys[\s\S]{0,1500}?(?:(?:writeFile|appendFile)(?:Sync)?|createWriteStream)\s*\(|(?:(?:writeFile|appendFile)(?:Sync)?|createWriteStream)\s*\([^()\n]{0,80}authorized_keys|open\s*\([^()\n]{0,120}authorized_keys[^()\n]{0,40},\s*["']a\+?["']|>>\s*\S{0,40}authorized_keys"#).unwrap()
+});
+
+/// What a prompt asks for when the agent is the payload: destruction, or a
+/// hunt for keys and wallets.
+static AGENT_HARM: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?i)(?:(?:delete|wipe|erase|destroy)\s+(?:\w+\s+){0,3}(?:files?|file-system|filesystem|director(?:y|ies)|resources|buckets?|data\b)|terminate-instances|iam\s+delete-user|\bs3\s+rm\b|rm\s+-rf\s+[~/$]|wallets?\b|keystore|seed\s+phrase|id_rsa)",
+    )
+    .unwrap()
 });
 
 /// Chain parts must sit this close (bytes). Bundlers put a whole extension in
@@ -206,6 +231,48 @@ pub fn correlate_file(
         if spawns_chmod_target(content, at) {
             out.push(chain(rel_path, DROP_EXECUTE, chmod, spawn));
         }
+    }
+
+    // An agent started with its approval prompts off and told to destroy or
+    // to collect keys does the damage itself (amazon-q-vscode 1.84.0, the
+    // nx "s1ngularity" packages). The flag alone is every agent harness.
+    if let Some((at, run)) = indexed(&[AGENT_UNSAFE]).into_iter().next() {
+        if AGENT_HARM.is_match(around(content, at)) {
+            out.push(RuleMatch {
+                matched_pattern: WEAPONISED_AGENT.to_string(),
+                severity: "critical".to_string(),
+                context: format!(
+                    "{} (line {}) with a prompt that asks for deletion or for keys and wallets",
+                    run.matched_pattern, run.line_number
+                ),
+                ..run.clone()
+            });
+        }
+    }
+
+    if let Some((_, key)) = indexed(&["SSH Key Access"]).into_iter().find(|(at, _)| {
+        let text = around(content, *at);
+        AUTHORIZED_KEYS_WRITE.is_match(text) && PUBLIC_KEY.is_match(text)
+    }) {
+        out.push(RuleMatch {
+            matched_pattern: SSH_KEY_PLANTED.to_string(),
+            severity: "critical".to_string(),
+            context: format!(
+                "{} (line {}) and a write to authorized_keys",
+                key.matched_pattern, key.line_number
+            ),
+            ..key.clone()
+        });
+    }
+
+    // A TXT answer handed to eval / exec: commands arrive over DNS.
+    if let Some((_, txt, ex)) = near(&[DNS_TXT], &["eval() Usage", "exec() Usage"]) {
+        out.push(chain(rel_path, DNS_TUNNEL_EXEC, txt, ex));
+    }
+
+    // Every repository's hooks pointed at a directory this code fills.
+    if let Some((_, hooks, drop)) = near(&[GIT_HOOKS_GLOBAL], &[DETACHED_SPAWN, MAKE_EXECUTABLE]) {
+        out.push(chain(rel_path, GIT_HOOK_PERSISTENCE, hooks, drop));
     }
 
     // Code fetched over the network and handed `require`.
@@ -582,6 +649,49 @@ pub fn redirect_package(root: &Path) -> Option<RuleMatch> {
     })
 }
 
+/// An npm launcher whose command, wrapper script and per-platform binary
+/// packages carry one name while the package carries another, with an
+/// install hook: `saopaulo`, `ycombinator`, `motherduck` … each ship
+/// `bin/stardrop` and depend on `stardrop-linux-x64` and siblings. A real
+/// CLI shares its name with its binary (`turbo` / `turbo-darwin-64`,
+/// `opencode-ai` / `opencode-linux-x64`). The binary is the payload, so the
+/// mismatch is all a scan of the package can see.
+pub fn foreign_binary(root: &Path) -> Option<RuleMatch> {
+    let text = std::fs::read_to_string(root.join("package.json")).ok()?;
+    let manifest: serde_json::Value = serde_json::from_str(&text).ok()?;
+    let scripts = manifest["scripts"].as_object()?;
+    let hook = ["preinstall", "install", "postinstall"]
+        .into_iter()
+        .find(|h| scripts.contains_key(*h))?;
+    let name = manifest["name"].as_str()?;
+    let name = name.rsplit('/').next()?.to_lowercase();
+    let bins = manifest["bin"].as_object()?;
+    let platforms: Vec<&String> = manifest["optionalDependencies"]
+        .as_object()?
+        .keys()
+        .collect();
+    bins.iter().find_map(|(command, target)| {
+        let stem = Path::new(target.as_str()?).file_stem()?.to_str()?.to_lowercase();
+        let ours = |s: &str| s.contains(&stem) || stem.contains(s);
+        let family = platforms.len() >= 3
+            && platforms
+                .iter()
+                .all(|p| p.to_lowercase().starts_with(&format!("{stem}-")));
+        (stem.len() >= 3 && family && !ours(&name) && !ours(&command.to_lowercase())).then(|| {
+            RuleMatch {
+                file_path: "package.json".to_string(),
+                line_number: text[..text.find("\"bin\"").unwrap_or(0)].matches('\n').count() + 1,
+                matched_pattern: FOREIGN_BINARY.to_string(),
+                severity: "critical".to_string(),
+                context: format!(
+                    "`{name}` installs `{command}` as `{stem}` from {} `{stem}-*` packages, with a {hook} script",
+                    platforms.len()
+                ),
+            }
+        })
+    })
+}
+
 pub(crate) fn chain(rel_path: &str, name: &str, a: &RuleMatch, b: &RuleMatch) -> RuleMatch {
     RuleMatch {
         file_path: rel_path.to_string(),
@@ -642,6 +752,56 @@ mod tests {
             r#"{"name":"ext","engines":{"vscode":"^1.80.0"}}"#,
         );
         assert!(redirect_package(dir.path()).is_none());
+    }
+
+    #[test]
+    fn launcher_for_a_binary_of_another_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let write = |text: &str| std::fs::write(dir.path().join("package.json"), text).unwrap();
+        write(
+            r#"{"name":"saopaulo","bin":{"saopaulo":"./bin/stardrop"},
+            "scripts":{"postinstall":"node ./postinstall.mjs"},
+            "optionalDependencies":{"stardrop-linux-x64":"1","stardrop-darwin-arm64":"1","stardrop-windows-x64":"1"}}"#,
+        );
+        let found = foreign_binary(dir.path()).expect("foreign binary");
+        assert_eq!(found.matched_pattern, FOREIGN_BINARY);
+        assert!(found.context.contains("`stardrop`"), "{}", found.context);
+
+        // The real CLI shares the binary's name; a library with platform deps has no bin.
+        write(
+            r#"{"name":"opencode-ai","bin":{"opencode":"./bin/opencode"},
+            "scripts":{"postinstall":"node ./postinstall.mjs"},
+            "optionalDependencies":{"opencode-linux-x64":"1","opencode-darwin-arm64":"1","opencode-windows-x64":"1"}}"#,
+        );
+        assert!(foreign_binary(dir.path()).is_none());
+        write(
+            r#"{"name":"sharp-wrapper","scripts":{"install":"node install.js"},
+            "optionalDependencies":{"sharp-linux-x64":"1","sharp-darwin-arm64":"1","sharp-win32-x64":"1"}}"#,
+        );
+        assert!(foreign_binary(dir.path()).is_none());
+        // Without an install hook nothing runs at install.
+        write(
+            r#"{"name":"saopaulo","bin":{"saopaulo":"./bin/stardrop"},
+            "optionalDependencies":{"stardrop-linux-x64":"1","stardrop-darwin-arm64":"1","stardrop-windows-x64":"1"}}"#,
+        );
+        assert!(foreign_binary(dir.path()).is_none());
+    }
+
+    #[test]
+    fn ssh_key_planted() {
+        let code = "const KEY = `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJxc6YPFfHFz attacker`;\nconst d = path.join(os.homedir(), '.ssh');\nconst f = path.join(d, 'authorized_keys');\nlet old = fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '';\nfs.writeFileSync(f, old + KEY + '\\n');\n";
+        let m = [hit("dist/logger.js", "SSH Key Access", 1)];
+        assert_eq!(
+            names(&correlate_file("dist/logger.js", code, &m, &[20])),
+            vec![SSH_KEY_PLANTED]
+        );
+        // Reading the keys (an SSH helper listing them) writes nothing.
+        let read = "const f = path.join(os.homedir(), '.ssh', 'authorized_keys');\nconst keys = fs.readFileSync(f, 'utf8').split('\\n');\n";
+        assert!(correlate_file("lib/keys.js", read, &m, &[20]).is_empty());
+        // An SSH tool appends the user's own key, which is not in its code.
+        let tool =
+            "run(`echo '${pubKey}' >> ~/.ssh/authorized_keys`);\nfs.writeFileSync(cfg, text);\n";
+        assert!(correlate_file("out/resolver.js", tool, &m, &[20]).is_empty());
     }
 
     fn hit(file: &str, rule: &str, line: usize) -> RuleMatch {
@@ -1095,6 +1255,38 @@ mod tests {
         // A release script publishes without listing the account's packages.
         assert!(correlate_package(&[publish]).is_empty());
         assert!(correlate_package(&[list]).is_empty());
+    }
+
+    #[test]
+    fn agent_dns_tunnel_and_git_hook_chains() {
+        // The flag is every agent harness; with a prompt that deletes, a chain.
+        let run = [hit("ext.js", AGENT_UNSAFE, 1)];
+        let wipe = "exec(`q --trust-all-tools --no-interactive \"delete file-system and cloud resources\"`)";
+        assert_eq!(
+            names(&correlate_file("ext.js", wipe, &run, &[5])),
+            vec![WEAPONISED_AGENT]
+        );
+        let harness =
+            "spawn('claude', ['--dangerously-skip-permissions', '-p', 'fix the failing test'])";
+        assert!(correlate_file("ext.js", harness, &run, &[20]).is_empty());
+
+        let txt = [hit("run.js", DNS_TXT, 1), hit("run.js", "eval() Usage", 9)];
+        assert_eq!(
+            names(&correlate_file("run.js", "", &txt, &[100, 1700])),
+            vec![DNS_TUNNEL_EXEC]
+        );
+        // An SPF checker asks for TXT records and evaluates nothing.
+        assert!(correlate_file("spf.js", "", &txt[..1], &[100]).is_empty());
+
+        let hooks = [
+            hit("m.js", GIT_HOOKS_GLOBAL, 1),
+            hit("m.js", DETACHED_SPAWN, 3),
+        ];
+        assert_eq!(
+            names(&correlate_file("m.js", "", &hooks, &[900, 200])),
+            vec![GIT_HOOK_PERSISTENCE]
+        );
+        assert!(correlate_file("m.js", "", &hooks[..1], &[900]).is_empty());
     }
 
     #[test]

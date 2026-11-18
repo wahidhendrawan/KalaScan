@@ -569,7 +569,7 @@ fn extract_zip_capped(bytes: &[u8], dest_dir: &Path, max_total: u64) -> anyhow::
             }
             let mut outfile = File::create(&outpath)?;
             // A bigger entry is truncated, not fatal: the scanner reads only
-            // the first 4 MiB of any file and flags it as oversized. Claude
+            // part of a file over 4 MiB and flags it as oversized. Claude
             // Code ships a 270 MB binary that used to make the VSIX unscannable.
             // One byte past the remaining budget is enough to detect overflow.
             let budget = max_total - total_uncompressed;

@@ -13,7 +13,7 @@ KalaScan is one Rust binary (`src/main.rs`, a thin entry point over the library 
 | Target acquisition | `vsix.rs` | Downloads and safely extracts VSIX / Open VSX / JetBrains / CRX / npm / PyPI packages (zip-slip, symlink and size guards); Git URLs are cloned with `git` |
 | | `registry.rs` | npm / PyPI registry metadata: manifest confusion, install-script and provenance regressions, lapsed maintainer e-mail domains, AI-vendor repository impersonation |
 | | `lockfile.rs` | `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `poetry.lock`, `Pipfile.lock`, `uv.lock`, `requirements.txt`, `Cargo.lock` parsing for `kalascan deps` |
-| Static analysis | `scanner.rs` | Rule loader (`rules/builtin.toml`, `--rules`, `rules/secrets.toml`), file walker and extension filter, regex pass, per-file `catch_unwind`, 4 MiB read cap |
+| Static analysis | `scanner.rs` | Rule loader (`rules/builtin.toml`, `--rules`, `rules/secrets.toml`), file walker and extension filter, regex pass, per-file `catch_unwind`, 4 MiB read cap (padding collapsed, then head and tail of a larger file) |
 | | `yara_engine.rs` | yara-x compiler and scanner; three built-in rules; GuardDog `path_include` / `ecosystem` meta; `--yara-dir` |
 | | `entropy.rs` | Shannon high-entropy blobs, zero-width characters, Trojan Source bidi controls, Cyrillic homoglyphs |
 | | `obfuscator.rs` | Decodes javascript-obfuscator style string tables so the rules see the real strings |
@@ -44,7 +44,7 @@ KalaScan is one Rust binary (`src/main.rs`, a thin entry point over the library 
 | Output | `export.rs`, `export/html.rs` | Markdown, HTML, SARIF, CSV, JUnit and GitHub-annotation exporters; risk levels |
 | | `export/stix.rs`, `export/osv.rs` | STIX 2.1 bundle and OSV malicious-package record, for threat-intel tooling |
 
-Rules are data: `rules/builtin.toml` (101 regex rules), `rules/secrets.toml` (208 gitleaks patterns, opt-in), `rules/yara/` (GuardDog rules) and `rules/popular_extensions.tsv` are embedded at compile time. See [detection-rules.md](detection-rules.md).
+Rules are data: `rules/builtin.toml` (107 regex rules), `rules/secrets.toml` (208 gitleaks patterns, opt-in), `rules/yara/` (GuardDog rules) and `rules/popular_extensions.tsv` are embedded at compile time. See [detection-rules.md](detection-rules.md).
 
 ## Scan pipeline
 

@@ -7,6 +7,9 @@ nothing is checked out (eval/fetch_malicious.sh does that later).
   # DataDog dataset, samples dated on or after a day (the date is in the file name)
   python3 eval/sample_malicious.py --dataset ~/kalascan-corpus --since 2026-08-01 --ecosystem npm --set recent-2026-11
 
+  # IDE extensions have no date in the file name, so --since does not apply
+  python3 eval/sample_malicious.py --dataset ~/kalascan-corpus --ecosystem ide_extensions --set tune-ext-2026-11
+
   # pypi_malregistry, only package names the DataDog dataset does not have
   python3 eval/sample_malicious.py --dataset ~/kalascan-corpus --malregistry ~/kalascan-malregistry --set malregistry-2026-11
 
@@ -43,7 +46,7 @@ def main():
     ap.add_argument("--corpus", default=os.path.join(os.path.dirname(__file__), "corpus.json"))
     ap.add_argument("--dataset", required=True, help="blobless clone of the DataDog dataset")
     ap.add_argument("--malregistry", help="blobless clone of pypi_malregistry; draw from it instead")
-    ap.add_argument("--ecosystem", choices=("npm", "pypi"), default="npm", help="DataDog ecosystem to draw from")
+    ap.add_argument("--ecosystem", choices=("npm", "pypi", "ide_extensions"), default="npm", help="DataDog ecosystem to draw from")
     ap.add_argument("--since", default="0000-00-00", help="DataDog only: samples dated on or after YYYY-MM-DD")
     ap.add_argument("--size", type=int, default=100)
     ap.add_argument("--seed", type=int, default=20261117)
@@ -68,7 +71,12 @@ def main():
         for path in tree(args.dataset, f"samples/{args.ecosystem}"):
             parts = path.split("/")
             dated = re.match(r"\d{4}-\d{2}-\d{2}", parts[-1])
-            if len(parts) >= 6 and dated and dated.group() >= args.since and norm(parts[3]) not in used:
+            if args.ecosystem == "ide_extensions":
+                # samples/ide_extensions/<kind>/<id>/<version>.vsix: no date in the name.
+                wanted = len(parts) == 5 and path.endswith(".vsix")
+            else:
+                wanted = len(parts) >= 6 and dated and dated.group() >= args.since
+            if wanted and norm(parts[3]) not in used:
                 by_name.setdefault(norm(parts[3]), []).append(path)
 
     rng = random.Random(args.seed)

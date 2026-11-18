@@ -17,7 +17,7 @@ There are two models. **v1 is the default.** v2 is opt-in (`kalascan scan --scor
 7. **AI verdict** `min(ai.risk_score / 2, 25)` only when the model says malicious; a benign verdict adds 0.
 8. **Total** = the parts added up, capped at 100.
 
-The result is nearly two-valued: a package has a chain or two criticals and scores 70 or more, or it does not and stays under 30. On the holdout 306 of 461 malicious samples score 70 or more, two score 30-49, none 50-69.
+The result is nearly two-valued: a package has a chain or two criticals and scores 70 or more, or it does not and stays under 30. On the holdout 465 of 657 malicious samples score 70 or more, two score 30-49, none 50-69.
 
 ## v2: weights fitted on the corpus
 
@@ -51,21 +51,21 @@ The opt-in deep passes and the AI verdict were not part of the corpus scans (onl
 
 ### How the weights were fitted
 
-`python3 eval/fit_weights.py results.json > rules/weights.toml`, on the `dev` split only: 403 malicious and 366 clean packages (66 picked, 300 drawn at random, see [eval/README.md](../eval/README.md)). The `holdout` split was not read.
+`python3 eval/fit_weights.py results.json > rules/weights.toml`, on the `dev` split only: 626 malicious and 369 clean packages (66 picked, 300 drawn at random, see [eval/README.md](../eval/README.md)). The `holdout` split was not read.
 
 Cross-validation on `dev` (fit on four fifths, score the fifth; held-out folds summed; `--cv`), flagged at 50 or more:
 
 | prior | k | malicious caught | clean flagged |
 |---|---|---|---|
-| 0.02 | 5 | 297/403 | 6/366 |
-| 0.02 | 20 | 296/403 | 5/366 |
-| **0.02** | **50** | **292/403** | **3/366** |
-| 0.05 | 20 | 300/403 | 9/366 |
-| 0.05 | 50 | 300/403 | 7/366 |
-| 0.1 | 20 | 323/403 | 29/366 |
-| 0.1 | 50 | 320/403 | 27/366 |
+| 0.02 | 5 | 487/626 | 10/369 |
+| 0.02 | 20 | 487/626 | 8/369 |
+| **0.02** | **50** | **478/626** | **3/369** |
+| 0.05 | 20 | 493/626 | 12/369 |
+| 0.05 | 50 | 487/626 | 8/369 |
+| 0.1 | 20 | 519/626 | 44/369 |
+| 0.1 | 50 | 514/626 | 38/369 |
 
-v1 on the same split: 291/403 and 0/366, with rules that were tuned while looking at it. The table was recomputed for ruleset 2026.11.3; with ruleset 2026.11.2 (253 malicious) it picked the same parameters. The clean packages v2 flags in cross-validation each show one strong finding the other four fifths had not seen on a clean package (a download cradle in an agent's installer, bidi characters in a UI example, a base64 blob evaluated as licence protection).
+v1 on the same split: 480/626 and 0/369, with rules that were tuned while looking at it. The table was recomputed for ruleset 2026.11.5. With rulesets 2026.11.2 to 2026.11.4 (253, 403 and 426 malicious) it picked the same parameters, and they were left as they were. The clean packages v2 flags in cross-validation each show one strong finding the other four fifths had not seen on a clean package (a download cradle in an agent's installer, bidi characters in a UI example, a base64 blob evaluated as licence protection).
 
 Two variants were tried on `dev` (with ruleset 2026.11.1: 173 malicious, 365 clean) and dropped:
 
@@ -74,24 +74,24 @@ Two variants were tried on `dev` (with ruleset 2026.11.1: 173 malicious, 365 cle
 
 ### What the holdout says
 
-Ruleset 2026.11.3, 461 malicious and 456 clean holdout packages, 95% Wilson interval in brackets. The v1 column is the binary's ([`eval/results/2026.11.3.json`](../eval/results/2026.11.3.json)). The v2 column is what the fitter computes from the findings that run recorded, with the weights refitted on `dev` (403 malicious, 366 clean); the samples were deleted after the run, so the binary was not run again with `--score-model v2`. In the first evaluation (ruleset 2026.11.1) the two agreed on 1,295 of 1,297 packages, the other two carrying a binary-triage part the fitter does not see.
+Ruleset 2026.11.5, 657 malicious and 453 clean holdout packages, 95% Wilson interval in brackets. The v1 column is the binary's ([`eval/results/2026.11.5.json`](../eval/results/2026.11.5.json)). The v2 column is what the fitter computes from the findings that run recorded, with the weights refitted on `dev` (626 malicious, 369 clean); the samples were deleted after the run, so the binary was not run again with `--score-model v2`. In the first evaluation (ruleset 2026.11.1) the two agreed on 1,295 of 1,297 packages, the other two carrying a binary-triage part the fitter does not see.
 
 | threshold | v1 malicious | v1 clean | v2 malicious | v2 clean |
 |---|---|---|---|---|
-| 30 | 308/461 (67%, 62-71) | 0/456 (0%, 0-1) | 324/461 (70%, 66-74) | 5/456 (1.1%, 0.5-2.5) |
-| 50 | 306/461 (66%, 62-71) | 0/456 (0%, 0-1) | 305/461 (66%, 62-70) | 0/456 (0%, 0-1) |
-| 70 | 306/461 (66%, 62-71) | 0/456 (0%, 0-1) | 305/461 (66%, 62-70) | 0/456 (0%, 0-1) |
+| 30 | 467/657 (71%, 67-74) | 0/453 (0%, 0-1) | 479/657 (73%, 69-76) | 4/453 (0.9%, 0.3-2.2) |
+| 50 | 465/657 (71%, 67-74) | 0/453 (0%, 0-1) | 466/657 (71%, 67-74) | 0/453 (0%, 0-1) |
+| 70 | 465/657 (71%, 67-74) | 0/453 (0%, 0-1) | 461/657 (70%, 67-74) | 0/453 (0%, 0-1) |
 
 Malicious samples caught at the best threshold that flags no more than a given number of clean packages:
 
 | clean flagged at most | 0 | 1 | 4 | 9 |
 |---|---|---|---|---|
-| v1 | 308 | 308 | 308 | 308 |
-| v2 | 308 | 308 | 324 | 338 |
+| v1 | 467 | 467 | 467 | 467 |
+| v2 | 466 | 466 | 487 | 509 |
 
-**v2 does not beat v1 where KalaScan operates.** With no clean package flagged the two are level (308 and 308 of 461). What v2 adds is a range v1 does not have: v1's scores leave almost nothing between 30 and 70 to trade with, while v2 catches 16 more samples for 4 clean packages flagged in 456, and 30 more for 9. That is why v2 ships behind a flag and v1 stays the default: the gain is a choice of operating point, not better detection, and the ceiling is set by what the rules see. 137 of the 461 malicious holdout samples score under 30 in v2, 153 in v1.
+**v2 does not beat v1 where KalaScan operates.** With no clean package flagged the two are level (467 and 466 of 657). What v2 adds is a range v1 does not have: v1's scores leave almost nothing between 30 and 70 to trade with, while v2 catches 20 more samples for 4 clean packages flagged in 453, and 42 more for 9. That is why v2 ships behind a flag and v1 stays the default: the gain is a choice of operating point, not better detection, and the ceiling is set by what the rules see. 178 of the 657 malicious holdout samples score under 30 in v2, 190 in v1.
 
-This is the third evaluation of v2 on the holdout. The first two (rulesets 2026.11.1 and 2026.11.2, 193 and 201 of 302 at threshold 50) gave the same picture. The model and its two parameters were not changed between them; the weights were refitted because the rules changed.
+This is the fifth evaluation of v2 on the holdout. The first four (rulesets 2026.11.1 and 2026.11.2, 193 and 201 of 302 at threshold 50; rulesets 2026.11.3 and 2026.11.4, 305 of 461) gave the same picture. The model and its two parameters were not changed between them; the weights were refitted because the rules changed.
 
 ### What a score means
 
@@ -99,15 +99,15 @@ Holdout packages by score band. The corpus is half malicious; a registry is not,
 
 | band | v1 malicious | v1 clean | v2 malicious | v2 clean |
 |---|---|---|---|---|
-| 0-9 | 104 | 331 | 91 | 392 |
-| 10-29 | 49 | 125 | 46 | 59 |
-| 30-49 | 2 | 0 | 19 | 5 |
-| 50-69 | 0 | 0 | 0 | 0 |
-| 70-100 | 306 | 0 | 305 | 0 |
+| 0-9 | 136 | 331 | 115 | 395 |
+| 10-29 | 54 | 122 | 63 | 54 |
+| 30-49 | 2 | 0 | 13 | 4 |
+| 50-69 | 0 | 0 | 5 | 0 |
+| 70-100 | 465 | 0 | 461 | 0 |
 
 ## Limits
 
-- Weights are fitted on 403 malicious packages from two datasets (353 from one) and 366 clean ones. A finding seen once or twice has a weight that is mostly its class prior.
+- Weights are fitted on 626 malicious packages from two datasets (576 from one) and 369 clean ones. A finding seen once or twice has a weight that is mostly its class prior.
 - Findings are treated as independent given the class, which they are not (a chain and the two findings it is made of fire together). The halving in the accumulation dampens this; it does not remove it.
 - The clean side decides the false-positive rate, and popular or six-month-old packages are an easier clean set than everything a registry holds. [eval/README.md](../eval/README.md) has the measured rate on random packages.
 - Refit after rule changes: `python3 eval/run_eval.py … --out results.json`, then `eval/fit_weights.py`. A weight refers to the finding as it fired when the corpus was scanned.
