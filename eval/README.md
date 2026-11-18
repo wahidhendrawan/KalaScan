@@ -23,28 +23,43 @@ The malicious samples are **live malware**. `run_eval.py` only scans them static
 
 CI (`.github/workflows/eval.yml`) runs only the clean half, as a false-positive gate: `--only clean --max-fpr 0`, on every pull request that touches `src/`, `rules/`, `eval/` or `Cargo.lock`.
 
-Results at threshold 50 (measured 2026-11-17, ruleset 2026.11.1, score model v1; 95% interval in brackets):
+Results at threshold 50 (measured 2026-11-17, ruleset 2026.11.2, score model v1; 95% interval in brackets; the aggregate is in [`results/2026.11.2.json`](results/2026.11.2.json)):
 
 | split | malicious recall | clean false positives |
 |---|---|---|
-| dev | 135/173 (78%, 71-84) | 0/365 (0%, 0-1) |
-| holdout | 193/302 (64%, 58-69) | 0/457 (0%, 0-1) |
+| dev | 171/253 (68%, 62-73) | 0/366 (0%, 0-1) |
+| holdout | 202/302 (67%, 61-72) | 0/456 (0%, 0-1) |
+
+The dev figure fell from 78% because 80 of the newest npm samples joined it as a tuning batch (below), not because anything was lost.
 
 The holdout by sample set:
 
 | holdout set | what it is | malicious recall |
 |---|---|---|
-| original | 147 samples: the 27 first ones and 120 added in November 2026 | 99/147 (67%, 59-74) |
-| `recent-2026-11` | 60 npm packages dated 2026-08-01 or later, the newest in the dataset | 24/60 (40%, 29-53) |
+| original | 147 samples: the 27 first ones and 120 added in November 2026 | 101/147 (69%, 61-76) |
+| `recent-2026-11` | 60 npm packages dated 2026-08-01 or later, the newest in the dataset | 31/60 (52%, 39-64) |
 | `malregistry-2026-11` | 100 PyPI packages from pypi_malregistry whose names the DataDog dataset does not have; 5 archives do not unpack | 70/95 (74%, 64-81) |
 
-**The holdout number is the one to quote, and the `recent` row is the one to worry about**: on the newest npm malware KalaScan catches four in ten. The second source says the PyPI rules are not fitted to one dataset's taste: 74% there, 36 of 48 (75%) on the DataDog PyPI holdout samples. By ecosystem the holdout is IDE extensions 32/48 (67%), npm 55/111 (50%), PyPI 106/143 (74%).
+**The holdout number is the one to quote, and the `recent` row is the one to worry about**: on the newest npm malware KalaScan catches about half (24 of 60 with ruleset 2026.11.1, before the tuning described next). The second source says the PyPI rules are not fitted to one dataset's taste: 74% there, 36 of 48 (75%) on the DataDog PyPI holdout samples. By ecosystem the holdout is IDE extensions 32/48 (67%), npm 64/111 (58%), PyPI 106/143 (74%).
+
+### Tuning on the newest npm samples (ruleset 2026.11.2)
+
+The `recent` holdout set scored 24 of 60, and reading it would have ended it as a holdout. So a second batch was drawn the same way (`sample_malicious.py --since 2026-08-01 --seed 20261118`, 80 packages, `"set": "tune-recent-2026-11"`, split `dev`) and read instead. Before any change it scored 24 of 80 (30%), close to the holdout rate. Its 56 misses were of four kinds:
+
+- **Web pages published as packages** (11): `"main": "index.html"` or `"index.svg"`, no module at all. The registry's CDNs (unpkg, jsDelivr) serve the page under a trusted host name: phishing pages, cloned sites, an SVG whose script builds the page. Now `Chain: Web Page Published as a Package`, for an entry point that is an HTML or SVG document with script written into it.
+- **Nothing malicious in the artefact** (about 24): nine `@toptal/picasso-*` packages at version 100.x that hold the real component code and no payload, platform packages that are one native binary, research probes, and helper packages whose payload lives in a sibling package. Static rules have nothing to find there.
+- **Hidden strings** (2): a payload host kept as a base64 literal and evaluated two lines later (`Base64-Encoded URL`, `Buffer Decode + eval`), and javascript-obfuscator output with mangled names instead of `_0x…` (the decoder's arithmetic is now part of `Obfuscator.io Output`).
+- **One-offs** (about 19): forks of a WhatsApp library with a changed endpoint, an Electron exam-cheating tool, install scripts that fetch a binary like every native package does.
+
+After the changes the batch scores 35 of 80 (44%), and the holdout moved once: **193 → 202 of 302**, `recent` 24 → 31 of 60, original 99 → 101 of 147. About a third of this batch is out of reach for a scan of the package's own files, so the newest-npm rate has a ceiling near two in three with the present approach.
+
+The clean corpus did its job twice while this was written. A first version of the Node decode-and-eval pattern ran case-insensitively and matched `function (` after any base64 decode: 22 of 822 clean packages flagged, found before anything was merged. And the new chain flagged one clean holdout package, `responsive-embed@1.0.0`, a Polymer element whose entry point is its demo page; the chain now needs script written into the page and no HTML Imports, and that package is in `dev`. Quokka (a clean `dev` extension) ships a base64 blob of obfuscated code that it evals as licence protection, which is why `Buffer Decode + eval` is a lead (20 points) and not a verdict.
 
 The two new sets were drawn with `eval/sample_malicious.py` (seed 20261117, one version per package name, names already in the corpus skipped) and have not been read. `--since` makes the same draw for a later date: the way to measure, at each release, on samples newer than the rules.
 
-**The honest false-positive number moved.** A second random draw of clean packages (`sample_clean.py --seed 20261117`, 297 scanned) was flagged 4 times at 50 or more before any fix: a webpack dev bundle whose `eval` module held a link to a `.sh` file (`@crisog/sourcecred`), a `curl … .EXE` in `circle.yml` next to an npm install script (`sapnwrfc`), a curl command line kept in a variable and run (`cco`), and zc.buildout's old `bootstrap.py` (`xbob.paper.jmlr2013`). With the first draw that is 5 false positives in 595 random packages: **0.8% (0.4-2.0)**, not the 0.3% the first draw alone suggested. A fifth package, `diverse_fowl_z3n`, was a registry spam publisher like `democratic_trout_z3n` and is left out of the corpus. The four are fixed and stay in `dev` (`"set": "fit-2026-11"`): the clean half the v2 score weights are fitted on. The 0/457 on the holdout is what remains unseen.
+**The honest false-positive number moved.** A second random draw of clean packages (`sample_clean.py --seed 20261117`, 297 scanned) was flagged 4 times at 50 or more before any fix: a webpack dev bundle whose `eval` module held a link to a `.sh` file (`@crisog/sourcecred`), a `curl … .EXE` in `circle.yml` next to an npm install script (`sapnwrfc`), a curl command line kept in a variable and run (`cco`), and zc.buildout's old `bootstrap.py` (`xbob.paper.jmlr2013`). With the first draw that is 5 false positives in 595 random packages: **0.8% (0.4-2.0)**, not the 0.3% the first draw alone suggested. A fifth package, `diverse_fowl_z3n`, was a registry spam publisher like `democratic_trout_z3n` and is left out of the corpus. The four are fixed and stay in `dev` (`"set": "fit-2026-11"`): the clean half the v2 score weights are fitted on. The 0/456 on the holdout is what remains unseen.
 
-**The harness scanned the wrong directory for some wheels.** A dataset archive of a PyPI wheel holds the wheel's files and, for some samples, a `sources/` checkout of the linked repository. `package_root` looked for `setup.py` / `pyproject.toml` / `PKG-INFO` and so picked `sources/` for those samples. It now takes a `*.dist-info` directory as a package root too, which is what pip installs. That, and reading name and version from a wheel's `METADATA`, moved the original holdout from 94 to 99 of 147.
+**The harness scanned the wrong directory for some wheels.** A dataset archive of a PyPI wheel holds the wheel's files and, for some samples, a `sources/` checkout of the linked repository. `package_root` looked for `setup.py` / `pyproject.toml` / `PKG-INFO` and so picked `sources/` for those samples. It now takes a `*.dist-info` directory as a package root too, which is what pip installs. That, and reading name and version from a wheel's `METADATA`, moved the original holdout from 94 to 99 of 147 (ruleset 2026.11.1).
 
 **The holdout number is still the one to quote.** Until November 2026 the holdout split held 27 malicious samples and scored 26/27 (96%). 120 fresh samples were then added with a fixed seed (40 npm and 40 PyPI packages first published to the dataset in 2026, 40 extensions, one version per package name), and none of them has been read. On those 120 alone KalaScan catches 56 (47%): the earlier figure was a small-sample artefact, and rules tuned on 2022-2025 samples generalise worse than it suggested.
 
@@ -78,7 +93,7 @@ The data-flow pass was the risky part. Its first version ignored statement order
 | GuardDog, threat or metadata rule | 107/147 (73%) | 155/220 (70%) | 128/223 (57%) |
 | GuardDog, any rule | 123/147 (84%) | 187/220 (85%) | 213/223 (96%) |
 
-The two tools sit at different points: GuardDog finds more of the malware, most clearly on PyPI (41 of 48 holdout samples against KalaScan's 33), and flags more than half of the popular clean packages on the way; KalaScan flags none of the clean ones and misses more malware. GuardDog was run once, before the November tuning; at that time 66 holdout samples were caught by both, 16 only by KalaScan, 41 only by GuardDog and 24 by neither. The table is from that run: on the same 147 samples KalaScan is now at 99, and GuardDog has not been run on the two newer holdout sets. Read the comparison with two caveats: the malicious samples come from DataDog's own dataset, which GuardDog's rules were developed against, and four large clean PyPI packages timed out under GuardDog (300 s) and are left out of its column.
+The two tools sit at different points: GuardDog finds more of the malware, most clearly on PyPI (41 of 48 holdout samples against KalaScan's 33), and flags more than half of the popular clean packages on the way; KalaScan flags none of the clean ones and misses more malware. GuardDog was run once, before the November tuning; at that time 66 holdout samples were caught by both, 16 only by KalaScan, 41 only by GuardDog and 24 by neither. The table is from that run: on the same 147 samples KalaScan is now at 101, and GuardDog has not been run on the two newer holdout sets. Read the comparison with two caveats: the malicious samples come from DataDog's own dataset, which GuardDog's rules were developed against, and four large clean PyPI packages timed out under GuardDog (300 s) and are left out of its column.
 
 The 60 extensions installed on the maintainer's machine (`kalascan installed`) also all score below 30. Ten of them were false positives during development and are now in the clean `dev` split.
 

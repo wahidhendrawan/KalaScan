@@ -6,12 +6,12 @@
 //! critical hits by the risk score.
 
 use crate::scanner::{
-    ACCOUNT_ENUM, AI_BASE_URL, ARCHIVE_EXTRACTION, CHARCODE_API, DETACHED_SPAWN, DNS_BUILT,
-    DOWNLOAD_CRADLE, ESCAPED_EVAL, EXFIL_SERVICE, FETCH_EVAL, FUNCTION_REQUIRE, HEX_API,
-    HOST_RECON, IMPORT_LOADER, INSTALL_HOOK_OVERRIDE, INSTALL_NET, INSTALL_RECON, IP_LOOKUP,
-    IP_URL, LOCAL_SERVER, MAKE_EXECUTABLE, NPM_PUBLISH, OBFUSCATOR_IO, RAW_SOCKET, REMOTE_BINARY,
-    SEED_ACCESS, SETUP_PY_EXEC, SETUP_PY_STAGER, SHELL_PROFILE, SHELL_START, SIDELOAD,
-    UPLOAD_HANDLER,
+    ACCOUNT_ENUM, AI_BASE_URL, ARCHIVE_EXTRACTION, B64_URL, BUFFER_EVAL, CHARCODE_API,
+    DETACHED_SPAWN, DNS_BUILT, DOWNLOAD_CRADLE, ESCAPED_EVAL, EXFIL_SERVICE, FETCH_EVAL,
+    FUNCTION_REQUIRE, HEX_API, HOST_RECON, IMPORT_LOADER, INSTALL_HOOK_OVERRIDE, INSTALL_NET,
+    INSTALL_RECON, IP_LOOKUP, IP_URL, LOCAL_SERVER, MAKE_EXECUTABLE, NPM_PUBLISH, OBFUSCATOR_IO,
+    RAW_SOCKET, REMOTE_BINARY, SEED_ACCESS, SETUP_PY_EXEC, SETUP_PY_STAGER, SHELL_PROFILE,
+    SHELL_START, SIDELOAD, UPLOAD_HANDLER,
 };
 use crate::RuleMatch;
 use regex::Regex;
@@ -40,6 +40,9 @@ pub const OBFUSCATED_RECON: &str = "Chain: Obfuscated Reconnaissance";
 pub const RANSOMWARE: &str = "Chain: Ransomware";
 pub const PHISHING_REDIRECT: &str = "Chain: Phishing Redirect Package";
 pub const DEP_CONFUSION_HOOK: &str = "Chain: Dependency Confusion Install Hook";
+/// Emitted by `cve::own_package_matches` for an npm package whose entry
+/// point is an HTML or SVG document with script in it.
+pub const WEB_PAGE_PACKAGE: &str = "Chain: Web Page Published as a Package";
 /// Emitted by `cve::own_package_matches` for versions like 99.0.0 / 999.9.9.
 pub const DEP_CONFUSION_VERSION: &str = "Dependency Confusion Version";
 
@@ -101,6 +104,8 @@ const STAGERS: &[&str] = &[
     FETCH_EVAL,
     HEX_API,
     CHARCODE_API,
+    B64_URL,
+    BUFFER_EVAL,
     IMPORT_LOADER,
 ];
 
@@ -225,7 +230,7 @@ pub fn correlate_file(
     // File-wide on purpose: javascript-obfuscator output is a property of the
     // whole file, and legitimate extensions are minified, not obfuscated.
     if let (Some(obf), Some(ex)) = (
-        has(&[OBFUSCATOR_IO, ESCAPED_EVAL, HEX_API, CHARCODE_API]),
+        has(&[OBFUSCATOR_IO, ESCAPED_EVAL, HEX_API, CHARCODE_API, B64_URL]),
         has(EXECUTORS),
     ) {
         out.push(chain(rel_path, OBFUSCATED_EXEC, obf, ex));

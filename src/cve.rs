@@ -366,6 +366,64 @@ pub fn own_package_matches(root: &Path) -> Vec<RuleMatch> {
     out
 }
 
+pub const WEB_PAGE_ENTRY: &str = "Package Entry Point Is a Web Page";
+
+/// An npm package whose entry point is an HTML or SVG document is not a
+/// library: it is a page, served under a trusted host name by the CDNs that
+/// mirror the registry (unpkg, jsDelivr). With script in it this is how
+/// phishing pages, cloned sites and SVG-wrapped pages are hosted
+/// (`"main": "index.svg", "unpkg": "index.svg"`).
+pub fn web_page_entry(root: &Path) -> Vec<RuleMatch> {
+    let Some(text) = std::fs::read_to_string(root.join("package.json")).ok() else {
+        return Vec::new();
+    };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return Vec::new();
+    };
+    let page = ["main", "unpkg", "jsdelivr", "browser"]
+        .iter()
+        .filter_map(|field| v[field].as_str())
+        .find(|entry| {
+            let lower = entry.to_ascii_lowercase();
+            [".html", ".htm", ".svg"]
+                .iter()
+                .any(|ext| lower.ends_with(ext))
+        });
+    let Some(entry) = page else {
+        return Vec::new();
+    };
+    // Script written into the page itself. A Polymer element's `index.html`
+    // (HTML Imports, `<script src=…>` only) is its demo page, and it was the
+    // entry point of that generation of components (responsive-embed 1.0.0).
+    static INLINE_SCRIPT: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"(?i)<script(?:\s[^>]*)?>\s*(?:(?://\s*)?<!\[CDATA\[|[^<\s])").unwrap()
+    });
+    // The entry is a path inside the package; anything else is not read.
+    let scripted = !entry.contains("..")
+        && std::fs::read(root.join(entry.trim_start_matches("./"))).is_ok_and(|bytes| {
+            let page = String::from_utf8_lossy(&bytes);
+            INLINE_SCRIPT.is_match(&page) && !page.contains("rel=\"import\"")
+        });
+    let (name, severity, what) = if scripted {
+        (
+            crate::correlate::WEB_PAGE_PACKAGE,
+            "critical",
+            "a web page with script",
+        )
+    } else {
+        (WEB_PAGE_ENTRY, "medium", "a web page")
+    };
+    vec![RuleMatch {
+        file_path: "package.json".to_string(),
+        line_number: text
+            .find(entry)
+            .map_or(1, |i| text[..i].lines().count().max(1)),
+        matched_pattern: name.to_string(),
+        severity: severity.to_string(),
+        context: format!("the package's entry point \"{entry}\" is {what}, not a module"),
+    }]
+}
+
 pub const REMOTE_URL_DEP: &str = "Remote URL Dependency";
 
 /// npm dependencies given as an http(s) tarball URL on someone's own server:
@@ -672,6 +730,41 @@ mod tests {
             found[0].file_path,
             "keystackutilities-99.99.1.dist-info/METADATA"
         );
+
+        // A page served from the registry's CDNs, not a module.
+        let page = tempfile::tempdir().unwrap();
+        let manifest = |main: &str| {
+            std::fs::write(
+                page.path().join("package.json"),
+                format!(r#"{{"name": "kambx", "version": "1.0.0", "main": "{main}", "unpkg": "{main}"}}"#),
+            )
+            .unwrap();
+            web_page_entry(page.path())
+                .into_iter()
+                .map(|m| m.matched_pattern)
+                .collect::<Vec<_>>()
+        };
+        std::fs::write(
+            page.path().join("index.svg"),
+            "<svg><foreignObject/><SCRIPT>\n<![CDATA[ go() ]]></SCRIPT></svg>",
+        )
+        .unwrap();
+        std::fs::write(page.path().join("about.html"), "<h1>docs</h1>").unwrap();
+        // A Polymer element's demo page: scripts by reference, HTML Imports.
+        std::fs::write(
+            page.path().join("element.html"),
+            "<!doctype html><html><script src=\"../webcomponentsjs/webcomponents-lite.js\"></script>\
+             <link rel=\"import\" href=\"x.html\"><script>Polymer({})</script></html>",
+        )
+        .unwrap();
+        assert_eq!(manifest("element.html"), vec![WEB_PAGE_ENTRY]);
+        assert_eq!(
+            manifest("index.svg"),
+            vec![crate::correlate::WEB_PAGE_PACKAGE]
+        );
+        assert_eq!(manifest("./about.html"), vec![WEB_PAGE_ENTRY]);
+        assert_eq!(manifest("../../etc/x.html"), vec![WEB_PAGE_ENTRY]);
+        assert!(manifest("index.js").is_empty());
 
         let setup = tempfile::tempdir().unwrap();
         std::fs::write(

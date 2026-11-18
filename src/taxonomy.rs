@@ -90,7 +90,7 @@ use Coverage::{Direct, Gap, Outside, Partial, Payload};
 #[rustfmt::skip]
 pub const VECTORS: &[Vector] = &[
     Vector { id: "AV-100", name: "Develop and Advertise Distinct Malicious Package from Scratch", coverage: Partial,
-        evidence: &[correlate::NPM_SPAM, reputation::UNVERIFIED_PUBLISHER, reputation::LOW_INSTALLS, reputation::RECENTLY_PUBLISHED],
+        evidence: &[correlate::NPM_SPAM, correlate::WEB_PAGE_PACKAGE, reputation::UNVERIFIED_PUBLISHER, reputation::LOW_INSTALLS, reputation::RECENTLY_PUBLISHED],
         note: "The package is the payload: it is judged by what its code does. Listing age and reach are hints, for IDE extensions only." },
     Vector { id: "AV-200", name: "Create Name Confusion with Legitimate Package", coverage: Partial,
         evidence: &[TYPOSQUAT, reputation::BRAND_IMPERSONATION], note: "See the forms below." },
@@ -193,7 +193,7 @@ pub const CODE_FINDINGS: &[&str] = &[
     correlate::OBFUSCATED_EXEC, correlate::INSTALL_PAYLOAD, correlate::INSTALL_RECON_CHAIN, correlate::REMOTE_CODE,
     correlate::EXTENSION_SIDELOAD, correlate::SYSTEM_DISCOVERY, correlate::AI_TRAFFIC_HIJACK, correlate::NPM_SPAM,
     correlate::OBFUSCATED_RECON, correlate::RANSOMWARE, correlate::PHISHING_REDIRECT, correlate::DEP_CONFUSION_VERSION,
-    correlate::DEP_CONFUSION_HOOK,
+    correlate::DEP_CONFUSION_HOOK, correlate::WEB_PAGE_PACKAGE, cve::WEB_PAGE_ENTRY,
     cve::REMOTE_URL_DEP, iocs::URLHAUS_HIT,
     reputation::INVISIBLE_NAME, reputation::PUBLISHER_LOOKALIKE, reputation::BRAND_IMPERSONATION,
     reputation::UNVERIFIED_PUBLISHER, reputation::LOW_INSTALLS, reputation::RECENTLY_PUBLISHED,

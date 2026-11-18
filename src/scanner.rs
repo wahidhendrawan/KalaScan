@@ -4,7 +4,7 @@ use std::path::Path;
 use walkdir::WalkDir;
 
 /// Human-readable ruleset version (also surfaced by `kalascan rules`).
-pub const RULESET_VERSION: &str = "2026.11.1";
+pub const RULESET_VERSION: &str = "2026.11.2";
 
 /// Critical file extensions for scanning
 // `.yml`/`.yaml` get only the exfiltration, network, supply-chain and
@@ -73,6 +73,8 @@ pub const NPM_PUBLISH: &str = "npm Publish from Code";
 pub const FETCH_EVAL: &str = "Download Cradle (fetch then eval)";
 pub const HEX_API: &str = "Hex-Encoded API Name";
 pub const CHARCODE_API: &str = "Char-Code Encoded API Name";
+pub const B64_URL: &str = "Base64-Encoded URL";
+pub const BUFFER_EVAL: &str = "Buffer Decode + eval";
 pub const INSTALL_NET: &str = "Install Script Network Command";
 pub const INSTALL_RECON: &str = "Install Script Host Reconnaissance";
 pub const DNS_BUILT: &str = "DNS Lookup of Built Hostname";
@@ -227,6 +229,44 @@ fn is_config_file(filename: &str) -> bool {
         ]
         .iter()
         .any(|ext| lower.ends_with(ext))
+}
+
+/// Every rule hit in `content` that counts: `(rule, 0-based line, byte
+/// offset, context)`, without hits on ignored or comment-only lines and
+/// hits that only look bad.
+fn rule_hits<'r>(
+    content: &str,
+    rules: &'r [Rule],
+    ext: &str,
+    filename: &str,
+    ignored_lines: &std::collections::HashSet<usize>,
+) -> Vec<(&'r Rule, usize, usize, String)> {
+    let newlines: Vec<usize> = content.match_indices('\n').map(|(i, _)| i).collect();
+    let line_of = |pos: usize| newlines.partition_point(|&i| i < pos);
+    let line_start = |idx: usize| if idx == 0 { 0 } else { newlines[idx - 1] + 1 };
+    let lower = std::cell::OnceCell::new();
+    let mut out = Vec::new();
+    for rule in rules {
+        if !rule.applies_to(ext, filename) {
+            continue;
+        }
+        for (start, end) in rule_spans(rule, content, &lower) {
+            let text = &content[start..end];
+            let line = line_of(start);
+            if ignored_lines.contains(&line)
+                || is_comment_only_line(content, line_start(line), start, ext)
+            {
+                continue;
+            }
+            if !keep_hit(&rule.name, text)
+                || (rule.name == FETCH_EVAL && fetches_vendor_installer(&content[end..]))
+            {
+                continue;
+            }
+            out.push((rule, line, start, get_context(content, start, end)));
+        }
+    }
+    out
 }
 
 /// Byte spans where `rule` fires in `content`: keyword prefilter, regex,
@@ -885,34 +925,35 @@ fn scan_bytes(
         std::collections::HashSet::new()
     };
     let ext = target.lang.unwrap_or_else(|| get_extension(filename));
-    let lower = std::cell::OnceCell::new();
 
-    for rule in rules {
-        if !rule.applies_to(ext, filename) {
-            continue;
-        }
-
-        for (start, end) in rule_spans(rule, &content, &lower) {
-            let text = &content[start..end];
-            let line = line_of(start);
-            if ignored_lines.contains(&line)
-                || is_comment_only_line(&content, line_start(line), start, ext)
-            {
-                continue;
+    for (rule, line, start, context) in rule_hits(&content, rules, ext, filename, &ignored_lines) {
+        offsets.push(start);
+        matches.push(RuleMatch {
+            file_path: rel_path.clone(),
+            line_number: line + 1,
+            matched_pattern: rule.name.to_string(),
+            severity: rule.severity.to_string(),
+            context,
+        });
+    }
+    // A name spelled as `'fe'+'tch'`, in escapes, as character codes or
+    // backwards: the same rules on the text with that undone, keeping what
+    // only shows up there.
+    if let std::borrow::Cow::Owned(plain) = crate::obfuscator::plain(&content) {
+        for (rule, line, _, context) in rule_hits(&plain, rules, ext, filename, &ignored_lines) {
+            let seen = matches
+                .iter()
+                .any(|m| m.line_number == line + 1 && m.matched_pattern == rule.name);
+            if !seen {
+                offsets.push(line_start(line.min(newlines.len())));
+                matches.push(RuleMatch {
+                    file_path: rel_path.clone(),
+                    line_number: line + 1,
+                    matched_pattern: rule.name.to_string(),
+                    severity: rule.severity.to_string(),
+                    context,
+                });
             }
-            if !keep_hit(&rule.name, text)
-                || (rule.name == FETCH_EVAL && fetches_vendor_installer(&content[end..]))
-            {
-                continue;
-            }
-            offsets.push(start);
-            matches.push(RuleMatch {
-                file_path: rel_path.clone(),
-                line_number: line + 1,
-                matched_pattern: rule.name.to_string(),
-                severity: rule.severity.to_string(),
-                context: get_context(&content, start, end),
-            });
         }
     }
 
@@ -1274,6 +1315,8 @@ mod tests {
             FETCH_EVAL,
             HEX_API,
             CHARCODE_API,
+            B64_URL,
+            BUFFER_EVAL,
             INSTALL_NET,
             INSTALL_RECON,
             DNS_BUILT,
@@ -1586,6 +1629,33 @@ mod tests {
         matches
             .iter()
             .any(|m| m.file_path == file && m.severity == "critical")
+    }
+
+    #[test]
+    fn names_hidden_by_string_tricks_are_still_matched() {
+        let dir = tempfile::tempdir().unwrap();
+        // Each line hides one name the rules look for; none shows it as written.
+        let src = "const cp = require('child_'+'process');\n\
+                   const h = require(\"\\x63hild_process\");\n\
+                   const c = require(String.fromCharCode(99,104,105,108,100,95,112,114,111,99,101,115,115));\n\
+                   const plain = a + 'b';\n";
+        std::fs::write(dir.path().join("index.js"), src).unwrap();
+        let found = scan_directory_filtered(dir.path(), None, &[], None, Tree::Package).2;
+        let lines = |rule: &str| -> Vec<usize> {
+            let mut l: Vec<usize> = found
+                .iter()
+                .filter(|m| m.matched_pattern == rule)
+                .map(|m| m.line_number)
+                .collect();
+            l.sort();
+            l
+        };
+        assert_eq!(
+            lines("child_process (Node.js)"),
+            vec![1, 2, 3],
+            "{:?}",
+            found
+        );
     }
 
     #[test]
