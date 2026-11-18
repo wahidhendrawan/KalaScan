@@ -825,6 +825,7 @@ const FINDING_TABLE: &[(&str, &[&str])] = &[
     ("Chain: Weaponised AI Agent", &["T1059", "T1485"]),
     ("Chain: DNS Tunnel Command Execution", &["T1071.004", "T1059"]),
     ("Chain: Git Hook Persistence", &["T1546"]),
+    ("Chain: Malicious New Dependency", &["T1195.001"]),
     ("Chain: SSH Key Planted", &["T1098.004"]),
     ("Chain: Platform Binary Under Another Name", &["T1195.001", "T1036"]),
     ("Chain: Web Page Published as a Package", &["T1566", "T1036"]),

@@ -7,6 +7,12 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+### Added
+- Detection (ruleset 2026.11.6): `Chain: Malicious New Dependency`. A scan of `npm:name@version` looks up the dependencies that version added (all of them for a package with five versions or fewer), and scans, one hop deep and three at most, the ones first published 30 days or less before it; a dependency at risk 50 or more is a finding on the package. Monorepo siblings and platform builds are skipped, and an established dependency costs one request cut off at 256 KB. Measured by replay on the dataset: 12 holdout and 11 `dev` samples that have nothing malicious in their own files (`debug-fmt` → `debug-glitz`, the hijacked `@mastra/*` → `easy-day-js`), 0 of 394 clean npm packages.
+- Evaluation: `run_eval.py --since DATE` reports the holdout malware dated on or after a day as its own line and as `holdout/since-DATE` in the results file. Dated August 2026 or later: 87 of 195 (45%, 38-52), against 70% for the whole holdout.
+- Evaluation: `"set": "late-2026-11"`, the 26 npm names dated August 2026 or later that were left in the dataset, in the holdout (13 of 26). The holdout is 478 of 683 (70%, 66-73); clean 0 of 822.
+- `eval/sample_malicious.py --before DATE`, so a tuning batch can stay behind the newest holdout samples.
+
 ## [1.17.0] - 2026-11-18
 
 ### Added

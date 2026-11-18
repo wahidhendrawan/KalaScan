@@ -14386,6 +14386,188 @@
    "source": "dataset",
    "split": "dev",
    "set": "tune-npm-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/twcvhjlksdmx/1.0.1/2026-08-12-twcvhjlksdmx-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/randompkgb/1.0.1/2026-08-19-randompkgb-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/solidity-testing-utils/1.2.0/2026-08-22-solidity-testing-utils-v1.2.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/m2fcsfyjkuxb/1.0.0/2026-08-14-m2fcsfyjkuxb-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@wizloft@harness/0.1.0-alpha.2/2026-09-06-@wizloft_harness-v0.1.0-alpha.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/stackpaths/3.1.0/2026-08-17-stackpaths-v3.1.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/open-item-validator/1.0.0/2026-09-07-open-item-validator-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@qwen-code@qwen-code/0.24.2/2026-09-20-@qwen-code_qwen-code-v0.24.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/saturn-bail/1.1.13/2026-08-16-saturn-bail-v1.1.13.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/frogql-win32-x64-msvc/0.5.8/2026-09-24-frogql-win32-x64-msvc-v0.5.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/noxleys/1.1.5/2026-08-12-noxleys-v1.1.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/edgeone/1.6.37/2026-09-10-edgeone-v1.6.37.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/vectorizers/0.0.0-stage/2026-10-07-vectorizers-v0.0.0-stage.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@aseppxyzz12@baileys/0.0.0-stage/2026-10-09-@aseppxyzz12_baileys-v0.0.0-stage.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/dzcvhfruwluwe/1.0.1/2026-08-12-dzcvhfruwluwe-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@lordmega@baileys/0.3.40/2026-08-21-@lordmega_baileys-v0.3.40.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/knip-bun/99.9.1/2026-08-13-knip-bun-v99.9.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@wizloft@harness-plugin-memory-context/0.1.0-alpha.2/2026-08-24-@wizloft_harness-plugin-memory-context-v0.1.0-alpha.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@vbansal67@npm-publisher/1.0.0/2026-09-11-@vbansal67_npm-publisher-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/tw-pkgprobe-7731/1.0.4/2026-08-14-tw-pkgprobe-7731-v1.0.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/sui-gql-core/0.2.0/2026-08-17-sui-gql-core-v0.2.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/config-helper-kit/1.3.2/2026-08-18-config-helper-kit-v1.3.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/hydration-dim-kit/1.0.0/2026-08-22-hydration-dim-kit-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/cspell-esm/99.9.1/2026-08-13-cspell-esm-v99.9.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@toptal@picasso-link/100.0.1/2026-08-26-@toptal_picasso-link-v100.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@wizloft@harness-plugin-repository-files/0.1.0-alpha.2/2026-08-24-@wizloft_harness-plugin-repository-files-v0.1.0-alpha.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "late-2026-11"
   }
  ]
 }
