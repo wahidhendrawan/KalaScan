@@ -7,6 +7,8 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-11-18
+
 ### Added
 - Detection (ruleset 2026.11.5), from a batch of 200 npm packages dated 2026 and the `dev` samples GuardDog catches and KalaScan missed: `Code Decoded From a Number Array and Evaluated` (`eval(function(s,n){…fromCharCode…}([40,109,…]))`, the payload of the compromised `autotel-*`, `awaitly-postgres` and `@redhat-cloud-services` releases; a verdict on its own); `Chain: Platform Binary Under Another Name` (an npm launcher whose command, wrapper and per-platform packages carry another name than the package, with an install hook: the `stardrop` packages); `Chain: SSH Key Planted` (a hard-coded public key written to `authorized_keys`); `Module Name Decoded From Base64` (`require(Buffer.from('ZnM=','base64').toString())`, a lead); `Code Hidden Behind Whitespace Padding`. `new (Function.constructor)("require", …)`, `axios_1.default.get(…)`, `lib.request({hostname: …})` and `run('uname -a')` are now recognised.
 - Evaluation: a new holdout set drawn before those rules (`"set": "fresh2-2026-11"`, 200 samples: 150 npm from 2026, 50 PyPI from pypi_malregistry) and a separate npm tuning batch in `dev` (`"set": "tune-npm-2026-11"`, 200 samples). The holdout went from 444 to 465 of 657 (68% → 71%), `fresh2-2026-11` from 138 to 156 of 196, npm in the holdout from 201 to 221 of 361; the tuning batch from 139 to 166 of 200. Clean still 0 of 822 (three clean holdout packages flagged by a first version were fixed and moved to `dev`), no sample's score went down, evasion suite unchanged.
@@ -248,7 +250,8 @@ published on GitHub; their features are listed with version markers in `README.m
 ### Fixed
 - `openapi.yaml` is copied into the Docker builder stage.
 
-[Unreleased]: https://github.com/wahidhendrawan/KalaScan/compare/v1.16.0...HEAD
+[Unreleased]: https://github.com/wahidhendrawan/KalaScan/compare/v1.17.0...HEAD
+[1.17.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.15.0...v1.16.0
 [1.15.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.14.0...v1.15.0
 [1.14.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.13.0...v1.14.0
