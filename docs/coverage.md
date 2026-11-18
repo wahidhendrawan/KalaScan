@@ -94,6 +94,9 @@ ATT&CK technique ids follow Enterprise ATT&CK v20.1. The MBC objective (Malware 
 | exec() Usage | KS-EXE-002 | T1059 | OB0009 Execution | - |
 | b64decode + exec Chain | KS-EXE-003 | T1140, T1059.006 | OB0002 Anti-Static Analysis, OB0009 Execution | - |
 | Buffer Decode + eval | KS-EXE-034 | T1140, T1059.007 | OB0002 Anti-Static Analysis, OB0009 Execution | - |
+| Decrypted Code Executed | KS-EXE-035 | T1140, T1059.006 | OB0002 Anti-Static Analysis, OB0009 Execution | - |
+| Builtin Name Built From Characters | KS-EXE-036 | T1027 | OB0002 Anti-Static Analysis | - |
+| Code Imported From Disguised Archive | KS-EXE-037 | T1027, T1036 | OB0002 Anti-Static Analysis, OB0006 Defense Evasion | - |
 | nested b64decode | KS-EXE-004 | T1027, T1140 | OB0002 Anti-Static Analysis | - |
 | child_process (Node.js) | KS-EXE-005 | T1059 | OB0009 Execution | - |
 | subprocess (Python) | KS-EXE-006 | T1059 | OB0009 Execution | - |
@@ -153,6 +156,8 @@ ATT&CK technique ids follow Enterprise ATT&CK v20.1. The MBC objective (Malware 
 | Account Enumeration Command | KS-REC-003 | T1087, T1033 | OB0007 Discovery | - |
 | AI API Base URL Override | KS-EXF-016 | T1557 | OB0005 Credential Access | - |
 | Shell Profile Modification | KS-FSW-002 | T1546.004 | OB0012 Persistence | - |
+| Systemd User Service Installed | KS-FSW-003 | T1543.002 | OB0012 Persistence | - |
+| npm Maintainer Package Enumeration | KS-SUP-014 | T1195.001 | - | - |
 | npm Publish from Code | KS-SUP-011 | T1195.001 | - | - |
 | Download Cradle (fetch then eval) | KS-EXE-028 | T1105, T1059 | OB0004 Command and Control, OB0009 Execution | - |
 | Hex String Decoder | KS-EXE-029 | T1027, T1140 | OB0002 Anti-Static Analysis | - |
@@ -200,6 +205,8 @@ ATT&CK technique ids follow Enterprise ATT&CK v20.1. The MBC objective (Malware 
 | Chain: Dependency Confusion Install Hook | code | T1195.001 | - | AV-502, AV-509 |
 | Chain: Web Page Published as a Package | code | T1566, T1036 | OB0006 Defense Evasion | AV-100 |
 | Package Entry Point Is a Web Page | code | - | - | - |
+| Chain: Install-time Persistence | code | T1195.001, T1543.002 | OB0012 Persistence | - |
+| Chain: npm Worm | code | T1195.001, T1552.001 | OB0005 Credential Access | - |
 | Remote URL Dependency | code | T1195.001, T1105 | OB0004 Command and Control | AV-501 |
 | Known Malicious URL (URLhaus) | code | T1071.001 | OB0004 Command and Control | - |
 | Extension Name Spoofing (invisible characters) | code | T1036 | OB0006 Defense Evasion | AV-207 |

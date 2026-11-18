@@ -2,7 +2,8 @@
 """Measure KalaScan detection quality on a labelled corpus.
 
 Scans every sample in eval/corpus.json with the kalascan CLI (static only:
-no --sandbox, nothing is executed), then reports recall / false-positive rate
+nothing is executed unless --flag=--sandbox, which needs --disposable-vm),
+then reports recall / false-positive rate
 at several risk thresholds, per ecosystem, and per-sample score changes
 against a previous run.
 
@@ -242,9 +243,16 @@ def main():
     ap.add_argument("--max-fpr", type=float, help="fail if clean false-positive rate is above this (0-1)")
     ap.add_argument("--allow-errors", action="store_true", help="don't fail on download/scan errors (flaky registries in CI)")
     ap.add_argument("--show-holdout", action="store_true", help="also list holdout misses and score changes (then move what you read to dev)")
+    ap.add_argument("--disposable-vm", action="store_true", help="confirm this runs in a throwaway VM; required by --flag=--sandbox")
     args = ap.parse_args()
     if args.summary and args.scanner != "kalascan":
         ap.error("--summary records a KalaScan ruleset version; not with --scanner guarddog")
+    if "--sandbox" in args.flag:
+        # --sandbox executes the samples: live malware, so only on a throwaway machine.
+        if not args.disposable_vm:
+            ap.error("--flag=--sandbox runs live malware; only in a disposable VM with no host file sharing, then pass --disposable-vm (eval/README.md)")
+        if args.summary:
+            ap.error("--summary records the default scan; a --sandbox run is a separate measurement")
 
     samples = [s for s in json.load(open(args.corpus))["samples"] if not args.only or s["label"] == args.only]
     if any(s["source"] == "dataset" for s in samples) and not args.dataset:

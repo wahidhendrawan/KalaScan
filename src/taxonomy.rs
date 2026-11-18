@@ -194,6 +194,7 @@ pub const CODE_FINDINGS: &[&str] = &[
     correlate::EXTENSION_SIDELOAD, correlate::SYSTEM_DISCOVERY, correlate::AI_TRAFFIC_HIJACK, correlate::NPM_SPAM,
     correlate::OBFUSCATED_RECON, correlate::RANSOMWARE, correlate::PHISHING_REDIRECT, correlate::DEP_CONFUSION_VERSION,
     correlate::DEP_CONFUSION_HOOK, correlate::WEB_PAGE_PACKAGE, cve::WEB_PAGE_ENTRY,
+    correlate::INSTALL_PERSISTENCE, correlate::NPM_WORM,
     cve::REMOTE_URL_DEP, iocs::URLHAUS_HIT,
     reputation::INVISIBLE_NAME, reputation::PUBLISHER_LOOKALIKE, reputation::BRAND_IMPERSONATION,
     reputation::UNVERIFIED_PUBLISHER, reputation::LOW_INSTALLS, reputation::RECENTLY_PUBLISHED,
