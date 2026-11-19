@@ -229,7 +229,15 @@ pub fn identity_matches(root: &Path) -> Vec<RuleMatch> {
         .or(pkg["repository"].as_str());
     if let Some(key) = repository.and_then(repo_key) {
         if let Some(owners) = POPULAR_REPOS.get(key.as_str()) {
-            if !POPULAR_REPO_PUBLISHERS.contains(publisher_lower.as_str()) {
+            // The author under a reordered handle on Open VSX
+            // (guillaumedoutriaux -> doutriauxguillaume).
+            let rotated = |ext: &&str| {
+                let p = ext.split('.').next().unwrap_or_default();
+                p.len() == publisher_lower.len() && p.repeat(2).contains(&publisher_lower)
+            };
+            if !POPULAR_REPO_PUBLISHERS.contains(publisher_lower.as_str())
+                && !owners.iter().any(rotated)
+            {
                 out.push(finding(
                     REPACKAGED_COPY,
                     "critical",
@@ -467,6 +475,14 @@ mod tests {
         );
         // The real publisher, and an official sibling sharing a monorepo.
         assert!(names(&ext_with_repo("mechatroner", serde_json::json!(rainbow))).is_empty());
+        // The author on Open VSX under the reordered handle.
+        assert!(names(&ext_with_repo("ronermechat", serde_json::json!(rainbow))).is_empty());
+        // The extension-samples repo every `yo code` starter keeps.
+        assert!(names(&ext_with_repo(
+            "wangpenglong",
+            serde_json::json!("https://github.com/microsoft/vscode-extension-samples")
+        ))
+        .is_empty());
         assert!(names(&ext_with_repo(
             "ms-vscode",
             serde_json::json!("https://github.com/microsoft/vscode-remote-release")

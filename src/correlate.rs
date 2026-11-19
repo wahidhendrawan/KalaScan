@@ -186,6 +186,9 @@ static AGENT_HARM: LazyLock<Regex> = LazyLock::new(|| {
 /// child_process in another (Remote Containers, Ansible).
 const NEAR: usize = 4096;
 
+/// Lines between a host-name read and a hardcoded IP that make one beacon.
+const IP_LINES: usize = 200;
+
 /// Chains visible inside one file. `file_matches` are this file's hits and
 /// `offsets[i]` the byte offset of `file_matches[i]`.
 pub fn correlate_file(
@@ -561,6 +564,26 @@ fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
     // is not one: agents and bots talk to it with the user's own token (a
     // device name from os.hostname() plus a Telegram connector). The
     // attacker's bot shows up as a token in the code instead.
+    // A hardcoded IP is a beacon only next to the recon: bundles carry intranet
+    // servers far from an unrelated hostname (uix: an export file's
+    // `os.hostname()` 3,400 lines below its intranet API config).
+    let ip_near = || {
+        matches
+            .iter()
+            .copied()
+            .filter(|m| m.matched_pattern == HOST_RECON)
+            .find_map(|r| {
+                matches
+                    .iter()
+                    .copied()
+                    .find(|m| {
+                        m.matched_pattern == IP_URL
+                            && m.file_path == r.file_path
+                            && m.line_number.abs_diff(r.line_number) <= IP_LINES
+                    })
+                    .map(|ip| (r, ip))
+            })
+    };
     if let Some(recon) = first(&[HOST_RECON]) {
         let beacon = matches
             .iter()
@@ -568,7 +591,6 @@ fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
             .find(|m| {
                 [
                     EXFIL_SERVICE,
-                    IP_URL,
                     DNS_BUILT,
                     "Discord Webhook",
                     "Telegram Bot API Token",
@@ -577,8 +599,14 @@ fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
                     && !(m.matched_pattern == EXFIL_SERVICE
                         && m.context.contains("api.telegram.org"))
             })
-            .or_else(|| first(&[DEP_CONFUSION_VERSION]).and(first(&["URL Fetch Command"])));
-        if let Some(sink) = beacon {
+            .map(|sink| (recon, sink))
+            .or_else(ip_near)
+            .or_else(|| {
+                first(&[DEP_CONFUSION_VERSION])
+                    .and(first(&["URL Fetch Command"]))
+                    .map(|sink| (recon, sink))
+            });
+        if let Some((recon, sink)) = beacon {
             out.push(chain(&recon.file_path, RECON_BEACON, recon, sink));
         }
         // Hostname alone is telemetry; listing local accounts and privileges is not.
@@ -1133,6 +1161,13 @@ mod tests {
             hit("b.js", "Telegram Bot API Token", 9),
         ];
         assert_eq!(names(&correlate_package(&m)), vec![RECON_BEACON]);
+        // A hardcoded IP beacons next to the recon, not across a bundle.
+        let m = vec![hit("a.js", HOST_RECON, 30), hit("a.js", IP_URL, 12)];
+        assert_eq!(names(&correlate_package(&m)), vec![RECON_BEACON]);
+        let m = vec![hit("a.js", HOST_RECON, 12598), hit("a.js", IP_URL, 9209)];
+        assert!(correlate_package(&m).is_empty());
+        let m = vec![hit("a.js", HOST_RECON, 30), hit("b.js", IP_URL, 12)];
+        assert!(correlate_package(&m).is_empty());
         // Telemetry that reads the hostname and posts to its own API is not.
         let m = vec![
             hit("a.js", HOST_RECON, 2),

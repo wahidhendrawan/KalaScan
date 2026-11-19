@@ -3,7 +3,7 @@
 `corpus.json` lists labelled samples:
 
 - **malicious**: real packages from the [DataDog malicious-software-packages-dataset](https://github.com/DataDog/malicious-software-packages-dataset) (npm, PyPI, VS Code extensions), picked with a fixed seed, 260 PyPI packages from a second, independent source, [pypi_malregistry](https://github.com/lxyeternal/pypi_malregistry) (`"source": "malregistry"`), and 200 npm packages from a third, [the ASE 2026 npm study](https://doi.org/10.6084/m9.figshare.31869370) (`"source": "npmstudy"`, CC BY 4.0).
-- **clean**: popular npm / PyPI packages and VS Code extensions, fetched from the public registries. Several were chosen because they look suspicious on the surface: install scripts that download binaries, local dev servers, SSH tooling, telemetry. Entries with `"set": "random-2026-11"` were not picked but drawn at random from all of npm and PyPI (`eval/sample_clean.py`, see below).
+- **clean**: popular npm / PyPI packages and VS Code extensions, fetched from the public registries. Several were chosen because they look suspicious on the surface: install scripts that download binaries, local dev servers, SSH tooling, telemetry. Entries with `"set": "random-2026-11"` were not picked but drawn at random from all of npm and PyPI (`eval/sample_clean.py`, see below), `openvsx-random-2026-11` from all of Open VSX.
 
 Each sample has a `split`. Rules were tuned while looking at `dev`. `holdout` was added afterwards and never used for tuning, so its numbers are the honest estimate.
 
@@ -22,14 +22,14 @@ Every rate is printed with its 95% Wilson interval. `--rule-stats` adds, for eac
 
 The malicious samples are **live malware**. `run_eval.py` scans them statically and extracts archives into a temp dir with the dataset password. Keep the corpus outside the repo. `--flag=--sandbox` executes them; the harness refuses it unless `--disposable-vm` is passed as well, and that flag is a promise: a throwaway VM with no host file sharing (below).
 
-CI (`.github/workflows/eval.yml`) runs only the clean half, as a false-positive gate: `--only clean --max-fpr 0`, on every pull request that touches `src/`, `rules/`, `eval/` or `Cargo.lock`.
+CI (`.github/workflows/eval.yml`) runs only the clean half, as a false-positive gate: `--only clean --max-fpr 0`, on every pull request that touches `src/`, `rules/`, `eval/` or `Cargo.lock` (without the 1,993 packages of `random2-2026-11`, which the weekly run scans).
 
-Results at threshold 50 (ruleset 2026.11.8, score model v1, measured 2026-11-19; 95% interval in brackets; the aggregate is in [`results/2026.11.8.json`](results/2026.11.8.json)):
+Results at threshold 50 (ruleset 2026.11.9, score model v1, measured 2026-11-19; 95% interval in brackets; the aggregate is in [`results/2026.11.9.json`](results/2026.11.9.json)):
 
 | split | malicious recall | clean false positives |
 |---|---|---|
-| dev | 490/626 (78%, 75-81) | 0/385 (0%, 0-1) |
-| holdout | 639/883 (72%, 69-75) | 0/2,424 (0%, 0-0.2) |
+| dev | 490/626 (78%, 75-81) | 0/388 (0%, 0-1) |
+| holdout | 639/883 (72%, 69-75) | 0/2,665 (0%, 0-0.1) |
 | holdout, dated 2026-08-01 or later | 89/195 (46%, 39-53) | |
 
 **The last row is the one to expect on new malware.** It is every holdout sample whose file name in the DataDog dataset carries a date of August 2026 or later (`run_eval.py --since 2026-08-01`): 194 npm packages and one PyPI package, from four sets. npm in the holdout dated before August is at 148 of 193 (77%). The gap is what tuning on the same months is worth: the batches the rules were written from are mostly January to June, and so is `fresh2-2026-11`.
@@ -49,6 +49,33 @@ The holdout by sample set:
 | `npmstudy-2026-11` | 200 npm packages from [the ASE 2026 npm study](https://doi.org/10.6084/m9.figshare.31869370) whose names the DataDog dataset does not have, drawn on 2026-11-19; mostly published 2021-2024 | 159/200 (80%, 73-85) |
 
 **The holdout number is the one to quote, and the `recent` row is the one to worry about**: on the newest npm malware KalaScan catches about half (24 of 60 with ruleset 2026.11.1, before the tuning described below). The second sources say the rules are not fitted to one dataset's taste: PyPI 87% on pypi_malregistry against 37 of 48 (77%) on the original DataDog PyPI holdout samples; npm 80% on the study's samples against 148 of 193 (77%) on DataDog npm dated before August 2026. Both second sources are older malware, so they do not speak to the newest; the `recent` row does. By ecosystem the whole holdout is IDE extensions 32/48 (67%, 53-78), npm 395/587 (67%, 63-71; DataDog 236/387, the study 159/200), PyPI 212/248 (85%, 81-89).
+
+### Random IDE extensions (ruleset 2026.11.9)
+
+**The draw.** Every random clean sample so far was an npm or PyPI package. `sample_clean.py --openvsx` draws extensions from the 21,685 in Open VSX's sitemap (its search API stops at offset 10,000) and pins each to its newest universal version published before 2026-05-16, the same cutoff as the packages. Seed 20261125, 300 wanted, 420 drawn: 171 had no version that old, 249 went into the holdout as `openvsx-random-2026-11`. One could not be scanned.
+
+**First contact, ruleset 2026.11.8: 7 of 248 at risk 50 or more.** All seven were read:
+
+- **Not clean, 1.** `hdev.hello-developer-copilot` ships a Cursor `sessionEnd` hook (`.cursor/hooks/…runtime.cjs`) that XOR-decodes a script and runs it through `new Function("require", …)`. Decoded as text, the script posts the first 500 characters of the user's prompt, the session ID and the project path to a company's audit endpoint, TLS verification off. It is an internal compliance tool published to a public registry; for anyone else who installs it, it is a hidden prompt reporter. KalaScan flagged it for the obfuscation and the decode-and-run, which is what it does. Left out of the corpus.
+- **Fixed, 3.**
+  - `Repackaged Copy of Popular Extension`, 2. `wangpenglong.helloworld-sample` keeps `github.com/microsoft/vscode-extension-samples` as its repository, as every extension generated from a sample does; that repository was in the popular list because one popular extension declares it. Removed from the list, and the generator skips it. `doutriauxguillaume.name-that-color` is the author of `guillaumedoutriaux.name-that-color` on Open VSX under the handle reordered; a publisher that is a rotation of the popular publisher no longer counts as someone else.
+  - `Chain: Reconnaissance Beacon`, 1. `devoszhang.uix` (an internal tool) reads `os.hostname()` for an export file 3,400 lines below the intranet IP addresses of its API config, in one bundle. Host reconnaissance and a hardcoded IP URL now make a beacon only in one file and at most 200 lines apart; the other beacon targets (exfiltration services, webhooks, a DNS name built from data) still pair across the package. Holdout count unchanged (639); `dev` unchanged after the harness fix below.
+- **Flagged as before, 3.** Each does what the finding says:
+  - `chrisatcursor.mssql`: Microsoft's SQL Server extension republished under another publisher, for editors the Marketplace licence excludes. `Repackaged Copy of Popular Extension` is right about it; nothing says the copy is malicious, and nothing in a scan can, short of comparing it with the original.
+  - `anshuman55a.usagedock`: an AI usage dashboard. It reads the sign-in tokens of five AI tools (a GitHub session for Copilot, Windsurf's key from its local database, Codex, Gemini and Claude credentials) and sends each to its own provider. That is what a token stealer does, apart from where the tokens go, and the scanner does not resolve where each request goes.
+  - `nextgencode.ngc-commitguard`: the bundled Resend SDK reads its API key from the environment and sends it with `fetch` (`Chain: Credential Exfiltration` from the data-flow pass); the extension also lists its own install directory under `~/.vscode/extensions/`.
+
+  As with `debi` and `@aandrian/ocr4` in the draw below, they are left out of the corpus: kept as clean samples they would fail the CI gate on every run, and an exception for their names would teach the rules nothing. They stay in the first-contact count.
+
+One pattern in the rules was too wide and is narrowed: `Password Manager Access` matched `Credentials.dat` inside `connectionCredentials.database`.
+
+**That is 6 false positives in 247 random extensions at first contact (2.4%, 1.1-5.2)**, against 0.7% for random packages. An extension carries its bundled dependencies, so each scan reads more code. The 3 fixed extensions moved to `dev`; with the fixes all 244 left score below 50.
+
+**The harness.** The first full run with these changes lost one `dev` sample, `perfkitbenchmarker` 9.9.9. Read, it was never caught for the right reason: the archive holds the malicious package next to the source it imitates, both with a manifest at the same depth, and `package_root` scanned whichever came first, the source. A hostname read in one file and a test fixture's IP in another made the beacon. A tie now scans the common parent; in the rerun that sample is caught by its `setup.py` (recon and the callback IP eleven lines apart), and no other count moved.
+
+**Opt-in passes, measured once** (ruleset 2026.11.8, every sample): `--deobfuscate`, `--emulate` and `--deep-triage` change no count at 50 or 70. At 30, `--deobfuscate` flags 33 clean packages instead of 13 (and one more malicious), `--emulate` 16. They make a finding easier to read; they do not change the verdict.
+
+**How far the dependency check should reach, replayed.** The shipped check scans dependencies first published at most 30 days before the package, not siblings, one hop. Replayed on the dataset alone (`depdepth.py`, not committed: each npm sample's declared dependencies that are themselves samples, scanned from their dataset copy, ruleset 2026.11.8): of the holdout misses, 43 of 151 declare a dependency that is malware in the dataset, 22 of those dependencies score 50 or more, and the shipped rule reaches 12 of them, the same 12 the registry replay of ruleset 2026.11.6 found. Dropping the age limit adds up to 10 (a dependency first published long before, such as the `@toptal/picasso-*` packages hijacked together), allowing siblings adds up to 10, mostly the same ones, and a second hop adds none. Both would scan far more dependencies of every clean package, and a sibling of a clean package is usually its own monorepo; the clean side of that was not measured, so nothing was changed.
 
 ### Packages nobody picked, a larger draw (ruleset 2026.11.8)
 

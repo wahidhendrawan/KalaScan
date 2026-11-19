@@ -121,9 +121,9 @@ name = "Password Manager Access"
 severity = "high"
 category = "file_access"
 description = "Credential file access detected"
-pattern = '''(?i)(?:passwords?\.txt|passwd|credentials\.dat|login\.json|\.npmrc|(?:^|[\\/"'])[.]env(?-u:\b))'''
-matches = ['''fs.readFileSync(home + "/.env")''']
-ignores = ['''const home = process.env.HOME;''', '''vscode_2.env.appRoot''']
+pattern = '''(?i)(?:passwords?\.txt|passwd|credentials\.dat(?-u:\b)|login\.json|\.npmrc|(?:^|[\\/"'])[.]env(?-u:\b))'''
+matches = ['''fs.readFileSync(home + "/.env")''', '''%APPDATA%\Credentials.dat''']
+ignores = ['''const home = process.env.HOME;''', '''vscode_2.env.appRoot''', '''connectionCredentials.database''']
 
 # File names inside a browser profile; bare "Cookies" matched every
 # `_canUseCookies` / `disableCookies` identifier in telemetry SDKs.

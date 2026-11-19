@@ -7,6 +7,24 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+### Added
+- `kalascan guard -- pip install <package>` scans every distribution the install would add, resolved by pip from wheel metadata only (`--dry-run --only-binary :all: --report -`: no sdist is built, no `setup.py` runs); it falls back to the named packages when pip cannot resolve that way.
+
+- Evasion suite: eight more rewrites from public write-ups (`atob` layer, template literals, unicode escapes in identifiers, computed member calls, dynamic `import()`, `importlib`, `exec(compile(…))`, a `node -e` install hook). All 31 new variants were caught on their first run; 147 of 153 in all (96%).
+
+- `kalascan scan https://open-vsx.org/extension/<ns>/<name>/<version>` scans that version instead of the latest.
+- Eval corpus: 249 IDE extensions drawn at random from Open VSX (`sample_clean.py --openvsx`). First contact: 6 of 247 clean extensions flagged (2.4%, 1.1-5.2); one more hides a payload that reports the user's prompts and was left out.
+
+### Changed
+- Ruleset 2026.11.9. `Repackaged Copy of Popular Extension` no longer fires on the extension-samples starter repository or on the author republishing under a reordered handle; `Chain: Reconnaissance Beacon` pairs host reconnaissance with a hardcoded IP URL only in one file, at most 200 lines apart; `Password Manager Access` no longer matches `connectionCredentials.database`. Holdout recall unchanged (639 of 883), 0 of 2,665 clean holdout packages flagged.
+- The CI false-positive gate skips the 1,993-package random draw on pull requests (`run_eval.py --skip-set`); the weekly and manual runs still scan every clean sample.
+
+### Fixed
+- Eval harness: an archive with two manifests at the same depth was scanned from whichever directory came first; it now scans their common parent. One `dev` sample had been caught for the wrong reason.
+
+### Security
+- `Cargo.lock` moves wasmtime (through yara-x) to 48.0.9 for RUSTSEC-2026-0566 to RUSTSEC-2026-0573.
+
 ## [1.20.0] - 2026-11-19
 
 ### Added

@@ -90,6 +90,46 @@
  {
   "seed": "npm-install-dl-exec",
   "eco": "npm",
+  "category": "string-construction",
+  "mutator": "atob-layer",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "template-literal",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "unicode-escape",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "indirection",
+  "mutator": "dynamic-import",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "file-placement",
+  "mutator": "node-e-hook",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
   "category": "indirection",
   "mutator": "alias-require",
   "risk": 81,
@@ -218,6 +258,46 @@
  {
   "seed": "npm-cred-exfil",
   "eco": "npm",
+  "category": "string-construction",
+  "mutator": "atob-layer",
+  "risk": 77,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "template-literal",
+  "risk": 72,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "unicode-escape",
+  "risk": 82,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "indirection",
+  "mutator": "bracket-member",
+  "risk": 82,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "indirection",
+  "mutator": "dynamic-import",
+  "risk": 82,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
   "category": "indirection",
   "mutator": "alias-require",
   "risk": 82,
@@ -326,6 +406,46 @@
   "mutator": "base64-layer",
   "risk": 27,
   "caught": false
+ },
+ {
+  "seed": "npm-reverse-shell",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "atob-layer",
+  "risk": 77,
+  "caught": true
+ },
+ {
+  "seed": "npm-reverse-shell",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "template-literal",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "npm-reverse-shell",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "unicode-escape",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "npm-reverse-shell",
+  "eco": "npm",
+  "category": "indirection",
+  "mutator": "bracket-member",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "npm-reverse-shell",
+  "eco": "npm",
+  "category": "indirection",
+  "mutator": "dynamic-import",
+  "risk": 76,
+  "caught": true
  },
  {
   "seed": "npm-reverse-shell",
@@ -483,6 +603,22 @@
   "seed": "pypi-import-loader",
   "eco": "pypi",
   "category": "indirection",
+  "mutator": "importlib",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "pypi-import-loader",
+  "eco": "pypi",
+  "category": "indirection",
+  "mutator": "compile-exec",
+  "risk": 77,
+  "caught": true
+ },
+ {
+  "seed": "pypi-import-loader",
+  "eco": "pypi",
+  "category": "indirection",
   "mutator": "second-file",
   "risk": 77,
   "caught": true
@@ -541,6 +677,14 @@
   "category": "string-construction",
   "mutator": "base64-layer",
   "risk": 83,
+  "caught": true
+ },
+ {
+  "seed": "pypi-setup-hook",
+  "eco": "pypi",
+  "category": "indirection",
+  "mutator": "importlib",
+  "risk": 88,
   "caught": true
  },
  {
@@ -619,6 +763,22 @@
   "seed": "pypi-cred-exfil",
   "eco": "pypi",
   "category": "indirection",
+  "mutator": "importlib",
+  "risk": 82,
+  "caught": true
+ },
+ {
+  "seed": "pypi-cred-exfil",
+  "eco": "pypi",
+  "category": "indirection",
+  "mutator": "compile-exec",
+  "risk": 86,
+  "caught": true
+ },
+ {
+  "seed": "pypi-cred-exfil",
+  "eco": "pypi",
+  "category": "indirection",
   "mutator": "second-file",
   "risk": 81,
   "caught": true
@@ -677,6 +837,14 @@
   "category": "string-construction",
   "mutator": "base64-layer",
   "risk": 82,
+  "caught": true
+ },
+ {
+  "seed": "pypi-download-cradle",
+  "eco": "pypi",
+  "category": "indirection",
+  "mutator": "importlib",
+  "risk": 87,
   "caught": true
  },
  {
@@ -796,6 +964,46 @@
   "eco": "extension",
   "category": "string-construction",
   "mutator": "reversed-strings",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "string-construction",
+  "mutator": "atob-layer",
+  "risk": 77,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "string-construction",
+  "mutator": "template-literal",
+  "risk": 71,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "string-construction",
+  "mutator": "unicode-escape",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "indirection",
+  "mutator": "bracket-member",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "indirection",
+  "mutator": "dynamic-import",
   "risk": 76,
   "caught": true
  },
@@ -924,6 +1132,46 @@
   "eco": "npm",
   "category": "string-construction",
   "mutator": "reversed-strings",
+  "risk": 72,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "atob-layer",
+  "risk": 77,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "template-literal",
+  "risk": 72,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "unicode-escape",
+  "risk": 72,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "indirection",
+  "mutator": "bracket-member",
+  "risk": 72,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "indirection",
+  "mutator": "dynamic-import",
   "risk": 72,
   "caught": true
  },

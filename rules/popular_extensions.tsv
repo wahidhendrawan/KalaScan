@@ -5078,7 +5078,6 @@ github.com/microsoft/vscode-edge-devtools	ms-edgedevtools.vscode-edge-devtools
 github.com/microsoft/vscode-editorconfig	chrisdias.vscodeeditorconfig
 github.com/microsoft/vscode-emmet	chenwen.emmet-wxml-copy
 github.com/microsoft/vscode-eslint	dbaeumer.vscode-eslint
-github.com/microsoft/vscode-extension-samples	jrieken.references-plusplus
 github.com/microsoft/vscode-file-downloader	mindaro-dev.file-downloader
 github.com/microsoft/vscode-flake8	ms-python.flake8
 github.com/microsoft/vscode-gather	ms-python.gather

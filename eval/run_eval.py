@@ -49,15 +49,18 @@ MANIFESTS = ("package.json", "setup.py", "pyproject.toml", "PKG-INFO")
 
 
 def package_root(path):
-    """Shallowest dir holding a manifest, so dependency checks see it."""
-    best = None
+    """Shallowest dir holding a manifest, so dependency checks see it. Two at
+    that depth (a package next to the `sources/` of the one it copies) means
+    their common parent: picking one left the result to directory order."""
+    found = []
     for root, dirs, files in os.walk(path):
         # A wheel's manifest is its `<name>.dist-info` directory.
         if any(m in files for m in MANIFESTS) or any(d.endswith(".dist-info") for d in dirs):
-            depth = root.count(os.sep)
-            if best is None or depth < best[0]:
-                best = (depth, root)
-    return best[1] if best else path
+            found.append((root.count(os.sep), root))
+    if not found:
+        return path
+    top = min(d for d, _ in found)
+    return os.path.commonpath([r for d, r in found if d == top])
 
 
 def ecosystem(sample):
@@ -245,6 +248,7 @@ def main():
     ap.add_argument("--scanner", choices=("kalascan", "guarddog"), default="kalascan", help="tool to measure")
     ap.add_argument("--guarddog-image", default="ghcr.io/datadog/guarddog:latest")
     ap.add_argument("--only", choices=("clean", "malicious"))
+    ap.add_argument("--skip-set", action="append", default=[], metavar="SET", help="leave out the samples of a set, repeatable (the PR gate skips the large random draw; the weekly run scans it)")
     ap.add_argument("--flag", action="append", default=[], help="extra scan flag, repeatable (e.g. --flag=--deobfuscate)")
     ap.add_argument("--jobs", type=int, default=4)
     ap.add_argument("--timeout", type=int, default=300)
@@ -268,7 +272,11 @@ def main():
         if args.summary:
             ap.error("--summary records the default scan; a --sandbox run is a separate measurement")
 
-    samples = [s for s in json.load(open(args.corpus))["samples"] if not args.only or s["label"] == args.only]
+    samples = [
+        s
+        for s in json.load(open(args.corpus))["samples"]
+        if (not args.only or s["label"] == args.only) and s.get("set") not in args.skip_set
+    ]
     if any(s["source"] == "dataset" for s in samples) and not args.dataset:
         ap.error("--dataset is required for malicious samples (or use --only clean)")
     # The second sources are optional: without their files those samples are left out.

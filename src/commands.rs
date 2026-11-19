@@ -598,9 +598,8 @@ fn install_targets(command: &[String]) -> anyhow::Result<Option<Vec<String>>> {
 /// `--package-lock-only --ignore-scripts`, which downloads metadata and runs
 /// nothing; packages the current lockfile already pins are left out. `None`
 /// for other commands and for global installs, which have no lockfile.
-/// shortcut: npm only; pnpm, yarn and bun installs still scan the named
-/// packages, and pip has no resolver that is safe to run (`--dry-run` builds
-/// sdists, which runs setup.py).
+/// shortcut: npm and pip (`pip_tree`) only; pnpm, yarn, bun and uv installs
+/// still scan the named packages.
 async fn npm_tree(command: &[String]) -> anyhow::Result<Option<Vec<String>>> {
     let prog = std::path::Path::new(command.first().map_or("", String::as_str))
         .file_stem()
@@ -653,6 +652,73 @@ async fn npm_tree(command: &[String]) -> anyhow::Result<Option<Vec<String>>> {
     new.sort();
     new.dedup();
     Ok(Some(new))
+}
+
+/// For `pip install <specs>`: every distribution the install would add, at
+/// the version pip picks. `--dry-run --only-binary :all:` resolves from wheel
+/// metadata only, so no sdist is built and no setup.py runs; `--report -`
+/// lists what is not installed yet. `None` for other commands, and when
+/// pip cannot resolve that way (an sdist-only package, pip older than 22.2):
+/// the named packages are scanned then, as before.
+/// shortcut: a package with an sdist newer than its newest wheel resolves to
+/// the wheel here and to the sdist at install; the named package is still
+/// scanned at the version given.
+async fn pip_tree(command: &[String]) -> anyhow::Result<Option<Vec<String>>> {
+    let prog = std::path::Path::new(command.first().map_or("", String::as_str))
+        .file_stem()
+        .map(|n| n.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    let args: Vec<&str> = command.iter().skip(1).map(String::as_str).collect();
+    let rest = match (prog.as_str(), args.as_slice()) {
+        ("pip" | "pip3", ["install", rest @ ..]) => rest,
+        ("python" | "python3", ["-m", "pip", "install", rest @ ..]) => rest,
+        _ => return Ok(None),
+    };
+    let verb = command.len() - rest.len();
+    let out = tokio::process::Command::new(&command[0])
+        .args(&command[1..verb])
+        .args([
+            "--dry-run",
+            "--only-binary",
+            ":all:",
+            "--report",
+            "-",
+            "--quiet",
+            "--disable-pip-version-check",
+        ])
+        .args(rest)
+        .output()
+        .await?;
+    if !out.status.success() {
+        eprintln!(
+            "kalascan guard: pip could not resolve the install from wheels alone; scanning the named packages only"
+        );
+        return Ok(None);
+    }
+    Ok(Some(pip_report_targets(&String::from_utf8_lossy(
+        &out.stdout,
+    ))?))
+}
+
+/// `pypi:name==version` for each entry of a `pip install --report` document.
+fn pip_report_targets(report: &str) -> anyhow::Result<Vec<String>> {
+    let doc: serde_json::Value = serde_json::from_str(report)?;
+    let mut out: Vec<String> = doc["install"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|i| {
+            let m = &i["metadata"];
+            Some(format!(
+                "pypi:{}=={}",
+                m["name"].as_str()?,
+                m["version"].as_str()?
+            ))
+        })
+        .collect();
+    out.sort();
+    out.dedup();
+    Ok(out)
 }
 
 /// `left-pad`, `lodash@4.17.21`, `@scope/pkg@1.0.0`; paths, git and URLs are skipped.
@@ -730,7 +796,10 @@ pub(crate) async fn run_guard_command(
             }
         }
         Some(named) => {
-            let targets = npm_tree(command).await?.unwrap_or(named);
+            let targets = match npm_tree(command).await? {
+                Some(tree) => tree,
+                None => pip_tree(command).await?.unwrap_or(named),
+            };
             eprintln!(
                 "kalascan guard: scanning {} before install...",
                 targets.len()
@@ -1395,5 +1464,18 @@ mod guard_tests {
             targets("pip install wheel"),
             Some(vec!["pypi:wheel".to_string()])
         );
+    }
+
+    #[test]
+    fn pip_report_lists_what_the_install_adds() {
+        let report = r#"{"version": "1", "install": [
+            {"download_info": {}, "metadata": {"name": "requests", "version": "2.32.3"}},
+            {"metadata": {"name": "urllib3", "version": "2.2.3"}},
+            {"metadata": {"name": "broken"}}]}"#;
+        assert_eq!(
+            super::pip_report_targets(report).unwrap(),
+            ["pypi:requests==2.32.3", "pypi:urllib3==2.2.3"]
+        );
+        assert!(super::pip_report_targets("not json").is_err());
     }
 }
