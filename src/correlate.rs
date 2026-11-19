@@ -473,11 +473,16 @@ fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
     // What an install script can reach. CI and infra YAML is the author's
     // pipeline: a `curl … .EXE` in circle.yml never runs at `npm install`
     // (sapnwrfc).
+    // `api.telegram.org/bot<TOKEN>/…` with the token written as a placeholder
+    // documents a bot the user sets up (whatnext-ai's optional alert URL).
     let shipped = |names: &[&str]| {
         matches.iter().copied().find(|m| {
             names.contains(&m.matched_pattern.as_str())
                 && !m.file_path.ends_with(".yml")
                 && !m.file_path.ends_with(".yaml")
+                && !(m.matched_pattern == EXFIL_SERVICE
+                    && m.context.contains("api.telegram.org")
+                    && m.context.contains("/bot<"))
         })
     };
     let mut out = remote_file_write(matches);
@@ -1043,6 +1048,17 @@ mod tests {
             hit("package.json", "Post-Install Script", 3),
             hit("index.js", EXFIL_SERVICE, 12),
         ];
+        assert_eq!(names(&correlate_package(&m)), vec![INSTALL_EXFIL]);
+
+        // whatnext-ai: an optional alert bot with the user's own token.
+        let mut telegram = hit("src/server.js", EXFIL_SERVICE, 68);
+        telegram.context = "// optional: >>> https://api.telegram.org <<< /bot<TOKEN>/".into();
+        let m = vec![hit("package.json", "Post-Install Script", 3), telegram];
+        assert!(correlate_package(&m).is_empty());
+        // An install-time stealer's bot, its token kept elsewhere, still is.
+        let mut telegram = hit("index.js", EXFIL_SERVICE, 9);
+        telegram.context = "fetch(`>>> https://api.telegram.org <<< /bot${t}/sendDocument`".into();
+        let m = vec![hit("package.json", "Post-Install Script", 3), telegram];
         assert_eq!(names(&correlate_package(&m)), vec![INSTALL_EXFIL]);
 
         // Recon + plain HTTP at install time also counts.

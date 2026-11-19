@@ -18,9 +18,13 @@ inputs:
     required: false
     default: "false"
   base_ref:
-    description: "Git ref used as the diff base for changed_only"
+    description: "Git ref used as the diff base for changed_only and new_dependencies"
     required: false
     default: "origin/main"
+  new_dependencies:
+    description: "Also scan every package the lockfiles add or change against base_ref (needs base_ref fetched, e.g. actions/checkout with fetch-depth: 0). Fails at fail_on_risk"
+    required: false
+    default: "false"
   untrusted:
     description: "Scan the target as someone else's code: no skipped build dirs, no inline kalascan:ignore markers, no .kalascanignore or kalascan.toml from the checkout. Keep \"true\" for pull requests, whose author controls those files"
     required: false
@@ -53,6 +57,16 @@ runs:
         if [ "$UNTRUSTED" != "false" ]; then args+=(--untrusted); fi
         if [ "$CHANGED_ONLY" = "true" ]; then args+=(--changed-only --base-ref "$BASE_REF"); fi
         kalascan "${args[@]}"
+      shell: bash
+
+    - name: Scan new dependencies
+      # A pull request's way in is a new package in the lockfile, not a line of
+      # the repository's own code. Development dependencies install in CI too.
+      if: inputs.new_dependencies == 'true'
+      env:
+        FAIL_ON_RISK: ${{ inputs.fail_on_risk }}
+        BASE_REF: ${{ inputs.base_ref }}
+      run: kalascan deps . --base-ref "$BASE_REF" --include-dev --fail-on-risk "$FAIL_ON_RISK"
       shell: bash
 
     - name: Upload SARIF

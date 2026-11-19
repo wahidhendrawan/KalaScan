@@ -287,7 +287,9 @@ name = "nested b64decode"
 severity = "critical"
 category = "obfuscation"
 description = "Nested base64 decoding — multi-layer obfuscation"
-pattern = '''(?i)(?:base64\.b64decode\s*\(\s*base64|b64decode\s*\(\s*b64decode)'''
+pattern = '''(?i)(?:base64\.b64decode\s*\(\s*base64\.|b64decode\s*\(\s*b64decode)'''
+matches = ['''base64.b64decode(base64.b64decode(blob))''', '''b64decode(b64decode(x))''']
+ignores = ['''message_bytes = base64.b64decode(base64_bytes)''']
 
 [[rule]]
 id = "KS-EXE-005"
@@ -680,9 +682,11 @@ name = "Remote Executable Download"
 severity = "high"
 category = "supply_chain"
 description = "Downloads an executable or script from the internet"
-pattern = '''(?i)(?:https?://[^\s"'<>()]+\.(?:exe|dll|scr|msi|bat|cmd|ps1|vbs|hta|elf|dmg|pkg|apk|sh)(?:[?#"'\s)\\]|$)|cdn\.discordapp\.com/attachments/|certutil(?:\.exe)?\s+-urlcache|bitsadmin(?:\.exe)?\s+/transfer)'''
-matches = ['''set "EXE_URL=http://paxfallow.ru/Lightshot.exe"''']
-ignores = ['''https://github.com/x/y/releases/download/v1/tool.zip''']
+# The extension is the path's, not the host's: `https://summarize.sh` is a
+# site under the .sh top-level domain.
+pattern = '''(?i)(?:https?://[^\s"'<>()/]+/[^\s"'<>()]*\.(?:exe|dll|scr|msi|bat|cmd|ps1|vbs|hta|elf|dmg|pkg|apk|sh)(?:[?#"'\s)\\]|$)|cdn\.discordapp\.com/attachments/|certutil(?:\.exe)?\s+-urlcache|bitsadmin(?:\.exe)?\s+/transfer)'''
+matches = ['''set "EXE_URL=http://paxfallow.ru/Lightshot.exe"''', '''curl -fsSL https://example.org/install.sh | bash''']
+ignores = ['''https://github.com/x/y/releases/download/v1/tool.zip''', '''**Homepage:** https://summarize.sh **Author:**''']
 
 # `\x20` too: obfuscators escape the spaces in these strings.
 [[rule]]

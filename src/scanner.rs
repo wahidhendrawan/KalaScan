@@ -4,7 +4,7 @@ use std::path::Path;
 use walkdir::WalkDir;
 
 /// Human-readable ruleset version (also surfaced by `kalascan rules`).
-pub const RULESET_VERSION: &str = "2026.11.7";
+pub const RULESET_VERSION: &str = "2026.11.8";
 
 /// Critical file extensions for scanning
 // `.yml`/`.yaml` get only the exfiltration, network, supply-chain and
@@ -277,6 +277,11 @@ fn rule_hits<'r>(
             }
             if !keep_hit(&rule.name, text)
                 || (rule.name == FETCH_EVAL && fetches_vendor_installer(&content[end..]))
+                || (rule.name == B64_EXEC && decodes_a_placeholder(&content[end..]))
+                || (rule.name == "Crypto Wallet Access"
+                    && links_to_store_page(&content[line_start(line)..start]))
+                || (rule.name == SYSTEMD_USER
+                    && printed_for_the_user(&content[line_start(line)..start]))
             {
                 continue;
             }
@@ -1130,11 +1135,30 @@ fn is_doc(filename: &str) -> bool {
     DOC_EXTENSIONS.iter().any(|ext| lower.ends_with(ext))
 }
 
-/// False for hits that only look bad: loopback and private IPs, official
-/// installer downloads.
+/// Public DNS resolvers (Cloudflare, Google, Quad9, OpenDNS): a
+/// DNS-over-HTTPS endpoint or a connectivity check, not a server someone
+/// rents for a payload.
+const PUBLIC_RESOLVERS: &[&str] = &[
+    "1.1.1.1",
+    "1.0.0.1",
+    "8.8.8.8",
+    "8.8.4.4",
+    "9.9.9.9",
+    "149.112.112.112",
+    "208.67.222.222",
+    "208.67.220.220",
+];
+
+/// False for hits that only look bad: loopback, private and public-resolver
+/// IPs, official installer downloads, the example key in AWS's documentation.
 pub(crate) fn keep_hit(rule: &str, text: &str) -> bool {
     let is_ip_rule = rule == "Hardcoded IP Address" || rule == IP_URL;
-    if is_ip_rule && !is_public_ipv4(text.rsplit('/').next().unwrap_or_default()) {
+    let ip = text.rsplit('/').next().unwrap_or_default();
+    if is_ip_rule && (!is_public_ipv4(ip) || PUBLIC_RESOLVERS.contains(&ip)) {
+        return false;
+    }
+    // `AKIAIOSFODNN7EXAMPLE`: AWS's documented example, in help text and tests.
+    if rule == "AWS Access Key" && text.ends_with("EXAMPLE") {
         return false;
     }
     // `github.com/o/r/blob/<sha>/t/test-lib.sh#L90` is a link to a line of
@@ -1143,6 +1167,42 @@ pub(crate) fn keep_hit(rule: &str, text: &str) -> bool {
         return false;
     }
     !((rule == REMOTE_BINARY || rule == DOWNLOAD_CRADLE) && is_vendor_download(text))
+}
+
+/// `f"exec(base64.b64decode('{encoded}'))"`: a command template for another
+/// process, with a format placeholder where a payload would be. `after` is
+/// the text that follows the matched `…b64decode(`.
+fn decodes_a_placeholder(after: &str) -> bool {
+    static PLACEHOLDER: std::sync::LazyLock<Regex> =
+        std::sync::LazyLock::new(|| Regex::new(r#"^\s*['"]?\{[\w.!:\[\]]*\}['"]?\s*\)"#).unwrap());
+    PLACEHOLDER.is_match(&after[..floor_boundary(after, 80)])
+}
+
+/// `…/webstore/detail/metamask/nkbih…`: a wallet connector's link to the
+/// wallet's store page, not the wallet's data directory. `before`: the line
+/// up to the match.
+fn links_to_store_page(before: &str) -> bool {
+    before
+        .rsplit(['"', '\'', '`', ' ', '('])
+        .next()
+        .is_some_and(|url| url.contains("/detail/"))
+}
+
+/// `console.log('  systemctl --user enable …')`: a command shown to the user,
+/// not one the package runs. `before`: the line up to the match.
+fn printed_for_the_user(before: &str) -> bool {
+    before.rfind('(').is_some_and(|i| {
+        let callee = before[..i].trim_end();
+        [
+            "console.log",
+            "console.info",
+            "console.warn",
+            "console.error",
+            "print",
+        ]
+        .iter()
+        .any(|p| callee.ends_with(p))
+    })
 }
 
 /// `exec(urlopen('https://bitbucket.org/pypa/setuptools/raw/…/ez_setup.py'))`:
@@ -1184,6 +1244,8 @@ fn is_vendor_download(url: &str) -> bool {
         "playwright.dev",
         "apple.com",
         "pypa.io",
+        "ollama.com",
+        "cmake.org",
         // GitHub's own link shortener (Copilot CLI installer).
         "gh.io",
         // The whole TLD is run by Google (Antigravity CLI installer).
@@ -1591,6 +1653,31 @@ mod tests {
             "'https://bitbucket.org/evil/x/raw/a.py').read())"
         ));
         assert!(!fetches_vendor_installer("Request(url=u)).read())"));
+        // Seen on new PyPI and npm releases: a resolver, AWS's example key, a
+        // command template.
+        assert!(!keep_hit(IP_URL, "https://1.1.1.1"));
+        assert!(keep_hit(IP_URL, "http://91.92.242.133"));
+        assert!(!keep_hit("AWS Access Key", "AKIAIOSFODNN7EXAMPLE"));
+        // Split so the repository's own secret scan does not flag it.
+        assert!(keep_hit(
+            "AWS Access Key",
+            concat!("AKIA", "1234567890123456")
+        ));
+        assert!(decodes_a_placeholder("'{encoded}'),'<verifier>','exec'))"));
+        assert!(decodes_a_placeholder("{encoded!r}))"));
+        assert!(!decodes_a_placeholder("'aW1wb3J0IG9z'))"));
+        assert!(!decodes_a_placeholder("payload))"));
+        // Random packages drawn for ruleset 2026.11.8: a wallet connector's
+        // install link, an instruction printed for the user.
+        assert!(links_to_store_page(
+            "    link: 'https://chrome.google.com/webstore/detail/metamask/"
+        ));
+        assert!(!links_to_store_page(
+            "path.join(home, 'Local Extension Settings/"
+        ));
+        assert!(printed_for_the_user("  console.log('  "));
+        assert!(!printed_for_the_user("execSync(`"));
+        assert!(!printed_for_the_user("console.log(execSync(`"));
     }
 
     #[test]

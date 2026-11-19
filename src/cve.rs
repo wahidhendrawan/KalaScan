@@ -172,8 +172,9 @@ pub fn parse_requirements_txt(content: &str, file_name: &str) -> Vec<DependencyP
     packages
 }
 
-/// Most-downloaded packages, the usual typo-squat targets.
-/// shortcut: hand-picked top names; swap for a generated top-N list if misses show up.
+/// Typo-squat targets that are not among the most downloaded but are what
+/// attackers copy (`discord.js`, `web3`, `electron`); the top 1,000 by
+/// downloads come from rules/popular_packages.tsv (`popular`).
 const POPULAR_NPM: &[&str] = &[
     "react",
     "react-dom",
@@ -258,6 +259,58 @@ const POPULAR_PYPI: &[&str] = &[
     "pynacl",
 ];
 
+/// The names a typo-squat imitates in `ecosystem`: the generated top 1,000
+/// (rules/gen_popular_packages.py) and the hand-picked targets above.
+fn popular(ecosystem: &str) -> &'static [String] {
+    static LISTS: std::sync::LazyLock<[Vec<String>; 2]> = std::sync::LazyLock::new(|| {
+        let mut lists = [Vec::new(), Vec::new()];
+        for (i, (eco, extra)) in [("npm", POPULAR_NPM), ("PyPI", POPULAR_PYPI)]
+            .into_iter()
+            .enumerate()
+        {
+            let generated = include_str!("../rules/popular_packages.tsv")
+                .lines()
+                .filter_map(|l| l.strip_prefix(eco)?.strip_prefix('\t'));
+            let mut names: Vec<String> = generated
+                .chain(extra.iter().copied())
+                .map(str::to_lowercase)
+                .collect();
+            names.sort();
+            names.dedup();
+            lists[i] = names;
+        }
+        lists
+    });
+    match ecosystem {
+        "npm" => &LISTS[0],
+        "PyPI" => &LISTS[1],
+        _ => &[],
+    }
+}
+
+/// `parser-json` for `json-parser`: the words of a popular name, reordered.
+fn same_words(name: &str, popular: &str) -> bool {
+    fn words(s: &str) -> Vec<&str> {
+        let mut w: Vec<&str> = s.split(['-', '_', '.']).collect();
+        w.sort_unstable();
+        w
+    }
+    name != popular && name.split(['-', '_', '.']).count() >= 2 && words(name) == words(popular)
+}
+
+/// `client-s3` for `@aws-sdk/client-s3`: a popular scoped name without its
+/// scope. Only compound names of 8 characters or more: `core` for
+/// `@babel/core` is a different, real package.
+fn scope_dropped(name: &str, popular: &str) -> bool {
+    !name.starts_with('@')
+        && name.len() >= 8
+        && name.contains('-')
+        && popular.starts_with('@')
+        && popular
+            .split_once('/')
+            .is_some_and(|(_, rest)| rest == name)
+}
+
 /// Real packages that happen to sit one edit from a popular name.
 const KNOWN_NEIGHBORS: &[&str] = &[
     "preact",
@@ -269,35 +322,34 @@ const KNOWN_NEIGHBORS: &[&str] = &[
     "rsync",
 ];
 
-/// Dependencies one edit (or one swap of neighbours) away from a popular
-/// package they are not. Names under 6 chars are skipped: `vue`/`vuex`,
+/// Dependencies that imitate a popular package they are not: one edit (or
+/// one swap of neighbours) away, the same words reordered, or a scoped name
+/// without its scope. Names under 6 chars are skipped: `vue`/`vuex`,
 /// `async`/`rsync`, `eslint`/`tslint` style pairs are mostly all real.
 pub fn typosquat_matches(packages: &[DependencyPackage]) -> Vec<RuleMatch> {
     packages
         .iter()
         .filter_map(|p| {
-            let popular = match p.ecosystem.as_str() {
-                "npm" => POPULAR_NPM,
-                "PyPI" => POPULAR_PYPI,
-                _ => return None,
-            };
+            let popular = popular(&p.ecosystem);
             let name = p.name.to_lowercase();
             if name.len() < 6
-                || popular.contains(&name.as_str())
+                || popular.contains(&name)
                 || KNOWN_NEIGHBORS.contains(&name.as_str())
             {
                 return None;
             }
             let target = popular
                 .iter()
-                .find(|t| t.len() >= 6 && edit_distance(&name, t) == 1)?;
+                .find(|t| t.len() >= 6 && edit_distance(&name, t) == 1)
+                .or_else(|| popular.iter().find(|t| same_words(&name, t)))
+                .or_else(|| popular.iter().find(|t| scope_dropped(&name, t)))?;
             Some(RuleMatch {
                 file_path: p.manifest_file.clone(),
                 line_number: 1,
                 matched_pattern: format!("Typo-squat Suspect: {} (looks like {})", p.name, target),
                 severity: "high".to_string(),
                 context: format!(
-                    "Dependency '{}' is one edit away from the popular package '{}'",
+                    "Dependency '{}' looks like the popular package '{}' (one edit, the same words reordered, or its scope dropped)",
                     p.name, target
                 ),
             })
@@ -539,6 +591,91 @@ fn own_package(root: &Path) -> Option<DependencyPackage> {
     ))
 }
 
+pub const BUILTIN_NAME_DEP: &str = "Dependency on a Node Built-in Name";
+pub const UNCLAIMED_DEP: &str = "Dependency Name Unclaimed on the Registry";
+
+/// Node core modules whose npm name is a placeholder or a dead package
+/// (checked 2026-11-19). Depending on one is a mistake, typically in a
+/// generated `package.json`; `readline`, `path`, `os` and the like are real
+/// packages and are left out.
+const NODE_BUILTIN_PLACEHOLDERS: &[&str] = &[
+    "async_hooks",
+    "child_process",
+    "crypto",
+    "dgram",
+    "fs",
+    "http",
+    "perf_hooks",
+    "trace_events",
+    "worker_threads",
+];
+
+/// Most names one project's manifests are checked against the registry for.
+const MAX_UNCLAIMED_LOOKUPS: usize = 50;
+
+/// Hygiene of the operator's own manifests, not malware evidence (severity
+/// low, so the v1 score ignores it): a dependency on a Node built-in's name,
+/// and, with `online`, an unscoped dependency name nobody has registered.
+/// Anyone can publish that name and it gets installed, which is what
+/// dependency confusion and names an AI assistant made up (slopsquatting)
+/// rely on. Popular names are not looked up.
+pub async fn own_manifest_matches(packages: &[DependencyPackage], online: bool) -> Vec<RuleMatch> {
+    let hit = |p: &DependencyPackage, pattern: &str, context: String| RuleMatch {
+        file_path: p.manifest_file.clone(),
+        line_number: 1,
+        matched_pattern: pattern.to_string(),
+        severity: "low".to_string(),
+        context,
+    };
+    let mut out: Vec<RuleMatch> = packages
+        .iter()
+        .filter(|p| p.ecosystem == "npm" && NODE_BUILTIN_PLACEHOLDERS.contains(&p.name.as_str()))
+        .map(|p| {
+            hit(p, BUILTIN_NAME_DEP, format!(
+                "'{}' is a Node core module; the npm package of that name is a placeholder, so the dependency installs nothing useful and should be removed",
+                p.name
+            ))
+        })
+        .collect();
+    if !online {
+        return out;
+    }
+    let Ok(client) = crate::vsix::http_client() else {
+        return out;
+    };
+    let candidates: Vec<&DependencyPackage> = packages
+        .iter()
+        .filter(|p| matches!(p.ecosystem.as_str(), "npm" | "PyPI") && !p.name.starts_with('@'))
+        .filter(|p| !popular(&p.ecosystem).contains(&p.name.to_lowercase()))
+        .take(MAX_UNCLAIMED_LOOKUPS)
+        .collect();
+    let mut lookups = tokio::task::JoinSet::new();
+    for (i, p) in candidates.iter().enumerate() {
+        let url = if p.ecosystem == "npm" {
+            format!("https://registry.npmjs.org/{}", p.name)
+        } else {
+            format!("https://pypi.org/pypi/{}/json", p.name)
+        };
+        let client = client.clone();
+        lookups.spawn(async move { (i, client.head(url).send().await.ok().map(|r| r.status())) });
+    }
+    let mut missing: Vec<usize> = Vec::new();
+    while let Some(Ok((i, status))) = lookups.join_next().await {
+        // Only a definite 404: an error or a rate limit says nothing.
+        if status == Some(reqwest::StatusCode::NOT_FOUND) {
+            missing.push(i);
+        }
+    }
+    missing.sort_unstable();
+    for p in missing.into_iter().map(|i| candidates[i]) {
+        out.push(hit(p, UNCLAIMED_DEP, format!(
+                "No package named '{}' on the public {} registry: whoever registers it first is what this manifest installs",
+                p.name, p.ecosystem
+            )));
+    }
+    out
+}
+
 /// Query OSV (Open Source Vulnerabilities) API for known vulnerabilities
 pub async fn check_vulnerabilities(packages: &[DependencyPackage]) -> Vec<RuleMatch> {
     if packages.is_empty() {
@@ -649,6 +786,33 @@ fn osv_matches(batch: &[DependencyPackage], results: Vec<OsvQueryResult>) -> Vec
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reordered_words_and_dropped_scope_look_alike() {
+        let json = r#"{"dependencies": {"styles-ansi": "1.0.0", "ansi-styles": "6.2.1", "trace-mapping": "1.0.0", "@jridgewell/trace-mapping": "0.3.25", "fs": "0.0.1", "path": "0.12.7"}}"#;
+        let deps = parse_package_json(json, "package.json");
+        let found: Vec<String> = typosquat_matches(&deps)
+            .into_iter()
+            .map(|m| m.matched_pattern)
+            .collect();
+        assert_eq!(
+            found,
+            [
+                "Typo-squat Suspect: styles-ansi (looks like ansi-styles)",
+                "Typo-squat Suspect: trace-mapping (looks like @jridgewell/trace-mapping)",
+            ]
+        );
+        // Offline: only the built-in placeholder name; `path` is a real package.
+        let own = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(own_manifest_matches(&deps, false));
+        assert_eq!(own.len(), 1);
+        assert_eq!(
+            (own[0].matched_pattern.as_str(), own[0].severity.as_str()),
+            (BUILTIN_NAME_DEP, "low")
+        );
+        assert!(own[0].context.contains("'fs'"));
+    }
 
     #[test]
     fn test_typosquat_matches() {
