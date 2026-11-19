@@ -22,6 +22,9 @@ published on GitHub; their features are listed with version markers in `README.m
 ### Fixed
 - Eval harness: an archive with two manifests at the same depth was scanned from whichever directory came first; it now scans their common parent. One `dev` sample had been caught for the wrong reason.
 
+### Security
+- `Cargo.lock` moves wasmtime (through yara-x) to 48.0.9 for RUSTSEC-2026-0566 to RUSTSEC-2026-0573.
+
 ## [1.20.0] - 2026-11-19
 
 ### Added
