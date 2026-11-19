@@ -589,7 +589,7 @@ fn detect_kind(path: &Path, head: &[u8]) -> String {
     "Binary data".to_string()
 }
 
-fn is_macho_magic(head: &[u8]) -> bool {
+pub(crate) fn is_macho_magic(head: &[u8]) -> bool {
     matches!(
         head.get(..4),
         Some([0xfe, 0xed, 0xfa, 0xce])

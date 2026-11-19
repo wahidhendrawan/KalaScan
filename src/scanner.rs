@@ -4,7 +4,7 @@ use std::path::Path;
 use walkdir::WalkDir;
 
 /// Human-readable ruleset version (also surfaced by `kalascan rules`).
-pub const RULESET_VERSION: &str = "2026.11.6";
+pub const RULESET_VERSION: &str = "2026.11.7";
 
 /// Critical file extensions for scanning
 // `.yml`/`.yaml` get only the exfiltration, network, supply-chain and
@@ -92,6 +92,11 @@ pub const GIT_HOOKS_GLOBAL: &str = "Global Git Hooks Path Set";
 pub const CHARCODE_EVAL: &str = "Code Decoded From a Number Array and Evaluated";
 pub const B64_MODULE: &str = "Module Name Decoded From Base64";
 pub const PADDING: &str = "Code Hidden Behind Whitespace Padding";
+pub const SHUFFLE_LOADER: &str = "Shuffled String Loader";
+pub const STDIN_INTERPRETER: &str = "Code Piped Into a Detached Interpreter";
+pub const KANA_TABLE: &str = "String Table Behind Kana Identifiers";
+pub const SYSTEM_NAME: &str = "System Process Name Assigned";
+pub const MANIFEST_SCRIPT: &str = "Shell Script Encoded in the Manifest";
 
 #[derive(Clone, Debug)]
 pub struct Rule {
@@ -1457,6 +1462,11 @@ mod tests {
             GIT_HOOKS_GLOBAL,
             CHARCODE_EVAL,
             B64_MODULE,
+            SHUFFLE_LOADER,
+            STDIN_INTERPRETER,
+            KANA_TABLE,
+            SYSTEM_NAME,
+            MANIFEST_SCRIPT,
             "Hardcoded IP Address",
             "Post-Install Script",
             "URL Fetch Command",

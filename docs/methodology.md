@@ -2,7 +2,7 @@
 
 What KalaScan claims, how the claims are measured, and where they stop. Written for someone auditing the tool: every statement points at a file in the repository that holds the evidence.
 
-Numbers on this page are for ruleset `2026.11.6`, score model v1, measured 2026-11-18, unless a line says otherwise. They are copies. The record is [`eval/results/2026.11.6.json`](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/results/2026.11.6.json) and the [evaluation notes](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md); where this page and they disagree, they are right.
+Numbers on this page are for ruleset `2026.11.7`, score model v1, measured 2026-11-19, unless a line says otherwise. They are copies. The record is [`eval/results/2026.11.7.json`](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/results/2026.11.7.json) and the [evaluation notes](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md); where this page and they disagree, they are right.
 
 ## What KalaScan claims and what it does not
 
@@ -12,15 +12,15 @@ Numbers on this page are for ruleset `2026.11.6`, score model v1, measured 2026-
 
 | | flagged | 95% interval |
 |---|---|---|
-| malicious, all holdout samples | 478 of 683 (70%) | 66-73 |
-| malicious, holdout samples dated 2026-08-01 or later (newer than most of what the rules were written from) | 87 of 195 (45%) | 38-52 |
+| malicious, all holdout samples | 480 of 683 (70%) | 67-74 |
+| malicious, holdout samples dated 2026-08-01 or later (newer than most of what the rules were written from) | 89 of 195 (46%) | 39-53 |
 | malicious, drawn after ruleset 2026.11.2 (`fresh-2026-11`) | 90 of 159 (57%) | 49-64 |
 | malicious, drawn before ruleset 2026.11.5 (`fresh2-2026-11`; the tuning batch came from the same months) | 156 of 196 (80%) | 73-85 |
-| malicious, npm samples in the holdout | 234 of 387 (60%) | 56-65 |
-| malicious, npm packages dated 2026-08-01 or later (`recent-2026-11`) | 31 of 60 (52%) | 39-64 |
+| malicious, npm samples in the holdout | 236 of 387 (61%) | 56-66 |
+| malicious, npm packages dated 2026-08-01 or later (`recent-2026-11`) | 33 of 60 (55%) | 42-67 |
 | clean, random npm and PyPI packages, before any fix | 5 of 595 (0.8%) | 0.4-2.0 |
 
-**It does not claim that an unflagged package is safe.** 205 of the 683 malicious holdout samples score below 50. 203 of them score below 30, the band that reports label **safe** ([scoring.md](scoring.md), "What a score means": 147 + 56 in the v1 column). That label means that no combination of findings reached the warning band. It says nothing else.
+**It does not claim that an unflagged package is safe.** 203 of the 683 malicious holdout samples score below 50. 201 of them score below 30, the band that reports label **safe** ([scoring.md](scoring.md), "What a score means": 147 + 54 in the v1 column). That label means that no combination of findings reached the warning band. It says nothing else.
 
 **What "risk 50" means.** The score is a sum of parts, not a probability ([scoring.md](scoring.md)). 50 is the threshold the evaluation, the CI gate and `kalascan guard` use; the GitHub Action defaults to 60 (`action.yml`). Under v1, in a default scan, the three are the same gate:
 
@@ -120,7 +120,7 @@ Each sample has a `split`. Rules are tuned while looking at `dev`. `holdout` is 
 Where the rule was bent, on record in the evaluation notes:
 
 - On 2026-11-17, before counting was the default, one run printed the names and rule names of ten missed `malregistry` samples. No rule or weight was changed in response. They stay in the holdout.
-- The holdout total has been read after each change (82, 96, 94, 99 and 101 of 147; 193 and 202 of 302). The `fresh-2026-11` set was drawn after ruleset 2026.11.2 and has been counted three times: 78 of 159 then, 89 after the tuning on `tune-fresh-2026-11`, 89 again with ruleset 2026.11.4; 281, 306 and 306 of 461 for the whole holdout. `fresh2-2026-11` was drawn before ruleset 2026.11.5 and counted twice: 138 of 196 before, 156 after (444 and 465 of 657 for the whole holdout). `late-2026-11` has been counted once (13 of 26). A count leaks less than a sample, but it leaks: a change that lowers the count can be dropped.
+- The holdout total has been read after each change (82, 96, 94, 99 and 101 of 147; 193 and 202 of 302). The `fresh-2026-11` set was drawn after ruleset 2026.11.2 and has been counted three times: 78 of 159 then, 89 after the tuning on `tune-fresh-2026-11`, 89 again with ruleset 2026.11.4; 281, 306 and 306 of 461 for the whole holdout. `fresh2-2026-11` was drawn before ruleset 2026.11.5 and counted twice: 138 of 196 before, 156 after (444 and 465 of 657 for the whole holdout). `late-2026-11` has been counted twice (13 of 26 both times; 478 and 480 of 683 for the whole holdout, rulesets 2026.11.6 and 2026.11.7). A count leaks less than a sample, but it leaks: a change that lowers the count can be dropped.
 - Clean holdout samples that were flagged and then read were moved to `dev` and the rules fixed. The clean holdout is therefore what was never flagged. See "The clean side".
 
 ### The sample sets
@@ -234,8 +234,8 @@ Compare `/tmp/summary.json` with the file for the same ruleset version in `eval/
 
 From the measured results, not from principle.
 
-1. **npm malware: three in five, the newest under half.** 234 of 387 npm samples in the holdout (60%, 56-65); of the holdout samples dated August 2026 or later, 87 of 195 (45%, 38-52), against 148 of 193 (77%) for npm dated before. PyPI is at 212 of 248 (85%), IDE extensions 32 of 48 (67%). The 80% on `fresh2-2026-11` is high partly because it shares campaigns with the batch the last rules were written from (eval/README.md, "npm tuning with GuardDog as a second reader"); `fresh-2026-11`, drawn earlier from later months, is at 57%. About a third of each npm tuning batch has no malicious code in the package's own files (a payload in a dependency, a native binary, a real library published at a hijacked version), which caps what a static scan of the artefact can reach. Rules tuned on 2022-2025 samples generalise worse to newer ones: until November 2026 the holdout held 27 samples and scored 26.
-2. **A third of known malware is missed outright.** 205 of 683 holdout samples score below 50, and 203 of those below 30.
+1. **npm malware: three in five, the newest under half.** 236 of 387 npm samples in the holdout (61%, 56-66); of the holdout samples dated August 2026 or later, 89 of 195 (46%, 39-53), against 148 of 193 (77%) for npm dated before. PyPI is at 212 of 248 (85%), IDE extensions 32 of 48 (67%). The 80% on `fresh2-2026-11` is high partly because it shares campaigns with the batch the last rules were written from (eval/README.md, "npm tuning with GuardDog as a second reader"); `fresh-2026-11`, drawn earlier from later months, is at 57%. About a third of each npm tuning batch has no malicious code in the package's own files (a payload in a dependency, a native binary, a real library published at a hijacked version), which caps what a static scan of the artefact can reach. Among the newest it is two thirds: of the 44 `tune-recent-2026-11` samples ruleset 2026.11.6 missed, 30 are of that kind (eval/README.md, "Reading the newest misses"). Rules tuned on 2022-2025 samples generalise worse to newer ones: until November 2026 the holdout held 27 samples and scored 26.
+2. **A third of known malware is missed outright.** 203 of 683 holdout samples score below 50, and 201 of those below 30.
 3. **False positives on packages nobody picked: 0.8% (0.4-2.0).** 5 of 595 at first contact. At that rate a lockfile of 1,000 packages raises about 8 flags; that is arithmetic, not a measurement of `kalascan deps`. On popular packages the first-contact rate was 5% (9 of 176). On random IDE extensions it is not measured.
 4. **What gets through**, from the misses that were read (evaluation notes, last two paragraphs):
    - packages with no code: empty placeholders, typo-squats that copy the original, a native `.node` binary;

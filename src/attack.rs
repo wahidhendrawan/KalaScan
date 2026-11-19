@@ -790,6 +790,11 @@ const FINDING_TABLE: &[(&str, &[&str])] = &[
     ("Code Decoded From a Number Array and Evaluated", &["T1027", "T1140", "T1059.007"]),
     ("Module Name Decoded From Base64", &["T1027", "T1140"]),
     ("Code Hidden Behind Whitespace Padding", &["T1027.001"]),
+    ("Shuffled String Loader", &["T1027", "T1140"]),
+    ("Code Piped Into a Detached Interpreter", &["T1059", "T1564"]),
+    ("String Table Behind Kana Identifiers", &["T1027"]),
+    ("System Process Name Assigned", &["T1036.005"]),
+    ("Shell Script Encoded in the Manifest", &["T1027", "T1059.004"]),
     // Raised by code (taxonomy::CODE_FINDINGS). Instructions aimed at an AI
     // agent have no Enterprise technique (ATLAS AML.T0051 is theirs).
     ("Agent Instruction: Hidden Unicode Tag Text", &["T1027"]),
@@ -828,6 +833,9 @@ const FINDING_TABLE: &[(&str, &[&str])] = &[
     ("Chain: Malicious New Dependency", &["T1195.001"]),
     ("Chain: SSH Key Planted", &["T1098.004"]),
     ("Chain: Platform Binary Under Another Name", &["T1195.001", "T1036"]),
+    ("Chain: Obfuscated Code Appended to Readable Source", &["T1027", "T1195.001"]),
+    ("Chain: Executable Copied Under a System Process Name", &["T1036.005"]),
+    ("Chain: Hidden Bundled Binary Started Detached", &["T1564.001", "T1195.001"]),
     ("Chain: Web Page Published as a Package", &["T1566", "T1036"]),
     ("Package Entry Point Is a Web Page", &[]),
     ("Chain: Obfuscated Credential Theft", &["T1027", "T1552"]),

@@ -1069,3 +1069,53 @@ description = "zlib / base64 / marshal reached through __import__ and decoded in
 pattern = '''__import__\(\s*["'](?:zlib|base64|marshal|codecs|lzma|bz2)["']\s*\)\s*\.\s*(?:decompress|b64decode|b32decode|b16decode|a85decode|b85decode|loads|decode)\s*\('''
 matches = ['''_ = lambda __ : __import__('zlib').decompress(__import__('base64').b64decode(__[::-1]));''']
 ignores = ['''zlib = importlib.import_module("zlib")''']
+
+[[rule]]
+id = "KS-EXE-042"
+name = "Shuffled String Loader"
+severity = "critical"
+category = "obfuscation"
+description = "The seeded swap-shuffle decoder of a JavaScript packer: the payload is a scrambled string that this function puts back in order for `Function` (illusion-datalab)"
+pattern = '''function\s+[\w$]+\([\w$]\)\{var [\w$]=\d{5,};var [\w$]=[\w$]\.length;var [\w$]=\[\];for\(var [\w$]=0;[\w$]<[\w$];[\w$]\+\+\)\{[\w$]\[[\w$]\]=[\w$]\.charAt\([\w$]\)\}'''
+matches = ['''function HHP(i){var e=2644648;var u=i.length;var b=[];for(var z=0;z<u;z++){b[z]=i.charAt(z)};for(var z=0;z<u;z++){var g=e*(z+100)+(e%20570);''']
+ignores = ['''function split(s){var n=s.length;var out=[];for(var i=0;i<n;i++){out[i]=s.charAt(i)}return out}''']
+
+[[rule]]
+id = "KS-EXE-043"
+name = "Code Piped Into a Detached Interpreter"
+severity = "critical"
+category = "obfuscation"
+description = "A detached interpreter started with no script, then fed code on stdin: the code never touches the disk or the command line (exam-kit, which decrypts it from an icon file)"
+pattern = '''spawn\(\s*['"](?:node|python3?|bash|sh)['"]\s*,\s*\[\s*\]\s*,\s*\{[^{}]{0,200}?detached\s*:\s*true[^{}]{0,200}?\}\s*\)[^{}]{0,300}?\.stdin\.write\('''
+matches = ['''const p = child_process.spawn('node', [], { detached: true, stdio: ['pipe', 'ignore', 'ignore'] }); p.stdin.write(String(code));''']
+ignores = ['''const p = spawn('node', [], { stdio: 'pipe' }); p.stdin.write(src);''', '''spawn('node', ['worker.js'], { detached: true }).stdin.write(msg)''']
+
+[[rule]]
+id = "KS-EXE-044"
+name = "String Table Behind Kana Identifiers"
+severity = "critical"
+category = "obfuscation"
+description = "Two string-table lookups through identifiers written in kana on one line: an obfuscator that picks names nobody can read or search for (baileys-inmemory-store)"
+pattern = '''[\p{Hiragana}\p{Katakana}]{2,}[\[(]0x[0-9a-f]{1,3}[\])][^\n]{0,80}?[\p{Hiragana}\p{Katakana}]{2,}[\[(]0x[0-9a-f]{1,3}[\])]'''
+matches = ['''(やこ[-せわ[0x1c]] = わた[せわ[0x18]] || わた.fromCharCode),''']
+ignores = ['''// カラー(0xff0000) と サイズ(0x10)''', '''const ろた = table[0x1f];''']
+
+[[rule]]
+id = "KS-EXE-045"
+name = "System Process Name Assigned"
+severity = "medium"
+category = "obfuscation"
+description = "A variable set to the file name of a Windows system process"
+pattern = '''=\s*['"](?:SearchApp|SearchHost|RuntimeBroker|svchost|csrss|lsass|winlogon|dllhost|taskhostw|sihost|ctfmon|spoolsv|SecurityHealthService|WmiPrvSE|fontdrvhost|StartMenuExperienceHost)\.exe['"]'''
+matches = ['''const STEALTH_NAME = 'SearchApp.exe';''']
+ignores = ['''const skip = ['svchost.exe', 'csrss.exe'];''', '''spawn('explorer.exe', [dir])''']
+
+[[rule]]
+id = "KS-SUP-015"
+name = "Shell Script Encoded in the Manifest"
+severity = "critical"
+category = "npm_hook"
+description = "A base64 shell script (`#!/bin/…`, `#!/usr/bin/…`) inside package.json: the registry serves the manifest to anyone, so the package is a place to fetch a payload from (cbc97b7a)"
+pattern = '''IyEv(?:YmluL|dXNyL2Jpbi9)'''
+matches = ['''"description": "IyEvYmluL3NoCl9kKCl7IHByaW50ZiAnJXMnICIkMSJ8YmFzZTY0IC1kIDI+L2Rldi9udWxsOyB9"''']
+ignores = ['''"bin": {"tool": "bin/tool.sh"}''']
