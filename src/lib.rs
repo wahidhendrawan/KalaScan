@@ -34,6 +34,7 @@ mod taxonomy;
 pub mod triage;
 mod ttp;
 pub mod vsix;
+mod watch;
 pub mod workflow;
 mod yara_engine;
 pub mod zipslip;
@@ -361,6 +362,7 @@ pub async fn run() -> anyhow::Result<()> {
             jobs,
             max,
             no_cache,
+            base_ref,
         }) => {
             commands::run_deps_command(
                 &path,
@@ -371,8 +373,18 @@ pub async fn run() -> anyhow::Result<()> {
                 jobs,
                 max,
                 no_cache,
+                base_ref.as_deref(),
             )
             .await?;
+        }
+        Some(Commands::Watch {
+            ecosystem,
+            interval,
+            min_risk,
+            jobs,
+            osv_dir,
+        }) => {
+            watch::run(&ecosystem, interval, min_risk, jobs, osv_dir).await?;
         }
         Some(Commands::Diff {
             old,
@@ -443,6 +455,42 @@ fn git_command(empty_home: &std::path::Path) -> tokio::process::Command {
     cmd
 }
 
+/// An API caller's HTTP(S) clone connects to the address checked here:
+/// `http.curloptResolve` pins it (git 2.37 or later; older git ignores the
+/// key and resolves again), and redirects, which would resolve another host,
+/// are not followed. A host that does not resolve now fails here rather than
+/// resolving to something else for git. IP literals were checked at submit;
+/// ssh remotes are not pinned.
+async fn pin_public_host(cmd: &mut tokio::process::Command, repo_url: &str) -> anyhow::Result<()> {
+    let Ok(url) = url::Url::parse(repo_url) else {
+        return Ok(());
+    };
+    let (Some(host), Some(port)) = (url.host_str(), url.port_or_known_default()) else {
+        return Ok(());
+    };
+    let host = host.trim_matches(['[', ']']);
+    if !matches!(url.scheme(), "http" | "https") || host.parse::<std::net::IpAddr>().is_ok() {
+        return Ok(());
+    }
+    let addr = tokio::net::lookup_host((host, port))
+        .await
+        .map_err(|e| anyhow::anyhow!("Cannot resolve '{}': {}", host, e))?
+        .map(|a| a.ip())
+        .find(|ip| !vsix::is_internal_ip(*ip))
+        .ok_or_else(|| anyhow::anyhow!("Target host '{}' resolves to an internal address", host))?;
+    let addr = match addr {
+        std::net::IpAddr::V6(v6) => format!("[{v6}]"),
+        v4 => v4.to_string(),
+    };
+    cmd.args([
+        "-c",
+        &format!("http.curloptResolve={host}:{port}:{addr}"),
+        "-c",
+        "http.followRedirects=false",
+    ]);
+    Ok(())
+}
+
 /// CLI entry point; the server calls `execute_scan_with_id`.
 async fn execute_scan(req: ScanRequest) -> anyhow::Result<ScanResult> {
     let id = uuid::Uuid::new_v4().to_string();
@@ -483,6 +531,9 @@ async fn execute_scan_with_id(req: ScanRequest, id: String) -> anyhow::Result<Sc
     } else {
         info!("Cloning {} to {:?}", shown, target_dir);
         let mut clone_cmd = git_command(tmp_dir.path());
+        if vsix::public_only() {
+            pin_public_host(&mut clone_cmd, &req.repo_url).await?;
+        }
         clone_cmd.arg("clone");
         if !req.git_history {
             clone_cmd.arg("--depth").arg("1");
@@ -641,6 +692,11 @@ async fn execute_scan_in(
     let pkgs = cve::extract_manifest_packages(&scan_dir);
     rule_matches.extend(cve::typosquat_matches(&pkgs));
     rule_matches.extend(cve::own_package_matches(&scan_dir));
+    // The operator's own manifests only: in someone else's package these say
+    // nothing about malware, and a dependency removed since is hindsight.
+    if own_tree {
+        rule_matches.extend(cve::own_manifest_matches(&pkgs, req.check_cve.unwrap_or(true)).await);
+    }
     // An unpacked package, not a repository: a web app's own checkout has
     // `"main": "index.html"` too (NW.js), and it has a `.git`.
     if !own_tree && !scan_dir.join(".git").exists() {
@@ -959,6 +1015,31 @@ async fn git_changed_files(
 #[cfg(test)]
 mod git_injection_tests {
     use super::*;
+
+    #[tokio::test]
+    async fn api_clone_is_pinned_to_a_public_address() {
+        let args = |cmd: &tokio::process::Command| -> Vec<String> {
+            cmd.as_std()
+                .get_args()
+                .map(|a| a.to_string_lossy().into_owned())
+                .collect()
+        };
+        // localhost resolves to loopback: refused before git runs.
+        let mut cmd = tokio::process::Command::new("git");
+        assert!(pin_public_host(&mut cmd, "http://localhost:8080/x.git")
+            .await
+            .is_err());
+        // Literals (checked at submit) and ssh remotes are left alone.
+        for url in [
+            "https://203.0.113.7/x.git",
+            "git@github.com:a/b.git",
+            "ssh://h/x.git",
+        ] {
+            let mut cmd = tokio::process::Command::new("git");
+            pin_public_host(&mut cmd, url).await.unwrap();
+            assert!(args(&cmd).is_empty(), "{url}");
+        }
+    }
 
     fn git(dir: &std::path::Path, args: &[&str]) {
         let ok = std::process::Command::new("git")

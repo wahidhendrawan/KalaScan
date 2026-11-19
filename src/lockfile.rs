@@ -76,6 +76,53 @@ pub fn read(root: &Path, include_dev: bool) -> Vec<Locked> {
         .collect()
 }
 
+/// The (ecosystem, name, version) triples the lockfiles under `root` pinned
+/// at `git_ref`: what a pull request's base already installs. A lockfile the
+/// ref does not have pins nothing; a ref git does not know is an error.
+pub fn pinned_at(
+    root: &Path,
+    git_ref: &str,
+) -> anyhow::Result<BTreeSet<(&'static str, String, String)>> {
+    // `git show <ref>:…` would read a ref like `--output=x` as an option.
+    if git_ref.starts_with('-') {
+        anyhow::bail!("invalid git ref: {git_ref}");
+    }
+    let git = |args: &[&str]| {
+        std::process::Command::new("git")
+            .arg("-C")
+            .arg(root)
+            .args(args)
+            .output()
+    };
+    if !git(&[
+        "rev-parse",
+        "--verify",
+        "--quiet",
+        &format!("{git_ref}^{{commit}}"),
+    ])?
+    .status
+    .success()
+    {
+        anyhow::bail!(
+            "git ref {git_ref} not found in {} (fetch it, e.g. fetch-depth: 0)",
+            root.display()
+        );
+    }
+    let mut pinned = BTreeSet::new();
+    for name in LOCKFILES {
+        let out = git(&["show", &format!("{git_ref}:./{name}")])?;
+        if out.status.success() {
+            let text = String::from_utf8_lossy(&out.stdout);
+            pinned.extend(
+                parse(name, &text)
+                    .into_iter()
+                    .map(|p| (p.ecosystem, p.name, p.version)),
+            );
+        }
+    }
+    Ok(pinned)
+}
+
 fn package_lock(text: &str) -> Vec<Locked> {
     let Ok(doc) = serde_json::from_str::<Value>(text) else {
         return Vec::new();
@@ -341,6 +388,51 @@ fn requirements(text: &str) -> Vec<Locked> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pinned_at_reads_the_lockfiles_of_a_ref() {
+        let dir = tempfile::tempdir().unwrap();
+        let git = |args: &[&str]| {
+            let ok = std::process::Command::new("git")
+                .arg("-C")
+                .arg(dir.path())
+                .args([
+                    "-c",
+                    "user.name=t",
+                    "-c",
+                    "user.email=t@t",
+                    "-c",
+                    "commit.gpgsign=false",
+                ])
+                .args(args)
+                .output()
+                .unwrap();
+            assert!(
+                ok.status.success(),
+                "{}",
+                String::from_utf8_lossy(&ok.stderr)
+            );
+        };
+        git(&["init", "-q"]);
+        std::fs::write(dir.path().join("requirements.txt"), "requests==2.31.0\n").unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-qm", "base"]);
+        std::fs::write(
+            dir.path().join("requirements.txt"),
+            "requests==2.31.0\nflask==3.0.0\n",
+        )
+        .unwrap();
+        let before = pinned_at(dir.path(), "HEAD").unwrap();
+        let now = read(dir.path(), true);
+        let new: Vec<_> = now
+            .iter()
+            .filter(|p| !before.contains(&(p.ecosystem, p.name.clone(), p.version.clone())))
+            .map(|p| p.target())
+            .collect();
+        assert_eq!(new, ["pypi:flask==3.0.0"]);
+        assert!(pinned_at(dir.path(), "no-such-ref").is_err());
+        assert!(pinned_at(dir.path(), "--output=x").is_err());
+    }
 
     fn targets(v: &[Locked]) -> Vec<String> {
         v.iter().map(Locked::target).collect()

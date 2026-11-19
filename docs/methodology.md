@@ -2,7 +2,7 @@
 
 What KalaScan claims, how the claims are measured, and where they stop. Written for someone auditing the tool: every statement points at a file in the repository that holds the evidence.
 
-Numbers on this page are for ruleset `2026.11.7`, score model v1, measured 2026-11-19, unless a line says otherwise. They are copies. The record is [`eval/results/2026.11.7.json`](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/results/2026.11.7.json) and the [evaluation notes](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md); where this page and they disagree, they are right.
+Numbers on this page are for ruleset `2026.11.8`, score model v1, measured 2026-11-19, unless a line says otherwise. They are copies. The record is [`eval/results/2026.11.8.json`](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/results/2026.11.8.json) and the [evaluation notes](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md); where this page and they disagree, they are right.
 
 ## What KalaScan claims and what it does not
 
@@ -19,7 +19,7 @@ Numbers on this page are for ruleset `2026.11.7`, score model v1, measured 2026-
 | malicious, npm samples in the holdout | 395 of 587 (67%) | 63-71 |
 | malicious, npm from a second source, mostly 2021-2024 (`npmstudy-2026-11`) | 159 of 200 (80%) | 73-85 |
 | malicious, npm packages dated 2026-08-01 or later (`recent-2026-11`) | 33 of 60 (55%) | 42-67 |
-| clean, random npm and PyPI packages, before any fix | 5 of 595 (0.8%) | 0.4-2.0 |
+| clean, random npm and PyPI packages, before any fix | 19 of 2,584 (0.7%) | 0.5-1.1 |
 
 **It does not claim that an unflagged package is safe.** 244 of the 883 malicious holdout samples score below 50. 242 of them score below 30, the band that reports label **safe** ([scoring.md](scoring.md), "What a score means": 169 + 73 in the v1 column). That label means that no combination of findings reached the warning band. It says nothing else.
 
@@ -108,10 +108,12 @@ The evaluation runs `kalascan scan <target> --untrusted --format json` and no ot
 | clean | dev | `random-2026-11` | 5 | random draw; in dev (the evaluation notes name three, `tavallio-agent`, `responsive-embed` and `liangzimixin`, moved after they were read) |
 | clean | holdout | - | 159 | picked, as above |
 | clean | holdout | `random-2026-11` | 294 | random draw from npm and PyPI |
+| clean | dev | `random2-2026-11` | 16 | larger random draw; the packages that scored 30 or more, moved after they were read |
+| clean | holdout | `random2-2026-11` | 1,977 | larger random draw from npm and PyPI |
 
-1,521 malicious and 824 clean entries. The sources are the [DataDog malicious-software-packages-dataset](https://github.com/DataDog/malicious-software-packages-dataset) (1,061 entries: npm, PyPI, IDE extensions), [pypi_malregistry](https://github.com/lxyeternal/pypi_malregistry) (260 entries, PyPI only) and [the ASE 2026 npm study](https://doi.org/10.6084/m9.figshare.31869370) (200 entries, npm only). The clean side comes from the public registries and marketplaces.
+1,521 malicious and 2,817 clean entries. The sources are the [DataDog malicious-software-packages-dataset](https://github.com/DataDog/malicious-software-packages-dataset) (1,061 entries: npm, PyPI, IDE extensions), [pypi_malregistry](https://github.com/lxyeternal/pypi_malregistry) (260 entries, PyPI only) and [the ASE 2026 npm study](https://doi.org/10.6084/m9.figshare.31869370) (200 entries, npm only). The clean side comes from the public registries and marketplaces.
 
-A sample that cannot be scanned (a broken archive, a package gone from the registry) is an error. It leaves the denominator; it is not a miss (`scan` in `eval/run_eval.py`). The published denominators are 626 and 883 malicious, 369 and 453 clean. Eleven pypi_malregistry archives do not unpack (five in `malregistry-2026-11`, two in `fresh-2026-11`, four in `fresh2-2026-11`), which accounts for 894 holdout entries against 883. One extension in `tune-ext-2026-11` holds more files than the scanner accepts (11,859 against a limit of 10,000): 627 dev entries against 626. Two clean dev packages cannot be scanned (one fails to unpack, one has no downloadable file left on PyPI), which accounts for 371 entries against 369. A `--summary` file records the errors of each set.
+A sample that cannot be scanned (a broken archive, a package gone from the registry) is an error. It leaves the denominator; it is not a miss (`scan` in `eval/run_eval.py`). The published denominators are 626 and 883 malicious, 385 and 2,424 clean. Eleven pypi_malregistry archives do not unpack (five in `malregistry-2026-11`, two in `fresh-2026-11`, four in `fresh2-2026-11`), which accounts for 894 holdout entries against 883. One extension in `tune-ext-2026-11` holds more files than the scanner accepts (11,859 against a limit of 10,000): 627 dev entries against 626. Two clean dev packages cannot be scanned (one fails to unpack, one has no downloadable file left on PyPI), which accounts for 387 entries against 385. Six `random2-2026-11` packages cannot be scanned either: 2,430 clean holdout entries against 2,424. A `--summary` file records the errors of each set.
 
 ### Dev and holdout
 
@@ -123,6 +125,7 @@ Where the rule was bent, on record in the evaluation notes:
 
 - On 2026-11-17, before counting was the default, one run printed the names and rule names of ten missed `malregistry` samples. No rule or weight was changed in response. They stay in the holdout.
 - The holdout total has been read after each change (82, 96, 94, 99 and 101 of 147; 193 and 202 of 302). The `fresh-2026-11` set was drawn after ruleset 2026.11.2 and has been counted three times: 78 of 159 then, 89 after the tuning on `tune-fresh-2026-11`, 89 again with ruleset 2026.11.4; 281, 306 and 306 of 461 for the whole holdout. `fresh2-2026-11` was drawn before ruleset 2026.11.5 and counted twice: 138 of 196 before, 156 after (444 and 465 of 657 for the whole holdout). `npmstudy-2026-11` has been counted once (159 of 200). `late-2026-11` has been counted twice (13 of 26 both times; 478 and 480 of 683 for the whole holdout, rulesets 2026.11.6 and 2026.11.7). A count leaks less than a sample, but it leaks: a change that lowers the count can be dropped.
+- Ruleset 2026.11.8: a false-positive fix (the Telegram API host in install-time chains) lowered the holdout count by one; the change that lowered it was narrowed and the run repeated. Which sample it was was not printed, only the finding it lost.
 - Clean holdout samples that were flagged and then read were moved to `dev` and the rules fixed. The clean holdout is therefore what was never flagged. See "The clean side".
 
 ### The sample sets
@@ -142,12 +145,13 @@ A set drawn later or from another source is its own measurement and is reported 
 | `tune-npm-2026-11` (dev) | `eval/sample_malicious.py --since 2026-01-01 --ecosystem npm --size 200`, drawn after `fresh2-2026-11` | 20261122 |
 | `late-2026-11` | `eval/sample_malicious.py --since 2026-08-01 --ecosystem npm` (all 26 names left) | 20261123 |
 | `npmstudy-2026-11` | `eval/sample_malicious.py --npmstudy --size 200` | 20261117 |
+| `random2-2026-11` | `eval/sample_clean.py --size 1000 --draws 2200` | 20261124 |
 
 The malicious draws take one version per package name and skip names already in the corpus. The 120 holdout samples added in November 2026 and the `tune-2026-11` batch were also drawn with a fixed seed or by a stated rule (the evaluation notes describe both), but their seeds are not written down.
 
 A seed records the procedure. It does not make the draw repeatable. `sample_clean.py` draws a random rank in a live npm index and random names from the live PyPI index, and both grow. `sample_malicious.py` draws from the dataset's current file list. The draw that counts is the one frozen in `eval/corpus.json`.
 
-`sample_malicious.py --since DATE` makes the same draw for a later date. That is the intended measurement at each release: samples newer than the rules. Until the dataset has such samples, `run_eval.py --since 2026-08-01` reports the holdout samples dated August 2026 or later as their own line (`holdout/since-2026-08-01` in the results file), and tuning batches are drawn with `--before 2026-08-01`. `tune-recent-2026-11`, read for ruleset 2026.11.2, is from those months, so the slice is newer than most of the tuning data, not all of it.
+`sample_malicious.py --since DATE` makes the same draw for a later date. That is the intended measurement at each release: samples newer than the rules. For ruleset 2026.11.8 that is `sample_malicious.py --since 2026-11-20`; on 2026-11-19 the dataset holds no sample that new, so the draw waits until it does. Until the dataset has such samples, `run_eval.py --since 2026-08-01` reports the holdout samples dated August 2026 or later as their own line (`holdout/since-2026-08-01` in the results file), and tuning batches are drawn with `--before 2026-08-01`. `tune-recent-2026-11`, read for ruleset 2026.11.2, is from those months, so the slice is newer than most of the tuning data, not all of it.
 
 ### The clean side
 
@@ -155,23 +159,26 @@ The clean side decides the false-positive rate, and it is easy to make it too ki
 
 **Picked packages are a soft test.** 227 entries are popular packages and extensions, some chosen because they look suspicious (install scripts that download binaries, SSH tooling, telemetry). Popular packages are well kept. When the picked set grew from 66 to 227, the first run flagged 9 of the 176 holdout samples (5%).
 
-**Random draws are the harder test.** 150 npm packages by random rank and 150 PyPI packages by random name, twice. Each is pinned to its newest version published before 2026-05-16: registries remove malicious versions within days, so a version that has survived six months is very likely benign. First contact, before any rule was fixed:
+**Random draws are the harder test.** 150 npm packages by random rank and 150 PyPI packages by random name, twice, then 1,000 of each. Each is pinned to its newest version published before 2026-05-16: registries remove malicious versions within days, so a version that has survived six months is very likely benign. First contact, before any rule was fixed:
 
 - first draw: 1 of 299 flagged;
 - second draw: 4 of 297 flagged;
-- together 5 of 595: **0.8% (0.4-2.0)**. This is the false-positive rate to quote.
+- third draw: 18 of 1,993 flagged, 4 of them registry spam publishers (not clean), so 14 of 1,989;
+- together 19 of 2,584: **0.7% (0.5-1.1)**. This is the false-positive rate to quote.
 
-**0 of 457 is not the false-positive rate.** It is the clean holdout after every flagged sample was read, fixed and moved to `dev`. It shows that the fixes hold and that nothing regressed. The evaluation notes say the same: expect the real rate on unseen packages between the first-contact number and zero.
+Of the 14 in the third draw, 12 were fixed and 2 were left as they are and taken out of the corpus: a tool that installs `.deb` files it downloads from a personal host, and one obfuscated file run through `eval`. Both are behaviours KalaScan flags by design (evaluation notes, "Packages nobody picked, a larger draw").
+
+**0 of 2,424 is not the false-positive rate.** It is the clean holdout after every flagged sample was read, fixed and moved to `dev`. It shows that the fixes hold and that nothing regressed. The evaluation notes say the same: expect the real rate on unseen packages between the first-contact number and zero.
 
 What the clean side does not cover:
 
-- **Labels are assumed.** Nobody verified that a clean package is clean. Two of about 600 random draws were registry spam publishers and were removed from the corpus.
+- **Labels are assumed.** Nobody verified that a clean package is clean. Six of about 2,600 random draws were registry spam publishers and were removed from the corpus.
 - **The draw is filtered.** Versions newer than the cutoff, packages over 30 MB, npm security placeholders and packages gone from the registry are rejected (the evaluation notes list the counts). New packages, where malware lives, are not in the clean set.
 - **No random draw of IDE extensions.** The 66 clean extensions are picked.
 
 ### Intervals
 
-Every rate is printed with its 95% Wilson score interval (`wilson` in `eval/run_eval.py`, z = 1.96). The Wilson interval stays honest at 0 of n: 0 of 457 has an upper bound of 0.8%, not zero.
+Every rate is printed with its 95% Wilson score interval (`wilson` in `eval/run_eval.py`, z = 1.96). The Wilson interval stays honest at 0 of n: 0 of 2,424 has an upper bound of 0.2%, not zero.
 
 The interval answers one question: how far could the rate on this kind of sample be from the rate measured on these samples. It assumes independent draws. Malware comes in campaigns (five samples of one `setup.py` template in the tuning batch), so the true uncertainty is wider than printed. It says nothing about samples of another kind: malware no dataset has collected, or packages newer than the clean cutoff.
 
@@ -193,7 +200,7 @@ What the gate does not check:
 - **Errors.** `--allow-errors` keeps a flaky registry from failing the job. A clean package that has been removed is an `ERR` line in the log and one sample fewer; the gate still passes.
 - **Any threshold but 50, and any model but v1.** The range v2 adds between 30 and 70 is not gated.
 
-**Why the malicious half is not run in CI.** The samples are live malware (the header of the workflow file gives that reason). Two things make a CI job the wrong place for them. A pull request changes the code the job builds and runs, the scanner and the harness included, so unreviewed code would run on a machine that holds the samples. And the handling rules below ask for a machine the operator controls and a deletion the operator can check; a hosted runner offers neither. The cost is the first bullet above: recall is measured by a person, at each release, and recorded in `eval/results/`. What is enforced is that it was recorded: a pull request that changes the rules, the chains or the score must bump `RULESET_VERSION` (CI job `ruleset`), and `cargo test` fails while `eval/results/<version>.json` is missing or has no holdout. That the file came from an honest run is not enforced; the procedure is in CONTRIBUTING.md, "Ruleset versions".
+**Why the malicious half is not run in CI.** The samples are live malware (the header of the workflow file gives that reason). Two things make a CI job the wrong place for them. A pull request changes the code the job builds and runs, the scanner and the harness included, so unreviewed code would run on a machine that holds the samples. And the handling rules below ask for a machine the operator controls and a deletion the operator can check; a hosted runner offers neither. The cost is the first bullet above: recall is measured by a person, at each release, and recorded in `eval/results/`. What is enforced is that it was recorded: a pull request that changes a rule file or a detection module must bump `RULESET_VERSION` (CI job `ruleset`), and `cargo test` fails while `eval/results/<version>.json` is missing or has no holdout. That the file came from an honest run is not enforced; the procedure is in CONTRIBUTING.md, "Ruleset versions".
 
 ## Reproducing the numbers
 
@@ -232,7 +239,7 @@ Compare `/tmp/summary.json` with the file for the same ruleset version in `eval/
 - Clean packages are fetched live. A removed package is an error. An extension is scanned at its current version.
 - Compare counts, then intervals. A count that moved by one or two with an error to match is drift. A count that moved without one is a finding: please report it.
 
-**Run time.** The clean half takes about 3 minutes to scan after a 5 minute release build, on a GitHub-hosted runner with four jobs ([run 44063169983](https://github.com/wahidhendrawan/KalaScan/actions/runs/44063169983), 2026-11-17, this corpus). The run time of the malicious half is not recorded anywhere in the repository. It needs no downloads once fetched, and each sample is cut off at 300 seconds (`--timeout`).
+**Run time.** The clean half takes about 3 minutes to scan after a 5 minute release build, on a GitHub-hosted runner with four jobs ([run 44063169983](https://github.com/wahidhendrawan/KalaScan/actions/runs/44063169983), 2026-11-17, with 824 clean entries). The corpus now holds 2,817, so expect about three and a half times as long; that is arithmetic, not a measured run. The run time of the malicious half is not recorded anywhere in the repository. It needs no downloads once fetched, and each sample is cut off at 300 seconds (`--timeout`).
 
 ## Known limits
 
@@ -240,7 +247,7 @@ From the measured results, not from principle.
 
 1. **npm malware: two in three, the newest under half.** 395 of 587 npm samples in the holdout (67%, 63-71; DataDog 236 of 387, the ASE 2026 study 159 of 200); of the holdout samples dated August 2026 or later, 89 of 195 (46%, 39-53), against 148 of 193 (77%) for npm dated before. PyPI is at 212 of 248 (85%), IDE extensions 32 of 48 (67%). The 80% on `fresh2-2026-11` is high partly because it shares campaigns with the batch the last rules were written from (eval/README.md, "npm tuning with GuardDog as a second reader"); `fresh-2026-11`, drawn earlier from later months, is at 57%. About a third of each npm tuning batch has no malicious code in the package's own files (a payload in a dependency, a native binary, a real library published at a hijacked version), which caps what a static scan of the artefact can reach. Among the newest it is two thirds: of the 44 `tune-recent-2026-11` samples ruleset 2026.11.6 missed, 30 are of that kind (eval/README.md, "Reading the newest misses"). Rules tuned on 2022-2025 samples generalise worse to newer ones: until November 2026 the holdout held 27 samples and scored 26.
 2. **A quarter of known malware is missed outright.** 244 of 883 holdout samples score below 50, and 242 of those below 30.
-3. **False positives on packages nobody picked: 0.8% (0.4-2.0).** 5 of 595 at first contact. At that rate a lockfile of 1,000 packages raises about 8 flags; that is arithmetic, not a measurement of `kalascan deps`. On popular packages the first-contact rate was 5% (9 of 176). On random IDE extensions it is not measured.
+3. **False positives on packages nobody picked: 0.7% (0.5-1.1).** 19 of 2,584 at first contact. At that rate a lockfile of 1,000 packages raises about 7 flags; that is arithmetic, not a measurement of `kalascan deps`. On popular packages the first-contact rate was 5% (9 of 176). On random IDE extensions it is not measured.
 4. **What gets through**, from the misses that were read (evaluation notes, last two paragraphs):
    - packages with no code: empty placeholders, typo-squats that copy the original, a native `.node` binary;
    - forks of legitimate extensions republished with a changed API endpoint, where nothing in the code is malicious on its own;
@@ -258,7 +265,7 @@ From the measured results, not from principle.
 10. **The holdout has been touched.** Ten sample names printed once, the total read after each change, flagged clean samples moved out. See "Dev and holdout".
 11. **Recall is not gated.** See "The CI gate".
 12. **Only the default scan is measured, and the sandbox adds nothing to it.** One run with `--sandbox` (2026-11-18, in a throwaway VM) gave the same counts as the static scan at every threshold, 0 of 822 clean included: the payloads it missed run on import or at app start, not at install ([eval/README.md](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md), "A fresh holdout and the sandbox"). `--deobfuscate`, `--deep-triage`, `--emulate` and `--ai` have no measured detection or false-positive rate.
-13. **The ruleset version is set by hand** (`RULESET_VERSION` in `src/scanner.rs`), and chains, data flow and scoring live in the binary, not in the rule files. A result file is named after the ruleset version; it identifies a result only if the version was raised with the change. CI asks for a new version when `rules/builtin.toml`, `rules/weights.toml`, `src/correlate.rs` or `src/score.rs` change; a detection change elsewhere (`src/registry.rs`, `src/obfuscator.rs`, …) is not caught.
+13. **The ruleset version is set by hand** (`RULESET_VERSION` in `src/scanner.rs`), and chains, data flow and scoring live in the binary, not in the rule files. A result file is named after the ruleset version; it identifies a result only if the version was raised with the change. CI asks for a new version when a rule file or a detection module changes (CONTRIBUTING.md lists them), unless the pull request carries the `ruleset-unchanged` label; the scan pipeline in `src/lib.rs` is not on the list, and the label is a person's word.
 14. **The record for `2026.11.1` was transcribed** from the published tables, not written by a run. Its `source` field says so and lists what is missing. `2026.11.2` is the first record written by a run.
 15. **Registry history will not close the npm gap.** The registry checks (install script added, provenance dropped, manifest confusion, version gap) were replayed on the registry documents of 454 npm samples. The npm misses are packages malicious from their first version (108 of the holdout misses; 1 is a compromised version of a real package), where there is no history to compare with. On the missed holdout samples the checks fire once. On the 394 clean npm packages, provenance dropped with a new publisher happened in 5 legitimate ones, so it cannot be a verdict ([eval/README.md](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md), "IDE extensions, and two ideas measured and not built").
 16. **Not every tuning round moves the holdout.** Ruleset 2026.11.4 added rules for four behaviours read in a batch of malicious IDE extensions (9 → 13 of 23 on that batch); the holdout stayed at 306 of 461 and its extensions at 32 of 48. Ruleset 2026.11.5, from a batch of 2026 npm packages, moved it from 444 to 465 of 657, all 21 on three campaigns that were in both.

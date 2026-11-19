@@ -12,21 +12,21 @@ The attack tree of Ladisa et al., *SoK: Taxonomy of Attacks on Open-Source Softw
 - **payload only**: a published package does not show how the code got in. Only what the injected code does can be seen (behaviour rules, chains, `kalascan diff`).
 - **out of scope**: happens where a package scan does not look (a network path, a build host, a person).
 
-50 vectors: 6 direct, 17 partial, 5 gap, 6 payload only, 16 out of scope.
+50 vectors: 7 direct, 20 partial, 1 gap, 6 payload only, 16 out of scope.
 
 | Vector | Name | Coverage | Evidence | Note |
 |---|---|---|---|---|
 | AV-100 | Develop and Advertise Distinct Malicious Package from Scratch | partial | Chain: Registry Spam Publisher, Chain: Web Page Published as a Package, Unverified Publisher, Low Install Count, Recently Published Extension | The package is the payload: it is judged by what its code does. Listing age and reach are hints, for IDE extensions only. |
 | AV-200 | Create Name Confusion with Legitimate Package | partial | Typo-squat Suspect, Possible Brand Impersonation | See the forms below. |
-| AV-201 | Combosquatting | gap | - | A popular name plus a word (`lodash-utils`) is not compared. |
-| AV-202 | Altering Word Order | gap | - |  |
+| AV-201 | Combosquatting | gap | - | A popular name plus a word (`lodash-utils`) is not compared: as many clean npm packages are named that way as malicious ones (9% of each in the corpus). |
+| AV-202 | Altering Word Order | direct | Typo-squat Suspect | The words of a most-downloaded npm / PyPI name, reordered (`styles-ansi`). |
 | AV-203 | Manipulating Word Separators | partial | Typo-squat Suspect | One separator added, dropped or changed is one edit. |
 | AV-204 | Typosquatting | direct | Typo-squat Suspect | One edit or one swap away from a most-downloaded npm / PyPI name; the package's own name and its dependencies. |
-| AV-205 | Built-In Package | gap | - | Standard-library names are not in the comparison list. |
+| AV-205 | Built-In Package | partial | Dependency on a Node Built-in Name | Node core modules whose npm name is a placeholder (`fs`, `child_process`), in the scanned project's own manifest. Python standard-library names are not checked: real backports carry them (`DateTime`, `argparse`). |
 | AV-206 | Brandjacking | partial | Possible Brand Impersonation, Repackaged Copy of Popular Extension, AI Vendor Repository Under Another Publisher | IDE extensions only. |
 | AV-207 | Similarity Attack | partial | Publisher Impersonation (look-alike name), Extension Name Spoofing (invisible characters) | IDE extensions only. |
-| AV-208 | Namespace Omission or Change | gap | - |  |
-| AV-209 | AI Package Hallucination | gap | - |  |
+| AV-208 | Namespace Omission or Change | partial | Typo-squat Suspect | A most-downloaded scoped npm name without its scope (`trace-mapping` for `@jridgewell/trace-mapping`), compound names of 8 characters or more. |
+| AV-209 | AI Package Hallucination | partial | Dependency Name Unclaimed on the Registry, Dependency on a Node Built-in Name | Before the name is taken: an unscoped dependency in the scanned project's manifest that no one has registered. Once an attacker has registered it, it is a new package like any other. |
 | AV-300 | Inject into Sources of Legitimate Package | payload only | - |  |
 | AV-301 | Introduce Malicious Code through Hypocrite Merge Request | payload only | - | `--changed-only` scans what a pull request changes. |
 | AV-304 | Make Immature Vulnerability Exploitable | out of scope | - | The change is a bug, not malicious-looking code. |
@@ -229,6 +229,8 @@ ATT&CK technique ids follow Enterprise ATT&CK v20.1. The MBC objective (Malware 
 | Chain: Executable Copied Under a System Process Name | code | T1036.005 | OB0006 Defense Evasion | - |
 | Chain: Hidden Bundled Binary Started Detached | code | T1564.001, T1195.001 | OB0006 Defense Evasion | - |
 | Remote URL Dependency | code | T1195.001, T1105 | OB0004 Command and Control | AV-501 |
+| Dependency on a Node Built-in Name | code | T1195.001 | - | AV-205, AV-209 |
+| Dependency Name Unclaimed on the Registry | code | T1195.001 | - | AV-209 |
 | Known Malicious URL (URLhaus) | code | T1071.001 | OB0004 Command and Control | - |
 | Extension Name Spoofing (invisible characters) | code | T1036 | OB0006 Defense Evasion | AV-207 |
 | Publisher Impersonation (look-alike name) | code | T1036.005 | OB0006 Defense Evasion | AV-207, AV-307 |
@@ -250,7 +252,7 @@ ATT&CK technique ids follow Enterprise ATT&CK v20.1. The MBC objective (Malware 
 | GitHub Actions Script Injection | code | T1195.002, T1059 | OB0009 Execution | AV-400, AV-401, AV-701 |
 | GitHub Actions Unpinned Third-Party Action | code | T1195.001 | - | AV-403, AV-701 |
 | GitHub Actions Spoofable Bot Check (github.actor) | code | T1195.002 | - | AV-403, AV-701 |
-| Typo-squat Suspect | code | T1195.001, T1036.005 | OB0006 Defense Evasion | AV-200, AV-203, AV-204 |
+| Typo-squat Suspect | code | T1195.001, T1036.005 | OB0006 Defense Evasion | AV-200, AV-202, AV-203, AV-204, AV-208 |
 | Trojan Source Bi-Directional Character (CVE-2021-42574) | code | T1027 | OB0002 Anti-Static Analysis | AV-305, AV-306 |
 | Confusable Homoglyph Character (Supply Chain Spoofing) | code | T1036 | OB0006 Defense Evasion | AV-305, AV-307 |
 | High-Entropy Suspicious Blob | code | T1027.013 | OB0002 Anti-Static Analysis | AV-309 |

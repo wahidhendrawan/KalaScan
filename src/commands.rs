@@ -133,7 +133,7 @@ pub(crate) fn run_import_command(
 }
 
 /// Critical findings and chains of a result, for one-line summaries.
-fn strong_findings(r: &ScanResult) -> Vec<String> {
+pub(crate) fn strong_findings(r: &ScanResult) -> Vec<String> {
     let mut names: Vec<String> = r
         .rule_matches
         .iter()
@@ -183,14 +183,27 @@ pub(crate) async fn run_deps_command(
     jobs: usize,
     max: usize,
     no_cache: bool,
+    base_ref: Option<&str>,
 ) -> anyhow::Result<()> {
-    let locked = lockfile::read(path, include_dev);
+    let mut locked = lockfile::read(path, include_dev);
     if locked.is_empty() {
         anyhow::bail!(
             "no package-lock.json, yarn.lock, pnpm-lock.yaml, poetry.lock, Pipfile.lock, uv.lock, \
              pinned requirements.txt or Cargo.lock in {}",
             path.display()
         );
+    }
+    if let Some(git_ref) = base_ref {
+        let before = lockfile::pinned_at(path, git_ref)?;
+        let all = locked.len();
+        locked.retain(|p| !before.contains(&(p.ecosystem, p.name.clone(), p.version.clone())));
+        eprintln!(
+            "{} of {all} locked packages are new since {git_ref}",
+            locked.len()
+        );
+        if locked.is_empty() {
+            return Ok(());
+        }
     }
     let skipped = locked.len().saturating_sub(max);
     if skipped > 0 {
@@ -433,10 +446,9 @@ pub(crate) async fn run_installed_command(
 /// lockfile says" (`npm ci`, a bare `npm install`). Fails closed: a spec it
 /// cannot scan (alias, git, URL, path) or a command that installs something
 /// it cannot name (`npm update`, `npx`) is an error, so the guard refuses.
-/// shortcut: only the packages named on the command line (and the lockfile
-/// for a bare install) are scanned, not what they pull in; a range
-/// (`lodash@^4`) scans the latest version. `kalascan deps` after the install
-/// covers the rest.
+/// For npm the guard then scans the whole tree the install adds
+/// (`npm_tree`); for the others the named packages, and a range
+/// (`lodash@^4`) scans the latest version.
 fn install_targets(command: &[String]) -> anyhow::Result<Option<Vec<String>>> {
     let prog = std::path::Path::new(command.first().map_or("", String::as_str))
         .file_name()
@@ -580,6 +592,69 @@ fn install_targets(command: &[String]) -> anyhow::Result<Option<Vec<String>>> {
     }
 }
 
+/// For `npm install <specs>`: every package the install would add, at the
+/// exact version npm picks, dependencies of dependencies included. npm
+/// resolves the tree in a scratch copy of the project with
+/// `--package-lock-only --ignore-scripts`, which downloads metadata and runs
+/// nothing; packages the current lockfile already pins are left out. `None`
+/// for other commands and for global installs, which have no lockfile.
+/// shortcut: npm only; pnpm, yarn and bun installs still scan the named
+/// packages, and pip has no resolver that is safe to run (`--dry-run` builds
+/// sdists, which runs setup.py).
+async fn npm_tree(command: &[String]) -> anyhow::Result<Option<Vec<String>>> {
+    let prog = std::path::Path::new(command.first().map_or("", String::as_str))
+        .file_stem()
+        .map(|n| n.to_string_lossy().to_ascii_lowercase());
+    let args = &command[1.min(command.len())..];
+    if prog.as_deref() != Some("npm") || args.iter().any(|a| a == "-g" || a == "--global") {
+        return Ok(None);
+    }
+    let scratch = tempfile::tempdir()?;
+    for file in ["package.json", "package-lock.json", ".npmrc"] {
+        if std::path::Path::new(file).is_file() {
+            std::fs::copy(file, scratch.path().join(file))?;
+        }
+    }
+    if !scratch.path().join("package.json").exists() {
+        std::fs::write(scratch.path().join("package.json"), "{}")?;
+    }
+    let out = tokio::process::Command::new(&command[0])
+        .args(args)
+        .args([
+            "--package-lock-only",
+            "--ignore-scripts",
+            "--no-audit",
+            "--no-fund",
+        ])
+        .current_dir(scratch.path())
+        .output()
+        .await?;
+    if !out.status.success() {
+        anyhow::bail!(
+            "kalascan guard could not resolve what `{}` installs (npm: {}); \
+             run it without `kalascan guard --` to install anyway",
+            command.join(" "),
+            String::from_utf8_lossy(&out.stderr)
+                .lines()
+                .last()
+                .unwrap_or("failed")
+        );
+    }
+    let resolved = std::fs::read_to_string(scratch.path().join("package-lock.json"))?;
+    let pinned: std::collections::BTreeSet<_> = lockfile::read(std::path::Path::new("."), true)
+        .into_iter()
+        .map(|p| (p.name, p.version))
+        .collect();
+    let mut new: Vec<String> = lockfile::parse("package-lock.json", &resolved)
+        .into_iter()
+        .filter(|p| !pinned.contains(&(p.name.clone(), p.version.clone())))
+        .map(|p| p.target())
+        .collect();
+    new.sort();
+    new.dedup();
+    Ok(Some(new))
+}
+
 /// `left-pad`, `lodash@4.17.21`, `@scope/pkg@1.0.0`; paths, git and URLs are skipped.
 fn npm_target(spec: &str) -> Option<String> {
     if spec.is_empty()
@@ -649,11 +724,13 @@ pub(crate) async fn run_guard_command(
                     jobs,
                     usize::MAX, // every locked package: one past a cap would install unscanned
                     false,
+                    None,
                 )
                 .await?;
             }
         }
-        Some(targets) => {
+        Some(named) => {
+            let targets = npm_tree(command).await?.unwrap_or(named);
             eprintln!(
                 "kalascan guard: scanning {} before install...",
                 targets.len()

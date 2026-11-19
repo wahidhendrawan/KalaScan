@@ -242,6 +242,32 @@ pub enum Commands {
         /// Scan every package again instead of reusing results of earlier runs
         #[arg(long)]
         no_cache: bool,
+
+        /// Scan only the packages the lockfiles did not pin at this git ref (a pull request's base)
+        #[arg(long)]
+        base_ref: Option<String>,
+    },
+    /// Scan what npm or PyPI publishes, as it is published, and report the releases at or above a risk score. Runs until interrupted
+    Watch {
+        /// Registry to watch: npm or pypi
+        #[arg(long, default_value = "npm")]
+        ecosystem: String,
+
+        /// Seconds between polls of the registry feed
+        #[arg(long, default_value_t = 60)]
+        interval: u64,
+
+        /// Report releases at or above this risk score
+        #[arg(long, default_value_t = 50)]
+        min_risk: u8,
+
+        /// Releases scanned in parallel
+        #[arg(long, default_value_t = 4)]
+        jobs: usize,
+
+        /// Also write an OSV malicious-package record for each reported release into this directory
+        #[arg(long)]
+        osv_dir: Option<PathBuf>,
     },
     /// Compare two versions of a package or extension and list capabilities the new one adds
     Diff {

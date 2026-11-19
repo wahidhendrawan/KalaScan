@@ -862,6 +862,8 @@ const FINDING_TABLE: &[(&str, &[&str])] = &[
     ("GitHub Actions Unpinned Third-Party Action", &["T1195.001"]),
     ("GitHub Actions Spoofable Bot Check (github.actor)", &["T1195.002"]),
     ("Typo-squat Suspect", &["T1195.001", "T1036.005"]),
+    ("Dependency on a Node Built-in Name", &["T1195.001"]),
+    ("Dependency Name Unclaimed on the Registry", &["T1195.001"]),
     ("Trojan Source Bi-Directional Character (CVE-2021-42574)", &["T1027"]),
     ("Confusable Homoglyph Character (Supply Chain Spoofing)", &["T1036"]),
     ("High-Entropy Suspicious Blob", &["T1027.013"]),

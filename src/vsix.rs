@@ -137,12 +137,40 @@ pub fn allow_private_targets() -> bool {
     std::env::var("KALASCAN_ALLOW_PRIVATE_TARGETS").is_ok_and(|v| v == "1")
 }
 
+/// Resolves only to public addresses. The address checked is the one the
+/// connection then uses, for the first request and every redirect, so a
+/// hostname that resolves (or re-resolves) to an internal address fails.
+/// IP literals skip resolution: the redirect policy and the submit-time
+/// check in `server.rs` handle those.
+pub(crate) struct PublicOnly;
+
+impl reqwest::dns::Resolve for PublicOnly {
+    fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
+        Box::pin(async move {
+            let host = name.as_str();
+            let public: Vec<std::net::SocketAddr> = tokio::net::lookup_host((host, 0))
+                .await?
+                .filter(|a| !is_internal_ip(a.ip()))
+                .collect();
+            if public.is_empty() {
+                return Err(format!("{host} resolves to an internal address; refused").into());
+            }
+            Ok(Box::new(public.into_iter()) as reqwest::dns::Addrs)
+        })
+    }
+}
+
+/// An API caller's request must not reach internal hosts; the operator's
+/// own CLI scan may, and so may anyone with KALASCAN_ALLOW_PRIVATE_TARGETS=1.
+pub(crate) fn public_only() -> bool {
+    !crate::operator_scan() && !allow_private_targets()
+}
+
 /// One client for every registry and marketplace call. Bounded connect, idle
 /// and total time: a host serving 1 KB/s used to hang the CLI forever.
 pub(crate) fn http_client() -> anyhow::Result<reqwest::Client> {
-    // A public URL that redirects to a literal internal address is refused.
-    // shortcut: hostnames that resolve internal after a redirect still pass;
-    // a custom DNS resolver closes that if the server faces untrusted users.
+    // A public URL that redirects to a literal internal address is refused;
+    // a hostname is checked by `PublicOnly`.
     let policy = reqwest::redirect::Policy::custom(|attempt| {
         let internal = attempt
             .url()
@@ -157,7 +185,7 @@ pub(crate) fn http_client() -> anyhow::Result<reqwest::Client> {
             attempt.follow()
         }
     });
-    Ok(reqwest::Client::builder()
+    let builder = reqwest::Client::builder()
         .user_agent(concat!(
             "KalaScan-Security-Scanner/",
             env!("CARGO_PKG_VERSION")
@@ -165,8 +193,13 @@ pub(crate) fn http_client() -> anyhow::Result<reqwest::Client> {
         .connect_timeout(Duration::from_secs(30))
         .read_timeout(Duration::from_secs(60))
         .timeout(Duration::from_secs(900))
-        .redirect(policy)
-        .build()?)
+        .redirect(policy);
+    Ok(if public_only() {
+        builder.dns_resolver(std::sync::Arc::new(PublicOnly))
+    } else {
+        builder
+    }
+    .build()?)
 }
 
 /// Read a response body, refusing anything past `limit` before it is
@@ -597,6 +630,23 @@ fn extract_zip_capped(bytes: &[u8], dest_dir: &Path, max_total: u64) -> anyhow::
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A hostname that resolves to loopback is refused at connect time, where
+    /// a literal-address check before the request would have let it through.
+    #[tokio::test]
+    async fn public_only_refuses_a_hostname_that_resolves_internal() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!(
+            "http://localhost:{}/",
+            listener.local_addr().unwrap().port()
+        );
+        let guarded = reqwest::Client::builder()
+            .dns_resolver(std::sync::Arc::new(PublicOnly))
+            .build()
+            .unwrap();
+        let err = guarded.get(&url).send().await.unwrap_err();
+        assert!(format!("{err:?}").contains("internal address"), "{err:?}");
+    }
 
     #[test]
     fn test_is_vsix_target() {

@@ -57,7 +57,8 @@ static DOWNLOAD_SRC: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 static NET_SINK_PY: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?:requests\.(?:post|put|patch|request|get)|(?:^|\W)urlopen|\.(?:post|put|patch|request|sendall|sendto|sendmail|send_message)|gethostbyname|getaddrinfo)\s*\("#)
+    // Not a bare `.patch(`: `mock.patch("os.environ", …)` in a test.
+    Regex::new(r#"(?:requests\.(?:post|put|patch|request|get)|(?:^|\W)urlopen|\.(?:post|put|request|sendall|sendto|sendmail|send_message)|gethostbyname|getaddrinfo)\s*\("#)
         .unwrap()
 });
 /// Named network APIs only: `.send()` and `.post()` are IPC, Express
@@ -96,6 +97,11 @@ static INLINE_CODE: LazyLock<Regex> = LazyLock::new(|| {
 static RUNS_COMMAND: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?:subprocess\.\w+|os\.popen|getoutput|execSync|spawnSync|execFileSync|(?:^|[^\w.])(?:exec|run|popen|check_output))\s*\(").unwrap()
 });
+
+static STARTS_PROCESS: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?:Popen|subprocess\.\w+|spawn\w*|fork|exec\w*)\s*\(").unwrap());
+static CHILD_ENV: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\benv\s*[=:]\s*(?:\{[^{}]*\}|[\w.]+)").unwrap());
 
 static WITH_AS: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?:^|,)\s*(?:async\s+)?(?:with\s+)?(.+?)\s+as\s+([A-Za-z_]\w*)").unwrap()
@@ -169,7 +175,14 @@ pub fn flows(rel_path: &str, content: &str) -> Vec<RuleMatch> {
             }
         }
         for (targets, rhs) in bindings(&s.text) {
-            if let Some((kind, origin)) = carried(rhs, s.line, &taint, None) {
+            // The environment handed to a child process is not in the handle
+            // that comes back (`info['popen'] = Popen(cmd, env=env)`, nbclassic).
+            let rhs = if STARTS_PROCESS.is_match(rhs) {
+                CHILD_ENV.replace_all(rhs, "")
+            } else {
+                rhs.into()
+            };
+            if let Some((kind, origin)) = carried(&rhs, s.line, &taint, None) {
                 for t in targets {
                     taint.entry(t).or_insert((kind, origin.clone()));
                 }
@@ -249,7 +262,17 @@ fn secret_source(text: &str) -> Option<String> {
             }
         }
     }
-    SECRET_PATH.find(text).map(|m| m.as_str().to_string())
+    // `~/.ssh/id_rsa.pub` is a public key: sent to be signed (unskript).
+    SECRET_PATH
+        .find_iter(text)
+        .find(|m| {
+            !text[m.end()..]
+                .split(['"', '\'', '`'])
+                .next()
+                .unwrap_or_default()
+                .ends_with(".pub")
+        })
+        .map(|m| m.as_str().to_string())
 }
 
 /// `(targets, right side)` for each binding in one statement.
@@ -611,6 +634,17 @@ def main():
         // next: named variables picked out of the environment.
         let picked = "const { NEXT_TRACE_UPLOAD_DEBUG, NEXT_TRACE_UPLOAD_FULL } = process.env;\nawait fetch(url, { body: JSON.stringify({ full: NEXT_TRACE_UPLOAD_FULL }) });\n";
         assert!(names("trace-uploader.js", picked).is_empty());
+        // Random packages drawn for ruleset 2026.11.8: a mocked environment
+        // (django-cronman), a server started with it (nbclassic), a public
+        // key sent to be signed (unskript).
+        let mocked = "@mock.patch(\"cronman.utils.os.environ\", {\"X\": \"1\"})\ndef test_x(self):\n    pass\n";
+        assert!(names("tests/test_utils.py", mocked).is_empty());
+        let server = "env = os.environ.copy()\ninfo['popen'] = Popen(command, cwd=nbdir, env=env)\nrequests.post(urljoin(info['url'], 'api/shutdown'))\n";
+        assert!(names("conftest.py", server).is_empty());
+        let public = "pub = os.environ.get('HOME') + '/.ssh/id_rsa.pub'\nwith open(pub) as f:\n    key = f.readlines()\nrequests.post(vault_url, json={'public_key': key[0]})\n";
+        assert!(names("ssh.py", public).is_empty());
+        let private = public.replace("id_rsa.pub", "id_rsa");
+        assert_eq!(names("ssh.py", &private), vec![CREDENTIAL_EXFIL]);
     }
 
     #[test]

@@ -33,16 +33,19 @@ const DEFAULT_LOCAL_ENDPOINTS: [&str; 2] = [
 /// endpoint: a 2 MiB reply grew `kalascan serve` by 74 MiB.
 const MAX_LLM_RESPONSE_BYTES: u64 = 1024 * 1024;
 
+/// Whether `endpoint` may be an internal host: the CLI is the operator's own
+/// tool, and the two default local LLM servers are on localhost by design.
+fn endpoint_trusted(endpoint: &str) -> bool {
+    !vsix::public_only() || DEFAULT_LOCAL_ENDPOINTS.contains(&endpoint)
+}
+
 /// An API caller picks the endpoint like it picks the scan target, so the
-/// same hosts are refused: cloud metadata, admin ports, a private LLM. The
-/// CLI is the operator's own tool and skips this. shortcut: resolved once,
-/// before the request; a host that re-resolves to an internal address in
-/// between (DNS rebinding) still passes.
+/// same hosts are refused: cloud metadata, admin ports, a private LLM. This
+/// gives the clear error; `http_client` enforces it when connecting, so a
+/// host that re-resolves to an internal address in between (DNS rebinding)
+/// fails too.
 async fn check_endpoint(endpoint: &str) -> anyhow::Result<()> {
-    if crate::operator_scan()
-        || vsix::allow_private_targets()
-        || DEFAULT_LOCAL_ENDPOINTS.contains(&endpoint)
-    {
+    if endpoint_trusted(endpoint) {
         return Ok(());
     }
     let url =
@@ -60,11 +63,17 @@ async fn check_endpoint(endpoint: &str) -> anyhow::Result<()> {
 
 /// One client for both providers. No redirects: the endpoint's host was
 /// checked, and a 307 would carry the POST and its key to another one.
-fn http_client() -> reqwest::Result<reqwest::Client> {
-    reqwest::Client::builder()
+fn http_client(endpoint: &str) -> reqwest::Result<reqwest::Client> {
+    let builder = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(120))
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
+        .redirect(reqwest::redirect::Policy::none());
+    if endpoint_trusted(endpoint) {
+        builder.build()
+    } else {
+        builder
+            .dns_resolver(std::sync::Arc::new(vsix::PublicOnly))
+            .build()
+    }
 }
 
 /// Detect if running inside a Docker container.
@@ -141,7 +150,7 @@ async fn ollama_analyze(
         }
     });
 
-    let client = http_client()?;
+    let client = http_client(&base_url)?;
 
     info!("Calling Ollama API at {} with model {}", base_url, model);
 
@@ -220,7 +229,7 @@ async fn openai_analyze(
         body.as_object_mut().map(|o| o.remove("response_format"));
     }
 
-    let client = http_client()?;
+    let client = http_client(&base_url)?;
 
     info!("Calling OpenAI API at {} with model {}", base_url, model);
 
