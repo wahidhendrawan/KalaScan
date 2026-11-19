@@ -43,6 +43,7 @@ THRESHOLDS = (30, 50, 70)
 LOCAL = {
     "dataset": ("dataset", "eval/fetch_malicious.sh"),
     "malregistry": ("malregistry", "eval/fetch_malicious.sh"),
+    "npmstudy": ("npmstudy", "eval/fetch_npmstudy.py"),
 }
 MANIFESTS = ("package.json", "setup.py", "pyproject.toml", "PKG-INFO")
 
@@ -65,6 +66,8 @@ def ecosystem(sample):
         return t.split("/")[1]  # samples/<eco>/...
     if sample["source"] == "malregistry":
         return "pypi"
+    if sample["source"] == "npmstudy":
+        return "npm"
     if t.startswith("npm:"):
         return "npm"
     if t.startswith("pypi:"):
@@ -236,6 +239,7 @@ def main():
     ap.add_argument("--corpus", default=os.path.join(os.path.dirname(__file__), "corpus.json"))
     ap.add_argument("--dataset", help="checkout of the DataDog dataset (for malicious samples)")
     ap.add_argument("--malregistry", help="checkout of pypi_malregistry (second, independent malicious source)")
+    ap.add_argument("--npmstudy", help="directory eval/fetch_npmstudy.py extracted into (second npm source)")
     ap.add_argument("--rule-stats", nargs="?", const="dev", metavar="SPLIT", help="per-finding hit counts and likelihood ratio on SPLIT (dev, holdout, all) [dev]")
     ap.add_argument("--kalascan", default="target/release/kalascan")
     ap.add_argument("--scanner", choices=("kalascan", "guarddog"), default="kalascan", help="tool to measure")
@@ -267,9 +271,8 @@ def main():
     samples = [s for s in json.load(open(args.corpus))["samples"] if not args.only or s["label"] == args.only]
     if any(s["source"] == "dataset" for s in samples) and not args.dataset:
         ap.error("--dataset is required for malicious samples (or use --only clean)")
-    if not args.malregistry:
-        # The second source is optional: without its checkout those samples are left out.
-        samples = [s for s in samples if s["source"] != "malregistry"]
+    # The second sources are optional: without their files those samples are left out.
+    samples = [s for s in samples if s["source"] not in ("malregistry", "npmstudy") or getattr(args, s["source"])]
 
     with cf.ThreadPoolExecutor(args.jobs) as pool:
         futures = {pool.submit(scan, s, args): s for s in samples}

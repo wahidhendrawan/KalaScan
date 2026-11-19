@@ -2,17 +2,18 @@
 
 `corpus.json` lists labelled samples:
 
-- **malicious**: real packages from the [DataDog malicious-software-packages-dataset](https://github.com/DataDog/malicious-software-packages-dataset) (npm, PyPI, VS Code extensions), picked with a fixed seed, and 100 PyPI packages from a second, independent source, [pypi_malregistry](https://github.com/lxyeternal/pypi_malregistry) (`"source": "malregistry"`).
+- **malicious**: real packages from the [DataDog malicious-software-packages-dataset](https://github.com/DataDog/malicious-software-packages-dataset) (npm, PyPI, VS Code extensions), picked with a fixed seed, 260 PyPI packages from a second, independent source, [pypi_malregistry](https://github.com/lxyeternal/pypi_malregistry) (`"source": "malregistry"`), and 200 npm packages from a third, [the ASE 2026 npm study](https://doi.org/10.6084/m9.figshare.31869370) (`"source": "npmstudy"`, CC BY 4.0).
 - **clean**: popular npm / PyPI packages and VS Code extensions, fetched from the public registries. Several were chosen because they look suspicious on the surface: install scripts that download binaries, local dev servers, SSH tooling, telemetry. Entries with `"set": "random-2026-11"` were not picked but drawn at random from all of npm and PyPI (`eval/sample_clean.py`, see below).
 
 Each sample has a `split`. Rules were tuned while looking at `dev`. `holdout` was added afterwards and never used for tuning, so its numbers are the honest estimate.
 
 ```bash
 cargo build --release
-eval/fetch_malicious.sh ~/kalascan-corpus ~/kalascan-malregistry   # ~640 files, blobless clones
-python3 eval/run_eval.py --dataset ~/kalascan-corpus --malregistry ~/kalascan-malregistry --out before.json
+eval/fetch_malicious.sh ~/kalascan-corpus ~/kalascan-malregistry   # blobless clones
+eval/fetch_npmstudy.py ~/kalascan-npmstudy                          # 200 tarballs, read out of a 4.8 GB zip by range requests
+python3 eval/run_eval.py --dataset ~/kalascan-corpus --malregistry ~/kalascan-malregistry --npmstudy ~/kalascan-npmstudy --out before.json
 # ...change rules...
-python3 eval/run_eval.py --dataset ~/kalascan-corpus --malregistry ~/kalascan-malregistry --compare before.json
+python3 eval/run_eval.py --dataset ~/kalascan-corpus --malregistry ~/kalascan-malregistry --npmstudy ~/kalascan-npmstudy --compare before.json
 ```
 
 Every rate is printed with its 95% Wilson interval. `--rule-stats` adds, for each finding, how many malicious and clean packages of a split it fired on and the likelihood ratio between the two. Without `--malregistry` the second source is left out.
@@ -28,7 +29,7 @@ Results at threshold 50 (ruleset 2026.11.7, score model v1, measured 2026-11-19;
 | split | malicious recall | clean false positives |
 |---|---|---|
 | dev | 490/626 (78%, 75-81) | 0/369 (0%, 0-1) |
-| holdout | 480/683 (70%, 67-74) | 0/453 (0%, 0-1) |
+| holdout | 639/883 (72%, 69-75) | 0/453 (0%, 0-1) |
 | holdout, dated 2026-08-01 or later | 89/195 (46%, 39-53) | |
 
 **The last row is the one to expect on new malware.** It is every holdout sample whose file name in the DataDog dataset carries a date of August 2026 or later (`run_eval.py --since 2026-08-01`): 194 npm packages and one PyPI package, from four sets. npm in the holdout dated before August is at 148 of 193 (77%). The gap is what tuning on the same months is worth: the batches the rules were written from are mostly January to June, and so is `fresh2-2026-11`.
@@ -45,8 +46,27 @@ The holdout by sample set:
 | `fresh-2026-11` | 161 packages drawn on 2026-11-18, after ruleset 2026.11.2: 100 npm and 1 PyPI dated 2026-08-01 or later (DataDog), 60 PyPI from pypi_malregistry; 2 archives do not unpack | 90/159 (57%, 49-64) |
 | `fresh2-2026-11` | 200 packages drawn on 2026-11-18, before ruleset 2026.11.5: 150 npm dated 2026-01-01 or later (DataDog), 50 PyPI from pypi_malregistry; 4 archives do not unpack | 156/196 (80%, 73-85) |
 | `late-2026-11` | the 26 npm names dated 2026-08-01 or later that were left in the dataset, drawn on 2026-11-18 | 13/26 (50%, 32-68) |
+| `npmstudy-2026-11` | 200 npm packages from [the ASE 2026 npm study](https://doi.org/10.6084/m9.figshare.31869370) whose names the DataDog dataset does not have, drawn on 2026-11-19; mostly published 2021-2024 | 159/200 (80%, 73-85) |
 
-**The holdout number is the one to quote, and the `recent` row is the one to worry about**: on the newest npm malware KalaScan catches about half (24 of 60 with ruleset 2026.11.1, before the tuning described below). The second source says the PyPI rules are not fitted to one dataset's taste: 87% there, 37 of 48 (77%) on the original DataDog PyPI holdout samples. By ecosystem the whole holdout is IDE extensions 32/48 (67%, 53-78), npm 236/387 (61%, 56-66), PyPI 212/248 (85%, 81-89).
+**The holdout number is the one to quote, and the `recent` row is the one to worry about**: on the newest npm malware KalaScan catches about half (24 of 60 with ruleset 2026.11.1, before the tuning described below). The second sources say the rules are not fitted to one dataset's taste: PyPI 87% on pypi_malregistry against 37 of 48 (77%) on the original DataDog PyPI holdout samples; npm 80% on the study's samples against 148 of 193 (77%) on DataDog npm dated before August 2026. Both second sources are older malware, so they do not speak to the newest; the `recent` row does. By ecosystem the whole holdout is IDE extensions 32/48 (67%, 53-78), npm 395/587 (67%, 63-71; DataDog 236/387, the study 159/200), PyPI 212/248 (85%, 81-89).
+
+### A second npm source, and registry metadata measured and not built (ruleset 2026.11.7)
+
+**A second npm source.** Every npm sample came from the DataDog dataset. The replication package of "How Effective Are NPM Malicious Package Detectors? A Large-Scale Empirical Study" (ASE 2026, [the ASE 2026 npm study](https://doi.org/10.6084/m9.figshare.31869370)) holds 6,547 malicious npm tarballs from four academic collections and two advisory feeds, each reviewed by three people; 3,529 of its package names are not in the DataDog dataset. 200 of those were drawn into the holdout (`sample_malicious.py --npmstudy`, seed 20261117) and nobody read them. `eval/fetch_npmstudy.py` reads the 200 out of the 4.8 GB archive with HTTP range requests. **159 of 200 (80%, 73-85)**, against 148 of 193 (77%) on DataDog npm dated before August 2026: the npm rules are not fitted to one dataset. The study's samples are mostly from 2021 to 2024, so this says nothing about the newest malware; the 46% on samples dated August 2026 or later stands.
+
+**Registry metadata, measured and not built.** The DataDog dataset stores the npm registry document of each package next to the sample (830 of 831 npm samples). Cut at the scanned version's publish time, so that later versions and takedowns do not leak in, it gives what a scan on the day would have seen. Eight signals were counted on the npm samples and on the 394 clean npm packages (their registry documents cut the same way):
+
+| signal | holdout missed (151) | dev missed (97) | clean (394) |
+|---|---|---|---|
+| new package: first version at most 2 days before, at most 3 versions | 86 | 54 | 160 |
+| no repository, homepage or description | 14 | 9 | 27 |
+| at least 5 versions in 24 hours | 9 | 6 | 15 |
+| published by an account no earlier version was published by, package at least 30 days old | 7 | 6 | 10 |
+| first release after 180 days without one | 2 | 2 | 35 |
+| install script added in this version (already a registry check) | 1 | 2 | 0 |
+| version jump to 90 or more (already `Dependency Confusion Version`) | 1 | 0 | 0 |
+
+No signal and no pair of signals separates the misses from clean packages: the best pair (a burst of versions and no repository) holds 3 holdout and 2 `dev` misses and 1 clean package. A new package with no repository is what most new npm packages look like. Nothing was built.
 
 ### Reading the newest misses (ruleset 2026.11.7)
 

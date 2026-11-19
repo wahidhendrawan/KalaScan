@@ -13,6 +13,10 @@ nothing is checked out (eval/fetch_malicious.sh does that later).
   # pypi_malregistry, only package names the DataDog dataset does not have
   python3 eval/sample_malicious.py --dataset ~/kalascan-corpus --malregistry ~/kalascan-malregistry --set malregistry-2026-11
 
+  # the ASE 2026 npm study (eval/fetch_npmstudy.py), same rule
+  python3 eval/fetch_npmstudy.py --list npmstudy.txt
+  python3 eval/sample_malicious.py --dataset ~/kalascan-corpus --npmstudy npmstudy.txt --set npmstudy-2026-11
+
 One version per package name, names already in the corpus are skipped, and
 the pick is seeded. Prints corpus entries (split "holdout") to paste into
 eval/corpus.json. Nobody reads the picked samples: that is what makes the
@@ -41,11 +45,17 @@ def norm(name):
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
+def study_name(name):
+    """The npm study writes `@scope/name` as `scope##name`, DataDog as `@scope@name`."""
+    return "@" + name.replace("##", "@") if "##" in name else name
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--corpus", default=os.path.join(os.path.dirname(__file__), "corpus.json"))
     ap.add_argument("--dataset", required=True, help="blobless clone of the DataDog dataset")
     ap.add_argument("--malregistry", help="blobless clone of pypi_malregistry; draw from it instead")
+    ap.add_argument("--npmstudy", metavar="LIST", help="tarball list from eval/fetch_npmstudy.py --list; draw npm from it instead")
     ap.add_argument("--ecosystem", choices=("npm", "pypi", "ide_extensions"), default="npm", help="DataDog ecosystem to draw from")
     ap.add_argument("--since", default="0000-00-00", help="DataDog only: samples dated on or after YYYY-MM-DD")
     ap.add_argument("--before", default="9999-99-99", help="DataDog only: samples dated before YYYY-MM-DD (a tuning batch stays behind the newest holdout)")
@@ -57,10 +67,17 @@ def main():
     used = set()
     for s in json.load(open(args.corpus))["samples"]:
         parts = s["target"].split("/")
-        used.add(norm(parts[3] if s["source"] == "dataset" else parts[0]))
+        used.add(norm(study_name(parts[3]) if s["source"] in ("dataset", "npmstudy") else parts[0]))
 
     by_name = {}
-    if args.malregistry:
+    if args.npmstudy:
+        source = "npmstudy"
+        known = {norm(p.split("/")[3]) for p in tree(args.dataset, "samples/npm") if p.count("/") >= 5}
+        for path in open(args.npmstudy).read().split():
+            name = norm(study_name(path.split("/")[3]))
+            if name not in known | used:
+                by_name.setdefault(name, []).append(path)
+    elif args.malregistry:
         source = "malregistry"
         known = {norm(p.split("/")[3]) for p in tree(args.dataset, "samples/pypi") if p.count("/") >= 5}
         for path in tree(args.malregistry):

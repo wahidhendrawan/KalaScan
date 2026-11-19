@@ -64,6 +64,15 @@ Use the "False positive" issue template with the rule id (`kalascan rules <id>` 
 2. Fill in the pull request template: what, why, how it was tested, and for rule changes the effect on recall and false positives.
 3. CI must pass: build, clippy, tests, cargo-deny, the eval gate (on `src/`, `rules/`, `eval/` changes) and the security scans.
 
+## Ruleset versions
+
+A ruleset is what decides a verdict: `rules/builtin.toml`, the chains in `src/correlate.rs`, the score in `src/score.rs` and `rules/weights.toml`. It changes only as a new version, and a version ships with its measurement.
+
+1. A pull request that touches one of those files bumps `RULESET_VERSION` in `src/scanner.rs` (the CI `ruleset` job fails otherwise).
+2. The new version is measured in a throwaway VM (eval/README.md) and recorded with `run_eval.py --summary eval/results/<version>.json`; `cargo test` fails without that file.
+3. One ruleset version per minor release. Rule work collects on a branch and is measured once, not after each rule.
+4. Before rules are tuned, a new holdout is drawn, so the next count is on samples nobody has read.
+
 ## Releasing (maintainers)
 
 1. Bump `version` in `Cargo.toml` and `CITATION.cff`; move the `[Unreleased]` notes in `CHANGELOG.md` to a `## [x.y.z] - YYYY-MM-DD` section and add its compare link.

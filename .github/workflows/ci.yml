@@ -21,6 +21,25 @@ jobs:
       # detection signatures are listed in .kalascanignore.
       - run: ./target/release/kalascan scan . --fail-on-risk 30
 
+  # A change to the rules, the chains or the score is a new ruleset: it needs
+  # a new RULESET_VERSION, and `cargo test` then needs the results file that
+  # measured it (eval/results/<version>.json).
+  ruleset:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - env:
+          BASE: origin/${{ github.base_ref }}
+        run: |
+          changed=$(git diff --name-only "$BASE"...HEAD -- rules/builtin.toml rules/weights.toml src/correlate.rs src/score.rs)
+          if [ -n "$changed" ] && ! git diff "$BASE"...HEAD -- src/scanner.rs | grep -q '^+pub const RULESET_VERSION'; then
+            echo "::error::changed without a new RULESET_VERSION in src/scanner.rs:" $changed
+            exit 1
+          fi
+
   cargo-deny:
     runs-on: ubuntu-latest
     steps:

@@ -17,7 +17,7 @@ There are two models. **v1 is the default.** v2 is opt-in (`kalascan scan --scor
 7. **AI verdict** `min(ai.risk_score / 2, 25)` only when the model says malicious; a benign verdict adds 0.
 8. **Total** = the parts added up, capped at 100.
 
-The result is nearly two-valued: a package has a chain or two criticals and scores 70 or more, or it does not and stays under 30. On the holdout 480 of 683 malicious samples score 70 or more, two score 30-49, none 50-69.
+The result is nearly two-valued: a package has a chain or two criticals and scores 70 or more, or it does not and stays under 30. On the holdout 639 of 883 malicious samples score 70 or more, two score 30-49, none 50-69.
 
 ## v2: weights fitted on the corpus
 
@@ -74,24 +74,24 @@ Two variants were tried on `dev` (with ruleset 2026.11.1: 173 malicious, 365 cle
 
 ### What the holdout says
 
-Ruleset 2026.11.7, 683 malicious and 453 clean holdout packages, 95% Wilson interval in brackets. The v1 column is the binary's ([`eval/results/2026.11.7.json`](../eval/results/2026.11.7.json)). The v2 column is what the fitter computes from the findings that run recorded, with the weights refitted on `dev` (626 malicious, 369 clean); the samples were deleted after the run, so the binary was not run again with `--score-model v2`. In the first evaluation (ruleset 2026.11.1) the two agreed on 1,295 of 1,297 packages, the other two carrying a binary-triage part the fitter does not see.
+Ruleset 2026.11.7, 883 malicious and 453 clean holdout packages, 95% Wilson interval in brackets. The v1 column is the binary's ([`eval/results/2026.11.7.json`](../eval/results/2026.11.7.json)). The v2 column is what the fitter computes from the findings that run recorded, with the weights refitted on `dev` (626 malicious, 369 clean); the samples were deleted after the run, so the binary was not run again with `--score-model v2`. In the first evaluation (ruleset 2026.11.1) the two agreed on 1,295 of 1,297 packages, the other two carrying a binary-triage part the fitter does not see.
 
 | threshold | v1 malicious | v1 clean | v2 malicious | v2 clean |
 |---|---|---|---|---|
-| 30 | 482/683 (71%, 67-74) | 0/453 (0%, 0-1) | 494/683 (72%, 69-76) | 4/453 (0.9%, 0.3-2.2) |
-| 50 | 480/683 (70%, 67-74) | 0/453 (0%, 0-1) | 481/683 (70%, 67-74) | 0/453 (0%, 0-1) |
-| 70 | 480/683 (70%, 67-74) | 0/453 (0%, 0-1) | 475/683 (70%, 66-73) | 0/453 (0%, 0-1) |
+| 30 | 641/883 (73%, 70-75) | 0/453 (0%, 0-1) | 658/883 (75%, 72-77) | 4/453 (0.9%, 0.3-2.2) |
+| 50 | 639/883 (72%, 69-75) | 0/453 (0%, 0-1) | 640/883 (72%, 69-75) | 0/453 (0%, 0-1) |
+| 70 | 639/883 (72%, 69-75) | 0/453 (0%, 0-1) | 634/883 (72%, 69-75) | 0/453 (0%, 0-1) |
 
 Malicious samples caught at the best threshold that flags no more than a given number of clean packages:
 
 | clean flagged at most | 0 | 1 | 4 | 9 |
 |---|---|---|---|---|
-| v1 | 482 | 482 | 482 | 482 |
-| v2 | 481 | 481 | 503 | 523 |
+| v1 | 641 | 641 | 641 | 641 |
+| v2 | 640 | 640 | 668 | 690 |
 
-**v2 does not beat v1 where KalaScan operates.** With no clean package flagged the two are level (482 and 481 of 683). What v2 adds is a range v1 does not have: v1's scores leave almost nothing between 30 and 70 to trade with, while v2 catches 21 more samples for 4 clean packages flagged in 453, and 41 more for 9. That is why v2 ships behind a flag and v1 stays the default: the gain is a choice of operating point, not better detection, and the ceiling is set by what the rules see. 189 of the 683 malicious holdout samples score under 30 in v2, 201 in v1.
+**v2 does not beat v1 where KalaScan operates.** With no clean package flagged the two are level (641 and 640 of 883). What v2 adds is a range v1 does not have: v1's scores leave almost nothing between 30 and 70 to trade with, while v2 catches 27 more samples for 4 clean packages flagged in 453, and 49 more for 9. That is why v2 ships behind a flag and v1 stays the default: the gain is a choice of operating point, not better detection, and the ceiling is set by what the rules see. 225 of the 883 malicious holdout samples score under 30 in v2, 242 in v1.
 
-This is the seventh evaluation of v2 on the holdout. The first six (rulesets 2026.11.1 and 2026.11.2, 193 and 201 of 302 at threshold 50; rulesets 2026.11.3 and 2026.11.4, 305 of 461; ruleset 2026.11.5, 466 of 657; ruleset 2026.11.6, 479 of 683) gave the same picture. The model and its two parameters were not changed between them; the weights were refitted because the rules changed.
+This is the seventh evaluation of v2 on the holdout. The first six (rulesets 2026.11.1 and 2026.11.2, 193 and 201 of 302 at threshold 50; rulesets 2026.11.3 and 2026.11.4, 305 of 461; ruleset 2026.11.5, 466 of 657; ruleset 2026.11.6, 479 of 683) gave the same picture. This one adds the 200 `npmstudy-2026-11` samples to the holdout. The model and its two parameters were not changed between them; the weights were refitted because the rules changed.
 
 ### What a score means
 
@@ -99,11 +99,11 @@ Holdout packages by score band. The corpus is half malicious; a registry is not,
 
 | band | v1 malicious | v1 clean | v2 malicious | v2 clean |
 |---|---|---|---|---|
-| 0-9 | 147 | 331 | 125 | 395 |
-| 10-29 | 54 | 122 | 64 | 54 |
-| 30-49 | 2 | 0 | 13 | 4 |
+| 0-9 | 169 | 331 | 137 | 395 |
+| 10-29 | 73 | 122 | 88 | 54 |
+| 30-49 | 2 | 0 | 18 | 4 |
 | 50-69 | 0 | 0 | 6 | 0 |
-| 70-100 | 480 | 0 | 475 | 0 |
+| 70-100 | 639 | 0 | 634 | 0 |
 
 ## Limits
 

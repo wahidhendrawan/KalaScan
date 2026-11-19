@@ -7,6 +7,13 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+### Added
+- Evaluation: a second npm source. `eval/fetch_npmstudy.py` reads samples out of the replication package of the ASE 2026 study "How Effective Are NPM Malicious Package Detectors?" (CC BY 4.0) with HTTP range requests, `sample_malicious.py --npmstudy` draws names the DataDog dataset does not have, `run_eval.py --npmstudy` scans them. The new holdout set `npmstudy-2026-11` (200 npm packages, mostly 2021-2024) scores 159 of 200 (80%, 73-85); the holdout is 639 of 883 (72%, 69-75).
+- CI job `ruleset`: a pull request that changes `rules/builtin.toml`, `rules/weights.toml`, `src/correlate.rs` or `src/score.rs` must bump `RULESET_VERSION`; `cargo test` fails while `eval/results/<version>.json` is missing. CONTRIBUTING.md, "Ruleset versions": one ruleset version per minor release, measured once.
+
+### Measured, not built
+- Registry metadata at publish time (new package, version burst, publisher change, no repository, long-dormant release) on the npm samples' stored registry documents: no signal or pair separates the missed samples from clean npm packages (eval/README.md).
+
 ## [1.19.0] - 2026-11-19
 
 ### Added

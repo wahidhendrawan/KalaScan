@@ -1320,6 +1320,28 @@ pub(crate) fn get_context(content: &str, start: usize, end: usize) -> String {
 mod tests {
     use super::*;
 
+    /// A ruleset version ships with its measurement: the CI `ruleset` job
+    /// asks for a new version when the rules or the score change, and this
+    /// asks for the run that measured it (eval/README.md).
+    #[test]
+    fn ruleset_version_is_measured() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(format!("eval/results/{RULESET_VERSION}.json"));
+        let text = std::fs::read_to_string(&path).unwrap_or_else(|_| {
+            panic!(
+                "{} is missing: measure ruleset {RULESET_VERSION} with eval/run_eval.py --summary",
+                path.display()
+            )
+        });
+        let doc: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(doc["ruleset"], RULESET_VERSION);
+        assert!(
+            doc["groups"]["holdout"].is_object(),
+            "no holdout in {}",
+            path.display()
+        );
+    }
+
     #[test]
     fn test_scan_directory_filtered_parallel_is_deterministic() {
         let dir = tempfile::tempdir().unwrap();
