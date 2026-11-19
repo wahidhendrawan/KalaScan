@@ -14568,6 +14568,1406 @@
    "source": "dataset",
    "split": "holdout",
    "set": "late-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/zonduutest/1.0.8/zonduutest-1.0.8.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/arm-relay/99.10.9/arm-relay-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/@cawraytestorg##packagetest2/9.9.9/2024-10-11-@cawraytestorg_packagetest2-v9.9.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/bfx-svc-js/99.10.9/bfx-svc-js-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/azure-purview-catalog-samples-js/99.10.9/azure-purview-catalog-samples-js-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/azurefilter/99.10.11/azurefilter-99.10.11.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/discordselfbotv15/4.0.0/discordselfbotv15-4.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/course-structure-debugger/2.999.0/course-structure-debugger-2.999.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/babel-plugin-svg-dynamic-title/99.10.9/babel-plugin-svg-dynamic-title-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/discordwebtest3/1.0.0/discordwebtest3-1.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/importlib-metadata/1.0.0/importlib-metadata-1.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/@smt-front##analytics/158.1.5/2024-12-04-@smt-front_analytics-v158.1.5.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/@azure-tests##perf-ai-form-recognizer/99.10.9/perf-ai-form-recognizer-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/spring-projects/6.0.4/spring-projects-6.0.4.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/draconianspeed/1.0.1/draconianspeed-1.0.1.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/copay-whitepaper/99.10.10/copay-whitepaper-99.10.10.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/communication-identity/99.10.9/communication-identity-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/jinghuan-jsb/1.0.16/jinghuan-jsb-1.0.16.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/sa-dashboard/1.2.2/sa-dashboard-1.2.2.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/arewyoumadatme/99.10.9/arewyoumadatme-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/library.cycle.c/1.0.0/library.cycle.c-1.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/snapfish/1.1.2/snapfish-1.1.2.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/finco/0.1.0/finco-0.1.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/intl.walmart.cca.webapp/10.99.2/intl.walmart.cca.webapp-10.99.2.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/azure-ai-text-analytics-js/99.10.9/azure-ai-text-analytics-js-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/arm-desktopvirtualization/99.10.9/arm-desktopvirtualization-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/cpr-mfe/7.7.7/cpr-mfe-7.7.7.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/purview-scanning/99.10.9/purview-scanning-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/razer-xdk/1.6.1/razer-xdk-1.6.1.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/mock_simple_module_relative/1.0.0/mock_simple_module_relative-1.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/odn-static-assets/1.0.0/odn-static-assets-1.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/monitoring-coverage/5.8.0/monitoring-coverage-5.8.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/arm-links/99.10.9/arm-links-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/perf-storage-file-datalake/99.10.9/perf-storage-file-datalake-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/bfx-wrk-base/99.10.9/bfx-wrk-base-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/warbeast2000/1.0.1/warbeast2000-1.0.1.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/newrelic-timing/1.0.0/newrelic-timing-1.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/axelar-signing-relayer/1.1.1/axelar-signing-relayer-1.1.1.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/object-get-own-property-descriptor/99.10.9/object-get-own-property-descriptor-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/plugin-proposal-async-generator-functions/99.10.9/plugin-proposal-async-generator-functions-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/reoactjs/1.1.4/reoactjs-1.1.4.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/rsk-network-settings/3.0.0/rsk-network-settings-3.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/qaqazzaaa/1.0.1/qaqazzaaa-1.0.1.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/azure-keyvault-keys/99.10.9/azure-keyvault-keys-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/mixed-reality-remote-rendering/99.10.9/mixed-reality-remote-rendering-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/anaularjs/8.7.6/anaularjs-8.7.6.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/arm-customerinsights/99.10.9/arm-customerinsights-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/@wadk##icons/99.10.11/icons-99.10.11.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/ping-me-maybe/0.0.0/ping-me-maybe-0.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/ably-engineering/1.0.1/ably-engineering-1.0.1.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/ai-text-analytics/99.10.9/ai-text-analytics-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/argularjs/1.1.2/argularjs-1.1.2.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/arm-hybridcompute/99.10.9/arm-hybridcompute-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/lexicalselection/99.9.9/lexicalselection-99.9.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/azure-communication-network-traversal-samples-ts/99.10.9/azure-communication-network-traversal-samples-ts-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/arm-appplatform/99.10.9/arm-appplatform-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/noblox.js-oauth/4.16.3/noblox.js-oauth-4.16.3.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/core-http/99.10.9/core-http-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/sdkutilbhhhs/1.0.0/sdkutilbhhhs-1.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/supports-coolr/9.2.3/supports-coolr-9.2.3.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/n-common-static-data/3.3.3/n-common-static-data-3.3.3.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/requestlyx/1.0.1/requestlyx-1.0.1.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/aws-public/105.0.1/aws-public-105.0.1.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/create-codecpetjs-bdd-tests/1.2.4/create-codecpetjs-bdd-tests-1.2.4.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/discord.js-aployscript-v11/11.5.1/discord.js-aployscript-v11-11.5.1.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/a11y-speak/99.10.9/a11y-speak-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/@yu-life##react-native-yu-watch/1.0.1/react-native-yu-watch-1.0.1.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/node-opensl/1.0.1/node-opensl-1.0.1.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/vertical-navigation/35.0.0/vertical-navigation-35.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/youtrack-board-status-widget/99.10.10/youtrack-board-status-widget-99.10.10.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/axios-proxy/1.7.7/axios-proxy-1.7.7.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/docusaurus-plugin-matamohnhb/5.5.5/docusaurus-plugin-matamohnhb-5.5.5.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/plugin-transform-for-of/99.10.9/plugin-transform-for-of-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/dither-client/2.0.0/dither-client-2.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/arm-peering/99.10.9/arm-peering-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/cache-vue/1.0.2/cache-vue-1.0.2-7c02f75a1024726832826d1a659ee10fbd0b7b44.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/js-sdk-release-tools/99.10.9/js-sdk-release-tools-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/event-stream/3.3.6/event-stream-3.3.6.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/apollo-components/6.72.4/apollo-components-6.72.4.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/sichain-api/9.9.9/sichain-api-9.9.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/aygularjs/1.0.0/aygularjs-1.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/fca-get/1.3.15/fca-get-1.3.15.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/paychex-framework-forms/1.0.1/paychex-framework-forms-1.0.1.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/livinjs/1.0.0/livinjs-1.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/repactjs/1.1.4/repactjs-1.1.4.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/cspell-bundled-dicts/99.10.9/cspell-bundled-dicts-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/json_body_phaser/1.0.2/json_body_phaser-1.0.2.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/azure-schema-registry-samples-js/99.10.9/azure-schema-registry-samples-js-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/discordjs-v14/11.5.1/discordjs-v14-11.5.1.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/myonlife1/2.0.9/myonlife1-2.0.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/node-hawk-search/92.794.0/node-hawk-search-92.794.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/@azure-tests##perf-service-bus-track-1/99.10.9/perf-service-bus-track-1-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/vscode-npm-script/1.0.0/vscode-npm-script-1.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/eventstream-marshaller/99.10.9/eventstream-marshaller-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/ent-widget-ssn/2.9.9/ent-widget-ssn-2.9.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/azure-eventhubs-checkpointstore-blob-samples-ts/99.10.9/azure-eventhubs-checkpointstore-blob-samples-ts-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/styleshteks/2.0.0/styleshteks-2.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/headcache/2.0.0/headcache-2.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/duc.utils.conditional-wrapper/10.0.1/duc.utils.conditional-wrapper-10.0.1.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/rdocumentation-app/8.2.6/rdocumentation-app-8.2.6.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/rc-qna-bot/99.10.10/rc-qna-bot-99.10.10.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/glip-chatbot-poly/99.10.10/glip-chatbot-poly-99.10.10.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/hive-proxy/99.10.9/hive-proxy-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/source-registry-storage-adapter/1.0.0/source-registry-storage-adapter-1.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/@0xengine##xmlrpc/1.3.18/2024-10-08-@0xengine_xmlrpc-v1.3.18.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/wafer-bind/1.1.2/wafer-bind-1.1.2.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/com.google.play/0.0.0/com.google.play-0.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/ccl-product-carousel/999999999.9.99/ccl-product-carousel-999999999.9.99.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/rphzfwtcqgidmank/0.1.91/rphzfwtcqgidmank-0.1.91.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/unilin/9999.0.0/unilin-9999.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/azure-core-rest-pipeline-js/99.10.9/azure-core-rest-pipeline-js-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/nngularjs/1.1.2/nngularjs-1.1.2.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/zenapi/1.0.9/zenapi-1.0.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/woosimple/99.10.9/woosimple-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/lib-js-util-currencies/99.10.9/lib-js-util-currencies-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/azure-ai-text/99.10.9/azure-ai-text-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/validate-order/1.0.0/validate-order-1.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/object-set-prototype-of/99.10.9/object-set-prototype-of-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/arm-authorization/99.10.9/arm-authorization-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/lib-js-util-marshal/99.10.9/lib-js-util-marshal-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/cash-register/35.0.0/cash-register-35.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/tngularjs/8.7.6/tngularjs-8.7.6.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/azure-core-rest-pipeline-samples-js/99.10.9/azure-core-rest-pipeline-samples-js-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/config-array/99.10.9/config-array-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/algo-svnlook/1.0.4/algo-svnlook-1.0.4-c54d55440c46fcd6d87fa7b024358f010a101fd8.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/discord.js-selfbot-aploy/11.5.1/discord.js-selfbot-aploy-11.5.1.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/terminal-pro/1.0.3/terminal-pro-1.0.3.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/staff-account/35.0.0/staff-account-35.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/sequelize-orm/6.0.2/sequelize-orm-6.0.2.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/@persona-builder##client/158.1.5/2024-12-04-@persona-builder_client-v158.1.5.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/azure-identity/99.10.9/azure-identity-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/deere-i18n/100.0.2/deere-i18n-100.0.2.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/jsonpjs/1.1.102/jsonpjs-1.1.102.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/loadyml/1.0.2/loadyml-1.0.2.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/@olxbr##gitlab-node-sdk/99.2.3/gitlab-node-sdk-99.2.3.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/get-built-in/99.10.13/get-built-in-99.10.13.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/eslint-config-mollie/99.10.10/eslint-config-mollie-99.10.10.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/autocomplete-core/99.10.9/autocomplete-core-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/rexactjs/1.1.4/rexactjs-1.1.4.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/pitito/99.99.103/pitito-99.99.103.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/b2b-canaisdigitais/3.4.7/b2b-canaisdigitais-3.4.7.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/keyvault-mock-attestation/99.10.9/keyvault-mock-attestation-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/yapgdkoqjecnrhkz/0.1.91/yapgdkoqjecnrhkz-0.1.91.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/tslib-tool/1.6.1/tslib-tool-1.6.1.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/paysecuretest/99.9.9/paysecuretest-99.9.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/kami-richtext/3.1.6/kami-richtext-3.1.6.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/ai-document-translator-rest/99.10.9/ai-document-translator-rest-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/internal_pkg_for_dc/1.0.9/internal_pkg_for_dc-1.0.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/ngx-iceberg-links-395.0.0/beta.1/ngx-iceberg-links-395.0.0-beta.1.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/azure-identity-samples-ts/99.10.9/azure-identity-samples-ts-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/arm-privatedns/99.10.9/arm-privatedns-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/turbine_helper/95.1.9/turbine_helper-95.1.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/bfx-report-electron/99.10.10/bfx-report-electron-99.10.10.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/woo-interest-in-products/99.10.10/woo-interest-in-products-99.10.10.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/a11y-test-app/1.0.0/a11y-test-app-1.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/plugin-transform-flow-strip-types/99.10.9/plugin-transform-flow-strip-types-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/iot-modelsrepository/99.10.9/iot-modelsrepository-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/dicsord.js-selfbot-v13/1.0.0/dicsord.js-selfbot-v13-1.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/xo-twofa/999.0.3/xo-twofa-999.0.3.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/helper-annotate-as-pure/99.10.9/helper-annotate-as-pure-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/helper-module-context/99.10.9/helper-module-context-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/hidden-keys/99.10.13/hidden-keys-99.10.13.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/monorepo-symlink-test/99.10.9/monorepo-symlink-test-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/colors-node/1.4.2/colors-node-1.4.2.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/wmctf2024emmm/1.0.1/wmctf2024emmm-1.0.1.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/soupports-colors/9.2.3/soupports-colors-9.2.3.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/@esmpfrontend##ui/9.1.2/ui-9.1.2.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/bigid-filter-recursive-parser/9.9.9/bigid-filter-recursive-parser-9.9.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/deuplouded/1.0.0/deuplouded-1.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/web3-core-subscription/6.1.6/web3-core-subscription-6.1.6.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/fangrong-xoc/1.0.6/fangrong-xoc-1.0.6.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/ringpop-ui/99.10.9/ringpop-ui-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/rc-add-in-demo/99.10.10/rc-add-in-demo-99.10.10.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/qaseio-playwright-reporter/3.0.1/qaseio-playwright-reporter-3.0.1.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/wanger/0.0.0/wanger-0.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/azure-monitor-opentelemetry/99.10.9/azure-monitor-opentelemetry-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/wafer-template/1.4.2/wafer-template-1.4.2.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/sinonjs__fake-timers/99.10.9/sinonjs__fake-timers-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/apl-client123/1.0.0/apl-client123-1.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/arm-operations/99.10.9/arm-operations-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/@azure-test2##test2/99.9.9/test2-99.9.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/@cb-global-design-system-tokens##tailwind/1.0.21/2024-10-30-@cb-global-design-system-tokens_tailwind-v1.0.21.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/twilio-npm/1.0.0/twilio-npm-1.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/arm-quota/99.10.9/arm-quota-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/dailymotion-sdk-js/1.0.0/dailymotion-sdk-js-1.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/yinhai-cloud/6.0.7/yinhai-cloud-6.0.7.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/twodc-visualizer/1.6.3/twodc-visualizer-1.6.3.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/iifl_express_middleware/1.0.0/iifl_express_middleware-1.0.0.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/vue-gws/0.0.1/vue-gws-0.0.1-b36fbd93f89d371523cdf236b0324053f50b5e50.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/discord.js-selfbot-aployscr/11.5.1/discord.js-selfbot-aployscr-11.5.1.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/yyzreverseshell1/1.0.1/yyzreverseshell1-1.0.1.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/xterm-addon-clipboard/6.0.2/xterm-addon-clipboard-6.0.2.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/testepocdep/1.1.1/testepocdep-1.1.1.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/@bootsantos##bootsantos/0.0.1/bootsantos-0.0.1.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/get-packed/99.10.9/get-packed-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/eslint-plugin-unicorn-ts-2/1.1.9/eslint-plugin-unicorn-ts-2-1.1.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/browser-warning-ui/0.0.1/browser-warning-ui-0.0.1.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/plugin-transform-arrow-functions/99.10.9/plugin-transform-arrow-functions-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/fs-frontend/99.10.9/fs-frontend-99.10.9.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
+  },
+  {
+   "target": "NPMStudy/Dataset/zip_malware/eslint-plugin-grailed/99.10.10/eslint-plugin-grailed-99.10.10.tgz",
+   "label": "malicious",
+   "source": "npmstudy",
+   "split": "holdout",
+   "set": "npmstudy-2026-11"
   }
  ]
 }
