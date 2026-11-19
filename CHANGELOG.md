@@ -7,6 +7,8 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+## [1.20.0] - 2026-11-19
+
 ### Added
 - Evaluation: a second npm source. `eval/fetch_npmstudy.py` reads samples out of the replication package of the ASE 2026 study "How Effective Are NPM Malicious Package Detectors?" (CC BY 4.0) with HTTP range requests, `sample_malicious.py --npmstudy` draws names the DataDog dataset does not have, `run_eval.py --npmstudy` scans them. The new holdout set `npmstudy-2026-11` (200 npm packages, mostly 2021-2024) scores 159 of 200 (80%, 73-85); the holdout is 639 of 883 (72%, 69-75).
 - CI job `ruleset`: a pull request that changes a rule file or a detection module (CONTRIBUTING.md lists them) must bump `RULESET_VERSION`, or carry the `ruleset-unchanged` label when no verdict moves; `cargo test` fails while `eval/results/<version>.json` is missing. CONTRIBUTING.md, "Ruleset versions": one ruleset version per minor release, measured once.
@@ -287,7 +289,8 @@ published on GitHub; their features are listed with version markers in `README.m
 ### Fixed
 - `openapi.yaml` is copied into the Docker builder stage.
 
-[Unreleased]: https://github.com/wahidhendrawan/KalaScan/compare/v1.19.0...HEAD
+[Unreleased]: https://github.com/wahidhendrawan/KalaScan/compare/v1.20.0...HEAD
+[1.20.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.19.0...v1.20.0
 [1.19.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.18.0...v1.19.0
 [1.18.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.16.0...v1.17.0
