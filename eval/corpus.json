@@ -1,5 +1,5 @@
 {
- "_comment": "Labelled corpus for eval/run_eval.py. 'dataset' paths are relative to a checkout of github.com/DataDog/malicious-software-packages-dataset (fetch with eval/fetch_malicious.sh). Clean targets are fetched from public registries. 'split': rules were tuned on 'dev'; report 'holdout' for an honest estimate. 'set': 'random-2026-11' marks clean packages drawn at random from npm and PyPI (eval/sample_clean.py) instead of picked. 'set': 'tune-2026-11' marks malicious samples drawn for tuning (split dev): every 2026 PyPI package not used before, 19 from 2025, 40 npm from 2026. 'set': 'recent-2026-11' marks 60 npm packages dated 2026-08-01 or later (eval/sample_malicious.py --since), split holdout, never read. 'source': 'malregistry' paths are relative to a checkout of github.com/lxyeternal/pypi_malregistry: 100 PyPI packages whose names the DataDog dataset does not have ('set': 'malregistry-2026-11'), split holdout, never read. 'set': 'fit-2026-11' marks clean packages drawn at random (eval/sample_clean.py --seed 20261117) into split dev: the clean half the score weights are fitted on (eval/fit_weights.py). 'set': 'tune-recent-2026-11' marks 80 npm packages dated 2026-08-01 or later drawn for tuning (eval/sample_malicious.py --since 2026-08-01 --seed 20261118), split dev: the counterpart of the holdout set 'recent-2026-11'. 'set': 'random2-2026-11' marks clean packages drawn at random on 2026-11-19 (eval/sample_clean.py --seed 20261124 --size 1000 --draws 2200), split holdout; the 16 that scored 30 or more were read and moved to dev, and 6 that are not clean samples were left out (eval/README.md).",
+ "_comment": "Labelled corpus for eval/run_eval.py. 'dataset' paths are relative to a checkout of github.com/DataDog/malicious-software-packages-dataset (fetch with eval/fetch_malicious.sh). Clean targets are fetched from public registries. 'split': rules were tuned on 'dev'; report 'holdout' for an honest estimate. 'set': 'random-2026-11' marks clean packages drawn at random from npm and PyPI (eval/sample_clean.py) instead of picked. 'set': 'tune-2026-11' marks malicious samples drawn for tuning (split dev): every 2026 PyPI package not used before, 19 from 2025, 40 npm from 2026. 'set': 'recent-2026-11' marks 60 npm packages dated 2026-08-01 or later (eval/sample_malicious.py --since), split holdout, never read. 'source': 'malregistry' paths are relative to a checkout of github.com/lxyeternal/pypi_malregistry: 100 PyPI packages whose names the DataDog dataset does not have ('set': 'malregistry-2026-11'), split holdout, never read. 'set': 'fit-2026-11' marks clean packages drawn at random (eval/sample_clean.py --seed 20261117) into split dev: the clean half the score weights are fitted on (eval/fit_weights.py). 'set': 'tune-recent-2026-11' marks 80 npm packages dated 2026-08-01 or later drawn for tuning (eval/sample_malicious.py --since 2026-08-01 --seed 20261118), split dev: the counterpart of the holdout set 'recent-2026-11'. 'set': 'random2-2026-11' marks clean packages drawn at random on 2026-11-19 (eval/sample_clean.py --seed 20261124 --size 1000 --draws 2200), split holdout; the 16 that scored 30 or more were read and moved to dev, and 6 that are not clean samples were left out (eval/README.md). 'set': 'openvsx-random-2026-11' marks IDE extensions drawn at random from Open VSX's sitemap on 2026-11-19 (eval/sample_clean.py --openvsx --seed 20261125 --size 300 --draws 420), each pinned to its newest universal version published before 2026-05-16, split holdout; the 7 that scored 50 or more on first contact were read, 3 fixed and moved to dev, 1 that is not a clean sample and 3 flagged by design left out (eval/README.md).",
  "samples": [
   {
    "target": "samples/ide_extensions/malicious_intent/Puglight.discoverito/0.0.1.vsix",
@@ -29919,6 +29919,1721 @@
    "split": "holdout",
    "set": "random2-2026-11",
    "target": "pypi:pywebapi==0.1a6"
+  },
+  {
+   "target": "https://open-vsx.org/extension/Abinnovator/surfer/0.0.9",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/AlekseyNagovitsyn/autocomplete-line/0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/Aligotr/markdown-preview-toc-sidebar/1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/Andrew-s/folder-remarks/0.1.50",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/Anirvan/vscode-shortcut-tasks/0.1.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/BakoD/llmessage/0.0.9",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/BrandevDevdev/eyes-on-lichen/0.0.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/BroadcomMFD/jcl-language-support/3.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/BroadcomMFD/pli-language-support/1.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/CJL/word-space/0.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/ClancyTools/nitro-graphql-validator/0.0.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/CodeSacha/synthwave-2077/1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/Darkempire78/discord-tools/1.4.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/Dart-Code/dart-code/3.135.20260430",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/DrEden33773/vhs-analyzer/0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/EbenezerDon/npm-studio/1.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/FelipeFontes/flutter-widget-preview/0.1.15",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/FelixAngelov/mason/0.1.11",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/Fernir/refus/0.1.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/GeneralRobotics/opengrid-notebook-extension/1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/GlobalArt/restart-tsserver-button/1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/GraphQL/vscode-graphql-syntax/1.3.11",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/Gruntfuggly/scoper/0.0.13",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/Gydunhn/angular-tailwind-essentials/1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/Hachidaime/brick-shinkuro/1.3.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/HaoChenxin/git-blame/0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/HenryChea/serika-dark-vscode/0.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/Jason8931/autojs-id/1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/JulianIaquinandi/nvim-ui-modifier/0.1.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/KWARC/flams/0.0.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/KapThang/quickmd/1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/KylinIdeTeam/js-debug/0.1.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/Lianues/limcode/1.1.26",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/Maorlevinshtein/push-and-go/0.0.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/Marlodev/ganbaru/1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/MikeLok/nasm-nasmate/0.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/NCBM/charming-completions/0.3.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/OceanProtocol/ocean-protocol-vscode-extension/0.2.11",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/OrbitalFoundryModdingCrew/stationeers-lua/0.2.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/PratheeshRussell/kube-helper/0.0.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/PrismaCloud/prisma-cloud/1.3.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/Ranch-Hand-Robotics/rde-ros-2/1.0.9",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/Ronalyao/json2dartcode/0.0.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/SuccSoft/succide/6.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/SumukhP-dev/sagemaker-remote-connection/1.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/ThamilthennarasuM/rdfs/1.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/ThomasHickman/python-docs-opener/1.1.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/TinkerCode/hipster/1.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/Ton-Shell/trae-chat-bridge/0.0.30",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/VoidWorks/trawl/0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/Wherobots/wherobotsjobsubmit/1.5.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/YeZhui/vsplugin-helper/0.0.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/YuTengjing/awesome-vscode-extension-boilerplate/0.0.29",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/Yvagacore/antigravity-tepyx-bridge/2.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/ZealousFoundry/flutter-extract-to-arb/2.6.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/abhineet-pandey/pipe-explorer/0.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/adamraichu/pdf-viewer/1.1.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/aesthenixai/aesthenixai/0.3.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/aixy/cnb-welcome/0.10.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/akintomiwa-fisayo/zen-games/0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/alejandrohdezma/sbt-dependencies/0.17.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/aleksUIX/vastlint/0.4.16",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/alireza94/theme-gotham/0.5.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/alone/commit-ai/0.0.8",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/ameliance-skymusic/ameliance-file-status-badge/0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/antigravity-cockpit-nano/antigravity-cockpit-nano/1.3.8",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/apertacodex/dotenv-manager/9.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/arzg/slate/1.3.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/atsushieno/language-review/0.7.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/bartwo21/coder-buddy/0.0.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/benmcmorran/vscode-api-explorer/0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/bernabe/gemcommit/1.0.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/bit/hope-ai/0.0.45",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/butterdev/butter-bear/3.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/cazter/prompt-pocket/0.1.9",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/cesarandreslopez/sidekick-docker-vscode/0.2.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/chaowang/eastedu-vscode/1.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/chicoff/mapfile/0.4.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/circuitscript/circuitscript-extension/0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/claude-commit-generator/claude-commit-generator/0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/clauderecallhq/clauderecall-vscode/0.7.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/claui/ifm/1.2.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/cloudstudio/live-server-pro/0.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/cmiux/vibepush/0.6.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/codeliger/pirate-map/1.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/commitmind/commitmind-vscode/0.0.11",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/coolpinkzz/terminal-fail-sound/0.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/cursor-goland-opener/goland-opener/1.0.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/damolinx/tracciatto/0.3.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/danielgtaylor/structured-data-templates/0.0.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/datakurre/devenv/0.6.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/dennisgrzyb/sf-org-list/2.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/devded/bottom-terminal/0.0.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/devoszhang/uix/0.6.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/doronsi/claude-plans-viewer/0.2.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/doutriauxguillaume/name-that-color/0.1.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/embertooling/emberjs-snippets/0.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/embertooling/vscode-ember/3.0.69",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/emusal/alogin-skills/0.2.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/evgeniypeshkov/syntax-highlighter/0.5.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/eyebonk/subtle-pink/1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/fcx/ai-lesson-chinese-preview-plugin/1.0.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/finger/sendtmux/0.0.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/floeorg/floe/0.1.0-alpha.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/fredwangwang/vscode-hcl-format/1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/fseitun/cursor-logged-user-indicator/0.7.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/gaeaflow/gaeaflow-gitspace/1.2.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/gdhillon/dataverse-assembly-decompiler/0.10.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/gdhillon/fetchxml-builder/0.10.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/gieson/smoothy-7-theme/2.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/git-ai/git-ai-vscode/0.1.20",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/grain-lang/vscode-grain/0.20.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/grec0/memory-bank-vscode/0.0.57",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/hashicorp/hcl/0.5.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/hater/miami-nights/0.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/hepia-cores/hl2/0.7.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/heptio/jsonnet/0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/houkanshan/vscode-markdown-footnote/1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/hqzqaq/quickai/1.0.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/huangyibo/zz-rules-sync/1.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/hummingbird-md/hummingbird-md/0.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/hwinther/yet-another-better-yaml-formatter/0.2.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/idlesilver/dottree/0.0.8",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/intersystems-community/objectscript-pack/1.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/ionutvmi/vscode-commands-executor/1.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/iskrant/semidark-theme/0.0.8",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/itsjonq/owlet/0.1.22",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/izhaoqing/gen-tags/1.5.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/jackiotyu/realpath-util/0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/jacobdufault/fuzzy-search/0.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/jdbrown6/susextb/0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/jeff-hykin/better-csv-syntax/1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/jgrundback/vscode-mc-theme/1.0.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/jimeh/executable-on-save/0.2.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/jimmyzhao/vg-vscode-extension/2.9.9",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/jonnyasmar/markdown-docs/1.3.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/jsDelivr/jsdelivr/1.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/karur4n/explorer-filter/0.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/kazzix14/sorbet-view/0.1.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/kermanx/p2p-live-share/0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/kingcl/kingcle-ai/0.1.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/kodilo/GPTRus/0.3.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/koskev/vscode-grustonnet/0.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/kuochunchang/goose-uml-vscode/0.3.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/lifebusinessbuilders/lbb-vsc-theme/1.1.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/littensy/charmed-icons/0.10.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/lixen/cursor-usage/0.1.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/lonser/Voice-CN-linux/0.5.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/lorlebacher/helfi/0.0.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/matepek/vscode-catch2-test-adapter/4.25.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/matthewconnolly/vscode-terminals-fork/1.17.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/mercurial/google-ads-mcp/0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/meronz/manpages/0.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/michaeljolley/vscode-twitch-themer/3.5.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/michal-janecek/woowoo-vscode/1.2.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/michel/python-venv-manager/0.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/michelemelluso/gitignore/1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/mikestead/dotenv/1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/mjkubba/local-llm/0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/mp-kit/mp-component-jumper/0.2.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/ms-azuretools/vscode-azureappservice/0.26.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/ms-azuretools/vscode-docker/2.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/naturalethic/nemacs/1.1.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/nextgencode/jarvis-3d-theme/1.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/nlamp/neoinked/0.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/nopeslide/vscode-drawio-plugin-wavedrom/0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/nsingh2510/kodio-vscode-extension/0.9.66",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/nullxception/cherry-theme/0.2.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/octohash/crosside-sync/0.3.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/octohash/reactive-theme-settings/0.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/odavl/odavl/0.1.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/ofurkancoban/r-plot-pro/0.45.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/olivelabs/tracivo-debugger/0.2.43",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/openSUSE/docbook-snippets/0.3.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/orhymed/mermaid-visual-diff/0.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/owayo/vscode-git-smart-commit/26.3.102",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/pamir-ai/device-manager/1.1.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/patricio0312rev/skillset-vscode/0.2.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/paul-murray/vscode-explorer-bookmarks/0.0.8",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/phil294/sqlite-runner-lsp/0.0.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/pokutuna/vscode-gnome2like-theme/0.0.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/rafaelmardojai/vscode-gnome-theme/0.4.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/rahul-bhatt43/rahul-md-live-preview/1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/rail5/bashpp/0.7.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/redhat/vscode-extension-dmn-editor/0.26.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/robole/marky-stats/0.11.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/rubenalarcongalvez/angular-component-binds/1.1.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/sainnhe/edge/0.1.8",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/sap-partner-eng/extension-pack/1.0.8",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/sguerri/simple-hide-files/0.2.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/shadcnblocks/shadcnblocks/0.1.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/simek/vscode-twitch-coder/0.5.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/solidjs-community/solid-snippets/0.1.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/solomonkinard/action-pack/0.0.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/soyreneon/themeeditor/1.24.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/spacelaxy/spacelaxy-comment-lens/0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/stephlin/vscode-tmux-keybinding/0.0.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/streetsidesoftware/code-spell-checker-british-english/1.4.36",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/sunshaoce/llvmmir/1.0.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/swiftlang/swift-vscode/2.17.20260513",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/t-codespaces/ide-data-sync/0.2.10",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/testpilot-ai/testpilot-ai/0.3.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/the-long-ride/markdown-them/1.1.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/the-publisher-property/the-name-property/0.0.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/thingalon/pony-ssh/0.5.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/this-is-the-publisher-property-in-package-json/this-is-the-name-property-in-package-json/0.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/tiabeast/vscode-bait/0.4.1-depr",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/tockn/darcula-port/1.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/tomtung/vscode-markdown-linkify/0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/tonsky/theme-alabaster/0.2.9",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/txtx/txtx/0.1.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/typescript-nameof/typescript-nameof-plugin/0.0.10",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/umangdesai/cursor-session-manager/0.4.19",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/usernamehw/theme-generator/0.0.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/vanyauhalin/moondusttheme/0.11.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/venmail/ai-localizer/0.1.15",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/vimpelcom/c4-varp/1.0.18",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/voidc/llvm-asm/0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/vokality/emote/0.2.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/vscode/lua/1.95.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/vscode/markdown-math/1.95.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/vscode/microsoft-authentication/1.64.0-next.d9fa2b12136",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/vscode/perl/1.95.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/walonli/edk2-vscode/1.0.11",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/wangpenglong/helloworld-sample/0.0.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "dev",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/waterproof-tue/waterproof/0.10.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/wesleyegberto/vscode-java-tests/1.5.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/wrick17/cursor-usage/0.5.18",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/xhofe/vscode-pb-jump/0.0.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/xiaohei119/batch-cmd/0.0.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/xiyeming/mybatis-toolkit-pro/1.1.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/xray-lang/xray-lang/1.0.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/xuhm/cloudcc-cli/0.5.1",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/xy-sss/slurm--extension/0.15.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/yafi38/json-escape-unescape/0.0.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/yangliyong/hot-fix-extract/0.1.7",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/yifanl/yifanl-dummy-extension-111/1.1.2",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/yogin/sample-test-copilot/0.0.6",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/yonis/claude-quota-tracker/1.0.5",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/yurihs/sublime-vscode-theme/1.5.0",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/yuyinws/nuxt-module-intellisense/0.0.4",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/zardoy/ts-essential-plugins/0.0.81",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/zellwk/twilight-cosmos-theme/1.0.13",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/zhoujinjing/hydra-code/0.3.2026051302",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
+  },
+  {
+   "target": "https://open-vsx.org/extension/zokugun/explicit-folding/0.24.3",
+   "label": "clean",
+   "source": "remote",
+   "split": "holdout",
+   "set": "openvsx-random-2026-11"
   }
  ]
 }

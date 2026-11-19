@@ -28,6 +28,7 @@ import collections
 import json
 import math
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -336,7 +337,89 @@ def mut_reversed_strings(seed):
     return _rewrite_payload(seed, fn)
 
 
+def mut_atob_layer(seed):
+    """A base64 layer decoded with `atob` instead of Buffer (browser-style loaders)."""
+    import base64
+    pay = seed["payload"]
+    if not _is_js(pay):
+        return None
+    files = _copy(seed["files"])
+    files[pay] = "eval(atob('%s'));\n" % base64.b64encode(files[pay].encode()).decode()
+    return files, False
+
+
+def mut_template_literal(seed):
+    """A quoted name rewritten as a template literal with an empty interpolation."""
+    def sub(m):
+        body = m.group(1)
+        for tok in ("child_process", "webhook", "evil.example", "discord", "id_rsa"):
+            if tok in body:
+                return "`" + body.replace(tok, tok[:3] + "${''}" + tok[3:], 1) + "`"
+        return m.group(0)
+    return _rewrite_payload(seed, lambda t, js: re.sub(r"'([^'\n]*)'", sub, t) if js else t)
+
+
+def mut_unicode_escape(seed):
+    """`\\u0066etch(`: a unicode escape inside a JS identifier."""
+    def fn(t, js):
+        if not js:
+            return t
+        for tok in ("fetch(", "eval(", "require("):
+            t = t.replace(tok, "\\u%04x%s" % (ord(tok[0]), tok[1:]), 1)
+        return t
+    return _rewrite_payload(seed, fn)
+
+
 # -- indirection --
+def mut_bracket_member(seed):
+    """`cp['spa'+'wn'](`: a member call through a computed property."""
+    def fn(t, js):
+        if not js:
+            return t
+        for name in ("spawn", "readFileSync", "connect", "getSession"):
+            mid = len(name) // 2
+            t = t.replace(".%s(" % name, "['%s'+'%s'](" % (name[:mid], name[mid:]))
+        return t
+    return _rewrite_payload(seed, fn)
+
+
+def mut_dynamic_import(seed):
+    """`await import('x')` in place of `require('x')`."""
+    def fn(t, js):
+        if not js or "require(" not in t:
+            return t
+        return "(async () => {\n" + t.replace("require(", "await import(") + "})();\n"
+    return _rewrite_payload(seed, fn)
+
+
+def mut_importlib(seed):
+    """`importlib.import_module('subprocess')` instead of an import statement."""
+    def sub(m):
+        mods = [x.strip() for x in m.group(1).split(",")]
+        return "import importlib\n" + "\n".join("%s = importlib.import_module('%s')" % (x, x) for x in mods)
+    return _rewrite_payload(seed, lambda t, js: t if js else re.sub(r"(?m)^import ([\w, ]+)$", sub, t, count=1))
+
+
+def mut_compile_exec(seed):
+    """Python code run through `exec(compile(src, '<x>', 'exec'))`."""
+    pay = seed["payload"]
+    if not pay.endswith(".py") or pay == "setup.py":
+        return None
+    files = _copy(seed["files"])
+    files[pay] = "src = %r\nexec(compile(src, '<string>', 'exec'))\n" % files[pay]
+    return files, False
+
+
+def mut_node_e_hook(seed):
+    """The install hook as `node -e "require('./x')"` instead of `node x`."""
+    pkg = seed["files"].get("package.json", "")
+    if "node install.js" not in pkg:
+        return None
+    files = _copy(seed["files"])
+    files["package.json"] = pkg.replace("node install.js", "node -e \\\"require('./install.js')\\\"")
+    return files, False
+
+
 def mut_alias_require(seed):
     def fn(t, js):
         if not js or "require(" not in t:
@@ -409,6 +492,14 @@ MUTATORS = [
     ("string-construction", "char-codes", mut_charcodes),
     ("string-construction", "base64-layer", mut_base64_layer),
     ("string-construction", "reversed-strings", mut_reversed_strings),
+    ("string-construction", "atob-layer", mut_atob_layer),
+    ("string-construction", "template-literal", mut_template_literal),
+    ("string-construction", "unicode-escape", mut_unicode_escape),
+    ("indirection", "bracket-member", mut_bracket_member),
+    ("indirection", "dynamic-import", mut_dynamic_import),
+    ("indirection", "importlib", mut_importlib),
+    ("indirection", "compile-exec", mut_compile_exec),
+    ("file-placement", "node-e-hook", mut_node_e_hook),
     ("indirection", "alias-require", mut_alias_require),
     ("indirection", "globalthis", mut_globalthis),
     ("indirection", "getattr-import", mut_getattr_import),

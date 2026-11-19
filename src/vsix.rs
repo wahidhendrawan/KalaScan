@@ -473,9 +473,26 @@ pub fn parse_openvsx_target(url_str: &str) -> anyhow::Result<(String, String)> {
     ))
 }
 
+/// `https://open-vsx.org/extension/<ns>/<name>/<version>`: the version page
+/// pins a release (the clean corpus scans the one published before a cutoff).
+fn openvsx_version(url_str: &str) -> Option<String> {
+    let url = url::Url::parse(url_str).ok()?;
+    let version = url.path_segments()?.nth(3)?;
+    (!version.is_empty()
+        && version
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || ".-+_".contains(c)))
+    .then(|| version.to_string())
+}
+
 async fn resolve_openvsx_download(url_str: &str) -> anyhow::Result<String> {
     let (namespace, name) = parse_openvsx_target(url_str)?;
-    let metadata_url = format!("https://open-vsx.org/api/{}/{}/latest", namespace, name);
+    let metadata_url = format!(
+        "https://open-vsx.org/api/{}/{}/{}",
+        namespace,
+        name,
+        openvsx_version(url_str).unwrap_or_else(|| "latest".to_string())
+    );
 
     let metadata: OpenVsxMetadata = http_client()?
         .get(&metadata_url)
@@ -683,6 +700,16 @@ mod tests {
         let url = "https://open-vsx.org/extension/redhat/java";
         let parsed = parse_openvsx_target(url).unwrap();
         assert_eq!(parsed, ("redhat".to_string(), "java".to_string()));
+        assert_eq!(openvsx_version(url), None);
+        assert_eq!(
+            openvsx_version("https://open-vsx.org/extension/GitHub/github-vscode-theme/6.3.4")
+                .as_deref(),
+            Some("6.3.4")
+        );
+        assert_eq!(
+            openvsx_version("https://open-vsx.org/extension/a/b/1.0%2F..%2Fx"),
+            None
+        );
     }
 
     #[test]

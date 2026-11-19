@@ -4,7 +4,7 @@ use std::path::Path;
 use walkdir::WalkDir;
 
 /// Human-readable ruleset version (also surfaced by `kalascan rules`).
-pub const RULESET_VERSION: &str = "2026.11.8";
+pub const RULESET_VERSION: &str = "2026.11.9";
 
 /// Critical file extensions for scanning
 // `.yml`/`.yaml` get only the exfiltration, network, supply-chain and

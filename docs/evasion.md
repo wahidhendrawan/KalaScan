@@ -4,7 +4,7 @@ When a payload KalaScan catches is rewritten the way attackers rewrite package
 malware, how often is it still caught? `eval/evasion.py` measures it: 10 inert
 seed packages (npm, PyPI, VS Code), each the shape a rule looks for but pointing
 only at reserved names (`evil.example`, `webhook.site` with an all-zero id,
-placeholder tokens), crossed with 20 mutators drawn from public write-ups. No
+placeholder tokens), crossed with 28 mutators drawn from public write-ups. No
 fixture is ever executed; the scanner only reads files.
 
 ```bash
@@ -23,7 +23,11 @@ for the two largest groups of evasions, and the second run (ruleset 2026.11.2) i
 the table below. **Read the second number with that in mind**: these mutators
 are now known to the scanner, so it says the fixes work, not how the scanner
 does against a rewrite nobody has tried on it yet. New mutators are the way to
-ask that again.
+ask that again, and a third run (ruleset 2026.11.8) did: eight mutators written
+for it and never run against the scanner before (`atob-layer`,
+`template-literal`, `unicode-escape`, `bracket-member`, `dynamic-import`,
+`importlib`, `compile-exec`, `node-e-hook`) gave 31 variants, and the first run
+caught all 31. No rule was changed for them.
 
 ## Seeds
 
@@ -40,16 +44,16 @@ ask that again.
 | `vscode-token-steal` | extension | `vscode.authentication.getSession` then POST to a webhook |
 | `npm-discord-stealer` | npm | Discord leveldb read + Discord webhook exfil |
 
-## Result (ruleset 2026.11.2, score model v1, T=50)
+## Result (ruleset 2026.11.8, score model v1, T=50)
 
-| mutation category | first run (2026.11.1) | now (2026.11.2) | mutators |
-|---|---|---|---|
-| file placement and naming | 24/24 | 24/24 (100%, 86-100) | main-as-doc, no-extension, git-dir-archive, pth-file |
-| comment and whitespace | 18/18 | 18/18 (100%, 82-100) | hash-prefixed-js, block-comment-earlier, thousand-spaces, line-continuation |
-| indirection | 16/16 | 16/16 (100%, 81-100) | alias-require, globalThis, getattr-import, second-file |
-| packaging | 29/30 | 29/30 (97%, 83-99) | node-modules-dir, minify-one-line, pad-past-dataflow |
-| string construction | 21/34 (62%) | 29/34 (85%, 70-94) | split-concat, hex-escape, char-codes, base64-layer, reversed-strings |
-| **all** | **108/122 (89%)** | **116/122 (95%, 90-98)** | |
+| mutation category | first run (2026.11.1) | after the fixes (2026.11.2) | with the eight new mutators (2026.11.8) | mutators |
+|---|---|---|---|---|
+| file placement and naming | 24/24 | 24/24 (100%, 86-100) | 25/25 (100%, 87-100) | main-as-doc, no-extension, git-dir-archive, pth-file, node-e-hook |
+| comment and whitespace | 18/18 | 18/18 (100%, 82-100) | 18/18 (100%, 82-100) | hash-prefixed-js, block-comment-earlier, thousand-spaces, line-continuation |
+| indirection | 16/16 | 16/16 (100%, 81-100) | 31/31 (100%, 89-100) | alias-require, globalThis, getattr-import, second-file, bracket-member, dynamic-import, importlib, compile-exec |
+| packaging | 29/30 | 29/30 (97%, 83-99) | 29/30 (97%, 83-99) | node-modules-dir, minify-one-line, pad-past-dataflow |
+| string construction | 21/34 (62%) | 29/34 (85%, 70-94) | 44/49 (90%, 78-96) | split-concat, hex-escape, char-codes, base64-layer, reversed-strings, atob-layer, template-literal, unicode-escape |
+| **all** | **108/122 (89%)** | **116/122 (95%, 90-98)** | **147/153 (96%, 92-98)** | |
 
 95% Wilson intervals in brackets. A mutator that cannot touch a seed (e.g.
 `.pth` on an npm seed, `getattr-import` on JS) is skipped, not counted as caught,
@@ -133,5 +137,5 @@ Placement, comment and whitespace, indirection and packaging tricks do not hide
 a payload from KalaScan. Split and encoded names no longer do either. What still
 does is putting the entire payload inside one encoded blob in a package that
 shows nothing else: the scanner reports the blob and leaves the verdict to a
-second signal. The baseline (`eval/evasion-baseline.json`) pins the 116 caught
+second signal. The baseline (`eval/evasion-baseline.json`) pins the 147 caught
 pairs.
