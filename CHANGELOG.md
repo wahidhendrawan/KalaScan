@@ -7,6 +7,8 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-11-19
+
 ### Added
 - `kalascan guard -- pip install <package>` scans every distribution the install would add, resolved by pip from wheel metadata only (`--dry-run --only-binary :all: --report -`: no sdist is built, no `setup.py` runs); it falls back to the named packages when pip cannot resolve that way.
 
@@ -307,7 +309,8 @@ published on GitHub; their features are listed with version markers in `README.m
 ### Fixed
 - `openapi.yaml` is copied into the Docker builder stage.
 
-[Unreleased]: https://github.com/wahidhendrawan/KalaScan/compare/v1.20.0...HEAD
+[Unreleased]: https://github.com/wahidhendrawan/KalaScan/compare/v1.21.0...HEAD
+[1.21.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.20.0...v1.21.0
 [1.20.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.19.0...v1.20.0
 [1.19.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.18.0...v1.19.0
 [1.18.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.17.0...v1.18.0
