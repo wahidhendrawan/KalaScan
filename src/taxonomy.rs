@@ -197,6 +197,7 @@ pub const CODE_FINDINGS: &[&str] = &[
     correlate::INSTALL_PERSISTENCE, correlate::NPM_WORM, correlate::WEAPONISED_AGENT,
     correlate::DNS_TUNNEL_EXEC, correlate::GIT_HOOK_PERSISTENCE, correlate::SSH_KEY_PLANTED,
     correlate::FOREIGN_BINARY, scanner::PADDING, registry::MALICIOUS_DEPENDENCY,
+    correlate::APPENDED_OBFUSCATION, correlate::SYSTEM_NAME_COPY, correlate::HIDDEN_BINARY,
     cve::REMOTE_URL_DEP, iocs::URLHAUS_HIT,
     reputation::INVISIBLE_NAME, reputation::PUBLISHER_LOOKALIKE, reputation::BRAND_IMPERSONATION,
     reputation::UNVERIFIED_PUBLISHER, reputation::LOW_INSTALLS, reputation::RECENTLY_PUBLISHED,

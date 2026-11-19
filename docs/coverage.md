@@ -180,6 +180,11 @@ ATT&CK technique ids follow Enterprise ATT&CK v20.1. The MBC objective (Malware 
 | DNS TXT Query | KS-NET-004 | T1071.004 | OB0004 Command and Control | - |
 | DNS Lookup of Built Hostname | KS-REC-004 | T1071.004, T1048 | OB0004 Command and Control, OB0010 Exfiltration | - |
 | Python Import-Obfuscated Loader | KS-EXE-031 | T1027, T1140 | OB0002 Anti-Static Analysis | - |
+| Shuffled String Loader | KS-EXE-042 | T1027, T1140 | OB0002 Anti-Static Analysis | - |
+| Code Piped Into a Detached Interpreter | KS-EXE-043 | T1059, T1564 | OB0009 Execution, OB0006 Defense Evasion | - |
+| String Table Behind Kana Identifiers | KS-EXE-044 | T1027 | OB0002 Anti-Static Analysis | - |
+| System Process Name Assigned | KS-EXE-045 | T1036.005 | OB0006 Defense Evasion | - |
+| Shell Script Encoded in the Manifest | KS-SUP-015 | T1027, T1059.004 | OB0002 Anti-Static Analysis, OB0009 Execution | - |
 | Agent Instruction: Hidden Unicode Tag Text | code | T1027 | OB0002 Anti-Static Analysis | - |
 | Agent Instruction: Invisible Characters | code | T1027 | OB0002 Anti-Static Analysis | - |
 | Agent Instruction: Directive in HTML Comment | code | T1564 | OB0006 Defense Evasion | - |
@@ -220,6 +225,9 @@ ATT&CK technique ids follow Enterprise ATT&CK v20.1. The MBC objective (Malware 
 | Chain: Platform Binary Under Another Name | code | T1195.001, T1036 | OB0006 Defense Evasion | - |
 | Code Hidden Behind Whitespace Padding | code | T1027.001 | OB0002 Anti-Static Analysis | - |
 | Chain: Malicious New Dependency | code | T1195.001 | - | - |
+| Chain: Obfuscated Code Appended to Readable Source | code | T1027, T1195.001 | OB0002 Anti-Static Analysis | - |
+| Chain: Executable Copied Under a System Process Name | code | T1036.005 | OB0006 Defense Evasion | - |
+| Chain: Hidden Bundled Binary Started Detached | code | T1564.001, T1195.001 | OB0006 Defense Evasion | - |
 | Remote URL Dependency | code | T1195.001, T1105 | OB0004 Command and Control | AV-501 |
 | Known Malicious URL (URLhaus) | code | T1071.001 | OB0004 Command and Control | - |
 | Extension Name Spoofing (invisible characters) | code | T1036 | OB0006 Defense Evasion | AV-207 |

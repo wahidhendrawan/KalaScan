@@ -91,7 +91,8 @@ pub fn calculate(
 /// extension's repository under a stranger's name), an install script
 /// hidden from the registry's manifest, text hidden in Unicode tags and
 /// code decoded straight into exec (none of 526 clean packages) have no
-/// benign reading at all, so they weigh the same.
+/// benign reading at all, so they weigh the same. So do a packer's own
+/// decoder, code fed to a detached interpreter and a script in the manifest.
 fn decisive(name: &str) -> bool {
     name.starts_with(correlate::CHAIN_PREFIX)
         || [
@@ -108,6 +109,10 @@ fn decisive(name: &str) -> bool {
             scanner::BUILTIN_CHARS,
             scanner::DISGUISED_ARCHIVE,
             scanner::CHARCODE_EVAL,
+            scanner::SHUFFLE_LOADER,
+            scanner::STDIN_INTERPRETER,
+            scanner::KANA_TABLE,
+            scanner::MANIFEST_SCRIPT,
             cve::REMOTE_URL_DEP,
         ]
         .contains(&name)

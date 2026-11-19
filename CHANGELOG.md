@@ -7,6 +7,12 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+### Added
+- Detection (ruleset 2026.11.7), from reading the newest npm samples the rules missed: `Shuffled String Loader` (a packer's swap-shuffle decoder), `String Table Behind Kana Identifiers`, `Code Piped Into a Detached Interpreter` (a detached `node` with no script, fed on stdin) and `Shell Script Encoded in the Manifest` (a base64 `#!/bin/…` in `package.json`), each scored as a chain; `Chain: Obfuscated Code Appended to Readable Source` (one javascript-obfuscator line closing a file of ordinary code) and `Chain: Executable Copied Under a System Process Name` (`SearchApp.exe`, `svchost.exe`, … next to a file copy; the name on its own is the medium finding `System Process Name Assigned`) and `Chain: Hidden Bundled Binary Started Detached` (a native executable in a dot-directory of the package, plus a detached spawn). `dev` 480 → 490 of 626, holdout 478 → 480 of 683 (70%, 67-74), dated August 2026 or later 87 → 89 of 195 (46%, 39-53), clean 0 of 822. Of the 44 newest `dev` samples that were missed, 30 have no malicious code in their own files (eval/README.md, "Reading the newest misses").
+
+### Changed
+- `rules/weights.toml` refitted for ruleset 2026.11.7.
+
 ## [1.18.0] - 2026-11-19
 
 ### Added

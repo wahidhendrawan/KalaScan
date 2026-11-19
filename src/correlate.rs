@@ -12,7 +12,8 @@ use crate::scanner::{
     GIT_HOOKS_GLOBAL, HEX_API, HOST_RECON, IMPORT_LOADER, INSTALL_HOOK_OVERRIDE, INSTALL_NET,
     INSTALL_RECON, IP_LOOKUP, IP_URL, LOCAL_SERVER, MAINTAINER_ENUM, MAKE_EXECUTABLE, NPM_PUBLISH,
     OBFUSCATOR_IO, RAW_SOCKET, REMOTE_BINARY, SEED_ACCESS, SETUP_PY_EXEC, SETUP_PY_STAGER,
-    SHELL_PROFILE, SHELL_START, SIDELOAD, SPLIT_CHILD_PROCESS, SYSTEMD_USER, UPLOAD_HANDLER,
+    SHELL_PROFILE, SHELL_START, SIDELOAD, SPLIT_CHILD_PROCESS, SYSTEMD_USER, SYSTEM_NAME,
+    UPLOAD_HANDLER,
 };
 use crate::RuleMatch;
 use regex::Regex;
@@ -48,6 +49,9 @@ pub const DNS_TUNNEL_EXEC: &str = "Chain: DNS Tunnel Command Execution";
 pub const GIT_HOOK_PERSISTENCE: &str = "Chain: Git Hook Persistence";
 pub const SSH_KEY_PLANTED: &str = "Chain: SSH Key Planted";
 pub const FOREIGN_BINARY: &str = "Chain: Platform Binary Under Another Name";
+pub const APPENDED_OBFUSCATION: &str = "Chain: Obfuscated Code Appended to Readable Source";
+pub const SYSTEM_NAME_COPY: &str = "Chain: Executable Copied Under a System Process Name";
+pub const HIDDEN_BINARY: &str = "Chain: Hidden Bundled Binary Started Detached";
 /// Emitted by `cve::own_package_matches` for an npm package whose entry
 /// point is an HTML or SVG document with script in it.
 pub const WEB_PAGE_PACKAGE: &str = "Chain: Web Page Published as a Package";
@@ -162,6 +166,10 @@ static PUBLIC_KEY: LazyLock<Regex> = LazyLock::new(|| {
 });
 static AUTHORIZED_KEYS_WRITE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"authorized_keys[\s\S]{0,1500}?(?:(?:writeFile|appendFile)(?:Sync)?|createWriteStream)\s*\(|(?:(?:writeFile|appendFile)(?:Sync)?|createWriteStream)\s*\([^()\n]{0,80}authorized_keys|open\s*\([^()\n]{0,120}authorized_keys[^()\n]{0,40},\s*["']a\+?["']|>>\s*\S{0,40}authorized_keys"#).unwrap()
+});
+
+static FILE_COPY: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\b(?:copyFile(?:Sync)?|rename(?:Sync)?|shutil\.copy\w*)\s*\(").unwrap()
 });
 
 /// What a prompt asks for when the agent is the payload: destruction, or a
@@ -309,6 +317,23 @@ pub fn correlate_file(
         out.push(chain(rel_path, OBFUSCATED_EXEC, obf, ex));
     }
 
+    // The opposite case: one obfuscated line at the end of a file that is
+    // otherwise readable is a payload added to a copy of somebody's library.
+    if let Some((at, obf)) = indexed(&[OBFUSCATOR_IO]).into_iter().next() {
+        if appended_blob(content, at) {
+            out.push(chain(rel_path, APPENDED_OBFUSCATION, obf, obf));
+        }
+    }
+
+    // A program copied to `SearchApp.exe` or `svchost.exe` is hiding in the
+    // process list. Tools that list or skip system processes copy nothing.
+    if let Some((_, name)) = indexed(&[SYSTEM_NAME])
+        .into_iter()
+        .find(|(at, _)| FILE_COPY.is_match(around(content, *at)))
+    {
+        out.push(chain(rel_path, SYSTEM_NAME_COPY, name, name));
+    }
+
     // Host identity gathered by code that hides its API names: the hex-decoded
     // `axios.post` to a C2 never shows up as a sink, but the recon does.
     // Not OBFUSCATOR_IO: Live Share ships obfuscated code that reads os.hostname.
@@ -342,6 +367,23 @@ pub fn correlate_file(
         }
     }
     out
+}
+
+/// Whether the line at `at` is a long one that closes a file of ordinary
+/// code: at least 15 short code lines before it and next to nothing after.
+/// A file obfuscated as a whole has no readable part, with or without a
+/// licence banner on top.
+fn appended_blob(content: &str, at: usize) -> bool {
+    let at = at.min(content.len());
+    let start = content[..at].rfind('\n').map_or(0, |i| i + 1);
+    let end = content[at..].find('\n').map_or(content.len(), |i| at + i);
+    let code = |line: &&str| {
+        let line = line.trim();
+        !line.is_empty() && line.len() < 200 && !line.starts_with(['/', '*'])
+    };
+    end - start >= 2000
+        && content[..start].lines().filter(code).count() >= 15
+        && content[end..].lines().filter(code).count() <= 10
 }
 
 /// `chmodSync(target, …)`: the variable a JS chmod makes executable.
@@ -689,6 +731,50 @@ pub fn foreign_binary(root: &Path) -> Option<RuleMatch> {
                 ),
             }
         })
+    })
+}
+
+/// A native executable in a dot-directory of the package (`.sckit/linux-amd64/sckit`)
+/// and a process started detached: a binary kept out of `ls` and the
+/// manifest's `bin`, run so that it outlives the host (the compromised
+/// `@memtensor/memos-cloud-openclaw-plugin`). CLIs ship theirs in `bin/` or
+/// in per-platform packages.
+pub fn hidden_binary(root: &Path, matches: &[RuleMatch]) -> Option<RuleMatch> {
+    let spawn = matches
+        .iter()
+        .find(|m| m.matched_pattern == DETACHED_SPAWN && package_unit(&m.file_path).is_empty())?;
+    let binary = walkdir::WalkDir::new(root)
+        .max_depth(4)
+        .into_iter()
+        .filter_entry(|e| e.file_name() != "node_modules")
+        .flatten()
+        .filter(|e| e.file_type().is_file())
+        .find(|e| {
+            let rel = e.path().strip_prefix(root).unwrap_or(e.path());
+            let hidden = rel.parent().is_some_and(|d| {
+                d.components()
+                    .any(|c| c.as_os_str().to_string_lossy().starts_with('.'))
+            });
+            let mut head = [0u8; 4];
+            hidden
+                && std::fs::File::open(e.path())
+                    .and_then(|mut f| std::io::Read::read_exact(&mut f, &mut head))
+                    .is_ok()
+                && (head.starts_with(b"MZ")
+                    || head == *b"\x7fELF"
+                    || crate::triage::is_macho_magic(&head))
+        })?;
+    let rel = binary.path().strip_prefix(root).unwrap_or(binary.path());
+    Some(RuleMatch {
+        context: format!(
+            "Executable `{}` in a hidden directory + {} (line {})",
+            rel.display(),
+            DETACHED_SPAWN,
+            spawn.line_number
+        ),
+        matched_pattern: HIDDEN_BINARY.to_string(),
+        severity: "critical".to_string(),
+        ..spawn.clone()
     })
 }
 
@@ -1105,6 +1191,58 @@ mod tests {
         assert_eq!(
             names(&correlate_file("ext.js", "", &m, &[])),
             vec![OBFUSCATED_EXEC]
+        );
+    }
+
+    #[test]
+    fn obfuscated_line_after_readable_code_is_a_chain() {
+        let blob = "var _0x1a2b=1;".repeat(200);
+        let library = "function pad(n) { return n < 10 ? '0' + n : n }\n".repeat(20);
+        let m = [hit("lib.js", OBFUSCATOR_IO, 21)];
+        let run = |text: &str, at: usize| names(&correlate_file("lib.js", text, &m, &[at])).len();
+        assert_eq!(run(&format!("{library}{blob}\n"), library.len()), 1);
+        // A whole file of it, under a licence banner, is a product.
+        let banner = " * Copyright\n".repeat(20);
+        assert_eq!(run(&format!("{banner}{blob}\n"), banner.len()), 0);
+        // So is an obfuscated module in the middle of a bundle.
+        assert_eq!(
+            run(&format!("{library}{blob}\n{library}"), library.len()),
+            0
+        );
+    }
+
+    #[test]
+    fn binary_in_a_dot_directory_started_detached() {
+        let dir = tempfile::tempdir().unwrap();
+        let spawn = [hit("lib/run.js", DETACHED_SPAWN, 9)];
+        std::fs::create_dir_all(dir.path().join("bin")).unwrap();
+        std::fs::write(dir.path().join("bin/tool"), b"\x7fELF\x02\x01").unwrap();
+        // A binary where a CLI keeps it is not hidden.
+        assert!(hidden_binary(dir.path(), &spawn).is_none());
+        std::fs::create_dir_all(dir.path().join(".kit/linux-amd64")).unwrap();
+        std::fs::write(dir.path().join(".kit/linux-amd64/kit"), b"\x7fELF\x02\x01").unwrap();
+        let found = hidden_binary(dir.path(), &spawn).unwrap();
+        assert_eq!(found.matched_pattern, HIDDEN_BINARY);
+        assert_eq!(found.file_path, "lib/run.js");
+        // Nothing started detached: no chain.
+        assert!(hidden_binary(
+            dir.path(),
+            &[hit("lib/run.js", "child_process (Node.js)", 3)]
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn system_process_name_needs_a_copy_to_chain() {
+        let m = [hit("run.js", SYSTEM_NAME, 1)];
+        let run = |text: &str| names(&correlate_file("run.js", text, &m, &[0])).len();
+        assert_eq!(
+            run("const NAME = 'SearchApp.exe';\nfs.copyFileSync(src, path.join(dir, NAME));"),
+            1
+        );
+        assert_eq!(
+            run("const name = 'svchost.exe';\nif (proc.name === name) skip();"),
+            0
         );
     }
 

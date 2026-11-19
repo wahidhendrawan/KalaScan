@@ -683,6 +683,9 @@ async fn execute_scan_in(
         rule_matches.extend(chains);
         rule_matches.extend(correlate::redirect_package(&chain_dir));
         rule_matches.extend(correlate::foreign_binary(&chain_dir));
+        if let Some(hidden) = correlate::hidden_binary(&chain_dir, &rule_matches) {
+            rule_matches.push(hidden);
+        }
         rule_matches
     })
     .await

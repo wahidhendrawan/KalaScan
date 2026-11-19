@@ -23,13 +23,13 @@ The malicious samples are **live malware**. `run_eval.py` scans them statically 
 
 CI (`.github/workflows/eval.yml`) runs only the clean half, as a false-positive gate: `--only clean --max-fpr 0`, on every pull request that touches `src/`, `rules/`, `eval/` or `Cargo.lock`.
 
-Results at threshold 50 (ruleset 2026.11.6, score model v1, measured 2026-11-18; 95% interval in brackets; the aggregate is in [`results/2026.11.6.json`](results/2026.11.6.json)):
+Results at threshold 50 (ruleset 2026.11.7, score model v1, measured 2026-11-19; 95% interval in brackets; the aggregate is in [`results/2026.11.7.json`](results/2026.11.7.json)):
 
 | split | malicious recall | clean false positives |
 |---|---|---|
-| dev | 480/626 (77%, 73-80) | 0/369 (0%, 0-1) |
-| holdout | 478/683 (70%, 66-73) | 0/453 (0%, 0-1) |
-| holdout, dated 2026-08-01 or later | 87/195 (45%, 38-52) | |
+| dev | 490/626 (78%, 75-81) | 0/369 (0%, 0-1) |
+| holdout | 480/683 (70%, 67-74) | 0/453 (0%, 0-1) |
+| holdout, dated 2026-08-01 or later | 89/195 (46%, 39-53) | |
 
 **The last row is the one to expect on new malware.** It is every holdout sample whose file name in the DataDog dataset carries a date of August 2026 or later (`run_eval.py --since 2026-08-01`): 194 npm packages and one PyPI package, from four sets. npm in the holdout dated before August is at 148 of 193 (77%). The gap is what tuning on the same months is worth: the batches the rules were written from are mostly January to June, and so is `fresh2-2026-11`.
 
@@ -40,13 +40,32 @@ The holdout by sample set:
 | holdout set | what it is | malicious recall |
 |---|---|---|
 | original | 147 samples: the 27 first ones and 120 added in November 2026 | 105/147 (71%, 64-78) |
-| `recent-2026-11` | 60 npm packages dated 2026-08-01 or later, the newest in the dataset | 31/60 (52%, 39-64) |
+| `recent-2026-11` | 60 npm packages dated 2026-08-01 or later, the newest in the dataset | 33/60 (55%, 42-67) |
 | `malregistry-2026-11` | 100 PyPI packages from pypi_malregistry whose names the DataDog dataset does not have; 5 archives do not unpack | 83/95 (87%, 79-93) |
 | `fresh-2026-11` | 161 packages drawn on 2026-11-18, after ruleset 2026.11.2: 100 npm and 1 PyPI dated 2026-08-01 or later (DataDog), 60 PyPI from pypi_malregistry; 2 archives do not unpack | 90/159 (57%, 49-64) |
 | `fresh2-2026-11` | 200 packages drawn on 2026-11-18, before ruleset 2026.11.5: 150 npm dated 2026-01-01 or later (DataDog), 50 PyPI from pypi_malregistry; 4 archives do not unpack | 156/196 (80%, 73-85) |
 | `late-2026-11` | the 26 npm names dated 2026-08-01 or later that were left in the dataset, drawn on 2026-11-18 | 13/26 (50%, 32-68) |
 
-**The holdout number is the one to quote, and the `recent` row is the one to worry about**: on the newest npm malware KalaScan catches about half (24 of 60 with ruleset 2026.11.1, before the tuning described below). The second source says the PyPI rules are not fitted to one dataset's taste: 87% there, 37 of 48 (77%) on the original DataDog PyPI holdout samples. By ecosystem the whole holdout is IDE extensions 32/48 (67%, 53-78), npm 234/387 (60%, 56-65), PyPI 212/248 (85%, 81-89).
+**The holdout number is the one to quote, and the `recent` row is the one to worry about**: on the newest npm malware KalaScan catches about half (24 of 60 with ruleset 2026.11.1, before the tuning described below). The second source says the PyPI rules are not fitted to one dataset's taste: 87% there, 37 of 48 (77%) on the original DataDog PyPI holdout samples. By ecosystem the whole holdout is IDE extensions 32/48 (67%, 53-78), npm 236/387 (61%, 56-66), PyPI 212/248 (85%, 81-89).
+
+### Reading the newest misses (ruleset 2026.11.7)
+
+**What was read.** The 44 `tune-recent-2026-11` samples (`dev`, npm, dated August to October 2026) that ruleset 2026.11.6 missed, sorted by why:
+
+| why it is missed | samples |
+|---|---|
+| nothing malicious in the package's own files: a sibling of a campaign's package (`@toptal/picasso-*` at version 100.0.x, `@wizloft/harness-*`), a placeholder, a researcher's probe, a web page, a payload kept as data | 26 |
+| a native binary and a manifest, nothing else | 4 |
+| the behaviour is in plain code and the findings stay weak (a launcher that downloads a binary, a fork of a large library) | 11 |
+| an obfuscator the rules did not know | 3 |
+
+Thirty of 44 carry no code a reader could call malicious, which is most of the gap between the newest samples and the rest of the holdout.
+
+**What was added.** Five rules and three chains, each for a technique, not a name: a packer's swap-shuffle string decoder (`Shuffled String Loader`), a string table behind kana identifiers, code written to the stdin of a detached interpreter started with no script, a base64 shell script inside `package.json`, a javascript-obfuscator line appended to a readable file (`Chain: Obfuscated Code Appended to Readable Source`) a program copied under the name of a Windows system process (`Chain: Executable Copied Under a System Process Name`), and a native executable kept in a dot-directory of the package next to a process started detached (`Chain: Hidden Bundled Binary Started Detached`, the compromised `@memtensor/memos-cloud-openclaw-plugin`).
+
+Two of the 44 were read twice and stay unexplained by any code: `charclass` is a copy of someone else's library published by a stranger, `jimg` a release by its own author with nothing added. One more pattern got no rule: `module-relpath` carves bytes from the end of an image, but never calls the function that does it, and image parsers slice buffers from the end too.
+
+**Result.** `tune-recent-2026-11` 36 → 44 of 80, `dev` 480 → 490 of 626. **The holdout moved by two: 478 → 480 of 683** (both in `recent-2026-11`, 31 → 33 of 60; dated August 2026 or later 87 → 89 of 195). None of the eight fires on a clean package (0 of 822). The appended-obfuscation chain fires on 11 holdout and 8 `dev` samples, nearly all of them caught already by another chain. A static scan of the newest npm malware is near its ceiling on this dataset; the dependency scan below and the registry checks work on what the files do not show.
 
 ### One hop into the dependencies, and a time slice (ruleset 2026.11.6)
 
