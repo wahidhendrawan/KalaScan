@@ -16,3 +16,5 @@ e63acc99dfd337b7afebea5debf3938f768683c4:rules/builtin.toml:generic-api-key:826
 d646e6150c9c533b5735ea605776bc4393d45b92:rules/builtin.toml:aws-access-token:51
 # docs/detection-rules.md shows a rule example with an AKIA-shaped sample key
 5909a43cb2e8e9258947d668ee0400e71cb9bbcb:docs/detection-rules.md:aws-access-token:22
+# Dummy AWS key in a scanner.rs test (PR #76), split into two literals in the next commit
+98d38b7e7d542d83fa462154d91ee4a3a9535660:src/scanner.rs:aws-access-token:1661
