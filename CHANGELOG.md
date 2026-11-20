@@ -7,6 +7,8 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+## [1.22.0] - 2026-11-20
+
 ### Added
 - `Chain: Agent Setup from Throwaway Host` and `Chain: Agent Setup from Password-Protected Archive`: a skill or other agent file whose setup step installs a "required" tool from free app hosting or a paste site (`*.vercel.app`, `glot.io`, …), or from an archive with its password beside it, the ClawHub lure of 2026.
 - Eval corpus: AI agent skills. 204 malicious from the DataDog dataset (`sample_malicious.py --ecosystem ai-skills`, split by author) and 482 clean from GitHub, pinned to a commit (`sample_clean.py --skills`, `--skills-repo`; fetched with `eval/fetch_skills.py`, scanned with `run_eval.py --skills`). First contact: 9 of 204 malicious caught, 6 of 487 clean flagged (1.2%). With ruleset 2026.11.10: 65 of 204, holdout 19 of 102 (19%, 12-27), no clean skill flagged.
@@ -319,7 +321,8 @@ published on GitHub; their features are listed with version markers in `README.m
 ### Fixed
 - `openapi.yaml` is copied into the Docker builder stage.
 
-[Unreleased]: https://github.com/wahidhendrawan/KalaScan/compare/v1.21.0...HEAD
+[Unreleased]: https://github.com/wahidhendrawan/KalaScan/compare/v1.22.0...HEAD
+[1.22.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.21.0...v1.22.0
 [1.21.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.20.0...v1.21.0
 [1.20.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.19.0...v1.20.0
 [1.19.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.18.0...v1.19.0
