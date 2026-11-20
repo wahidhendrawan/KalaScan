@@ -235,8 +235,12 @@ pub fn identity_matches(root: &Path) -> Vec<RuleMatch> {
                 let p = ext.split('.').next().unwrap_or_default();
                 p.len() == publisher_lower.len() && p.repeat(2).contains(&publisher_lower)
             };
+            // The repository's owner publishing under a second id
+            // (msrivastav13, the mohithshrivastava.dx-code-companion author).
+            let repo_owner = key.split('/').nth(1).unwrap_or_default();
             if !POPULAR_REPO_PUBLISHERS.contains(publisher_lower.as_str())
                 && !owners.iter().any(rotated)
+                && repo_owner != publisher_lower
             {
                 out.push(finding(
                     REPACKAGED_COPY,
@@ -477,6 +481,12 @@ mod tests {
         assert!(names(&ext_with_repo("mechatroner", serde_json::json!(rainbow))).is_empty());
         // The author on Open VSX under the reordered handle.
         assert!(names(&ext_with_repo("ronermechat", serde_json::json!(rainbow))).is_empty());
+        // The repository's owner under a second publisher id.
+        assert!(names(&ext_with_repo(
+            "msrivastav13",
+            serde_json::json!("https://github.com/msrivastav13/dx-code-companion")
+        ))
+        .is_empty());
         // The extension-samples repo every `yo code` starter keeps.
         assert!(names(&ext_with_repo(
             "wangpenglong",

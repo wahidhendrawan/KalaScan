@@ -191,6 +191,7 @@ pub fn vectors_for(finding: &str) -> Vec<&'static str> {
 pub const CODE_FINDINGS: &[&str] = &[
     agent::TAG_TEXT, agent::INVISIBLE, agent::COMMENT_DIRECTIVE, agent::CONCEAL, agent::OVERRIDE,
     agent::SECRET_PATH, agent::MALICIOUS_INSTRUCTION, agent::CONFIG_REMOTE_CODE,
+    agent::SETUP_THROWAWAY_HOST, agent::SETUP_LOCKED_ARCHIVE,
     correlate::ZIP_SLIP, correlate::CREDENTIAL_EXFIL, correlate::DOWNLOAD_EXECUTE, correlate::REMOTE_FILE_WRITE,
     correlate::REVERSE_SHELL, correlate::DROP_EXECUTE, correlate::INSTALL_EXFIL, correlate::RECON_BEACON,
     correlate::OBFUSCATED_EXEC, correlate::INSTALL_PAYLOAD, correlate::INSTALL_RECON_CHAIN, correlate::REMOTE_CODE,

@@ -421,10 +421,11 @@ severity = "critical"
 category = "ransomware"
 description = "Shadow copy/backup deletion — ransomware indicator"
 # Word boundaries: `bcdedit` turns up inside base64 data URIs (mssql), and
-# "recovery mode" is ordinary SQL Server vocabulary.
-pattern = '''(?i)(?-u:\b)(?:vssadmin|wmic\s+shadowcopy|bcdedit|bootsect|recoveryenabled\s+no)(?-u:\b)'''
-matches = ['''vssadmin delete shadows /all /quiet''', '''bcdedit /set {default} recoveryenabled No''']
-ignores = ['''ALTER DATABASE db SET RECOVERY SIMPLE; -- switch recovery mode''', '''PHN2ZyB3aWR0aDbcdeditMTYi''']
+# "recovery mode" is ordinary SQL Server vocabulary. The destructive verb,
+# not the tool's name: EDR detection lists name `vssadmin … create shadow`.
+pattern = '''(?i)(?-u:\b)(?:vssadmin(?:\.exe)?\s+(?:delete|resize)\s+shadow\w*|wmic(?:\.exe)?\s+shadowcopy\s+delete|recoveryenabled\s+no|bootstatuspolicy\s+ignoreallfailures)(?-u:\b)'''
+matches = ['''vssadmin delete shadows /all /quiet''', '''bcdedit /set {default} recoveryenabled No''', '''wmic shadowcopy delete''']
+ignores = ['''ALTER DATABASE db SET RECOVERY SIMPLE; -- switch recovery mode''', '''PHN2ZyB3aWR0aDbcdeditMTYi''', '''r"(?i)vssadmin.*create\s+shadow", "VSS_Shadow_Copy"''']
 
 # Quoted extension literal only: `.encoder` / `.encrypt(` are not file names.
 [[rule]]

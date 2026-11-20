@@ -4,7 +4,7 @@ use std::path::Path;
 use walkdir::WalkDir;
 
 /// Human-readable ruleset version (also surfaced by `kalascan rules`).
-pub const RULESET_VERSION: &str = "2026.11.9";
+pub const RULESET_VERSION: &str = "2026.11.10";
 
 /// Critical file extensions for scanning
 // `.yml`/`.yaml` get only the exfiltration, network, supply-chain and
@@ -767,6 +767,9 @@ const TAIL_SCAN_BYTES: u64 = 1024 * 1024;
 const PAD_RUN: usize = 64;
 /// This much collapsed padding in one script is itself a finding.
 const PADDING_FINDING_BYTES: u64 = 1024 * 1024;
+/// Only runs this long count toward it: indentation in a debug build
+/// (sql.js `sql-asm-debug.js`, 9,110 runs of at most 291 bytes) is not padding.
+const PADDING_FINDING_RUN: usize = 4096;
 
 /// Length of the whitespace character at the start of `b` (ASCII, no-break
 /// space, zero-width and direction marks, line separators, ideographic
@@ -783,7 +786,8 @@ fn pad_len(b: &[u8]) -> usize {
 }
 
 /// Read at most `MAX_SCAN_BYTES`, returning the bytes, the real file size
-/// and how many bytes of padding were collapsed. A larger file is read with
+/// and how many bytes of padding (runs of `PADDING_FINDING_RUN` or more)
+/// were collapsed. A larger file is read with
 /// long whitespace runs collapsed (`PAD_RUN`) until its first part is full,
 /// then its last `TAIL_SCAN_BYTES` are added after a newline: line numbers
 /// after a collapse or the gap are off.
@@ -802,7 +806,9 @@ fn read_capped(path: &Path) -> Option<(Vec<u8>, u64, u64)> {
         if *run > PAD_RUN {
             buf.truncate(run_at);
             buf.push(b'\n');
-            collapsed += *run as u64 - 1;
+            if *run >= PADDING_FINDING_RUN {
+                collapsed += *run as u64 - 1;
+            }
         }
         *run = 0;
     };
@@ -1007,7 +1013,7 @@ fn scan_bytes(
             matched_pattern: OVERSIZED_FINDING.to_string(),
             severity: "low".to_string(),
             context: format!(
-                "File is {} bytes; with {} bytes of whitespace collapsed, at most the first {} MiB and the last {} MiB were scanned",
+                "File is {} bytes; with {} bytes of whitespace padding collapsed, at most the first {} MiB and the last {} MiB were scanned",
                 size,
                 collapsed,
                 (MAX_SCAN_BYTES - TAIL_SCAN_BYTES) / (1024 * 1024),
@@ -1250,6 +1256,8 @@ fn is_vendor_download(url: &str) -> bool {
         "gh.io",
         // The whole TLD is run by Google (Antigravity CLI installer).
         "google",
+        "wasmtime.dev",
+        "openclaw.ai",
     ];
     // Official installers on GitHub raw, pinned to orgs nobody else controls.
     const VENDOR_PATHS: &[&str] = &[
@@ -1257,6 +1265,7 @@ fn is_vendor_download(url: &str) -> bool {
         "raw.githubusercontent.com/creationix/nvm/",
         "raw.githubusercontent.com/homebrew/install/",
         "bitbucket.org/pypa/setuptools/",
+        "raw.githubusercontent.com/sap-samples/",
     ];
     let Some(rest) = url.split("://").nth(1) else {
         return false;
@@ -1454,6 +1463,10 @@ mod tests {
         let pad = "\u{a0}\u{200e}\n".repeat(MAX_SCAN_BYTES as usize / 3);
         let middle = format!("module.exports = 1;\n{pad}exec(payload)\n{pad}// end\n");
         std::fs::write(dir.path().join("d.js"), middle).unwrap();
+        // Deep indentation in a large debug build is not padding.
+        let indented = "  ".repeat(100) + "x = 1;\n";
+        let debug = indented.repeat(2 * MAX_SCAN_BYTES as usize / indented.len());
+        std::fs::write(dir.path().join("e.js"), debug).unwrap();
         // Non-script file: only YARA applies, it used to be skipped.
         std::fs::write(
             dir.path().join("payload.bin"),
@@ -1469,7 +1482,7 @@ mod tests {
 
         let (total, scanned, matches) =
             scan_directory_filtered(dir.path(), None, &[], None, Tree::Own);
-        assert_eq!((total, scanned), (6, 4));
+        assert_eq!((total, scanned), (7, 5));
         assert!(!matches.iter().any(|m| m.file_path == "README.md"));
         let has = |file: &str, rule: &str| {
             matches
@@ -1486,6 +1499,7 @@ mod tests {
         assert!(has("d.js", "exec() Usage"));
         assert!(has("d.js", PADDING));
         assert!(!has("c.js", PADDING));
+        assert!(!has("e.js", PADDING));
         assert!(has("payload.bin", "YARA Rule: ReverseShellGeneric"));
     }
 

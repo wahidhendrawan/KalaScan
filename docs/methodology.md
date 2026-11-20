@@ -2,7 +2,7 @@
 
 What KalaScan claims, how the claims are measured, and where they stop. Written for someone auditing the tool: every statement points at a file in the repository that holds the evidence.
 
-Numbers on this page are for ruleset `2026.11.9`, score model v1, measured 2026-11-19, unless a line says otherwise. They are copies. The record is [`eval/results/2026.11.9.json`](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/results/2026.11.9.json) and the [evaluation notes](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md); where this page and they disagree, they are right.
+Numbers on this page are for ruleset `2026.11.10`, score model v1, measured 2026-11-20, unless a line says otherwise. They are copies. The record is [`eval/results/2026.11.10.json`](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/results/2026.11.10.json) and the [evaluation notes](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md); where this page and they disagree, they are right.
 
 ## What KalaScan claims and what it does not
 
@@ -12,7 +12,9 @@ Numbers on this page are for ruleset `2026.11.9`, score model v1, measured 2026-
 
 | | flagged | 95% interval |
 |---|---|---|
-| malicious, all holdout samples | 639 of 883 (72%) | 69-75 |
+| malicious, all holdout samples | 658 of 985 (67%) | 64-70 |
+| malicious, holdout packages and IDE extensions | 639 of 883 (72%) | 69-75 |
+| malicious, AI agent skills in the holdout (`skills-2026-11`) | 19 of 102 (19%) | 12-27 |
 | malicious, holdout samples dated 2026-08-01 or later (newer than most of what the rules were written from) | 89 of 195 (46%) | 39-53 |
 | malicious, drawn after ruleset 2026.11.2 (`fresh-2026-11`) | 90 of 159 (57%) | 49-64 |
 | malicious, drawn before ruleset 2026.11.5 (`fresh2-2026-11`; the tuning batch came from the same months) | 156 of 196 (80%) | 73-85 |
@@ -20,9 +22,10 @@ Numbers on this page are for ruleset `2026.11.9`, score model v1, measured 2026-
 | malicious, npm from a second source, mostly 2021-2024 (`npmstudy-2026-11`) | 159 of 200 (80%) | 73-85 |
 | malicious, npm packages dated 2026-08-01 or later (`recent-2026-11`) | 33 of 60 (55%) | 42-67 |
 | clean, random npm and PyPI packages, before any fix | 19 of 2,584 (0.7%) | 0.5-1.1 |
-| clean, random Open VSX extensions, before any fix | 6 of 247 (2.4%) | 1.1-5.2 |
+| clean, random Open VSX extensions, before any fix (two draws) | 21 of 542 (3.9%) | 2.5-5.9 |
+| clean, random AI agent skills from GitHub, before any fix | 6 of 487 (1.2%) | 0.6-2.7 |
 
-**It does not claim that an unflagged package is safe.** 244 of the 883 malicious holdout samples score below 50. 242 of them score below 30, the band that reports label **safe** ([scoring.md](scoring.md), "What a score means": 169 + 73 in the v1 column). That label means that no combination of findings reached the warning band. It says nothing else.
+**It does not claim that an unflagged package is safe.** 244 of the 883 malicious holdout packages and extensions score below 50, and 83 of the 102 AI agent skills. 242 of them score below 30, the band that reports label **safe** ([scoring.md](scoring.md), "What a score means": 169 + 73 in the v1 column). That label means that no combination of findings reached the warning band. It says nothing else.
 
 **What "risk 50" means.** The score is a sum of parts, not a probability ([scoring.md](scoring.md)). 50 is the threshold the evaluation, the CI gate and `kalascan guard` use; the GitHub Action defaults to 60 (`action.yml`). Under v1, in a default scan, the three are the same gate:
 
@@ -130,6 +133,7 @@ Where the rule was bent, on record in the evaluation notes:
 - The holdout total has been read after each change (82, 96, 94, 99 and 101 of 147; 193 and 202 of 302). The `fresh-2026-11` set was drawn after ruleset 2026.11.2 and has been counted three times: 78 of 159 then, 89 after the tuning on `tune-fresh-2026-11`, 89 again with ruleset 2026.11.4; 281, 306 and 306 of 461 for the whole holdout. `fresh2-2026-11` was drawn before ruleset 2026.11.5 and counted twice: 138 of 196 before, 156 after (444 and 465 of 657 for the whole holdout). `npmstudy-2026-11` has been counted once (159 of 200). `late-2026-11` has been counted twice (13 of 26 both times; 478 and 480 of 683 for the whole holdout, rulesets 2026.11.6 and 2026.11.7). A count leaks less than a sample, but it leaks: a change that lowers the count can be dropped.
 - Ruleset 2026.11.8: a false-positive fix (the Telegram API host in install-time chains) lowered the holdout count by one; the change that lowered it was narrowed and the run repeated. Which sample it was was not printed, only the finding it lost.
 - Ruleset 2026.11.9: the holdout count was read once, after the changes, and did not move (639 of 883). A harness fix changed one `dev` count ("Reproducing the numbers").
+- Ruleset 2026.11.10: the two agent-file lures were tried as a regex on the samples before they were written, and that run counted the AI skills holdout (19 of 102 would be reached, 7 before); the count was not used to change the patterns. The package and extension holdout was read once, after the changes, and did not move (639 of 883).
 - Clean holdout samples that were flagged and then read were moved to `dev` and the rules fixed. The clean holdout is therefore what was never flagged. See "The clean side".
 
 ### The sample sets
@@ -173,9 +177,11 @@ The clean side decides the false-positive rate, and it is easy to make it too ki
 
 IDE extensions were drawn the same way from Open VSX (`sample_clean.py --openvsx`, the 21,685 extensions of its sitemap; Open VSX search stops at offset 10,000): 300 drawn, 249 with a universal version published before 2026-05-16. First contact: **7 of 248 at risk 50 or more**, one of them not clean (below), so **6 of 247 (2.4%, 1.1-5.2)**. An extension bundles its dependencies, so a scan reads more code than for a package; the rate is about three times the package rate, and the intervals barely overlap. Three were fixed. Three are flagged by design (a republished copy of a Microsoft extension, an AI usage dashboard that reads five tools' tokens, an SDK that sends its own key) and were taken out of the corpus, as `debi` and `ocr4` were (evaluation notes, "Random IDE extensions").
 
+A second draw of 297 extensions with ruleset 2026.11.9 flagged **15 of 295 (5.1%, 3.1-8.2)**; 9 were fixed and 6 flagged by design were taken out (evaluation notes, "Random IDE extensions, a second draw"). AI agent skills have no registry: 487 were drawn from GitHub code search or listed from nine vendor repositories, each pinned to a commit (`sample_clean.py --skills`). **6 of 487 (1.2%, 0.6-2.7)** were flagged at first contact, all whole repositories with a `SKILL.md` at the root; one was fixed and five taken out (evaluation notes, "AI agent skills"). Nobody vets a GitHub repository the way a registry removes malware, so these labels are weaker still than the packages'.
+
 Of the 14 in the third draw, 12 were fixed and 2 were left as they are and taken out of the corpus: a tool that installs `.deb` files it downloads from a personal host, and one obfuscated file run through `eval`. Both are behaviours KalaScan flags by design (evaluation notes, "Packages nobody picked, a larger draw").
 
-**0 of 2,665 is not the false-positive rate.** It is the clean holdout after every flagged sample was read, fixed and moved to `dev`. It shows that the fixes hold and that nothing regressed. The evaluation notes say the same: expect the real rate on unseen packages between the first-contact number and zero.
+**0 of 3,425 is not the false-positive rate.** It is the clean holdout after every flagged sample was read, fixed and moved to `dev`. It shows that the fixes hold and that nothing regressed. The evaluation notes say the same: expect the real rate on unseen packages between the first-contact number and zero.
 
 What the clean side does not cover:
 
@@ -185,7 +191,7 @@ What the clean side does not cover:
 
 ### Intervals
 
-Every rate is printed with its 95% Wilson score interval (`wilson` in `eval/run_eval.py`, z = 1.96). The Wilson interval stays honest at 0 of n: 0 of 2,665 has an upper bound of 0.1%, not zero.
+Every rate is printed with its 95% Wilson score interval (`wilson` in `eval/run_eval.py`, z = 1.96). The Wilson interval stays honest at 0 of n: 0 of 3,425 has an upper bound of 0.1%, not zero.
 
 The interval answers one question: how far could the rate on this kind of sample be from the rate measured on these samples. It assumes independent draws. Malware comes in campaigns (five samples of one `setup.py` template in the tuning batch), so the true uncertainty is wider than printed. It says nothing about samples of another kind: malware no dataset has collected, or packages newer than the clean cutoff.
 
@@ -269,8 +275,8 @@ The slow tail is size: compromised releases of large libraries, and extensions t
 From the measured results, not from principle.
 
 1. **npm malware: two in three, the newest under half.** 395 of 587 npm samples in the holdout (67%, 63-71; DataDog 236 of 387, the ASE 2026 study 159 of 200); of the holdout samples dated August 2026 or later, 89 of 195 (46%, 39-53), against 148 of 193 (77%) for npm dated before. PyPI is at 212 of 248 (85%), IDE extensions 32 of 48 (67%). The 80% on `fresh2-2026-11` is high partly because it shares campaigns with the batch the last rules were written from (eval/README.md, "npm tuning with GuardDog as a second reader"); `fresh-2026-11`, drawn earlier from later months, is at 57%. About a third of each npm tuning batch has no malicious code in the package's own files (a payload in a dependency, a native binary, a real library published at a hijacked version), which caps what a static scan of the artefact can reach. Among the newest it is two thirds: of the 44 `tune-recent-2026-11` samples ruleset 2026.11.6 missed, 30 are of that kind (eval/README.md, "Reading the newest misses"). Rules tuned on 2022-2025 samples generalise worse to newer ones: until November 2026 the holdout held 27 samples and scored 26.
-2. **A quarter of known malware is missed outright.** 244 of 883 holdout samples score below 50, and 242 of those below 30.
-3. **False positives on packages nobody picked: 0.7% (0.5-1.1).** 19 of 2,584 at first contact. At that rate a lockfile of 1,000 packages raises about 7 flags; that is arithmetic, not a measurement of `kalascan deps`. On popular packages the first-contact rate was 5% (9 of 176). On random IDE extensions it is 2.4% (1.1-5.2): 6 of 247 at first contact.
+2. **A quarter of known malware is missed outright, and four in five AI agent skills.** 244 of 883 holdout packages and extensions score below 50, and 242 of those below 30; 83 of 102 malicious AI agent skills score below 50 (eval/README.md, "AI agent skills").
+3. **False positives on packages nobody picked: 0.7% (0.5-1.1).** 19 of 2,584 at first contact. At that rate a lockfile of 1,000 packages raises about 7 flags; that is arithmetic, not a measurement of `kalascan deps`. On popular packages the first-contact rate was 5% (9 of 176). On random IDE extensions it is 3.9% (2.5-5.9): 21 of 542 at first contact over two draws (6 of 247, then 15 of 295 with ruleset 2026.11.9). On random AI agent skills 1.2% (0.6-2.7): 6 of 487.
 4. **What gets through**, from the misses that were read (evaluation notes, last two paragraphs):
    - packages with no code: empty placeholders, typo-squats that copy the original, a native `.node` binary;
    - forks of legitimate extensions republished with a changed API endpoint, where nothing in the code is malicious on its own;
