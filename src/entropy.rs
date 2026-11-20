@@ -81,13 +81,24 @@ pub fn is_confusable_homoglyph(c: char) -> bool {
 
 /// A bidi control that can reorder what a reviewer sees. As a range endpoint
 /// in a regex class (`[\u{2027}\u{202A}-\u{D7FF}]`, Continue's bundle) it
-/// is just a Unicode table.
+/// is just a Unicode table; opening Arabic or Hebrew text (Carbon's language
+/// names) it is localisation; in a line of binary bytes (a `.wasm`, a phar)
+/// it is chance.
 pub(crate) fn has_trojan_bidi(line: &str) -> bool {
+    if line.contains(['\0', '\u{FFFD}']) {
+        return false;
+    }
+    let rtl = |c: Option<&char>| {
+        c.is_some_and(|&c| {
+            matches!(c, '\u{0590}'..='\u{08FF}' | '\u{FB1D}'..='\u{FDFF}' | '\u{FE70}'..='\u{FEFF}')
+        })
+    };
     let chars: Vec<char> = line.chars().collect();
     chars.iter().enumerate().any(|(i, &c)| {
         is_bidi_trojan_char(c)
             && i.checked_sub(1).map(|p| chars[p]) != Some('-')
             && chars.get(i + 1) != Some(&'-')
+            && !rtl(chars.get(i + 1))
     })
 }
 
@@ -250,6 +261,17 @@ mod tests {
         assert!(scan_advanced_obfuscation("index.js", content)
             .iter()
             .all(|m| !m.matched_pattern.contains("Trojan Source")));
+    }
+
+    #[test]
+    fn test_rtl_text_and_binary_are_not_trojan_source() {
+        for content in [
+            "'nativeName' => 'Uy\u{01a3}urq\u{0259}, \u{202b}\u{0626}\u{06c7}\u{064a}',",
+            "\0asm\u{202e}\u{1}\u{2}",
+            "h[bd\u{FFFD}\u{202e} 9 SDQ",
+        ] {
+            assert!(!has_trojan_bidi(content), "{content:?}");
+        }
     }
 
     #[test]

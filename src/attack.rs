@@ -805,6 +805,8 @@ const FINDING_TABLE: &[(&str, &[&str])] = &[
     ("Agent Instruction: Credential or Agent Config Path", &["T1552.001"]),
     ("Chain: Malicious Agent Instruction", &[]),
     ("Chain: Agent Config Runs Remote Code", &["T1105", "T1059"]),
+    ("Chain: Agent Setup from Throwaway Host", &["T1204.002", "T1105"]),
+    ("Chain: Agent Setup from Password-Protected Archive", &["T1204.002", "T1027.013"]),
     ("Zip Slip: Archive Extraction Without Path Validation", &[]),
     ("Chain: Credential Exfiltration", &["T1552", "T1041"]),
     ("Chain: Download and Execute", &["T1105", "T1059"]),

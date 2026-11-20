@@ -273,9 +273,28 @@ fn straddles(lower: &[String], chunk: usize, needle: &str) -> Option<String> {
 }
 
 fn any_contains(table: &[String], needles: &[&str]) -> Option<String> {
-    let whole = table.iter().find_map(|s| {
+    // A short bare word (`iex`) only as a word: `XiExy` is a random fragment.
+    // `credentials` and `withCredentials` alone are fetch/XHR options, not a
+    // credentials file (`.aws/credentials` still is).
+    let has = |lower: &str, n: &str| {
+        if n.len() > 3 || !n.bytes().all(|b| b.is_ascii_alphanumeric()) {
+            return lower.contains(n)
+                && !(n == "credentials" && matches!(lower, "credentials" | "withcredentials"));
+        }
+        lower.match_indices(n).any(|(i, _)| {
+            let b = lower.as_bytes();
+            !(i > 0 && b[i - 1].is_ascii_alphanumeric())
+                && !b
+                    .get(i + n.len())
+                    .is_some_and(|c| c.is_ascii_alphanumeric())
+        })
+    };
+    // A JSON object of a kilobyte or more is bundled data (mime-db's type
+    // table in bethetamer), not a name the code uses.
+    let data = |s: &str| s.len() >= 1024 && s.starts_with("{\"");
+    let whole = table.iter().filter(|s| !data(s)).find_map(|s| {
         let lower = s.to_ascii_lowercase();
-        needles.iter().any(|n| lower.contains(n)).then(|| s.clone())
+        needles.iter().any(|n| has(&lower, n)).then(|| s.clone())
     });
     whole.or_else(|| {
         let chunk = chunk_len(table)?;
@@ -448,6 +467,35 @@ mod tests {
         assert!(table.contains(&"powershell".to_string()), "{:?}", table);
         assert_eq!(
             names(&chains("ext.js", &table)),
+            vec![OBFUSCATED_DOWNLOAD_EXEC]
+        );
+    }
+
+    #[test]
+    fn fragments_and_xhr_options_are_not_steps() {
+        let table = |t: &[&str]| t.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        // windsurf-switch and bethetamer tables (Open VSX, benign).
+        assert!(chains("ext.js", &table(&["execSync", "XiExy", "log"])).is_empty());
+        let mime = format!(
+            "{{\"application/x-wallet\":{}}}",
+            "{\"source\":\"iana\"}".repeat(80)
+        );
+        assert!(chains("ext.js", &table(&["readFileSync", &mime, "post"])).is_empty());
+        for option in ["withCredentials", "credentials"] {
+            assert!(chains("ext.js", &table(&["readFileSync", option, "post"])).is_empty());
+        }
+        assert_eq!(
+            names(&chains(
+                "ext.js",
+                &table(&["readFileSync", "/.aws/credentials", "post"])
+            )),
+            vec![OBFUSCATED_CREDENTIAL_THEFT]
+        );
+        assert_eq!(
+            names(&chains(
+                "ext.js",
+                &table(&["execSync", "IEX (New-Object", "log"])
+            )),
             vec![OBFUSCATED_DOWNLOAD_EXEC]
         );
     }

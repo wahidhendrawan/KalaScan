@@ -7,6 +7,16 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+### Added
+- `Chain: Agent Setup from Throwaway Host` and `Chain: Agent Setup from Password-Protected Archive`: a skill or other agent file whose setup step installs a "required" tool from free app hosting or a paste site (`*.vercel.app`, `glot.io`, …), or from an archive with its password beside it, the ClawHub lure of 2026.
+- Eval corpus: AI agent skills. 204 malicious from the DataDog dataset (`sample_malicious.py --ecosystem ai-skills`, split by author) and 482 clean from GitHub, pinned to a commit (`sample_clean.py --skills`, `--skills-repo`; fetched with `eval/fetch_skills.py`, scanned with `run_eval.py --skills`). First contact: 9 of 204 malicious caught, 6 of 487 clean flagged (1.2%). With ruleset 2026.11.10: 65 of 204, holdout 19 of 102 (19%, 12-27), no clean skill flagged.
+- Eval corpus: a tuning batch of 200 npm packages from January to July 2026 (`tune-npm2-2026-11`, dev): 152 caught; the misses are mostly payloads in a dependency and packages without code, and no rule was written from them. Scanning siblings pinned to an exact version was measured: no clean package flagged, and no miss it would catch; not built.
+- Eval corpus: a second draw of 297 Open VSX extensions (`openvsx-random2-2026-11`). First contact: 15 of 295 flagged (5.1%, 3.1-8.2); 9 fixed, 6 flagged by design left out.
+
+### Changed
+- Ruleset 2026.11.10. `Trojan Source Bi-Directional Character` skips binary lines and a bidi control that opens Arabic or Hebrew text; `Code Hidden Behind Whitespace Padding` counts only whitespace runs of 4 KiB or more; the obfuscated string-table chains no longer read `iex` inside a longer word, `credentials` / `withCredentials` alone or a bundled JSON table as steps; `Repackaged Copy of Popular Extension` accepts the repository's owner as publisher; `Shadow Copy Deletion` needs the destructive command, not the tool's name; `wasmtime.dev`, `openclaw.ai` and `SAP-samples` count as official installers. Holdout: 658 of 985 (67%, 64-70), of which packages and extensions 639 of 883 as before and AI agent skills 19 of 102; 0 of 3,425 clean holdout samples flagged.
+- The CI false-positive gate fetches and scans the clean AI skills and the second extension draw on the weekly and manual runs; pull requests skip them.
+
 ## [1.21.0] - 2026-11-19
 
 ### Added

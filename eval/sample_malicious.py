@@ -7,8 +7,9 @@ nothing is checked out (eval/fetch_malicious.sh does that later).
   # DataDog dataset, samples dated on or after a day (the date is in the file name)
   python3 eval/sample_malicious.py --dataset ~/kalascan-corpus --since 2026-08-01 --ecosystem npm --set recent-2026-11
 
-  # IDE extensions have no date in the file name, so --since does not apply
+  # IDE extensions and AI agent skills have no date in the file name, so --since does not apply
   python3 eval/sample_malicious.py --dataset ~/kalascan-corpus --ecosystem ide_extensions --set tune-ext-2026-11
+  python3 eval/sample_malicious.py --dataset ~/kalascan-corpus --ecosystem ai-skills --set skills-2026-11
 
   # pypi_malregistry, only package names the DataDog dataset does not have
   python3 eval/sample_malicious.py --dataset ~/kalascan-corpus --malregistry ~/kalascan-malregistry --set malregistry-2026-11
@@ -56,7 +57,7 @@ def main():
     ap.add_argument("--dataset", required=True, help="blobless clone of the DataDog dataset")
     ap.add_argument("--malregistry", help="blobless clone of pypi_malregistry; draw from it instead")
     ap.add_argument("--npmstudy", metavar="LIST", help="tarball list from eval/fetch_npmstudy.py --list; draw npm from it instead")
-    ap.add_argument("--ecosystem", choices=("npm", "pypi", "ide_extensions"), default="npm", help="DataDog ecosystem to draw from")
+    ap.add_argument("--ecosystem", choices=("npm", "pypi", "ide_extensions", "ai-skills"), default="npm", help="DataDog ecosystem to draw from")
     ap.add_argument("--since", default="0000-00-00", help="DataDog only: samples dated on or after YYYY-MM-DD")
     ap.add_argument("--before", default="9999-99-99", help="DataDog only: samples dated before YYYY-MM-DD (a tuning batch stays behind the newest holdout)")
     ap.add_argument("--size", type=int, default=100)
@@ -89,9 +90,9 @@ def main():
         for path in tree(args.dataset, f"samples/{args.ecosystem}"):
             parts = path.split("/")
             dated = re.match(r"\d{4}-\d{2}-\d{2}", parts[-1])
-            if args.ecosystem == "ide_extensions":
-                # samples/ide_extensions/<kind>/<id>/<version>.vsix: no date in the name.
-                wanted = len(parts) == 5 and path.endswith(".vsix")
+            if args.ecosystem in ("ide_extensions", "ai-skills"):
+                # samples/ide_extensions/<kind>/<id>/<version>.vsix, samples/ai-skills/<kind>/<id>/<id>.zip: no date in the name.
+                wanted = len(parts) == 5 and path.endswith(".vsix" if args.ecosystem == "ide_extensions" else ".zip")
             else:
                 wanted = len(parts) >= 6 and dated and args.since <= dated.group() < args.before
             if wanted and norm(parts[3]) not in used:

@@ -44,6 +44,7 @@ LOCAL = {
     "dataset": ("dataset", "eval/fetch_malicious.sh"),
     "malregistry": ("malregistry", "eval/fetch_malicious.sh"),
     "npmstudy": ("npmstudy", "eval/fetch_npmstudy.py"),
+    "skills": ("skills", "eval/fetch_skills.py"),
 }
 MANIFESTS = ("package.json", "setup.py", "pyproject.toml", "PKG-INFO")
 
@@ -71,6 +72,8 @@ def ecosystem(sample):
         return "pypi"
     if sample["source"] == "npmstudy":
         return "npm"
+    if sample["source"] == "skills":
+        return "ai-skills"
     if t.startswith("npm:"):
         return "npm"
     if t.startswith("pypi:"):
@@ -243,6 +246,7 @@ def main():
     ap.add_argument("--dataset", help="checkout of the DataDog dataset (for malicious samples)")
     ap.add_argument("--malregistry", help="checkout of pypi_malregistry (second, independent malicious source)")
     ap.add_argument("--npmstudy", help="directory eval/fetch_npmstudy.py extracted into (second npm source)")
+    ap.add_argument("--skills", help="directory eval/fetch_skills.py fetched the clean AI agent skills into")
     ap.add_argument("--rule-stats", nargs="?", const="dev", metavar="SPLIT", help="per-finding hit counts and likelihood ratio on SPLIT (dev, holdout, all) [dev]")
     ap.add_argument("--kalascan", default="target/release/kalascan")
     ap.add_argument("--scanner", choices=("kalascan", "guarddog"), default="kalascan", help="tool to measure")

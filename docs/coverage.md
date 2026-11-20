@@ -193,6 +193,8 @@ ATT&CK technique ids follow Enterprise ATT&CK v20.1. The MBC objective (Malware 
 | Agent Instruction: Credential or Agent Config Path | code | T1552.001 | OB0005 Credential Access | - |
 | Chain: Malicious Agent Instruction | code | - | - | - |
 | Chain: Agent Config Runs Remote Code | code | T1105, T1059 | OB0004 Command and Control, OB0009 Execution | - |
+| Chain: Agent Setup from Throwaway Host | code | T1204.002, T1105 | OB0009 Execution, OB0004 Command and Control | - |
+| Chain: Agent Setup from Password-Protected Archive | code | T1204.002, T1027.013 | OB0009 Execution, OB0002 Anti-Static Analysis | - |
 | Zip Slip: Archive Extraction Without Path Validation | code | - | - | - |
 | Chain: Credential Exfiltration | code | T1552, T1041 | OB0005 Credential Access, OB0010 Exfiltration | - |
 | Chain: Download and Execute | code | T1105, T1059 | OB0004 Command and Control, OB0009 Execution | - |
