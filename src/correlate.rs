@@ -7,13 +7,13 @@
 
 use crate::scanner::{
     ACCOUNT_ENUM, AGENT_UNSAFE, AI_BASE_URL, ARCHIVE_EXTRACTION, B64_URL, BUFFER_EVAL,
-    BUILTIN_CHARS, CHARCODE_API, DECRYPT_EXEC, DETACHED_SPAWN, DISGUISED_ARCHIVE, DNS_BUILT,
-    DNS_TXT, DOWNLOAD_CRADLE, ESCAPED_EVAL, EXFIL_SERVICE, FETCH_EVAL, FUNCTION_REQUIRE,
-    GIT_HOOKS_GLOBAL, HEX_API, HOST_RECON, IMPORT_LOADER, INSTALL_HOOK_OVERRIDE, INSTALL_NET,
-    INSTALL_RECON, IP_LOOKUP, IP_URL, LOCAL_SERVER, MAINTAINER_ENUM, MAKE_EXECUTABLE, NPM_PUBLISH,
-    OBFUSCATOR_IO, RAW_SOCKET, REMOTE_BINARY, SEED_ACCESS, SETUP_PY_EXEC, SETUP_PY_STAGER,
-    SHELL_PROFILE, SHELL_START, SIDELOAD, SPLIT_CHILD_PROCESS, SYSTEMD_USER, SYSTEM_NAME,
-    UPLOAD_HANDLER,
+    BUILTIN_CHARS, CF_ACCESS_TCP, CHARCODE_API, DECRYPT_EXEC, DETACHED_SPAWN, DISGUISED_ARCHIVE,
+    DNS_BUILT, DNS_TXT, DOWNLOAD_CRADLE, ESCAPED_EVAL, EXFIL_SERVICE, FETCH_EVAL, FUNCTION_REQUIRE,
+    GIT_HOOKS_GLOBAL, HEX_API, HIDDEN_START, HOST_RECON, IMPORT_LOADER, INSTALL_HOOK_OVERRIDE,
+    INSTALL_NET, INSTALL_RECON, IP_LOOKUP, IP_URL, LOCAL_SERVER, MAINTAINER_ENUM, MAKE_EXECUTABLE,
+    NATIVE_ADDON_HOOK, NPM_PUBLISH, OBFUSCATOR_IO, RAW_SOCKET, REMOTE_BINARY, SEED_ACCESS,
+    SETUP_PY_EXEC, SETUP_PY_STAGER, SHELL_PROFILE, SHELL_START, SIDELOAD, SPLIT_CHILD_PROCESS,
+    SYSTEMD_USER, SYSTEM_NAME, UPLOAD_HANDLER,
 };
 use crate::RuleMatch;
 use regex::Regex;
@@ -52,6 +52,8 @@ pub const FOREIGN_BINARY: &str = "Chain: Platform Binary Under Another Name";
 pub const APPENDED_OBFUSCATION: &str = "Chain: Obfuscated Code Appended to Readable Source";
 pub const SYSTEM_NAME_COPY: &str = "Chain: Executable Copied Under a System Process Name";
 pub const HIDDEN_BINARY: &str = "Chain: Hidden Bundled Binary Started Detached";
+pub const HIDDEN_PYTHON: &str = "Chain: Hidden Python Process";
+pub const ACCESS_TUNNEL_DROP: &str = "Chain: Dropped Binary Behind a Cloudflare Access Tunnel";
 /// Emitted by `cve::own_package_matches` for an npm package whose entry
 /// point is an HTML or SVG document with script in it.
 pub const WEB_PAGE_PACKAGE: &str = "Chain: Web Page Published as a Package";
@@ -122,6 +124,7 @@ const STAGERS: &[&str] = &[
     DECRYPT_EXEC,
     BUILTIN_CHARS,
     DISGUISED_ARCHIVE,
+    NATIVE_ADDON_HOOK,
 ];
 
 /// Signals that code runs when the package is installed.
@@ -167,6 +170,12 @@ static PUBLIC_KEY: LazyLock<Regex> = LazyLock::new(|| {
 static AUTHORIZED_KEYS_WRITE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"authorized_keys[\s\S]{0,1500}?(?:(?:writeFile|appendFile)(?:Sync)?|createWriteStream)\s*\(|(?:(?:writeFile|appendFile)(?:Sync)?|createWriteStream)\s*\([^()\n]{0,80}authorized_keys|open\s*\([^()\n]{0,120}authorized_keys[^()\n]{0,40},\s*["']a\+?["']|>>\s*\S{0,40}authorized_keys"#).unwrap()
 });
+
+/// The windowless half of `HIDDEN_START`, read where the finding starts.
+static NO_WINDOW: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^creationflags\s*=\s*[^\n,)]{0,80}?(?:CREATE_NO_WINDOW|0x0*8000000)\b").unwrap()
+});
+static PYTHONW: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bpythonw\b").unwrap());
 
 static FILE_COPY: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\b(?:copyFile(?:Sync)?|rename(?:Sync)?|shutil\.copy\w*)\s*\(").unwrap()
@@ -256,10 +265,23 @@ pub fn correlate_file(
         }
     }
 
-    if let Some((at, chmod, spawn)) = near(&[MAKE_EXECUTABLE], &[DETACHED_SPAWN]) {
-        if spawns_chmod_target(content, at) && !chmods_shipped_file(content, at) {
-            out.push(chain(rel_path, DROP_EXECUTE, chmod, spawn));
-        }
+    // Python's dropper starts the file in a session of its own. Only an
+    // `os.chmod` of the very file started counts there: a shell `chmod +x`
+    // string next to a server's `start_new_session` names no file.
+    let drop = near(&[MAKE_EXECUTABLE], &[DETACHED_SPAWN])
+        .filter(|(at, _, _)| {
+            spawns_chmod_target(content, *at) && !chmods_shipped_file(content, *at)
+        })
+        .or_else(|| {
+            near(&[MAKE_EXECUTABLE], &[HIDDEN_START]).filter(|(at, _, _)| {
+                content
+                    .get(*at..)
+                    .is_some_and(|r| r.starts_with("os.chmod") && CHMOD_TARGET.is_match(r))
+                    && spawns_chmod_target(content, *at)
+            })
+        });
+    if let Some((_, chmod, spawn)) = drop {
+        out.push(chain(rel_path, DROP_EXECUTE, chmod, spawn));
     }
 
     // An agent started with its approval prompts off and told to destroy or
@@ -294,6 +316,33 @@ pub fn correlate_file(
             ),
             ..key.clone()
         });
+    }
+
+    // `pythonw` already runs without a console, CREATE_NO_WINDOW hides a
+    // console program: a GUI launcher picks one, asking for both is hiding.
+    // The interpreter is picked just before the start; a module that only
+    // documents pythonw (jcodemunch-mcp's trampoline) names it further up.
+    if let Some((_, start)) = indexed(&[HIDDEN_START]).into_iter().find(|(at, _)| {
+        content.get(*at..).is_some_and(|r| NO_WINDOW.is_match(r))
+            && content
+                .get(at.saturating_sub(600)..*at)
+                .is_some_and(|before| PYTHONW.is_match(before))
+    }) {
+        out.push(RuleMatch {
+            matched_pattern: HIDDEN_PYTHON.to_string(),
+            severity: "critical".to_string(),
+            context: format!(
+                "{} (line {}) with no window, next to pythonw",
+                start.matched_pattern, start.line_number
+            ),
+            ..start.clone()
+        });
+    }
+
+    // A binary made executable next to the client end of a Cloudflare
+    // Access tunnel: a dropped miner reaching its pool through Cloudflare.
+    if let Some((_, tunnel, chmod)) = near(&[CF_ACCESS_TCP], &[MAKE_EXECUTABLE]) {
+        out.push(chain(rel_path, ACCESS_TUNNEL_DROP, tunnel, chmod));
     }
 
     // A TXT answer handed to eval / exec: commands arrive over DNS.
@@ -425,14 +474,15 @@ fn appended_blob(content: &str, at: usize) -> bool {
         && content[end..].lines().filter(code).count() <= 10
 }
 
-/// `chmodSync(target, …)`: the variable a JS chmod makes executable.
+/// `chmodSync(target, …)` / `os.chmod(target, …)`: the variable a chmod
+/// makes executable.
 static CHMOD_TARGET: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^chmod(?:Sync)?\(\s*([\w$.]+)\s*,").unwrap());
+    LazyLock::new(|| Regex::new(r"^(?:chmod(?:Sync)?|os\.chmod)\s*\(\s*([\w$.]+)\s*,").unwrap());
 
 /// Whether the file made executable at `at` is the one launched nearby.
 /// firebase-tools chmods a user-supplied emulator path and spawns something
-/// else; a dropper chmods `binaryPath` and spawns `binaryPath`. Shell and
-/// Python chmod forms have no JS target to compare, so they still chain.
+/// else; a dropper chmods `binaryPath` and spawns `binaryPath`. Shell chmod
+/// forms have no target to compare, so they still chain.
 fn spawns_chmod_target(content: &str, at: usize) -> bool {
     let Some(target) = content
         .get(at..)
@@ -442,7 +492,7 @@ fn spawns_chmod_target(content: &str, at: usize) -> bool {
         return true;
     };
     Regex::new(&format!(
-        r"\b(?:spawn|spawnSync|execFile|execFileSync|fork)\(\s*{target}\b"
+        r"\b(?:(?:spawn|spawnSync|execFile|execFileSync|fork)\(\s*|Popen\(\s*\[?\s*){target}\b"
     ))
     .is_ok_and(|launch| launch.is_match(around(content, at)))
 }
@@ -754,6 +804,14 @@ fn correlate_unit(all: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
         let hook = in_setup(&[INSTALL_HOOK_OVERRIDE, SETUP_PY_EXEC]);
         if let (Some(hook), Some(recon)) = (hook, in_setup(&[HOST_RECON])) {
             out.push(chain(&recon.file_path, INSTALL_RECON_CHAIN, hook, recon));
+        }
+        // A process started windowless or in its own session by setup.py
+        // outlives the install. Not in STAGERS: servers start theirs that way
+        // at run time (Jupyter, Ray, Dask), which no npm hook makes a payload.
+        if let (Some(hook), Some(start)) = (hook, in_setup(&[HIDDEN_START])) {
+            if !out.iter().any(|c| c.matched_pattern == INSTALL_PAYLOAD) {
+                out.push(chain(&start.file_path, INSTALL_PAYLOAD, hook, start));
+            }
         }
     }
 
@@ -1336,6 +1394,79 @@ mod tests {
     }
 
     #[test]
+    fn python_chmod_then_detached_start_is_drop_and_execute() {
+        let m = [
+            hit("run.py", MAKE_EXECUTABLE, 3),
+            hit("run.py", HIDDEN_START, 4),
+        ];
+        let run = |code: &str| {
+            let at = [
+                code.find("os.chmod").unwrap(),
+                code.find("subprocess").unwrap(),
+            ];
+            correlate_file("run.py", code, &m, &at)
+                .into_iter()
+                .map(|c| c.matched_pattern)
+                .collect::<Vec<_>>()
+        };
+        let dropper = "f = os.path.join(tempfile.gettempdir(), 'svc')\nopen(f, 'wb').write(data)\nos.chmod(f, stat.S_IRWXU)\nsubprocess.Popen([f], start_new_session=True)\n";
+        assert_eq!(run(dropper), vec![DROP_EXECUTE]);
+        let mode = "os.chmod(p, os.stat(p).st_mode | stat.S_IEXEC)\nsubprocess.Popen(p, start_new_session=True)\n";
+        assert_eq!(run(mode), vec![DROP_EXECUTE]);
+        // A script made executable and a server started in its own session
+        // (a notebook launcher) are two jobs.
+        let launcher = "os.chmod(hook, stat.S_IRWXU)\nsubprocess.Popen([sys.executable, '-m', 'server'], start_new_session=True)\n";
+        assert!(run(launcher).is_empty());
+        // A downloaded tool checked with `--version` while a worker of the
+        // package's own runs in its own session (fused-render's pandoc).
+        let checked = "os.chmod(part, 0o755)\nsubprocess.run([part, '--version'], check=True)\nsubprocess.Popen([sys.executable, __file__], start_new_session=True)\n";
+        assert!(run(checked).is_empty());
+        let literal =
+            "os.chmod('/tmp/x', stat.S_IRWXU)\nsubprocess.Popen(cmd, start_new_session=True)\n";
+        assert!(run(literal).is_empty());
+    }
+
+    #[test]
+    fn pythonw_started_without_a_window_is_hidden_python() {
+        let m = [hit("pkg/__init__.py", HIDDEN_START, 5)];
+        let run = |code: &str| {
+            let at = [code.find("creationflags").unwrap()];
+            correlate_file("pkg/__init__.py", code, &m, &at)
+                .into_iter()
+                .map(|c| c.matched_pattern)
+                .collect::<Vec<_>>()
+        };
+        let hidden = "exe = os.path.join(os.path.dirname(sys.executable), 'pythonw.exe')\nsubprocess.Popen([exe, script], creationflags=0x08000000)\n";
+        assert_eq!(run(hidden), vec![HIDDEN_PYTHON]);
+        // Either one alone is a launcher: a GUI app under pythonw, or a
+        // console tool started without a window.
+        let gui = "subprocess.Popen(['pythonw', 'app.pyw'], start_new_session=True, creationflags=subprocess.DETACHED_PROCESS)\n";
+        assert!(run(gui).is_empty());
+        let console = "subprocess.Popen([sys.executable, '-m', 'worker'], creationflags=subprocess.CREATE_NO_WINDOW)\n";
+        assert!(run(console).is_empty());
+        let documented = format!(
+            "\"\"\"Started from pythonw.exe at logon.\"\"\"\n{}subprocess.Popen(cmd, creationflags=_CREATE_NO_WINDOW)\n",
+            "# padding\n".repeat(80)
+        );
+        assert!(run(&documented).is_empty());
+    }
+
+    #[test]
+    fn chmod_next_to_cloudflare_access_client_is_a_chain() {
+        let m = [
+            hit("miner.py", CF_ACCESS_TCP, 30),
+            hit("miner.py", MAKE_EXECUTABLE, 22),
+        ];
+        assert_eq!(
+            names(&correlate_file("miner.py", "", &m, &[1200, 900])),
+            vec![ACCESS_TUNNEL_DROP]
+        );
+        // The client alone is a database helper; far apart, two modules.
+        assert!(correlate_file("db.py", "", &m[..1], &[1200]).is_empty());
+        assert!(correlate_file("bundle.py", "", &m, &[90_000, 900]).is_empty());
+    }
+
+    #[test]
     fn binary_download_plus_start_is_download_execute() {
         let m = [
             hit("run.bat", REMOTE_BINARY, 9),
@@ -1453,6 +1584,24 @@ mod tests {
             hit("pkg/util.py", HOST_RECON, 10),
         ];
         assert!(correlate_package(&m).is_empty());
+    }
+
+    #[test]
+    fn setup_py_starting_a_hidden_process_is_install_payload() {
+        let m = vec![
+            hit("setup.py", SETUP_PY_EXEC, 1),
+            hit("setup.py", HIDDEN_START, 12),
+        ];
+        assert_eq!(names(&correlate_package(&m)), vec![INSTALL_PAYLOAD]);
+        // A server the library starts in its own session (Jupyter, Ray) is
+        // not install-time, with setup.py's subprocess or an npm hook.
+        for hook in [
+            hit("setup.py", SETUP_PY_EXEC, 1),
+            hit("package.json", "Post-Install Script", 3),
+        ] {
+            let m = vec![hook, hit("pkg/server.py", HIDDEN_START, 40)];
+            assert!(correlate_package(&m).is_empty(), "{m:?}");
+        }
     }
 
     #[test]
@@ -1665,6 +1814,18 @@ mod tests {
         assert_eq!(names(&correlate_package(&m)), vec![INSTALL_PAYLOAD]);
         // A stager with no install hook is left to the file-level score.
         assert!(correlate_package(&[hit("setup.py", SETUP_PY_STAGER, 6)]).is_empty());
+        // `node -e "require('./addon.node').init()"` as the postinstall.
+        let m = vec![
+            hit("package.json", "Post-Install Script", 7),
+            hit("package.json", NATIVE_ADDON_HOOK, 7),
+        ];
+        assert_eq!(names(&correlate_package(&m)), vec![INSTALL_PAYLOAD]);
+        // A bundled dependency's own install script never runs for the user.
+        let m = vec![
+            hit("node_modules/dep/package.json", "Post-Install Script", 7),
+            hit("node_modules/dep/package.json", NATIVE_ADDON_HOOK, 7),
+        ];
+        assert!(correlate_package(&m).is_empty());
     }
 
     #[test]

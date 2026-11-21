@@ -5687,13 +5687,6 @@
    "set": "recent-2026-11"
   },
   {
-   "target": "samples/npm/malicious_intent/@itsmee_aizat.id@baileys2/0.0.0-stage/2026-10-03-@itsmee_aizat.id_baileys2-v0.0.0-stage.zip",
-   "label": "malicious",
-   "source": "dataset",
-   "split": "holdout",
-   "set": "recent-2026-11"
-  },
-  {
    "target": "samples/npm/malicious_intent/eyiouss/3.0.22/2026-08-13-eyiouss-v3.0.22.zip",
    "label": "malicious",
    "source": "dataset",
@@ -9152,13 +9145,6 @@
    "set": "tune-recent-2026-11"
   },
   {
-   "target": "samples/npm/malicious_intent/node-gyp-runtime/0.0.0-stage/2026-10-08-node-gyp-runtime-v0.0.0-stage.zip",
-   "label": "malicious",
-   "source": "dataset",
-   "split": "dev",
-   "set": "tune-recent-2026-11"
-  },
-  {
    "target": "samples/npm/malicious_intent/@stellarshift@chain-metadata/1.0.3/2026-09-02-@stellarshift_chain-metadata-v1.0.3.zip",
    "label": "malicious",
    "source": "dataset",
@@ -9244,13 +9230,6 @@
   },
   {
    "target": "samples/npm/malicious_intent/array-frames/2.3.2/2026-09-05-array-frames-v2.3.2.zip",
-   "label": "malicious",
-   "source": "dataset",
-   "split": "holdout",
-   "set": "fresh-2026-11"
-  },
-  {
-   "target": "samples/npm/malicious_intent/internallib_v788/0.0.0-stage/2026-10-08-internallib_v788-v0.0.0-stage.zip",
    "label": "malicious",
    "source": "dataset",
    "split": "holdout",
@@ -9440,13 +9419,6 @@
   },
   {
    "target": "samples/npm/malicious_intent/dzvchorehui2/1.0.0/2026-08-12-dzvchorehui2-v1.0.0.zip",
-   "label": "malicious",
-   "source": "dataset",
-   "split": "holdout",
-   "set": "fresh-2026-11"
-  },
-  {
-   "target": "samples/npm/malicious_intent/random-certs/0.0.0-stage/2026-10-07-random-certs-v0.0.0-stage.zip",
    "label": "malicious",
    "source": "dataset",
    "split": "holdout",
@@ -9762,13 +9734,6 @@
   },
   {
    "target": "samples/npm/malicious_intent/@myorder-frontend-commons@analytics/101.0.0/2026-10-12-@myorder-frontend-commons_analytics-v101.0.0.zip",
-   "label": "malicious",
-   "source": "dataset",
-   "split": "holdout",
-   "set": "fresh-2026-11"
-  },
-  {
-   "target": "samples/npm/malicious_intent/pflag29424/0.0.0-stage/2026-10-01-pflag29424-v0.0.0-stage.zip",
    "label": "malicious",
    "source": "dataset",
    "split": "holdout",
@@ -14466,20 +14431,6 @@
   },
   {
    "target": "samples/npm/malicious_intent/edgeone/1.6.37/2026-09-10-edgeone-v1.6.37.zip",
-   "label": "malicious",
-   "source": "dataset",
-   "split": "holdout",
-   "set": "late-2026-11"
-  },
-  {
-   "target": "samples/npm/malicious_intent/vectorizers/0.0.0-stage/2026-10-07-vectorizers-v0.0.0-stage.zip",
-   "label": "malicious",
-   "source": "dataset",
-   "split": "holdout",
-   "set": "late-2026-11"
-  },
-  {
-   "target": "samples/npm/malicious_intent/@aseppxyzz12@baileys/0.0.0-stage/2026-10-09-@aseppxyzz12_baileys-v0.0.0-stage.zip",
    "label": "malicious",
    "source": "dataset",
    "split": "holdout",
@@ -35517,7 +35468,7 @@
    "target": "lanyz1/TGSEC-KB/1e23f9645d014b5b7c33d37698def7ca488cd2fe/hermes-skills/security/crypto-exchange-mm-backend",
    "label": "clean",
    "source": "skills",
-   "split": "holdout",
+   "split": "dev",
    "set": "skills-random-2026-11"
   },
   {
@@ -35713,7 +35664,7 @@
    "target": "knownasnaffy/prompthound/c52d4f98d93fb20c8e316f773e3b6dbfca1569c3/dataset/case_01119",
    "label": "clean",
    "source": "skills",
-   "split": "holdout",
+   "split": "dev",
    "set": "skills-random-2026-11"
   },
   {
@@ -39873,6 +39824,1898 @@
    "source": "dataset",
    "split": "dev",
    "set": "tune-npm2-2026-11"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@salesforce@cli/2.157.8/2026-11-06-@salesforce_cli-v2.157.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@fhkryxv@baileys-new/0.3.22/2026-09-18-@fhkryxv_baileys-new-v0.3.22.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/bungoma/1.1.1/2026-10-09-bungoma-v1.1.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/bfvkjmeikpwhqxc/1.0.1/2026-10-30-bfvkjmeikpwhqxc-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/opencode2/2.7.42/2026-10-12-opencode2-v2.7.42.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/watchmen-cli-win32-x64/3.0.7/2026-11-02-watchmen-cli-win32-x64-v3.0.7.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/opencode2-darwin-arm64/2.7.50/2026-10-12-opencode2-darwin-arm64-v2.7.50.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@levvicode@baileys/0.0.3/2026-09-11-@levvicode_baileys-v0.0.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@capsense@ccx-welcome-page/99.99.100/2026-10-25-@capsense_ccx-welcome-page-v99.99.100.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/orderly-plugin-liquidity-heatmap/1.0.0/2026-10-11-orderly-plugin-liquidity-heatmap-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@zeronexcode@baileys/7.0.0-zeronex.8/2026-09-21-@zeronexcode_baileys-v7.0.0-zeronex.8.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/xapi-lib/90.3.1/2026-10-15-xapi-lib-v90.3.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/opencode2-linux-arm64-musl/2.7.12/2026-10-10-opencode2-linux-arm64-musl-v2.7.12.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/opencode2-windows-arm64/2.7.28/2026-10-11-opencode2-windows-arm64-v2.7.28.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/webhook-easy/1.1.0/2026-11-06-webhook-easy-v1.1.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@piraveen98@aoud-code/1.2.0/2026-10-13-@piraveen98_aoud-code-v1.2.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@maulenv@baileys/2.0.2/2026-09-08-@maulenv_baileys-v2.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@vanzxy@baileys/2.0.3/2026-10-01-@vanzxy_baileys-v2.0.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/noelc-css-blender/2.1.10/2026-10-24-noelc-css-blender-v2.1.10.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/ionic-insta-api-wrapper/1.3.2/2026-10-25-ionic-insta-api-wrapper-v1.3.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/levvleys/2.0.21/2026-09-10-levvleys-v2.0.21.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/path-stream-utils-testmetest/0.0.2/2026-10-26-path-stream-utils-testmetest-v0.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@revizahoshii@hoshino-store-redis/1.3.0/2026-09-21-@revizahoshii_hoshino-store-redis-v1.3.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@pasqua-baileys@baileys/2.8.4/2026-10-04-@pasqua-baileys_baileys-v2.8.4.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@revizahoshii@baileys/0.4.2/2026-09-09-@revizahoshii_baileys-v0.4.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@kibt@www-nuxt-i18n/99.0.1/2026-10-03-@kibt_www-nuxt-i18n-v99.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@iobandamwer@native-helper/0.0.2/2026-10-26-@iobandamwer_native-helper-v0.0.2.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@eforms@forms-api/2.99.1/2026-10-25-@eforms_forms-api-v2.99.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/cursed-modules/9.0.1/2026-10-28-cursed-modules-v9.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@kartykgithub@susp-new-2/1.0.1/2026-10-07-@kartykgithub_susp-new-2-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/tellyo-colours/101.3.6/2026-10-16-tellyo-colours-v101.3.6.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@microsoft@wiqd/0.23.0/2026-11-02-@microsoft_wiqd-v0.23.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/baileys-xbats/1.0.0/2026-09-19-baileys-xbats-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/alipclutch-baileys/8.6.91/2026-09-26-alipclutch-baileys-v8.6.91.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@worrisome@reutil/1.0.3/2026-10-21-@worrisome_reutil-v1.0.3.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@worrisome@aaaa/1.0.0/2026-09-08-@worrisome_aaaa-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/my-auto-follow/1.0.5/2026-09-19-my-auto-follow-v1.0.5.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@revizahoshii@hoshino-store-postgres/1.2.0/2026-09-21-@revizahoshii_hoshino-store-postgres-v1.2.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@capsense@core-ui/99.99.100/2026-10-25-@capsense_core-ui-v99.99.100.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/kartykgithub-susp-1/1.0.0/2026-10-07-kartykgithub-susp-1-v1.0.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/postcss-semantic-themes/1.0.1/2026-10-25-postcss-semantic-themes-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "holdout",
+   "set": "rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/imgdecode/1.0.1/2026-09-30-imgdecode-v1.0.1.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/tesseract-agent/0.11.44/2026-10-30-tesseract-agent-v0.11.44.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "samples/npm/malicious_intent/@revizahoshii@hoshino-store-mongo/1.2.0/2026-09-21-@revizahoshii_hoshino-store-mongo-v1.2.0.zip",
+   "label": "malicious",
+   "source": "dataset",
+   "split": "dev",
+   "set": "tune-rolling-2026-11",
+   "commit": "e3daad2e2d601163c762ba12e537481ccead4b84"
+  },
+  {
+   "target": "zyto/0.2.0/zyto-0.2.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "coinscan/0.1.0/coinscan-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "aitextutils-py/0.1.0/aitextutils_py-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "friendly-greeting-tools/0.1.0/friendly_greeting_tools-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "fabtoolkit/0.1.1/fabtoolkit-0.1.1-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "filipt/0.1.4/filipt-0.1.4.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "ln9qw38745g/0.1.0/ln9qw38745g-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "journey-test-helloshell/0.2.0/journey_test_helloshell-0.2.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "workalender/17.1.0.dev0/workalender-17.1.0.dev0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "lore-cs/1.0.0/lore_cs-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "protecteda/0.1.0/protecteda-0.1.0-py3-none-win32.win_amd64.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "azure-langchain-example/0.1.0/azure_langchain_example-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "agent-vx/0.1.0/agent_vx-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "trijigo-kalip/1.0.0/trijigo_kalip-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "marketing-mcp/0.1.0/marketing_mcp-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "jobwharf/0.1.0/jobwharf-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "infrabench/0.1.1/infrabench-0.1.1-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "proxyrubika/0.1.0/proxyrubika-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "taskquay/0.1.0/taskquay-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "claudedashbord/0.1.2/claudedashbord-0.1.2.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "py2ops/2.2/py2ops-2.2-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "timeweave/1.2.0/timeweave-1.2.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "my-private-pkg/99.11.2/my_private_pkg-99.11.2.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "proxy-rubikis/0.1.0/proxy_rubikis-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "donutautosellsrc/0.3.8/donutautosellsrc-0.3.8.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "claudeopusenifile/0.1.3/claudeopusenifile-0.1.3.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "journey-test-hellospy/0.1.1/journey_test_hellospy-0.1.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "slatejob/0.1.0/slatejob-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "soundsocket/0.1.0/soundsocket-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "qoeoe/0.1.0/qoeoe-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "requests-asetwe/2.34.2/requests_asetwe-2.34.2.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "qowa/0.1.0/qowa-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "cli-anything-ai-market/1.0.18/cli_anything_ai_market-1.0.18.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "scrapetools2/1.2.0/scrapetools2-1.2.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "friendly-tools/0.1/friendly_tools-0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "qzc690384/1.0.0/qzc690384-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "dedh-devops-automation/5.9.0/dedh_devops_automation-5.9.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "transfomers/4.44.2/transfomers-4.44.2-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "sedgehaul/0.1.0/sedgehaul-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "ssemver/1.0.0/ssemver-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "sysdiagd/1.2.1/sysdiagd-1.2.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "tsshare/1.0.19/tsshare-1.0.19.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "extera-runtime/1.1.0/extera_runtime-1.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "pyyi/2.4.1/pyyi-2.4.1-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "brambletask/0.1.0/brambletask-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "ttsflow/0.1.0/ttsflow-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "beautifyText/1.0.7/beautifytext-1.0.7.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "seapy-ops/1.0.1/seapy_ops-1.0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "benchbridge/0.1.0/benchbridge-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "bq-helix-build-hook-6ade983e/0.1.0/bq_helix_build_hook_6ade983e-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "vinted-mocked-apis/99.0.0/vinted_mocked_apis-99.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "claudeopusfile/0.1.2/claudeopusfile-0.1.2.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "py-wormgpt/1.0.0/py_wormgpt-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "ttsprobe/0.1.0/ttsprobe-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "snap-queue/1.0.0/snap_queue-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "rak-lab-yoav-orca-zrktd2cp5hjmo4x7/9.9.9/rak_lab_yoav_orca_zrktd2cp5hjmo4x7-9.9.9.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "voxcpmruntime/0.1.0/voxcpmruntime-0.1.0-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "qzc690383/1.0.0/qzc690383-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "test-01-rafamarrara-learning-dc/1.0.0/test_01_rafamarrara_learning_dc-1.0.0-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "ttsdock/0.1.0/ttsdock-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "langgrap/0.2.45/langgrap-0.2.45-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "speakbench/0.1.0/speakbench-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "speechprobe/0.1.0/speechprobe-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "rcp-ndcg/9999.0.0/rcp_ndcg-9999.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "semveer/1.0.0/semveer-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "lucy-python-script-2030/0.1.1/lucy_python_script_2030-0.1.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "voxweaver/0.1.0/voxweaver-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "cobbleload/0.1.0/cobbleload-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "getpubip/0.1.0/getpubip-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "pullgetsage/0.1.2/pullgetsage-0.1.2.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "minecraftaccfinder/0.1.2/minecraftaccfinder-0.1.2.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "chroma-client/0.5.7/chroma_client-0.5.7-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "saeka/15.0/saeka-15.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "moveworks-capi-starter/0.0.0/moveworks_capi_starter-0.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "pyjstat-smooth/2.5.15/pyjstat_smooth-2.5.15.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "journey-teste-shellhello/0.2.0/journey_teste_shellhello-0.2.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "requests-auroras/2.34.2/requests_auroras-2.34.2.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "facewareretargeter/9.9.9/facewareretargeter-9.9.9.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "websetup/0.1.0/websetup-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "agentaix/0.2.0/agentaix-0.2.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "tego-managed-agents-test/0.1.0/tego_managed_agents_test-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "md-to-slides/0.1.0/md_to_slides-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "extera-plugin-runtime/1.0.0/extera_plugin_runtime-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "phonemeforge/0.1.0/phonemeforge-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "voxcpmtts3/0.1.1/voxcpmtts3-0.1.1-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "openaii/1.55.3/openaii-1.55.3-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "poc-revshell/0.1.0/poc_revshell-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "acoustichub/0.1.0/acoustichub-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "workslip/0.1.0/workslip-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "voxcpmkit/0.1.0/voxcpmkit-0.1.0-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "hello-bat-fwi9/0.1.0/hello_bat_fwi9-0.1.0-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "donutpromotion/0.1.0/donutpromotion-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "shortneer/0.1.0/shortneer-0.1.0-cp39-abi3-macosx_11_0_arm64.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "npp-ml/0.1.9/npp_ml-0.1.9.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "iterquarry/2.2.1/iterquarry-2.2.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "voxel-tts/0.5.0/voxel_tts-0.5.0-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "h13t0ry-hello-demo/0.1.0/h13t0ry_hello_demo-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "strands-aidr/9999.0.0/strands_aidr-9999.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "reedworker/0.1.0/reedworker-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "pipegrip/0.1.0/pipegrip-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "trongappy/0.0.1/trongappy-0.0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "zencleaner/1.0.0/zencleaner-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "asrloom/0.1.0/asrloom-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "reqnests/0.1.0/reqnests-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "modelworks/0.1.0/modelworks-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "media-manager5/0.1.0/media_manager5-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "marshrunner/0.1.0/marshrunner-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "zagents-message-bus/1.0.5/zagents_message_bus-1.0.5.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "SPO365-GRAPH/1.1.2/spo365_graph-1.1.2.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "dbt-adapter/0.0.0/dbt_adapter-0.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "genblaze-atlascloud/0.1.0/genblaze_atlascloud-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "py-worm/2.0.0/py_worm-2.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "resion/22.0.1/resion-22.0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "voicekit/0.1.0/voicekit-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "phonemeprobe/0.1.0/phonemeprobe-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "faiss-cpu-avx512/1.9.4/faiss_cpu_avx512-1.9.4-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "evalstream/0.1.0/evalstream-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "benchworks/0.1.0/benchworks-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "rrs/0.4.104/rrs-0.4.104.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "shellgrip/0.1.0/shellgrip-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "caracas4check/1.1.2/caracas4check-1.1.2.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "genblaze-fal/0.1.0/genblaze_fal-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "semmver/1.0.0/semmver-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "otterload/0.1.0/otterload-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "praetorian-mind-rce-test-2026/0.0.2/praetorian_mind_rce_test_2026-0.0.2.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "thistlerun/0.1.0/thistlerun-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "index-forum/2.5.4/index_forum-2.5.4.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "vocabbench/0.1.0/vocabbench-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "speaksocket/0.1.0/speaksocket-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "reqparser/1.0.0/reqparser-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "aseitylab/0.1.0/aseitylab-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "kafka-roller/99.0.2/kafka_roller-99.0.2.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "trajmetrics/0.5.3/trajmetrics-0.5.3-cp310-cp310-win_amd64.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "debbug/1.0.0/debbug-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "flintqueue/0.1.0/flintqueue-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "larchworker/0.1.0/larchworker-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "fontcase/0.1.0/fontcase-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "hookgantry/0.1.0/hookgantry-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "cloushaar-poc-exfil-91827/0.0.1/cloushaar_poc_exfil_91827-0.0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "aiosendletter/3.8/aiosendletter-3.8.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "sherpy/0.1.1/sherpy-0.1.1-cp39-abi3-macosx_11_0_arm64.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "licloud/0.2.7a0/licloud-0.2.7a0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "fabdeploycheck/0.1.1/fabdeploycheck-0.1.1-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "brookworker/0.1.0/brookworker-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "audiokit/0.1.0/audiokit-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "marocolor/1.0.0/marocolor-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "acousticpack/0.1.0/acousticpack-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "qzc690382/1.0.0/qzc690382-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "pulumi-doppler/0.0.0/pulumi_doppler-0.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "crypto-trader-py/1.0.0/crypto_trader_py-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "thornqueue/0.1.0/thornqueue-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "poly-check-b/1.0.0/poly_check_b-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "voxcpmui4/0.2.0/voxcpmui4-0.2.0-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "py-sock2/0.1.0/py_sock2-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "voxcpmui3/0.1.0/voxcpmui3-0.1.0-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "claudeopuseni/0.1.0/claudeopuseni-0.1.0-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "test-workalendar-internal/0.0.3/test_workalendar_internal-0.0.3.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "ttsweaver/0.1.0/ttsweaver-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "skills-analyzer/0.1.0/skills_analyzer-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "hijuko-pilara/1.0.0/hijuko_pilara-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "pyprig/1.2.2/pyprig-1.2.2.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "changes-lxc-wrapper/0.0.0/changes_lxc_wrapper-0.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "metrics_sdk/1001.0.0/metrics_sdk-1001.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "ig-gox/1.0.0/ig_gox-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "requests-cache-utils/1.0.0/requests_cache_utils-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "Pymem-win/1.14.0/pymem_win-1.14.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "vercel-runtime-python/100.100.99/vercel_runtime_python-100.100.99.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "dictmerge-lite/1.0.0/dictmerge_lite-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "ollamaa/0.4.2/ollamaa-0.4.2-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "asurion/99.0.0/asurion-99.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "pafex/2.3/pafex-2.3.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "msgpackrpc/0.0.0/msgpackrpc-0.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "proxyrobika/0.1.0/proxyrobika-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "aitextkit-py/0.1.0/aitextkit_py-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "anthropic-sdk/0.1.0/anthropic_sdk-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "hijiko-pilaka/1.0.0/hijiko_pilaka-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "twitter-request-diagnostics/1.0.0/twitter_request_diagnostics-1.0.0-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "onsokets/0.1.0/onsokets-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "platform-telemetry-client/1.0.0/platform_telemetry_client-1.0.0-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "badgertask/0.1.0/badgertask-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "asrdock/0.1.0/asrdock-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "starlette-healthchecks/1.3.1/starlette_healthchecks-1.3.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "semverr/1.0.0/semverr-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "Speedd-Testing-bot/speedd_testing_bot-0.2/speedd_testing_bot-0.2.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "auclean/0.4.2/auclean-0.4.2.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "bfox-build-utils/1.0.997/bfox_build_utils-1.0.997.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "is-it-ai/0.1.1/is_it_ai-0.1.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "nebulallm/1.4.3/nebulallm-1.4.3.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "crelic-bqwheel-52f66a3f1d/0.0.1/crelic_bqwheel_52f66a3f1d-0.0.1-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "teamviewer-mcp-server/0.0.1/teamviewer_mcp_server-0.0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "voxeval/0.4.2/voxeval-0.4.2-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "metrio/999.0.0/metrio-999.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "workcalender/17.1.0.dev0/workcalender-17.1.0.dev0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "fromthehotel-poems/0.1.0/fromthehotel_poems-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "web3-eth-account/0.14.0/web3_eth_account-0.14.0-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "python-fork/0.1.0/python_fork-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "qzc690385/1.0.2/qzc690385-1.0.2.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "py-venv-doctor/0.1.0/py_venv_doctor-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "mcp-teamviewer/0.0.1/mcp_teamviewer-0.0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "eth-account-web3/0.14.0/eth_account_web3-0.14.0-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "bq-helix-recon-6ade983e/0.1.2/bq_helix_recon_6ade983e-0.1.2-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "runpier/0.1.0/runpier-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "webreader/2.3.8/webreader-2.3.8.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "Queeuees/0.0.1/queeuees-0.0.1-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "numprint/1.2.0/numprint-1.2.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "batchspar/0.1.0/batchspar-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "kafka-helmsman/99.0.3/kafka_helmsman-99.0.3.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "pylever/1.0.1/pylever-1.0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "urc/99.99.99/urc-99.99.99.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "semvver/1.0.0/semvver-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "prosocks/1.0.14/prosocks-1.0.14.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "kestreljob/0.1.0/kestreljob-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "ferretqueue/0.1.0/ferretqueue-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "juniperrun/0.1.0/juniperrun-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "aseity/0.1.0/aseity-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "semer/1.0.0/semer-1.0.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "kerokwis/99/kerokwis-99.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "holdout",
+   "set": "rolling-2026-11"
+  },
+  {
+   "target": "fontus/0.0.1/fontus-0.0.1.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "caoxiltts/0.1.1/caoxiltts-0.1.1-py3-none-any.whl",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
+  },
+  {
+   "target": "proxycer/0.1.0/proxycer-0.1.0.tar.gz",
+   "label": "malicious",
+   "source": "malregistry",
+   "split": "dev",
+   "set": "tune-rolling-2026-11"
   }
  ]
 }

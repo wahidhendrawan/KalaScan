@@ -4,7 +4,7 @@ use std::path::Path;
 use walkdir::WalkDir;
 
 /// Human-readable ruleset version (also surfaced by `kalascan rules`).
-pub const RULESET_VERSION: &str = "2026.11.12";
+pub const RULESET_VERSION: &str = "2026.11.13";
 /// A hash of the rule files and detection modules this binary was built
 /// from (build.rs): what a result is tied to when the version is not enough.
 pub const DETECTION_FINGERPRINT: &str = env!("KALASCAN_DETECTION");
@@ -100,6 +100,10 @@ pub const STDIN_INTERPRETER: &str = "Code Piped Into a Detached Interpreter";
 pub const KANA_TABLE: &str = "String Table Behind Kana Identifiers";
 pub const SYSTEM_NAME: &str = "System Process Name Assigned";
 pub const MANIFEST_SCRIPT: &str = "Shell Script Encoded in the Manifest";
+pub const CHANNEL_FOLLOW: &str = "WhatsApp Channel Followed by Library Code";
+pub const NATIVE_ADDON_HOOK: &str = "Install Script Calls a Native Addon";
+pub const HIDDEN_START: &str = "Process Started Detached or Without a Window";
+pub const CF_ACCESS_TCP: &str = "Cloudflare Access TCP Client";
 
 #[derive(Clone, Debug)]
 pub struct Rule {
@@ -1788,6 +1792,10 @@ mod tests {
             KANA_TABLE,
             SYSTEM_NAME,
             MANIFEST_SCRIPT,
+            CHANNEL_FOLLOW,
+            NATIVE_ADDON_HOOK,
+            HIDDEN_START,
+            CF_ACCESS_TCP,
             "Hardcoded IP Address",
             "Post-Install Script",
             "URL Fetch Command",

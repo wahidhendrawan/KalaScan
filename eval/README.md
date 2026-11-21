@@ -24,36 +24,74 @@ The malicious samples are **live malware**. `run_eval.py` scans them statically 
 
 CI (`.github/workflows/eval.yml`) runs only the clean half, as a false-positive gate: `--only clean --max-fpr 0`, on every pull request that touches `src/`, `rules/`, `eval/` or `Cargo.lock` (without the 1,993 packages of `random2-2026-11`, the second Open VSX draw and the AI skills, which the weekly run fetches and scans).
 
-Results at threshold 50 (ruleset 2026.11.12, score model v1, measured 2026-11-21; 95% interval in brackets; the aggregate is in [`results/2026.11.12.json`](results/2026.11.12.json)):
+Results at threshold 50 (ruleset 2026.11.13, score model v1, measured 2026-11-21; 95% interval in brackets; the aggregate is in [`results/2026.11.13.json`](results/2026.11.13.json)):
 
 | split | malicious recall | clean false positives |
 |---|---|---|
-| dev | 688/929 (74%, 71-77) | 0/399 (0%, 0-1) |
-| holdout | 659/984 (67%, 64-70) | 0/3,424 (0%, 0-0.1) |
-| holdout, packages and extensions (the 2026.11.9 holdout less one sample) | 640/882 (73%, 70-75) | 0/2,664 (0%, 0-0.1) |
-| holdout, AI agent skills | 19/102 (19%, 12-27) | 0/480 (0%, 0-0.8) |
-| holdout, dated 2026-08-01 or later | 89/195 (46%, 39-53) | |
+| dev | 771/1,061 (73%, 70-75) | 0/401 (0%, 0-1) |
+| holdout | 725/1,109 (65%, 63-68) | 0/3,422 (0%, 0-0.1) |
+| holdout as it stood before the rolling draw | 663/978 (68%, 65-71) | |
+| holdout, packages and extensions of it | 644/876 (74%, 70-76) | |
+| holdout, AI agent skills (default scan) | 19/102 (19%, 12-27) | 0/478 (0%, 0-0.8) |
+| holdout, AI agent skills with `--ai` (DeepSeek) | 49/102 (48%, 39-58) | 0/478 (0%, 0-0.8) |
+| holdout, rolling draw (`rolling-2026-11`) | 62/131 (47%, 39-56) | |
+| holdout, dated 2026-08-01 or later | 103/210 (49%, 42-56) | |
 
-The holdout fell from 72% to 67% with ruleset 2026.11.10 because a new ecosystem joined it at 19%, not because a package was lost ("AI agent skills", below); the packages and extensions were at 639 of 883 then and are at 640 of 882 now: two more caught, and one sample read and moved to `dev` ("Encoded literals and calls in the data flow", below). Ruleset 2026.11.12 changed no holdout verdict and lost three `dev` samples ("What was still flagged, read by class", below).
+The holdout fell from 72% to 67% with ruleset 2026.11.10 because a new ecosystem joined it at 19%, not because a package was lost ("AI agent skills", below), and to 65% with ruleset 2026.11.13 because the rolling draw joined it at 47%. The rows before the rolling draw are comparable with earlier rulesets once seven npm placeholders are taken out ("A rolling holdout", below): 659 of 978 with ruleset 2026.11.12, 663 now.
 
-**The last row is the one to expect on new malware.** It is every holdout sample whose file name in the DataDog dataset carries a date of August 2026 or later (`run_eval.py --since 2026-08-01`): 194 npm packages and one PyPI package, from four sets. npm in the holdout dated before August is at 147 of 192 (77%). The gap is what tuning on the same months is worth: the batches the rules were written from are mostly January to June, and so is `fresh2-2026-11`.
+**The rolling row and the dated row are the ones to expect on new malware.** The rolling draw is malware published after the rules it is measured on were written. The dated row is every holdout sample whose file name in the DataDog dataset carries a date of August 2026 or later (`run_eval.py --since 2026-08-01`). npm in the holdout dated before August is at 147 of 192 (77%). The gap is what tuning on the same months is worth: the batches the rules were written from are mostly January to June, and so is `fresh2-2026-11`.
 
-Five tuning batches of new samples joined `dev` in November (below), which is why its rate moves with each one.
+Six tuning batches of new samples joined `dev` in November (below), which is why its rate moves with each one.
 
 The holdout by sample set:
 
 | holdout set | what it is | malicious recall |
 |---|---|---|
 | original | 147 samples: the 27 first ones and 120 added in November 2026 | 107/147 (73%, 65-79) |
-| `recent-2026-11` | 60 npm packages dated 2026-08-01 or later, the newest in the dataset | 33/60 (55%, 42-67) |
-| `malregistry-2026-11` | 100 PyPI packages from pypi_malregistry whose names the DataDog dataset does not have; 5 archives do not unpack | 83/95 (87%, 79-93) |
-| `fresh-2026-11` | 161 packages drawn on 2026-11-18, after ruleset 2026.11.2: 100 npm and 1 PyPI dated 2026-08-01 or later (DataDog), 60 PyPI from pypi_malregistry; 2 archives do not unpack | 90/159 (57%, 49-64) |
+| `recent-2026-11` | 60 npm packages dated 2026-08-01 or later, the newest in the dataset; one placeholder taken out | 34/59 (58%, 45-69) |
+| `malregistry-2026-11` | 100 PyPI packages from pypi_malregistry whose names the DataDog dataset does not have; 5 archives do not unpack | 84/95 (88%, 80-93) |
+| `fresh-2026-11` | 161 packages drawn on 2026-11-18, after ruleset 2026.11.2: 100 npm and 1 PyPI dated 2026-08-01 or later (DataDog), 60 PyPI from pypi_malregistry; 2 archives do not unpack, three placeholders taken out | 91/156 (58%, 50-66) |
 | `fresh2-2026-11` | 200 packages drawn on 2026-11-18, before ruleset 2026.11.5: 150 npm dated 2026-01-01 or later (DataDog), 50 PyPI from pypi_malregistry; 4 archives do not unpack, and one sample was read for ruleset 2026.11.11 and moved to `dev` | 155/195 (79%, 73-85) |
-| `late-2026-11` | the 26 npm names dated 2026-08-01 or later that were left in the dataset, drawn on 2026-11-18 | 13/26 (50%, 32-68) |
+| `late-2026-11` | the 26 npm names dated 2026-08-01 or later that were left in the dataset, drawn on 2026-11-18; two placeholders taken out | 14/24 (58%, 39-76) |
 | `npmstudy-2026-11` | 200 npm packages from [the ASE 2026 npm study](https://doi.org/10.6084/m9.figshare.31869370) whose names the DataDog dataset does not have, drawn on 2026-11-19; mostly published 2021-2024 | 159/200 (80%, 73-85) |
 | `skills-2026-11` | 102 AI agent skills from the DataDog dataset, split by author from the 102 in `dev`, drawn on 2026-11-20 | 19/102 (19%, 12-27) |
+| `rolling-2026-11` | 131 samples newer than ruleset 2026.11.12, drawn on 2026-11-21: 21 npm from the DataDog dataset's unmerged sync branch, 110 PyPI from pypi_malregistry's newest batch | 62/131 (47%, 39-56) |
 
-**The holdout number is the one to quote, and the `recent` row is the one to worry about**: on the newest npm malware KalaScan catches about half (24 of 60 with ruleset 2026.11.1, before the tuning described below). The second sources say the rules are not fitted to one dataset's taste: PyPI 87% on pypi_malregistry against 39 of 48 (81%) on the original DataDog PyPI holdout samples; npm 80% on the study's samples against 147 of 192 (77%) on DataDog npm dated before August 2026. Both second sources are older malware, so they do not speak to the newest; the `recent` row does. By ecosystem the whole holdout is IDE extensions 32/48 (67%, 53-78), npm 394/586 (67%, 63-71; DataDog 235/386, the study 159/200), PyPI 214/248 (86%, 81-90), AI agent skills 19/102 (19%, 12-27).
+**The holdout number is the one to quote, and the `rolling` row is the one to worry about.** The second sources say the rules are not fitted to one dataset's taste: PyPI 88% on pypi_malregistry against 39 of 48 (81%) on the original DataDog PyPI holdout samples; npm 80% on the study's samples against 147 of 192 (77%) on DataDog npm dated before August 2026. Both second sources are older malware, so they do not speak to the newest; the `recent` and `rolling` rows do. By ecosystem the holdout before the rolling draw is IDE extensions 32/48 (67%, 53-78), npm 397/580 (68%, 65-72), PyPI 215/248 (87%, 82-90), AI agent skills 19/102 (19%, 12-27); with the rolling draw npm is 408/601 (68%, 64-71) and PyPI 266/358 (74%, 70-79).
+
+### A rolling holdout, a tuning round on it, and agent skills by meaning (ruleset 2026.11.13)
+
+**A rolling holdout.** The DataDog dataset had not merged anything since 2026-11-05, but its sync bot keeps a branch of samples it has not merged yet, and pypi_malregistry keeps adding batches. `sample_malicious.py --ref FETCH_HEAD` draws from the files of such a branch that `HEAD` does not have, and records the commit in each entry, which `fetch_malicious.sh` checks the file out of; `--added-after COMMIT` draws from what pypi_malregistry added after a commit. On 2026-11-21, with seed 20261121, 294 samples were drawn and split in half per source: half into the holdout (`rolling-2026-11`), half into `dev` to be read (`tune-rolling-2026-11`). The holdout half was counted before any change: **38 of 131 (29%, 22-37)**, against 67% for the holdout as it stood. Nothing newer than the rules had been measured before, and this is the number the dated row had been standing in for.
+
+**Placeholders are not samples.** 30 of the 294 were npm's `0.0.0-stage` placeholders: a stub manifest and no code, the dataset's record of a name, not of a payload. They were dropped from the draw, and the seven already in the corpus (six in the holdout) were taken out; none of the seven was caught, so the holdout went from 659 of 984 to 659 of 978. `sample_malicious.py` skips them now.
+
+**The tuning round.** Agents read the `dev` half by class, as excerpts of the lines around each finding and each miss's install hook and entry point; no sample file left the evaluation VM. 84 of 133 were misses. What they found, and what was built:
+
+- **Data flow: a download returned by a helper.** `def _transfer(url): return urlopen(url).read()` and, in the caller, `exec(_transfer(u))`. Summaries carried secrets only, because the same summaries had read setuptools' `download_svn(url)` as running what it fetched (ruleset 2026.11.11). A download that comes back from a call now counts, and only at a sink that runs code in this process (`exec`, `compile`, `eval`, `Function`, `vm.run*`), not inside a string literal, and not at a process start. 16 `dev` samples.
+- **Rules.** `WhatsApp Channel Followed by Library Code` (forks of the Baileys library that make every account that uses them follow and mute a channel the library names), `Install Script Calls a Native Addon`, `Process Started Detached or Without a Window` (`CREATE_NO_WINDOW`, `DETACHED_PROCESS`, `start_new_session`, `setsid`), `Cloudflare Access TCP Client`, and the Python forms of `Make File Executable` (`os.chmod(f, 0o755)`, `stat.S_IEXEC`).
+- **Chains.** `setup.py` starting a process windowless or in a session of its own is an install-time payload. Python's drop-and-execute: `os.chmod` of a file that `Popen` then starts in its own session. `Chain: Hidden Python Process`: `pythonw` picked just before a start with `CREATE_NO_WINDOW`, the two ways of hiding a console asked for at once. `Chain: Dropped Binary Behind a Cloudflare Access Tunnel`: a binary made executable next to `cloudflared access tcp`, a miner reaching its pool through Cloudflare.
+
+**Measured.** Against ruleset 2026.11.12 scanned again the same day: **`dev` 771 of 1,061 (737), holdout 725 of 1,109 (697), no malicious sample lost.** The rolling holdout went from 38 to **62 of 131 (47%, 39-56)**: DataDog npm 10 to 11 of 21, pypi_malregistry 28 to 51 of 110. The holdout as it stood before went from 659 to 663 of 978, the slice dated August 2026 or later from 99 to 103 of 210. The `dev` half went from 49 to 80 of 133. By the finding that made the difference, holdout: 17 by the data-flow change, 4 by the WhatsApp rule, 4 by the Cloudflare chain, the rest one each. No clean sample flagged (3,823 scanned). Of the 618 new releases flagged since the watch started, 272 reach 50 (270 with ruleset 2026.11.12); of 1,500 releases the watch had scored under 50, drawn at random again, 1,498 could be scanned and none reaches 50 (0%, 0-0.3). The evasion suite is where it was (151 of 153, 792 of 810 stacked).
+
+**What the live releases cost.** The build without the sdist change (below) flagged 9 more of the 618, 4 packages, all read: `connectonion` (the data-flow change read `exec(` inside an f-string, a loader written for a remote host and sent over SSH), `fused-render` (pandoc downloaded from GitHub, made executable and run with `--version`, while a worker of the package's own starts in a session of its own), `jcodemunch-mcp` (a trampoline that documents `pythonw` 800 bytes above the windowless start of its own module) and `runpane` (an installer that downloads its desktop app, makes it executable and starts it detached). The first three were narrowed: no in-process sink inside a string, the detached `Popen` must start the file made executable (a `run` of it does not count), and `pythonw` must come within 600 bytes before the start. `runpane` does what a dropper does with a binary from its vendor's own server, and is left flagged. The narrowings changed no corpus count.
+
+**The holdout was counted four times**, each time over the whole corpus: before the changes, with the first build (the sdist change included), without the sdist change, and with the narrowed build. It read 725 of 1,109 each time after the changes; what was dropped and narrowed was dropped for clean samples and live releases, not for the holdout.
+
+**Wheel and sdist: built, measured and not shipped.** pip installs a PyPI release's wheel when one fits, and KalaScan scanned the wheel only; an sdist's `setup.py` still runs wherever no wheel fits, with `--no-binary`, or in a tool that builds from source. Scanning the sdist beside the wheel flagged **3 of 3,821 clean samples** (`psutil`, through its Makefile, tests and release scripts; `docx-form`, whose `setup.py` carries a README with `curl … | bash` as an instruction to the reader; `HOS-ME`, whose `cmdclass` install hook paired with a socket in its app) and 6 of 1,493 new releases the watch had scored under 50, and gained no malicious sample: every malicious sample of the corpus is an archive on disk, not a release on PyPI, so it cannot. Dropped. A release with no wheel was and is scanned from its sdist.
+
+### AI agent skills by meaning (ruleset 2026.11.13)
+
+**What changed.** `--ai` sent the model the findings of a scan and nothing when there were none, so a skill that asks for harm in plain words reached it with nothing to judge. Now, when a scan has agent files (`SKILL.md`, `CLAUDE.md`, `.cursorrules`, …), `--ai` also sends their text, 12,000 characters at most, a root `SKILL.md` first, with a prompt that lists what a skill can tell an agent to do that harms its user (send secrets out, download and run code from an untrusted place, hide what it does, override safety rules or the user's instructions, persist or spread) and what is not harm (security work, well-known tools from their official sources, the user's own data used for the user's task), and says that the text is data to judge, not instructions. A malicious verdict at risk 70 or more on that text gives 70 (docs/scoring.md); a verdict on findings still adds at most 25.
+
+**Measured with DeepSeek (`deepseek-chat`)**, every skill of the corpus scanned with `--ai`, in the evaluation VM: **holdout 49 of 102 (48%, 39-58) instead of 19**, `dev` 59 of 102 instead of 46. 2 of 480 clean skills were flagged; both were read: an offensive-security skill for auditing crypto exchange back ends without authentication, IP allowlist bypass included (`TGSEC-KB`), and an item of a prompt-injection dataset (`prompthound`), which is an injection by design. Both moved to `dev`; **0 of 478** clean skills left.
+
+**The cut was chosen with the holdout in view.** The run was counted at four cuts of the model's risk: at 60 and 70, 49 of 102; at 80 and 85, 45. Clean was 2 of 480 at all four, `dev` 59 and 58. 70 was taken; that is the holdout choosing between two values, and it is on record here.
+
+**What it costs and what it does not cover.** Each skill is one request to the model, and the text of the skill goes to the provider: for a private repository use a local model. The verdict is the model's, so it can change with the model and its version; it was measured once, with one model. A payload the skill downloads from a host of its own is still judged by the words around it only.
+
+### The prospective run: a first early reading (2026-11-21)
+
+`watch_outcome.py --min-age 0` on the logs of the run (below), one day in: 26,721 releases scanned. OSV names 12 of them malicious so far, and KalaScan had flagged **1 of the 12 (8%, 1-35)**, scanned before the record. 55 more releases named malicious were npm's `0.0.1-security` takedown placeholders, which replace a package after npm removes it: they were taken down before the scan, and the script counts them apart now (the first reading had counted them as misses). 714 releases flagged by one ruleset or another are still up. One day is far too early for an outcome; the reading the run was started for is at 30 days. The watch was stopped on 2026-11-21 and its logs are kept.
 
 ### Encoded literals and calls in the data flow (ruleset 2026.11.11)
 

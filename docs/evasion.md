@@ -141,7 +141,7 @@ way to push a caught seed under the threshold.
 An author who tests against the scanner does not stop at one rewrite.
 `eval/evasion.py --stacked` applies two mutators in a row to every seed, each
 pair of mutators once: 810 variants where both apply. **792 of 810 are caught
-(98%, 97-99)** with ruleset 2026.11.11, and the same with 2026.11.12. It is a measurement, not part of the
+(98%, 97-99)** with ruleset 2026.11.11, and the same with 2026.11.12 and 2026.11.13. It is a measurement, not part of the
 baseline gate.
 
 The 18 that evade are the two single evaders above carried into their stacks

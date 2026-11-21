@@ -7,6 +7,19 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+### Added
+- `--ai` reads AI agent skills by meaning: when a scan has agent files (`SKILL.md`, `CLAUDE.md`, `.cursorrules`, …), their text (12,000 characters at most, a root `SKILL.md` first) goes to the model with a prompt of its own, and a malicious verdict at risk 70 or more on that text counts as a verdict (70). Measured with DeepSeek: holdout skills 49 of 102 instead of 19, 0 of 478 clean skills flagged (two flagged clean skills were read and moved to `dev`). The text leaves the machine; use a local model for private repositories.
+- A rolling holdout: `sample_malicious.py --ref` draws from the files of a branch that `HEAD` lacks (the DataDog dataset's unmerged sync branch; entries record the commit, which `fetch_malicious.sh` checks out), and `--added-after COMMIT` from what pypi_malregistry added since a commit. The first draw, 294 samples, went half into the holdout (`rolling-2026-11`) and half into `dev` (`tune-rolling-2026-11`).
+
+### Changed
+- Ruleset 2026.11.13, tuned on the `dev` half of the rolling draw. Rolling holdout 62 of 131 (38 with ruleset 2026.11.12); holdout 725 of 1,109 (697), no sample lost; `dev` 771 of 1,061 (737); 0 of 3,823 clean samples flagged; of the 618 new releases flagged since the watch started, 272 reach 50 (270); evasion suite 151 of 153.
+  - Data flow: a download returned by a helper of the file counts at a sink that runs code in this process (`exec(_transfer(url))`), not inside a string literal, and not at a process start.
+  - Rules: `WhatsApp Channel Followed by Library Code`, `Install Script Calls a Native Addon`, `Process Started Detached or Without a Window`, `Cloudflare Access TCP Client`; `Make File Executable` reads `os.chmod(f, 0o755)` and `stat.S_IEXEC`.
+  - Chains: `setup.py` starting a process windowless or in its own session is an install-time payload; Python's drop-and-execute (`os.chmod` of the file a detached `Popen` starts); `Chain: Hidden Python Process` (`pythonw` picked just before a start with `CREATE_NO_WINDOW`); `Chain: Dropped Binary Behind a Cloudflare Access Tunnel`.
+  - Built, measured and not shipped: scanning a PyPI release's sdist beside its wheel. It flagged 3 of 3,821 clean samples and 6 of 1,493 new releases and can gain no malicious sample of the corpus (eval/README.md).
+- npm's `0.0.0-stage` placeholders are not samples: seven left the corpus (six holdout, all missed) and `sample_malicious.py` skips them.
+- `eval/watch_outcome.py` counts npm's `0.0.1-security` takedown placeholders as taken down before the scan, not as missed. Early reading, one day in: 1 of 12 releases OSV names malicious had been flagged.
+
 ## [1.24.0] - 2026-11-21
 
 ### Changed

@@ -144,6 +144,9 @@ pub struct AiAnalysis {
     pub threat_summary: String,
     pub suspicious_lines: Vec<String>,
     pub recommendation: String,
+    /// The verdict is on the text of agent files (a skill), not on findings.
+    #[serde(default)]
+    pub on_agent_text: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -866,8 +869,15 @@ async fn execute_scan_in(
         sandbox_report.as_ref(),
     );
 
-    // Phase 3: AI analysis
-    let ai_result = if req.ai_analysis_enabled && !rule_matches.is_empty() {
+    // Phase 3: AI analysis. Agent files go in whole, findings or not: a skill
+    // that asks for harm in plain words has no URL or command to match.
+    let agent_files = if req.ai_analysis_enabled {
+        agent::agent_texts(&scan_dir, tree, ai_analyzer::MAX_SKILL_CHARS)
+    } else {
+        Vec::new()
+    };
+    let has_input = !rule_matches.is_empty() || !agent_files.is_empty();
+    let ai_result = if req.ai_analysis_enabled && has_input {
         info!("Running AI deep analysis...");
 
         let context_snippets: Vec<String> = rule_matches
@@ -882,14 +892,26 @@ async fn execute_scan_in(
 
         let combined_prompt = context_snippets.join("\n\n---\n\n");
 
-        let analysis = ai_analyzer::analyze_with_llm(
-            &req.llm_provider,
-            &req.llm_model,
-            &req.llm_api_key,
-            &req.llm_endpoint,
-            &combined_prompt,
-        )
-        .await;
+        let analysis = if agent_files.is_empty() {
+            ai_analyzer::analyze_with_llm(
+                &req.llm_provider,
+                &req.llm_model,
+                &req.llm_api_key,
+                &req.llm_endpoint,
+                &combined_prompt,
+            )
+            .await
+        } else {
+            ai_analyzer::analyze_skill_with_llm(
+                &req.llm_provider,
+                &req.llm_model,
+                &req.llm_api_key,
+                &req.llm_endpoint,
+                &agent_files,
+                &combined_prompt,
+            )
+            .await
+        };
 
         match analysis {
             Ok(a) => Some(a),

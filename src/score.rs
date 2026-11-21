@@ -72,12 +72,13 @@ pub fn calculate(
         + sandbox.map_or(0, |r| sandbox::risk_contribution(r) as u16))
     .min(20);
     // AI corroborates the static result; a benign verdict never raises it.
-    let ai = ai.as_ref().map_or(0, |a| {
-        if a.is_malicious {
-            (a.risk_score as u16 / 2).min(25)
-        } else {
-            0
-        }
+    // On a skill's own text it is the one reader of what the words ask for:
+    // a confident malicious verdict there is a verdict (eval/README.md, "AI
+    // agent skills by meaning": 49 of 102 holdout skills, 2 of 480 clean).
+    let ai = ai.as_ref().map_or(0, |a| match a.is_malicious {
+        true if a.on_agent_text && a.risk_score >= 70 => 70,
+        true => (a.risk_score as u16 / 2).min(25),
+        false => 0,
     });
     if model == Some("v2") {
         v2(matches, dynamic, ai)
@@ -113,6 +114,7 @@ fn decisive(name: &str) -> bool {
             scanner::STDIN_INTERPRETER,
             scanner::KANA_TABLE,
             scanner::MANIFEST_SCRIPT,
+            scanner::CHANNEL_FOLLOW,
             cve::REMOTE_URL_DEP,
         ]
         .contains(&name)
@@ -324,7 +326,26 @@ mod tests {
             threat_summary: String::new(),
             suspicious_lines: Vec::new(),
             recommendation: String::new(),
+            on_agent_text: false,
         })
+    }
+
+    #[test]
+    fn a_confident_verdict_on_a_skills_text_is_a_verdict() {
+        let ai = |on_agent_text, risk_score| {
+            Some(AiAnalysis {
+                is_malicious: true,
+                risk_score,
+                on_agent_text,
+                ..benign_ai().unwrap()
+            })
+        };
+        let total = |a| calculate(None, &[], &a, None, None, None, None).total();
+        assert_eq!(total(ai(true, 85)), 70);
+        // On findings it corroborates; unsure on a skill it is a lead.
+        assert_eq!(total(ai(false, 85)), 25);
+        assert_eq!(total(ai(true, 60)), 25);
+        assert_eq!(total(benign_ai()), 0);
     }
 
     #[test]
