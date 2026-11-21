@@ -127,13 +127,13 @@ const STAGERS: &[&str] = &[
 /// Signals that code runs when the package is installed.
 const INSTALL_HOOKS: &[&str] = &["Post-Install Script", INSTALL_HOOK_OVERRIDE, SETUP_PY_EXEC];
 
-/// Where install-time code sends what it collected.
+/// Where install-time code sends what it collected. Not REMOTE_BINARY: a
+/// download brings a payload in (STAGERS), and one finding made two chains.
 const EXFIL_CHANNELS: &[&str] = &[
     EXFIL_SERVICE,
     IP_URL,
     IP_LOOKUP,
     RAW_SOCKET,
-    REMOTE_BINARY,
     "Discord Webhook",
     "Telegram Bot API Token",
     "Slack Webhook",
@@ -184,10 +184,28 @@ static AGENT_HARM: LazyLock<Regex> = LazyLock::new(|| {
 /// Chain parts must sit this close (bytes). Bundlers put a whole extension in
 /// one file, so "same file" alone paired a socket in one module with a
 /// child_process in another (Remote Containers, Ansible).
-const NEAR: usize = 4096;
+pub(crate) const NEAR: usize = 4096;
 
 /// Lines between a host-name read and a hardcoded IP that make one beacon.
 const IP_LINES: usize = 200;
+
+/// Tunnel services that are also products people build on and name in code.
+const TUNNEL_HOSTS: &[&str] = &[
+    "ngrok",
+    "trycloudflare.com",
+    "localhost.run",
+    "lhr.life",
+    "serveo.net",
+    "pinggy",
+];
+
+/// What a finding matched: the text between the `>>> … <<<` marks of its context.
+pub(crate) fn matched_text(m: &RuleMatch) -> &str {
+    m.context
+        .split_once(">>> ")
+        .and_then(|(_, rest)| rest.split_once(" <<<"))
+        .map_or("", |(text, _)| text)
+}
 
 /// Chains visible inside one file. `file_matches` are this file's hits and
 /// `offsets[i]` the byte offset of `file_matches[i]`.
@@ -239,7 +257,7 @@ pub fn correlate_file(
     }
 
     if let Some((at, chmod, spawn)) = near(&[MAKE_EXECUTABLE], &[DETACHED_SPAWN]) {
-        if spawns_chmod_target(content, at) {
+        if spawns_chmod_target(content, at) && !chmods_shipped_file(content, at) {
             out.push(chain(rel_path, DROP_EXECUTE, chmod, spawn));
         }
     }
@@ -247,18 +265,20 @@ pub fn correlate_file(
     // An agent started with its approval prompts off and told to destroy or
     // to collect keys does the damage itself (amazon-q-vscode 1.84.0, the
     // nx "s1ngularity" packages). The flag alone is every agent harness.
-    if let Some((at, run)) = indexed(&[AGENT_UNSAFE]).into_iter().next() {
-        if AGENT_HARM.is_match(around(content, at)) {
-            out.push(RuleMatch {
-                matched_pattern: WEAPONISED_AGENT.to_string(),
-                severity: "critical".to_string(),
-                context: format!(
-                    "{} (line {}) with a prompt that asks for deletion or for keys and wallets",
-                    run.matched_pattern, run.line_number
-                ),
-                ..run.clone()
-            });
-        }
+    // Not the flag as a pattern in a security tool's rule table.
+    if let Some((_, run)) = indexed(&[AGENT_UNSAFE])
+        .into_iter()
+        .find(|(at, _)| !in_regex(content, *at) && AGENT_HARM.is_match(around(content, *at)))
+    {
+        out.push(RuleMatch {
+            matched_pattern: WEAPONISED_AGENT.to_string(),
+            severity: "critical".to_string(),
+            context: format!(
+                "{} (line {}) with a prompt that asks for deletion or for keys and wallets",
+                run.matched_pattern, run.line_number
+            ),
+            ..run.clone()
+        });
     }
 
     if let Some((_, key)) = indexed(&["SSH Key Access"]).into_iter().find(|(at, _)| {
@@ -372,6 +392,22 @@ pub fn correlate_file(
     out
 }
 
+/// Whether the flag at `at` is written as part of a regular expression:
+/// `(?:--dangerously-skip-permissions|--trust-all-tools)\b`. After the flag
+/// a bare `|` is not enough: `--trust-all-tools|tee log` is a shell pipe.
+fn in_regex(content: &str, at: usize) -> bool {
+    let Some((before, rest)) = content.split_at_checked(at) else {
+        return false;
+    };
+    let after = rest.trim_start_matches(|c: char| c.is_ascii_alphanumeric() || c == '-');
+    // `cat prompt.txt|codex --yolo` has its `|` before a command, not a flag.
+    rest.starts_with('-')
+        && (["|", "\\b", "(?:"].iter().any(|s| before.ends_with(s))
+            || ["\\b", "|-", "|\\", "|("]
+                .iter()
+                .any(|s| after.starts_with(s)))
+}
+
 /// Whether the line at `at` is a long one that closes a file of ordinary
 /// code: at least 15 short code lines before it and next to nothing after.
 /// A file obfuscated as a whole has no readable part, with or without a
@@ -411,6 +447,36 @@ fn spawns_chmod_target(content: &str, at: usize) -> bool {
     .is_ok_and(|launch| launch.is_match(around(content, at)))
 }
 
+/// How a dropped file gets onto the disk: written, copied, fetched, unpacked.
+static FILE_ARRIVES: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"\b(?:writeFile(?:Sync)?|copyFile(?:Sync)?|createWriteStream|rename(?:Sync)?|pipeline|fetch|download\w*|https?\.(?:get|request)|extract\w*|unzip\w*)\s*\(",
+    )
+    .unwrap()
+});
+
+/// Whether the file made executable at `at` came with the package: its path
+/// is built from the package's own directory (`path.join(__dirname, …)`) and
+/// nothing nearby writes, copies or downloads, and the caller's arguments
+/// are handed on. A launcher that starts its bundled binary drops nothing;
+/// a module that starts one on import with no arguments is not a launcher.
+fn chmods_shipped_file(content: &str, at: usize) -> bool {
+    let Some(target) = content
+        .get(at..)
+        .and_then(|rest| CHMOD_TARGET.captures(rest))
+        .map(|c| regex::escape(&c[1]))
+    else {
+        return false;
+    };
+    let near = around(content, at);
+    Regex::new(&format!(
+        r"\b{target}\s*=[^;\n]*(?:__dirname|import\.meta|require\.resolve)"
+    ))
+    .is_ok_and(|own| own.is_match(near))
+        && !FILE_ARRIVES.is_match(near)
+        && near.contains("process.argv")
+}
+
 /// The `NEAR`-byte neighbourhood of `at`, clamped to char boundaries.
 fn around(content: &str, at: usize) -> &str {
     let mut lo = at.saturating_sub(NEAR).min(content.len());
@@ -424,22 +490,62 @@ fn around(content: &str, at: usize) -> &str {
     &content[lo..hi]
 }
 
+/// Script names that say "run at install", and what they are written in.
+const HOOK_SCRIPTS: &[&str] = &[
+    "install",
+    "postinstall",
+    "preinstall",
+    "setup",
+    "prepare",
+    "bootstrap",
+];
+const HOOK_SCRIPT_EXTS: &[&str] = &["js", "cjs", "mjs", "sh", "py", "ts"];
+
+/// Tests and their data: code that never runs for whoever installs the package.
+fn is_test_file(path: &str) -> bool {
+    let p = path.replace('\\', "/").to_ascii_lowercase();
+    let (dirs, name) = p.rsplit_once('/').unwrap_or(("", &p));
+    name.contains(".test.")
+        || name.contains(".spec.")
+        || name == "conftest.py"
+        || (name.starts_with("test_") && name.ends_with(".py"))
+        || dirs
+            .split('/')
+            .any(|d| matches!(d, "test" | "tests" | "__tests__" | "fixtures" | "testdata"))
+}
+
+/// Directories that hold somebody else's package, one per entry.
+const VENDOR_DIRS: &[&str] = &["node_modules/", "site-packages/", "_vendor/", "vendor/"];
+
 /// The package a file belongs to: `""` for the scanned package itself, or
 /// the `…/node_modules/<name>` (or `@scope/name`) prefix of a bundled dep.
+/// Vendored Python counts the same way (`site-packages/<name>`,
+/// `_vendor/<name>`, `vendor/<name>`): a pywin32 demo in a bundled runtime
+/// is not the application listing accounts.
 fn package_unit(path: &str) -> &str {
     let p = path.trim_start_matches("./");
-    let Some(i) = p.rfind("node_modules/") else {
+    // The innermost directory wins, as with nested node_modules.
+    let innermost = VENDOR_DIRS
+        .iter()
+        .filter_map(|dir| {
+            let at = |i: &usize| *i == 0 || p.as_bytes()[i - 1] == b'/';
+            let i = p.rmatch_indices(dir).map(|(i, _)| i).find(at)?;
+            // `vendor/<name>/…`: a file directly in `vendor/` is no package.
+            let start = i + dir.len();
+            (*dir == "node_modules/" || p[start..].contains('/')).then_some((start, *dir))
+        })
+        .max();
+    let Some((start, dir)) = innermost else {
         return "";
     };
-    let rest = &p[i + "node_modules/".len()..];
-    let mut parts = rest.splitn(3, '/');
+    let mut parts = p[start..].splitn(3, '/');
     let first = parts.next().unwrap_or_default();
-    let len = if first.starts_with('@') {
+    let len = if dir == "node_modules/" && first.starts_with('@') {
         first.len() + 1 + parts.next().map_or(0, str::len)
     } else {
         first.len()
     };
-    &p[..i + "node_modules/".len() + len]
+    &p[..start + len]
 }
 
 /// Chains that span files (and manifest findings), run once per scan after
@@ -455,9 +561,21 @@ pub fn correlate_package(matches: &[RuleMatch]) -> Vec<RuleMatch> {
 /// package.json scripts are the author's build steps and never run when a
 /// user installs the extension (Remote Containers, carbon-now-sh).
 pub fn correlate_package_with(matches: &[RuleMatch], install_hooks_run: bool) -> Vec<RuleMatch> {
+    // A vendored directory the install hook runs (`node vendor/loader/index.js`)
+    // is the package's own code. Not node_modules: a dep is a dep.
+    let own: Vec<&RuleMatch> = matches
+        .iter()
+        .filter(|m| package_unit(&m.file_path).is_empty())
+        .collect();
+    let hook = install_hook(&own).map_or("", |h| h.context.as_str());
     let mut units: BTreeMap<&str, Vec<&RuleMatch>> = BTreeMap::new();
     for m in matches {
-        units.entry(package_unit(&m.file_path)).or_default().push(m);
+        let unit = package_unit(&m.file_path);
+        let run = !unit.contains("node_modules/") && !unit.is_empty() && hook.contains(unit);
+        units
+            .entry(if run { "" } else { unit })
+            .or_default()
+            .push(m);
     }
     units
         .into_iter()
@@ -477,7 +595,29 @@ fn install_hook<'a>(matches: &[&'a RuleMatch]) -> Option<&'a RuleMatch> {
 }
 
 /// `hooks_run`: this unit is the scanned package and its install hooks run.
-fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
+fn correlate_unit(all: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
+    // Tests and fixtures never run for whoever installs the package: the
+    // inputs of a command guard's tests (`net user`) are not the package
+    // listing accounts. They pair inside their own file (`correlate_file`),
+    // and here only when the install hook names them or runs the tests
+    // (`"postinstall": "npm test"`).
+    let hook_names = install_hook(all)
+        .filter(|_| hooks_run)
+        .map_or("", |h| h.context.as_str());
+    let runs_tests = hook_names.to_ascii_lowercase().contains("test");
+    let live: Vec<&RuleMatch> = all
+        .iter()
+        .copied()
+        .filter(|m| {
+            !is_test_file(&m.file_path)
+                || runs_tests
+                || Path::new(&m.file_path)
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| hook_names.contains(n))
+        })
+        .collect();
+    let matches = &live[..];
     let first = |names: &[&str]| {
         matches
             .iter()
@@ -500,13 +640,13 @@ fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
                 && also(m)
         })
     };
-    let mut out = remote_file_write(matches);
+    let mut out = remote_file_write(all);
 
     // 99.99.99 or 999.999.999 is a version nobody releases: it exists to
     // outrank a private package of the same name. With code that runs at
     // install, the package is the dependency-confusion probe itself.
     // Nines only: chromedriver's major is the Chrome version (131).
-    if let Some(hook) = install_hook(matches).filter(|_| hooks_run) {
+    if let Some(hook) = install_hook(all).filter(|_| hooks_run) {
         let nines = |m: &&RuleMatch| {
             let version = m.context.split(':').next().unwrap_or_default();
             let major = version.rsplit('@').next().unwrap_or_default();
@@ -522,22 +662,28 @@ fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
     // or install-time stealer. Recon + a plain HTTP call also counts here:
     // legitimate install scripts do not need the hostname and username.
     // Root only: a bundled dep's own install script never runs for the user.
-    if let Some(hook) = install_hook(matches).filter(|_| hooks_run) {
+    if let Some(hook) = install_hook(all).filter(|_| hooks_run) {
         // An installer URL in a help text, a `curl … | sh` hint or a `daemon
         // install` command sits somewhere in many CLIs that also have an
         // install script. Those three count only in what the hook runs: the
         // manifest, a file its command names, or a file named for the job.
+        // Named for it by its whole name and near the root: `install`
+        // anywhere in the name let through a daemon's own subcommand
+        // (`dist/lib/mesh/live/daemon/install.js`) and `setup.test.ts`.
         let hook_runs = |m: &RuleMatch| {
             let name = Path::new(&m.file_path)
                 .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or_default();
             let lower = name.to_ascii_lowercase();
+            let for_the_job = lower.rsplit_once('.').is_some_and(|(stem, ext)| {
+                HOOK_SCRIPTS.contains(&stem) && HOOK_SCRIPT_EXTS.contains(&ext)
+            });
             m.file_path == hook.file_path
                 || hook.context.contains(name)
-                || ["install", "setup", "prepare", "bootstrap"]
-                    .iter()
-                    .any(|w| lower.contains(w))
+                || (for_the_job
+                    && m.file_path.matches(['/', '\\']).count() <= 2
+                    && !is_test_file(&m.file_path))
         };
         let reached = |m: &&RuleMatch| {
             ![REMOTE_BINARY, DOWNLOAD_CRADLE, SYSTEMD_USER].contains(&m.matched_pattern.as_str())
@@ -566,23 +712,43 @@ fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
 
     // Every package the account maintains, then `npm publish`: a release
     // tool publishes its own package, a worm republishes all of them.
-    if let (Some(list), Some(publish)) = (first(&[MAINTAINER_ENUM]), first(&[NPM_PUBLISH])) {
+    let anywhere = |name: &str| all.iter().copied().find(|m| m.matched_pattern == name);
+    if let (Some(list), Some(publish)) = (anywhere(MAINTAINER_ENUM), anywhere(NPM_PUBLISH)) {
         out.push(chain(&list.file_path, NPM_WORM, list, publish));
     }
 
     // setup.py runs top to bottom at `pip install`: what it fetches needs no
     // `cmdclass` to count, and a build has no use for the user or host name.
+    // A CLI module `pkg/interface/commands/setup.py` is no install script.
+    // The one at the root (or under an sdist's `pkg-1.0/`) is; deeper, one of
+    // the setup.py rules has to be in the file: the scanner reports those
+    // only where `setup(` is called.
     if hooks_run {
+        let is_script = |file: &str| {
+            file.matches(['/', '\\']).count() <= 1
+                || all.iter().any(|h| {
+                    h.file_path == file
+                        && [INSTALL_HOOK_OVERRIDE, SETUP_PY_EXEC, SETUP_PY_STAGER]
+                            .contains(&h.matched_pattern.as_str())
+                })
+        };
         let in_setup = |names: &[&str]| {
-            matches.iter().copied().find(|m| {
+            all.iter().copied().find(|m| {
                 Path::new(&m.file_path).file_name() == Some("setup.py".as_ref())
                     && names.contains(&m.matched_pattern.as_str())
+                    && is_script(&m.file_path)
             })
         };
         let fetch = in_setup(&[SETUP_PY_STAGER, "URL Fetch Command"]);
         if let (Some(fetch), Some(sink)) = (fetch, in_setup(EXFIL_CHANNELS)) {
             if !out.iter().any(|c| c.matched_pattern == INSTALL_EXFIL) {
                 out.push(chain(&sink.file_path, INSTALL_EXFIL, fetch, sink));
+            }
+        }
+        // What a module-level fetch downloads is a payload, cmdclass or not.
+        if let (Some(fetch), Some(bin)) = (fetch, in_setup(&[REMOTE_BINARY])) {
+            if !out.iter().any(|c| c.matched_pattern == INSTALL_PAYLOAD) {
+                out.push(chain(&bin.file_path, INSTALL_PAYLOAD, fetch, bin));
             }
         }
         let hook = in_setup(&[INSTALL_HOOK_OVERRIDE, SETUP_PY_EXEC]);
@@ -616,11 +782,42 @@ fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
                     .map(|ip| (r, ip))
             })
     };
+    // First (a, b) pair inside one file. Two medium "mention" rules anywhere
+    // in a package are a help text and a telemetry module.
+    let same_file = |a: &str, b: &str| {
+        let named = |name: &str| {
+            matches
+                .iter()
+                .copied()
+                .filter(move |m| m.matched_pattern == name)
+                .collect::<Vec<_>>()
+        };
+        let bs = named(b);
+        named(a).into_iter().find_map(|x| {
+            bs.iter()
+                .find(|y| y.file_path == x.file_path)
+                .map(|y| (x, *y))
+        })
+    };
+    // A tunnel product's endpoint (a CLI that opens cloudflared tunnels) or
+    // one of three or more such hosts in a file (a blocklist) is a mention
+    // too. A capture service or an attacker's token is not.
+    let mention = |m: &RuleMatch| {
+        let listed: HashSet<String> = matches
+            .iter()
+            .filter(|o| o.matched_pattern == EXFIL_SERVICE && o.file_path == m.file_path)
+            .map(|o| matched_text(o).to_ascii_lowercase())
+            .filter(|host| !host.is_empty())
+            .collect();
+        let host = matched_text(m).to_ascii_lowercase();
+        m.matched_pattern == EXFIL_SERVICE
+            && (listed.len() >= 3 || TUNNEL_HOSTS.iter().any(|t| host.contains(t)))
+    };
     if let Some(recon) = first(&[HOST_RECON]) {
         let beacon = matches
             .iter()
             .copied()
-            .find(|m| {
+            .filter(|m| {
                 [
                     EXFIL_SERVICE,
                     DNS_BUILT,
@@ -631,7 +828,16 @@ fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
                     && !(m.matched_pattern == EXFIL_SERVICE
                         && m.context.contains("api.telegram.org"))
             })
-            .map(|sink| (recon, sink))
+            .find_map(|sink| {
+                if !mention(sink) {
+                    return Some((recon, sink));
+                }
+                matches
+                    .iter()
+                    .copied()
+                    .find(|r| r.matched_pattern == HOST_RECON && r.file_path == sink.file_path)
+                    .map(|r| (r, sink))
+            })
             .or_else(ip_near)
             .or_else(|| {
                 first(&[DEP_CONFUSION_VERSION])
@@ -641,20 +847,20 @@ fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
         if let Some((recon, sink)) = beacon {
             out.push(chain(&recon.file_path, RECON_BEACON, recon, sink));
         }
-        // Hostname alone is telemetry; listing local accounts and privileges is not.
-        if let Some(enumerate) = first(&[ACCOUNT_ENUM]) {
-            out.push(chain(
-                &enumerate.file_path,
-                SYSTEM_DISCOVERY,
-                enumerate,
-                recon,
-            ));
-        }
+    }
+    // Hostname alone is telemetry; listing local accounts and privileges is not.
+    if let Some((enumerate, recon)) = same_file(ACCOUNT_ENUM, HOST_RECON) {
+        out.push(chain(
+            &enumerate.file_path,
+            SYSTEM_DISCOVERY,
+            enumerate,
+            recon,
+        ));
     }
 
     // A third-party API endpoint persisted into the shell profile captures
     // every later request, API key included.
-    if let (Some(url), Some(profile)) = (first(&[AI_BASE_URL]), first(&[SHELL_PROFILE])) {
+    if let Some((url, profile)) = same_file(AI_BASE_URL, SHELL_PROFILE) {
         out.push(chain(&url.file_path, AI_TRAFFIC_HIJACK, url, profile));
     }
     out
@@ -807,7 +1013,7 @@ pub fn foreign_binary(root: &Path) -> Option<RuleMatch> {
 pub fn hidden_binary(root: &Path, matches: &[RuleMatch]) -> Option<RuleMatch> {
     let spawn = matches
         .iter()
-        .find(|m| m.matched_pattern == DETACHED_SPAWN && package_unit(&m.file_path).is_empty())?;
+        .find(|m| m.matched_pattern == DETACHED_SPAWN && !m.file_path.contains("node_modules/"))?;
     let binary = walkdir::WalkDir::new(root)
         .max_depth(4)
         .into_iter()
@@ -844,14 +1050,26 @@ pub fn hidden_binary(root: &Path, matches: &[RuleMatch]) -> Option<RuleMatch> {
 }
 
 pub(crate) fn chain(rel_path: &str, name: &str, a: &RuleMatch, b: &RuleMatch) -> RuleMatch {
+    // Halves in two files each say where: a bare "(line 94)" for a socket
+    // somewhere in the package cannot be reviewed.
+    let at = |m: &RuleMatch| {
+        if a.file_path == b.file_path {
+            format!("line {}", m.line_number)
+        } else {
+            format!("{} line {}", m.file_path, m.line_number)
+        }
+    };
     RuleMatch {
         file_path: rel_path.to_string(),
         line_number: a.line_number,
         matched_pattern: name.to_string(),
         severity: "critical".to_string(),
         context: format!(
-            "{} (line {}) + {} (line {})",
-            a.matched_pattern, a.line_number, b.matched_pattern, b.line_number
+            "{} ({}) + {} ({})",
+            a.matched_pattern,
+            at(a),
+            b.matched_pattern,
+            at(b)
         ),
     }
 }
@@ -974,6 +1192,10 @@ mod tests {
         let out = correlate_file("a.js", "", &m, &[]);
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].matched_pattern, CREDENTIAL_EXFIL);
+        assert_eq!(
+            out[0].context,
+            "Browser Database Access (line 3) + URL Fetch Command (line 9)"
+        );
         assert_eq!(out[0].line_number, 3);
     }
 
@@ -1084,6 +1306,29 @@ mod tests {
             names(&correlate_file("index.mjs", dropper, &m, &[at, 60])),
             vec![DROP_EXECUTE]
         );
+        // A launcher starting the binary the package ships: nothing is dropped.
+        let launcher = "const bin = path.join(__dirname, '..', 'vendor', `tool-${process.platform}`);\nfs.chmodSync(bin, 0o755);\nconst child = spawn(bin, process.argv.slice(2), { detached: true, stdio: 'ignore' });";
+        let at = launcher.find("chmodSync").unwrap();
+        assert!(correlate_file("bin/run.js", launcher, &m, &[at, at + 40]).is_empty());
+        // Started on import with no arguments, the shipped file is a payload.
+        let on_import = "const bin = path.join(__dirname, 'internal', 'calc.dat');\nfs.chmodSync(bin, 0o755);\ncp.spawn(bin, [], { detached: true, stdio: 'pipe' });";
+        let at = on_import.find("chmodSync").unwrap();
+        assert_eq!(
+            names(&correlate_file(
+                "dist/index.mjs",
+                on_import,
+                &m,
+                &[at, at + 40]
+            )),
+            vec![DROP_EXECUTE]
+        );
+        // Fetched into the package directory first, it is a drop.
+        let fetched = "const bin = path.join(__dirname, 'helper');\nawait pipeline(res.body, fs.createWriteStream(bin));\nfs.chmodSync(bin, 0o755);\nspawn(bin, [], { detached: true });";
+        let at = fetched.find("chmodSync").unwrap();
+        assert_eq!(
+            names(&correlate_file("install.js", fetched, &m, &[at, at + 40])),
+            vec![DROP_EXECUTE]
+        );
         // firebase-tools: chmod a user path override, spawn the configured binary.
         let emulator = "const o = { detached: true }; spawn(command.binary, args, o);\nfs.chmodSync(pathOverride, 0o755);";
         let at = emulator.find("chmodSync").unwrap();
@@ -1163,6 +1408,39 @@ mod tests {
             hit("setup.py", EXFIL_SERVICE, 11),
         ];
         assert_eq!(names(&correlate_package(&m)), vec![INSTALL_EXFIL]);
+        // setup.py fetching an executable at module level: a payload.
+        let m = vec![
+            hit("setup.py", SETUP_PY_STAGER, 10),
+            hit("setup.py", REMOTE_BINARY, 11),
+        ];
+        assert_eq!(names(&correlate_package(&m)), vec![INSTALL_PAYLOAD]);
+        // A stealer's one-liner is fetch and channel on one line.
+        let m = vec![
+            hit("setup.py", SETUP_PY_STAGER, 4),
+            hit("setup.py", "URL Fetch Command", 4),
+            hit("setup.py", "Discord Webhook", 4),
+        ];
+        assert_eq!(names(&correlate_package(&m)), vec![INSTALL_EXFIL]);
+        // An exec the rules cannot see (`getattr(__import__('os'), 'sy'+'stem')`)
+        // leaves only the fetch and the URL, on one line of the root setup.py.
+        let m = vec![
+            hit("setup.py", "URL Fetch Command", 3),
+            hit("setup.py", REMOTE_BINARY, 3),
+        ];
+        assert_eq!(names(&correlate_package(&m)), vec![INSTALL_PAYLOAD]);
+        // A monorepo member's setup.py counts by what the scanner found in it.
+        let m = vec![
+            hit("packages/core/py/setup.py", SETUP_PY_STAGER, 10),
+            hit("packages/core/py/setup.py", IP_URL, 11),
+        ];
+        assert_eq!(names(&correlate_package(&m)), vec![INSTALL_EXFIL]);
+        // A CLI's `setup` command module is not an install script.
+        let m = vec![
+            hit("pkg/interface/commands/setup.py", "URL Fetch Command", 40),
+            hit("pkg/interface/commands/setup.py", RAW_SOCKET, 88),
+            hit("pkg/interface/commands/setup.py", HOST_RECON, 12),
+        ];
+        assert!(correlate_package(&m).is_empty());
         // The user and host name read by an install hook.
         let m = vec![
             hit("pkg-1.0/setup.py", INSTALL_HOOK_OVERRIDE, 30),
@@ -1207,6 +1485,37 @@ mod tests {
         assert!(correlate_package(&m).is_empty());
         let m = vec![hit("a.js", HOST_RECON, 30), hit("b.js", IP_URL, 12)];
         assert!(correlate_package(&m).is_empty());
+        // A tunnel product's own endpoint, or a list of such hosts (a
+        // blocklist, detection data), is a mention: it beacons only from the
+        // file that reads the host name.
+        let service = |file: &str, line, host: &str| RuleMatch {
+            context: format!("url = \">>> {host} <<<\""),
+            ..hit(file, EXFIL_SERVICE, line)
+        };
+        let tunnel = service("src/tunnel.js", 40, "https://api.trycloudflare.com");
+        let m = vec![hit("src/device.js", HOST_RECON, 2), tunnel];
+        assert!(correlate_package(&m).is_empty());
+        let m = vec![
+            hit("src/device.js", HOST_RECON, 2),
+            service("data/hosts.js", 1, "webhook.site"),
+            service("data/hosts.js", 2, "requestcatcher.com"),
+            service("data/hosts.js", 3, "oastify.com"),
+        ];
+        assert!(correlate_package(&m).is_empty());
+        let m = vec![
+            hit("src/device.js", HOST_RECON, 2),
+            hit("lib/sync.js", HOST_RECON, 8),
+            service("lib/sync.js", 9, "https://a1b2.ngrok-free.app"),
+        ];
+        let out = correlate_package(&m);
+        assert_eq!(names(&out), vec![RECON_BEACON]);
+        assert_eq!(out[0].file_path, "lib/sync.js");
+        // One capture service is nobody's product: any file of the package.
+        let m = vec![
+            hit("src/device.js", HOST_RECON, 2),
+            service("lib/sync.js", 9, "webhook.site"),
+        ];
+        assert_eq!(names(&correlate_package(&m)), vec![RECON_BEACON]);
         // Telemetry that reads the hostname and posts to its own API is not.
         let m = vec![
             hit("a.js", HOST_RECON, 2),
@@ -1252,6 +1561,92 @@ mod tests {
             hit("node_modules/evil/b.js", EXFIL_SERVICE, 2),
         ];
         assert_eq!(names(&correlate_package(&m)), vec![RECON_BEACON]);
+    }
+
+    #[test]
+    fn vendored_python_packages_are_units_too() {
+        assert_eq!(
+            package_unit("runtime/Lib/site-packages/win32/Demos/security/x.py"),
+            "runtime/Lib/site-packages/win32"
+        );
+        assert_eq!(
+            package_unit("pip/_vendor/requests/utils.py"),
+            "pip/_vendor/requests"
+        );
+        assert_eq!(package_unit("vendor/helper.js"), "");
+        assert_eq!(
+            package_unit("node_modules/a/vendor/b/x.js"),
+            "node_modules/a/vendor/b"
+        );
+        assert_eq!(package_unit("src/myvendor/x.py"), "");
+
+        // A pywin32 demo in a bundled runtime next to the app's own hostname
+        // read; a tunnel host in one vendored dep, a hostname in another.
+        let m = vec![
+            hit("app/main.py", HOST_RECON, 18),
+            hit(
+                "runtime/Lib/site-packages/win32/Demos/security/x.py",
+                ACCOUNT_ENUM,
+                8,
+            ),
+            hit("pkg/_vendor/urllib3/util.py", HOST_RECON, 30),
+            hit("pkg/_vendor/tunnel/client.py", EXFIL_SERVICE, 4),
+        ];
+        assert!(correlate_package(&m).is_empty());
+
+        // Both halves in one vendored package still chain.
+        let m = vec![
+            hit("pkg/_vendor/evil/a.py", HOST_RECON, 1),
+            hit("pkg/_vendor/evil/b.py", EXFIL_SERVICE, 2),
+        ];
+        assert_eq!(names(&correlate_package(&m)), vec![RECON_BEACON]);
+        // A payload kept under `vendor/` and run by the install hook is the
+        // package's own code.
+        let mut hook = hit("package.json", "Post-Install Script", 9);
+        hook.context = r#""postinstall": "node vendor/loader/index.js""#.to_string();
+        let m = vec![hook, hit("vendor/loader/index.js", EXFIL_SERVICE, 3)];
+        assert_eq!(names(&correlate_package(&m)), vec![INSTALL_EXFIL]);
+    }
+
+    #[test]
+    fn test_files_do_not_pair_across_the_package() {
+        let hook = hit("package.json", "Post-Install Script", 3);
+        // Inputs of a command guard's tests, a mock server in a fixture, the
+        // app's socket client under test.
+        for m in [
+            vec![
+                hit("src/guard.test.ts", ACCOUNT_ENUM, 40),
+                hit("src/host.ts", HOST_RECON, 6),
+            ],
+            vec![
+                hit("pkg/telemetry.py", HOST_RECON, 6),
+                hit("tests/test_tunnel.py", EXFIL_SERVICE, 12),
+            ],
+            vec![
+                hit("__tests__/env.js", AI_BASE_URL, 5),
+                hit("src/shell.js", SHELL_PROFILE, 80),
+            ],
+            vec![hook.clone(), hit("test/ipc.spec.js", RAW_SOCKET, 22)],
+            vec![
+                hook.clone(),
+                hit("lib/fixtures/sample.js", FETCH_EVAL, 2),
+                hit("conftest.py", HOST_RECON, 3),
+                hit("src/api.js", "URL Fetch Command", 9),
+            ],
+        ] {
+            assert!(correlate_package(&m).is_empty(), "{m:?}");
+        }
+        // The same findings in shipped code still pair.
+        let m = vec![hook.clone(), hit("lib/ipc.js", RAW_SOCKET, 22)];
+        assert_eq!(names(&correlate_package(&m)), vec![INSTALL_EXFIL]);
+        // And a "test" the install hook runs is install code.
+        let mut runs = hook;
+        runs.context = r#""preinstall": "node test/setup.js""#.to_string();
+        let m = vec![runs.clone(), hit("test/setup.js", EXFIL_SERVICE, 4)];
+        assert_eq!(names(&correlate_package(&m)), vec![INSTALL_EXFIL]);
+        runs.context = r#""postinstall": "npm test""#.to_string();
+        let m = vec![runs, hit("test/ipc.spec.js", EXFIL_SERVICE, 4)];
+        assert_eq!(names(&correlate_package(&m)), vec![INSTALL_EXFIL]);
     }
 
     #[test]
@@ -1382,6 +1777,20 @@ mod tests {
         ];
         assert_eq!(names(&correlate_package(&m)), vec![SYSTEM_DISCOVERY]);
         assert!(correlate_package(&m[..1]).is_empty());
+        // `net user` in a help text and a hostname read in another module
+        // are two mentions, not one discovery script.
+        let m = vec![
+            hit("src/telemetry.js", HOST_RECON, 6),
+            hit("src/commands/help.js", ACCOUNT_ENUM, 52),
+        ];
+        assert!(correlate_package(&m).is_empty());
+        // The script is found whichever file's hostname read comes first.
+        let m = vec![
+            hit("src/telemetry.js", HOST_RECON, 6),
+            hit("lib/probe.js", ACCOUNT_ENUM, 3),
+            hit("lib/probe.js", HOST_RECON, 9),
+        ];
+        assert_eq!(names(&correlate_package(&m)), vec![SYSTEM_DISCOVERY]);
     }
 
     #[test]
@@ -1393,6 +1802,12 @@ mod tests {
         assert_eq!(names(&correlate_package(&m)), vec![AI_TRAFFIC_HIJACK]);
         // A shell-completion installer touching .zshrc is not.
         assert!(correlate_package(&m[1..]).is_empty());
+        // Nor is it with a provider's default endpoint in another module.
+        let m = vec![
+            hit("src/providers.js", AI_BASE_URL, 12),
+            hit("src/completions.js", SHELL_PROFILE, 204),
+        ];
+        assert!(correlate_package(&m).is_empty());
     }
 
     #[test]
@@ -1480,9 +1895,30 @@ mod tests {
         let hint = hit("bin/coder.js", REMOTE_BINARY, 34);
         assert!(correlate_package(&[hook.clone(), daemon, hint]).is_empty());
         let fetched = hit("scripts/postinstall.cjs", REMOTE_BINARY, 12);
+        // One download is one chain: a payload, not an exfil channel.
         assert_eq!(
             names(&correlate_package(&[hook.clone(), fetched])),
-            vec![INSTALL_EXFIL, INSTALL_PAYLOAD]
+            vec![INSTALL_PAYLOAD]
+        );
+        // A file is "named for the job" by its whole name, near the root: not
+        // a daemon's own `install` subcommand four levels down, not a test.
+        for file in [
+            "dist/lib/mesh/live/daemon/install.js",
+            "scripts/lib/setup.test.ts",
+            "tests/install.js",
+            "src/reinstall-helper.js",
+        ] {
+            let unit = hit(file, SYSTEMD_USER, 40);
+            assert!(
+                correlate_package(&[hook.clone(), unit]).is_empty(),
+                "{file}"
+            );
+        }
+        // The dropper's `scripts/install.js`, whatever the hook command says.
+        let dropper = hit("scripts/install.js", SYSTEMD_USER, 40);
+        assert_eq!(
+            names(&correlate_package(&[hook.clone(), dropper])),
+            vec![INSTALL_PERSISTENCE]
         );
         // A CLI that sets up its own user service when the user asks is no chain.
         assert!(correlate_package(&[unit]).is_empty());
@@ -1510,6 +1946,30 @@ mod tests {
         let harness =
             "spawn('claude', ['--dangerously-skip-permissions', '-p', 'fix the failing test'])";
         assert!(correlate_file("ext.js", harness, &run, &[20]).is_empty());
+        // A security tool's rule table: the flag is a pattern to look for,
+        // and the words next to it describe the risk.
+        let rules = "{ id: 'agent-bypass', re: /(?:--dangerously-skip-permissions|--trust-all-tools)\\b/, why: 'the agent may delete files or read wallets' }";
+        let flags = [
+            hit("rules.js", AGENT_UNSAFE, 1),
+            hit("rules.js", AGENT_UNSAFE, 1),
+        ];
+        let at = [
+            rules.find("--dangerously").unwrap(),
+            rules.find("--trust").unwrap(),
+        ];
+        assert!(correlate_file("rules.js", rules, &flags, &at).is_empty());
+        // The table does not hide a real run further down the file.
+        let both = format!("{rules}\n{wipe}");
+        let flags = [flags[0].clone(), flags[0].clone(), run[0].clone()];
+        let at = [
+            at[0],
+            at[1],
+            rules.len() + 1 + wipe.find("--trust").unwrap(),
+        ];
+        assert_eq!(
+            names(&correlate_file("ext.js", &both, &flags, &at)),
+            vec![WEAPONISED_AGENT]
+        );
 
         let txt = [hit("run.js", DNS_TXT, 1), hit("run.js", "eval() Usage", 9)];
         assert_eq!(
@@ -1541,7 +2001,7 @@ mod tests {
         };
         // sapnwrfc: circle.yml downloads SAPCAR.EXE for the author's CI.
         assert!(names("circle.yml").is_empty());
-        assert_eq!(names("preinstall.js"), vec![INSTALL_EXFIL, INSTALL_PAYLOAD]);
+        assert_eq!(names("preinstall.js"), vec![INSTALL_PAYLOAD]);
     }
 
     #[test]
@@ -1571,7 +2031,13 @@ mod tests {
             hit("package.json", "Post-Install Script", 3),
             hit("dist/extension.js", RAW_SOCKET, 94),
         ];
-        assert_eq!(names(&correlate_package(&m)), vec![INSTALL_EXFIL]);
+        let out = correlate_package(&m);
+        assert_eq!(names(&out), vec![INSTALL_EXFIL]);
+        // Halves in different files name their files.
+        assert_eq!(
+            out[0].context,
+            "Post-Install Script (package.json line 3) + Raw Socket Connection (dist/extension.js line 94)"
+        );
         assert!(correlate_package_with(&m, false).is_empty());
     }
 }

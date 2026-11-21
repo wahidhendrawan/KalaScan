@@ -87,7 +87,10 @@ pub fn is_confusable_homoglyph(c: char) -> bool {
 /// table; opening Arabic or Hebrew text (Carbon's language names) it is
 /// localisation; alone between quotes (`const RLO = '\u{202E}'`) it is a
 /// constant in code that handles such characters; in a line of binary bytes
-/// (a `.wasm`, a phar) it is chance.
+/// (a `.wasm`, a phar) it is chance. So is a member of a class or set that
+/// lists such characters (`re.compile("[\u{202D}\u{202E}]")`), the only one
+/// on its line when it ends a string (nothing in the string follows it to
+/// reorder), and an isolate that opens an interpolated value (`\u{2066}${name}`).
 pub(crate) fn has_trojan_bidi(line: &str) -> bool {
     if line.contains(['\0', '\u{FFFD}']) {
         return false;
@@ -98,17 +101,32 @@ pub(crate) fn has_trojan_bidi(line: &str) -> bool {
         })
     };
     let quote = |c: Option<&char>| c.is_some_and(|c| matches!(c, '"' | '\'' | '`'));
+    // What stands next to a member of such a list: its edge, a range dash,
+    // an RTL letter or mark, another direction control.
+    let listed = |c: Option<&char>| {
+        quote(c)
+            || rtl(c)
+            || c.is_some_and(|c| {
+                matches!(c, '[' | ']' | '-' | '\u{200E}' | '\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}')
+            })
+    };
     let chars: Vec<char> = line.chars().collect();
+    let lone = chars.iter().filter(|c| is_bidi_trojan_char(**c)).count() == 1;
     chars.iter().enumerate().any(|(i, &c)| {
         let before = i.checked_sub(1).map(|p| &chars[p]);
         let after = chars.get(i + 1);
+        let interpolated = matches!(c, '\u{2066}' | '\u{2067}')
+            && (matches!(after, Some('{' | '%'))
+                || (after == Some(&'$') && chars.get(i + 2) == Some(&'{')));
         matches!(
             c,
             '\u{202A}' | '\u{202B}' | '\u{202D}' | '\u{202E}' | '\u{2066}' | '\u{2067}'
         ) && before != Some(&'-')
             && after != Some(&'-')
             && !rtl(after)
-            && !(quote(before) && quote(after))
+            && !(listed(before) && listed(after))
+            && !(lone && quote(after))
+            && !interpolated
     })
 }
 
@@ -285,6 +303,37 @@ mod tests {
             "title: \"\u{2068}{website}\u{2069} code\",",
         ] {
             assert!(!has_trojan_bidi(content), "{content:?}");
+        }
+    }
+
+    #[test]
+    fn listed_trailing_and_interpolating_controls_are_not_trojan_source() {
+        for content in [
+            // Sanitisers listing the controls: a regex class, a Python set.
+            "const BIDI = /[\u{200E}\u{200F}\u{202A}\u{202B}\u{202C}\u{202D}\u{202E}\u{2066}\u{2067}\u{2068}\u{2069}]/g;",
+            "_BIDI = re.compile(\"[\u{202D}\u{202E}]\")",
+            "_HIDDEN = frozenset(\"\u{061C}\u{200E}\u{200F}\u{202A}\u{202B}\u{202C}\u{202D}\u{202E}\u{2066}\u{2067}\u{2068}\u{2069}\")",
+            // The only control on the line, ending a string.
+            "assert strip_bidi(\"abc\u{202E}\") == \"abc\"",
+            // An isolate opening an interpolated value.
+            "label: `\u{2066}${name}\u{2069} (${count})`,",
+            "msg = \"\u{2067}{user}\u{2069} joined\"",
+            "fmt = '\u{2066}%s\u{2069}: %d'",
+        ] {
+            assert!(!has_trojan_bidi(content), "{content:?}");
+        }
+        for content in [
+            // The paper's commenting-out example.
+            "/*\u{202E} } \u{2066}if (isAdmin)\u{2069} \u{2066} begin admins only */",
+            // A file name shown as `invoiceexe.pdf`.
+            "name = \"invoice\u{202E}fdp.exe\"",
+            "name = \"\u{202E}fdp.exe\"",
+            // Two controls ending a string hide what sits between them.
+            "if (level != \"user\u{202E} \u{2066}\") {",
+            // An isolate before code, not before a placeholder.
+            "x = \"\u{2067}return;\u{2069}\"",
+        ] {
+            assert!(has_trojan_bidi(content), "{content:?}");
         }
     }
 

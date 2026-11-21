@@ -7,6 +7,15 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+### Changed
+- Ruleset 2026.11.12: a second round of false positives, from reading the 389 new npm and PyPI releases that ruleset 2026.11.11 still flagged. Of the 618 releases flagged by any build since the watch started, 270 still reach risk 50. Holdout 659 of 984 as before, no sample lost or gained; `dev` 688 of 929 (three lost, read and on record); 0 of 3,823 clean samples flagged; evasion suite 151 of 153.
+  - Data flow: a request to a loopback URL is not a sink, and a method is a network sink only on a network client. The environment handed to a child process is not sent, a name reassigned to a clean value is clean, and a field read off a group (`(options.env ?? process.env).NAME`) is one setting. `known_hosts`, `config`, `authorized_keys` and `*.pub` under `.ssh` are not secrets. A response's status is not its body, the options object of `spawn` is not the command, and `npx name@${version}` is a self-update.
+  - Chains: `Remote Executable Download` is not an exfiltration channel. A vendored Python package (`site-packages/<name>/`, `_vendor/<name>/`, `vendor/<name>/`) is a unit of its own. Tests and fixtures pair across the package only when the install hook names or runs them. `Chain: Drop and Execute Binary` skips a launcher that starts the binary its package ships and hands its arguments on. A chain's context names both files.
+  - Agent files: a steer and what it steers towards sit within 4 KB of each other; a hidden comment is not a second steer for the phrase inside it; a comment shown in a fenced code block is not hidden; a security tool's pattern table is not `Chain: Weaponised AI Agent`.
+  - Rules: a download cradle, `Remote Executable Download` or systemd unit handed to a log line or an exception is shown, not run. `curl … | python3 -c '…'` is a cradle only if the one-liner runs what it reads. Eight more official installer hosts. 100.64.0.0/10 is not a public address. Decode-and-run templates for a child process (`node -e "eval(Buffer.from('${n}','base64'))"`, a bootstrap that decodes `sys.argv`) carry no payload. `Python Import-Obfuscated Loader` needs `exec`, a second decode or a literal. The obfuscator's string-table needles match whole words. A Discord webhook needs its full path; a wallet name in a list of globs is not wallet access.
+  - Wider: the cradle rule reads `| sudo bash` and `bash -c "$(curl …)"`, and a vendor name that is only the user part of a URL (`https://claude.ai@host/`) is not the vendor.
+  - Built, measured and not shipped: install-time chains only in files the install hook reaches. It lost 6 holdout and 4 `dev` samples whose chain is a hook and a network call that share a package and nothing else. Three smaller changes were dropped and five narrowed for the holdout as well; the first build with everything had lost 14 holdout samples (eval/README.md, "What was still flagged, read by class").
+
 ## [1.23.0] - 2026-11-21
 
 ### Added

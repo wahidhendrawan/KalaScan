@@ -489,6 +489,9 @@ fn remote_url_dependencies(root: &Path) -> Vec<RuleMatch> {
         "bitbucket.org",
         "registry.npmjs.org",
         "registry.yarnpkg.com",
+        // SheetJS left the npm registry: its documented install is
+        // `"xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"`.
+        "cdn.sheetjs.com",
     ];
     let Some(text) = std::fs::read_to_string(root.join("package.json")).ok() else {
         return Vec::new();
@@ -1053,5 +1056,23 @@ version = "1.20.0"
         assert_eq!(found.len(), 1, "{:?}", found);
         assert_eq!(found[0].line_number, 2);
         assert!(found[0].context.contains("npm.artifacts-cdn.example"));
+    }
+
+    #[test]
+    fn sheetjs_from_its_own_cdn_is_its_documented_install() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"name": "report-export", "version": "1.0.0",
+  "dependencies": {"xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+    "xlsx-style": "https://cdn.sheetjs.com.pkg-mirror.example/xlsx-0.20.3.tgz"}}"#,
+        )
+        .unwrap();
+        let found: Vec<RuleMatch> = own_package_matches(dir.path())
+            .into_iter()
+            .filter(|m| m.matched_pattern == REMOTE_URL_DEP)
+            .collect();
+        assert_eq!(found.len(), 1, "{:?}", found);
+        assert!(found[0].context.contains("pkg-mirror.example"));
     }
 }

