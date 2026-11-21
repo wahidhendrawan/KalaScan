@@ -1,0 +1,675 @@
+{
+ "date": "2026-11-21",
+ "ruleset": "2026.11.11",
+ "detection": "153cee4dea8eee52",
+ "groups": {
+  "dev": {
+   "malicious": {
+    "total": 929,
+    "errors": 1,
+    "30": {
+     "flagged": 693,
+     "lo": 0.717,
+     "hi": 0.7729
+    },
+    "50": {
+     "flagged": 691,
+     "lo": 0.7148,
+     "hi": 0.7708
+    },
+    "70": {
+     "flagged": 691,
+     "lo": 0.7148,
+     "hi": 0.7708
+    }
+   },
+   "clean": {
+    "total": 399,
+    "errors": 2,
+    "30": {
+     "flagged": 4,
+     "lo": 0.0039,
+     "hi": 0.0255
+    },
+    "50": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0095
+    },
+    "70": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0095
+    }
+   }
+  },
+  "dev/fit-2026-11": {
+   "clean": {
+    "total": 296,
+    "errors": 2,
+    "30": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0128
+    },
+    "50": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0128
+    },
+    "70": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0128
+    }
+   }
+  },
+  "dev/fresh2-2026-11": {
+   "malicious": {
+    "total": 1,
+    "errors": 0,
+    "30": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.7935
+    },
+    "50": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.7935
+    },
+    "70": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.7935
+    }
+   }
+  },
+  "dev/openvsx-random-2026-11": {
+   "clean": {
+    "total": 3,
+    "errors": 0,
+    "30": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.5615
+    },
+    "50": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.5615
+    },
+    "70": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.5615
+    }
+   }
+  },
+  "dev/openvsx-random2-2026-11": {
+   "clean": {
+    "total": 9,
+    "errors": 0,
+    "30": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.2992
+    },
+    "50": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.2992
+    },
+    "70": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.2992
+    }
+   }
+  },
+  "dev/random-2026-11": {
+   "clean": {
+    "total": 5,
+    "errors": 0,
+    "30": {
+     "flagged": 2,
+     "lo": 0.1176,
+     "hi": 0.7693
+    },
+    "50": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.4345
+    },
+    "70": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.4345
+    }
+   }
+  },
+  "dev/random2-2026-11": {
+   "clean": {
+    "total": 16,
+    "errors": 0,
+    "30": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.1936
+    },
+    "50": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.1936
+    },
+    "70": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.1936
+    }
+   }
+  },
+  "dev/skills-random-2026-11": {
+   "clean": {
+    "total": 2,
+    "errors": 0,
+    "30": {
+     "flagged": 1,
+     "lo": 0.0945,
+     "hi": 0.9055
+    },
+    "50": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.6576
+    },
+    "70": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.6576
+    }
+   }
+  },
+  "dev/tune-2026-11": {
+   "malicious": {
+    "total": 100,
+    "errors": 0,
+    "30": {
+     "flagged": 80,
+     "lo": 0.7112,
+     "hi": 0.8666
+    },
+    "50": {
+     "flagged": 80,
+     "lo": 0.7112,
+     "hi": 0.8666
+    },
+    "70": {
+     "flagged": 80,
+     "lo": 0.7112,
+     "hi": 0.8666
+    }
+   }
+  },
+  "dev/tune-ext-2026-11": {
+   "malicious": {
+    "total": 23,
+    "errors": 1,
+    "30": {
+     "flagged": 13,
+     "lo": 0.3681,
+     "hi": 0.7437
+    },
+    "50": {
+     "flagged": 13,
+     "lo": 0.3681,
+     "hi": 0.7437
+    },
+    "70": {
+     "flagged": 13,
+     "lo": 0.3681,
+     "hi": 0.7437
+    }
+   }
+  },
+  "dev/tune-fresh-2026-11": {
+   "malicious": {
+    "total": 150,
+    "errors": 0,
+    "30": {
+     "flagged": 129,
+     "lo": 0.7954,
+     "hi": 0.9066
+    },
+    "50": {
+     "flagged": 129,
+     "lo": 0.7954,
+     "hi": 0.9066
+    },
+    "70": {
+     "flagged": 129,
+     "lo": 0.7954,
+     "hi": 0.9066
+    }
+   }
+  },
+  "dev/tune-npm-2026-11": {
+   "malicious": {
+    "total": 200,
+    "errors": 0,
+    "30": {
+     "flagged": 168,
+     "lo": 0.7829,
+     "hi": 0.8843
+    },
+    "50": {
+     "flagged": 166,
+     "lo": 0.7718,
+     "hi": 0.8757
+    },
+    "70": {
+     "flagged": 166,
+     "lo": 0.7718,
+     "hi": 0.8757
+    }
+   }
+  },
+  "dev/tune-npm2-2026-11": {
+   "malicious": {
+    "total": 200,
+    "errors": 0,
+    "30": {
+     "flagged": 154,
+     "lo": 0.7069,
+     "hi": 0.8229
+    },
+    "50": {
+     "flagged": 154,
+     "lo": 0.7069,
+     "hi": 0.8229
+    },
+    "70": {
+     "flagged": 154,
+     "lo": 0.7069,
+     "hi": 0.8229
+    }
+   }
+  },
+  "dev/tune-recent-2026-11": {
+   "malicious": {
+    "total": 80,
+    "errors": 0,
+    "30": {
+     "flagged": 44,
+     "lo": 0.4412,
+     "hi": 0.6542
+    },
+    "50": {
+     "flagged": 44,
+     "lo": 0.4412,
+     "hi": 0.6542
+    },
+    "70": {
+     "flagged": 44,
+     "lo": 0.4412,
+     "hi": 0.6542
+    }
+   }
+  },
+  "dev/tune-skills-2026-11": {
+   "malicious": {
+    "total": 102,
+    "errors": 0,
+    "30": {
+     "flagged": 46,
+     "lo": 0.3579,
+     "hi": 0.5476
+    },
+    "50": {
+     "flagged": 46,
+     "lo": 0.3579,
+     "hi": 0.5476
+    },
+    "70": {
+     "flagged": 46,
+     "lo": 0.3579,
+     "hi": 0.5476
+    }
+   }
+  },
+  "holdout": {
+   "malicious": {
+    "total": 984,
+    "errors": 11,
+    "30": {
+     "flagged": 660,
+     "lo": 0.6408,
+     "hi": 0.6994
+    },
+    "50": {
+     "flagged": 659,
+     "lo": 0.6397,
+     "hi": 0.6984
+    },
+    "70": {
+     "flagged": 659,
+     "lo": 0.6397,
+     "hi": 0.6984
+    }
+   },
+   "clean": {
+    "total": 3424,
+    "errors": 10,
+    "30": {
+     "flagged": 1,
+     "lo": 0.0001,
+     "hi": 0.0017
+    },
+    "50": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0011
+    },
+    "70": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0011
+    }
+   }
+  },
+  "holdout/fresh-2026-11": {
+   "malicious": {
+    "total": 159,
+    "errors": 2,
+    "30": {
+     "flagged": 90,
+     "lo": 0.4883,
+     "hi": 0.6406
+    },
+    "50": {
+     "flagged": 90,
+     "lo": 0.4883,
+     "hi": 0.6406
+    },
+    "70": {
+     "flagged": 90,
+     "lo": 0.4883,
+     "hi": 0.6406
+    }
+   }
+  },
+  "holdout/fresh2-2026-11": {
+   "malicious": {
+    "total": 195,
+    "errors": 4,
+    "30": {
+     "flagged": 155,
+     "lo": 0.7328,
+     "hi": 0.8456
+    },
+    "50": {
+     "flagged": 155,
+     "lo": 0.7328,
+     "hi": 0.8456
+    },
+    "70": {
+     "flagged": 155,
+     "lo": 0.7328,
+     "hi": 0.8456
+    }
+   }
+  },
+  "holdout/late-2026-11": {
+   "malicious": {
+    "total": 26,
+    "errors": 0,
+    "30": {
+     "flagged": 13,
+     "lo": 0.3206,
+     "hi": 0.6794
+    },
+    "50": {
+     "flagged": 13,
+     "lo": 0.3206,
+     "hi": 0.6794
+    },
+    "70": {
+     "flagged": 13,
+     "lo": 0.3206,
+     "hi": 0.6794
+    }
+   }
+  },
+  "holdout/malregistry-2026-11": {
+   "malicious": {
+    "total": 95,
+    "errors": 5,
+    "30": {
+     "flagged": 83,
+     "lo": 0.7921,
+     "hi": 0.9262
+    },
+    "50": {
+     "flagged": 83,
+     "lo": 0.7921,
+     "hi": 0.9262
+    },
+    "70": {
+     "flagged": 83,
+     "lo": 0.7921,
+     "hi": 0.9262
+    }
+   }
+  },
+  "holdout/npmstudy-2026-11": {
+   "malicious": {
+    "total": 200,
+    "errors": 0,
+    "30": {
+     "flagged": 159,
+     "lo": 0.7337,
+     "hi": 0.8451
+    },
+    "50": {
+     "flagged": 159,
+     "lo": 0.7337,
+     "hi": 0.8451
+    },
+    "70": {
+     "flagged": 159,
+     "lo": 0.7337,
+     "hi": 0.8451
+    }
+   }
+  },
+  "holdout/openvsx-random-2026-11": {
+   "clean": {
+    "total": 241,
+    "errors": 1,
+    "30": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0157
+    },
+    "50": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0157
+    },
+    "70": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0157
+    }
+   }
+  },
+  "holdout/openvsx-random2-2026-11": {
+   "clean": {
+    "total": 280,
+    "errors": 2,
+    "30": {
+     "flagged": 1,
+     "lo": 0.0006,
+     "hi": 0.0199
+    },
+    "50": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0135
+    },
+    "70": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0135
+    }
+   }
+  },
+  "holdout/random-2026-11": {
+   "clean": {
+    "total": 294,
+    "errors": 0,
+    "30": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0129
+    },
+    "50": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0129
+    },
+    "70": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0129
+    }
+   }
+  },
+  "holdout/random2-2026-11": {
+   "clean": {
+    "total": 1970,
+    "errors": 7,
+    "30": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0019
+    },
+    "50": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0019
+    },
+    "70": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0019
+    }
+   }
+  },
+  "holdout/recent-2026-11": {
+   "malicious": {
+    "total": 60,
+    "errors": 0,
+    "30": {
+     "flagged": 33,
+     "lo": 0.4249,
+     "hi": 0.6691
+    },
+    "50": {
+     "flagged": 33,
+     "lo": 0.4249,
+     "hi": 0.6691
+    },
+    "70": {
+     "flagged": 33,
+     "lo": 0.4249,
+     "hi": 0.6691
+    }
+   }
+  },
+  "holdout/skills-2026-11": {
+   "malicious": {
+    "total": 102,
+    "errors": 0,
+    "30": {
+     "flagged": 19,
+     "lo": 0.1226,
+     "hi": 0.2727
+    },
+    "50": {
+     "flagged": 19,
+     "lo": 0.1226,
+     "hi": 0.2727
+    },
+    "70": {
+     "flagged": 19,
+     "lo": 0.1226,
+     "hi": 0.2727
+    }
+   }
+  },
+  "holdout/skills-picked-2026-11": {
+   "clean": {
+    "total": 168,
+    "errors": 0,
+    "30": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0224
+    },
+    "50": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0224
+    },
+    "70": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0224
+    }
+   }
+  },
+  "holdout/skills-random-2026-11": {
+   "clean": {
+    "total": 312,
+    "errors": 0,
+    "30": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0122
+    },
+    "50": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0122
+    },
+    "70": {
+     "flagged": 0,
+     "lo": 0.0,
+     "hi": 0.0122
+    }
+   }
+  },
+  "holdout/since-2026-08-01": {
+   "malicious": {
+    "total": 195,
+    "errors": 0,
+    "30": {
+     "flagged": 89,
+     "lo": 0.388,
+     "hi": 0.5265
+    },
+    "50": {
+     "flagged": 89,
+     "lo": 0.388,
+     "hi": 0.5265
+    },
+    "70": {
+     "flagged": 89,
+     "lo": 0.388,
+     "hi": 0.5265
+    }
+   }
+  }
+ }
+}

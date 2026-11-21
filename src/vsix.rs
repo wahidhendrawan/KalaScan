@@ -394,12 +394,76 @@ pub async fn unpack_extension(
     extract_zip(&bytes, dest_dir)
 }
 
+/// A tar stream with empty size fields filled in. GNU tar and npm read a
+/// size field of NULs as 0; the `tar` crate refuses the whole archive. npm's
+/// own `0.0.0-stage` placeholders have such a directory entry, and what npm
+/// installs has to be scannable.
+struct EmptySizes<R> {
+    inner: R,
+    /// A header block read ahead and not handed out yet.
+    pending: Vec<u8>,
+    /// Bytes of entry data (padded to a block) before the next header.
+    data_left: u64,
+}
+
+impl<R: std::io::Read> std::io::Read for EmptySizes<R> {
+    fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
+        loop {
+            if !self.pending.is_empty() {
+                let n = out.len().min(self.pending.len());
+                out[..n].copy_from_slice(&self.pending[..n]);
+                self.pending.drain(..n);
+                return Ok(n);
+            }
+            if self.data_left > 0 {
+                let want = out
+                    .len()
+                    .min(usize::try_from(self.data_left).unwrap_or(usize::MAX));
+                let n = self.inner.read(&mut out[..want])?;
+                self.data_left -= n as u64;
+                return Ok(n);
+            }
+            let mut block = [0u8; 512];
+            let mut got = 0;
+            while got < block.len() {
+                match self.inner.read(&mut block[got..])? {
+                    0 => break,
+                    n => got += n,
+                }
+            }
+            if got == 0 {
+                return Ok(0);
+            }
+            if got == block.len() && block.iter().any(|&b| b != 0) {
+                if block[124..136].iter().all(|&b| b == 0 || b == b' ') {
+                    block[124..136].copy_from_slice(b"00000000000\0");
+                    // The checksum is over the header with its own field as spaces.
+                    block[148..156].fill(b' ');
+                    let sum: u32 = block.iter().map(|&b| u32::from(b)).sum();
+                    block[148..156].copy_from_slice(format!("{sum:06o}\0 ").as_bytes());
+                }
+                let size = std::str::from_utf8(&block[124..136])
+                    .ok()
+                    .map(|s| s.trim_matches(|c| c == '\0' || c == ' '))
+                    .and_then(|s| u64::from_str_radix(s, 8).ok());
+                // A size this cannot read (base-256): hand the rest through as it is.
+                self.data_left = size.map_or(u64::MAX, |s| s.div_ceil(512) * 512);
+            }
+            self.pending = block[..got].to_vec();
+        }
+    }
+}
+
 /// npm tarballs and PyPI sdists, under the same zip-bomb limits as `extract_zip`.
 pub fn extract_tar_gz(bytes: &[u8], dest_dir: &Path) -> anyhow::Result<PathBuf> {
     if bytes.len() as u64 > MAX_ARCHIVE_BYTES {
         anyhow::bail!("Archive too large ({} bytes)", bytes.len());
     }
-    let mut archive = tar::Archive::new(flate2::read::GzDecoder::new(bytes));
+    let mut archive = tar::Archive::new(EmptySizes {
+        inner: flate2::read::GzDecoder::new(bytes),
+        pending: Vec::new(),
+        data_left: 0,
+    });
     let mut total_uncompressed: u64 = 0;
     for (i, entry) in archive.entries()?.enumerate() {
         let mut entry = entry?;
@@ -933,6 +997,40 @@ mod tests {
             builder.into_inner().unwrap().finish().unwrap();
         }
         out
+    }
+
+    #[test]
+    fn tar_entry_with_an_empty_size_field_is_read_as_empty() {
+        // npm's `0.0.0-stage` placeholder: `package/` with the size field all
+        // NULs and the checksum made over that.
+        let mut dir = tar::Header::new_ustar();
+        dir.set_path("package/").unwrap();
+        dir.set_entry_type(tar::EntryType::Directory);
+        dir.set_mode(0o755);
+        dir.set_size(0);
+        let mut raw = *dir.as_bytes();
+        raw[124..136].fill(0);
+        raw[148..156].fill(b' ');
+        let sum: u32 = raw.iter().map(|&b| u32::from(b)).sum();
+        raw[148..156].copy_from_slice(format!("{sum:06o}\0 ").as_bytes());
+        let rest = {
+            let mut builder = tar::Builder::new(Vec::new());
+            let mut file = tar::Header::new_ustar();
+            file.set_path("package/package.json").unwrap();
+            file.set_size(2);
+            file.set_mode(0o644);
+            file.set_cksum();
+            builder.append(&file, &b"{}"[..]).unwrap();
+            builder.into_inner().unwrap()
+        };
+        let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+        std::io::Write::write_all(&mut gz, &raw).unwrap();
+        std::io::Write::write_all(&mut gz, &rest).unwrap();
+        let archive = gz.finish().unwrap();
+
+        let tmp = tempfile::tempdir().unwrap();
+        let root = extract_tar_gz(&archive, tmp.path()).unwrap();
+        assert_eq!(std::fs::read(root.join("package.json")).unwrap(), b"{}");
     }
 
     #[test]

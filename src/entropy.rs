@@ -79,11 +79,15 @@ pub fn is_confusable_homoglyph(c: char) -> bool {
     )
 }
 
-/// A bidi control that can reorder what a reviewer sees. As a range endpoint
-/// in a regex class (`[\u{2027}\u{202A}-\u{D7FF}]`, Continue's bundle) it
-/// is just a Unicode table; opening Arabic or Hebrew text (Carbon's language
-/// names) it is localisation; in a line of binary bytes (a `.wasm`, a phar)
-/// it is chance.
+/// A bidi control that can reorder what a reviewer sees: an embedding, an
+/// override or a directional isolate. Not the two that only end one (PDF,
+/// PDI) and not FSI, which localisation libraries put around every
+/// interpolated value. As a range endpoint in a regex class
+/// (`[\u{2027}\u{202A}-\u{D7FF}]`, Continue's bundle) it is just a Unicode
+/// table; opening Arabic or Hebrew text (Carbon's language names) it is
+/// localisation; alone between quotes (`const RLO = '\u{202E}'`) it is a
+/// constant in code that handles such characters; in a line of binary bytes
+/// (a `.wasm`, a phar) it is chance.
 pub(crate) fn has_trojan_bidi(line: &str) -> bool {
     if line.contains(['\0', '\u{FFFD}']) {
         return false;
@@ -93,12 +97,18 @@ pub(crate) fn has_trojan_bidi(line: &str) -> bool {
             matches!(c, '\u{0590}'..='\u{08FF}' | '\u{FB1D}'..='\u{FDFF}' | '\u{FE70}'..='\u{FEFF}')
         })
     };
+    let quote = |c: Option<&char>| c.is_some_and(|c| matches!(c, '"' | '\'' | '`'));
     let chars: Vec<char> = line.chars().collect();
     chars.iter().enumerate().any(|(i, &c)| {
-        is_bidi_trojan_char(c)
-            && i.checked_sub(1).map(|p| chars[p]) != Some('-')
-            && chars.get(i + 1) != Some(&'-')
-            && !rtl(chars.get(i + 1))
+        let before = i.checked_sub(1).map(|p| &chars[p]);
+        let after = chars.get(i + 1);
+        matches!(
+            c,
+            '\u{202A}' | '\u{202B}' | '\u{202D}' | '\u{202E}' | '\u{2066}' | '\u{2067}'
+        ) && before != Some(&'-')
+            && after != Some(&'-')
+            && !rtl(after)
+            && !(quote(before) && quote(after))
     })
 }
 
@@ -269,6 +279,10 @@ mod tests {
             "'nativeName' => 'Uy\u{01a3}urq\u{0259}, \u{202b}\u{0626}\u{06c7}\u{064a}',",
             "\0asm\u{202e}\u{1}\u{2}",
             "h[bd\u{FFFD}\u{202e} 9 SDQ",
+            // A constant in a sanitiser, and Fluent's isolates around a value.
+            "const OVERRIDE = '\u{202e}';",
+            "for (const hidden of ['\u{200b}', '\u{202e}']) {",
+            "title: \"\u{2068}{website}\u{2069} code\",",
         ] {
             assert!(!has_trojan_bidi(content), "{content:?}");
         }

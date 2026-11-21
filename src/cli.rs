@@ -268,6 +268,10 @@ pub enum Commands {
         /// Also write an OSV malicious-package record for each reported release into this directory
         #[arg(long)]
         osv_dir: Option<PathBuf>,
+
+        /// Append one JSON line per scanned release (time, target, risk, findings) to this file, whatever its score: the record eval/watch_outcome.py later checks against takedowns
+        #[arg(long)]
+        log: Option<PathBuf>,
     },
     /// Compare two versions of a package or extension and list capabilities the new one adds
     Diff {

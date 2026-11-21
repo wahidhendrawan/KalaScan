@@ -55,6 +55,10 @@ caught all 31. No rule was changed for them.
 | string construction | 21/34 (62%) | 29/34 (85%, 70-94) | 44/49 (90%, 78-96) | split-concat, hex-escape, char-codes, base64-layer, reversed-strings, atob-layer, template-literal, unicode-escape |
 | **all** | **108/122 (89%)** | **116/122 (95%, 90-98)** | **147/153 (96%, 92-98)** | |
 
+With ruleset 2026.11.11 (encoded literals read as code, below): string
+construction 48/49 (98%, 89-100), **all 151/153 (99%, 95-100)**; the other
+categories as in the last column.
+
 95% Wilson intervals in brackets. A mutator that cannot touch a seed (e.g.
 `.pth` on an npm seed, `getattr-import` on JS) is skipped, not counted as caught,
 so the denominators are real cross products minus skips.
@@ -104,38 +108,55 @@ so the denominators are real cross products minus skips.
 
 ## Evading pairs, grouped by the limit each hits
 
-Six pairs evade.
+Two pairs evade with ruleset 2026.11.11; six did before it.
 
-**1. The whole payload in a base64 blob that is evaluated, JS only.** 4 pairs
-under `base64-layer`, each scoring 27: `npm-cred-exfil`, `npm-reverse-shell`,
-`vscode-token-steal`, `npm-discord-stealer`. `Buffer Decode + eval` fires, and
-nothing else is visible. It is deliberately not a verdict by itself: a
-legitimate commercial extension (Quokka) ships exactly this shape, a base64
-blob of obfuscated code passed to `eval`, as licence protection, and a rule that
-flags the four seeds flags it too. The Python form
-(`exec(base64.b64decode(...))`) is caught, and so is the npm seed whose blob is
-run from an install script (`Chain: Install-time Payload Execution`).
-`--deobfuscate` decodes such blobs and is opt-in.
+**1. The whole payload in a base64 blob that is evaluated, JS only: closed.**
+4 pairs under `base64-layer` scored 27 until ruleset 2026.11.10 (`npm-cred-exfil`,
+`npm-reverse-shell`, `vscode-token-steal`, `npm-discord-stealer`): `Buffer Decode
++ eval` fired and nothing else was visible, and the wrapper alone could not be a
+verdict, because a legitimate commercial extension (Quokka) ships the same
+shape as licence protection. Since ruleset 2026.11.11 what a base64 or hex
+literal decodes to is scanned as code of the file (`obfuscator::layers`,
+`layer_findings` in src/scanner.rs): the rules, the chains and the data-flow
+pass run on the decoded text, two layers deep, and report on the literal's
+line. The four seeds are caught by their payloads; a blob whose content shows
+nothing stays a lead.
 
-**2. A call through a character-code string.** 1 pair: `npm-install-dl-exec`
+**2. A call through a character-code string, still evading.** 1 pair: `npm-install-dl-exec`
 under `char-codes` (10). The mutator turns `fetch(…)` into
 `String.fromCharCode(102,…)(…)`, which is not valid JavaScript (a string is
 not callable), so the undone text reads `'fetch'(…)` and the download-cradle
 rule does not match it. The valid spelling, `globalThis[String.fromCharCode(…)](…)`,
 is undone to `globalThis.fetch(…)` and caught.
 
-**3. Install hook in a nested package unit.** 1 pair: `pypi-setup-hook` under
+**3. Install hook in a nested package unit, still evading.** 1 pair: `pypi-setup-hook` under
 `node-modules-dir` (17). Correlation runs install-time chains only for the root
 unit (`correlate_unit`, src/correlate.rs), because a bundled dependency's own
 `setup.py` does not run at the top package's `pip install`. This is close to
 correct behaviour, not a pure miss, and is recorded because it is a measurable
 way to push a caught seed under the threshold.
 
+## Two rewrites at once
+
+An author who tests against the scanner does not stop at one rewrite.
+`eval/evasion.py --stacked` applies two mutators in a row to every seed, each
+pair of mutators once: 810 variants where both apply. **792 of 810 are caught
+(98%, 97-99)** with ruleset 2026.11.11. It is a measurement, not part of the
+baseline gate.
+
+The 18 that evade are the two single evaders above carried into their stacks
+(12 with `char-codes`, whose output is not valid JavaScript; 7 with
+`node-modules-dir`, one of them both). The first run, before this ruleset's
+last change, had 26: eight more were `template-literal` stacked with a second
+string rewrite, a name cut by an empty interpolation (`` `id_${''}rsa` ``) in a
+file whose other names were split or escaped too. `obfuscator::plain` now
+drops an interpolation of nothing.
+
 ## Takeaway
 
 Placement, comment and whitespace, indirection and packaging tricks do not hide
-a payload from KalaScan. Split and encoded names no longer do either. What still
-does is putting the entire payload inside one encoded blob in a package that
-shows nothing else: the scanner reports the blob and leaves the verdict to a
-second signal. The baseline (`eval/evasion-baseline.json`) pins the 147 caught
-pairs.
+a payload from KalaScan. Split and encoded names no longer do either, and a
+payload inside a base64 or hex literal is read. What the suite does not have is
+a layer the scanner cannot undo without running code: a custom cipher, a blob
+assembled at run time, a payload fetched later. The baseline
+(`eval/evasion-baseline.json`) pins the 151 caught pairs.

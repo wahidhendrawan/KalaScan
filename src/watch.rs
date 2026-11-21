@@ -5,7 +5,9 @@
 //! version. PyPI: the recent-updates RSS feed, polled. Every new version is
 //! scanned as someone else's code; one at or above `min_risk` is printed with
 //! its findings and, with `osv_dir`, written as an OSV malicious-package
-//! record. Runs until interrupted.
+//! record. With `log`, every scanned release is appended to a JSON-lines
+//! file, flagged or not, so the scores can be compared later with what the
+//! registry took down (eval/watch_outcome.py). Runs until interrupted.
 //! shortcut: a version published and superseded between two polls is not
 //! seen, and the PyPI feed holds the last 100 updates only; a busy hour can
 //! outrun a short feed. The remedy is a shorter interval.
@@ -27,10 +29,21 @@ pub async fn run(
     min_risk: u8,
     jobs: usize,
     osv_dir: Option<PathBuf>,
+    log: Option<PathBuf>,
 ) -> anyhow::Result<()> {
+    use std::io::Write;
     if let Some(dir) = &osv_dir {
         std::fs::create_dir_all(dir)?;
     }
+    let mut log = match log {
+        Some(path) => Some(
+            std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)?,
+        ),
+        None => None,
+    };
     let client = crate::vsix::http_client()?;
     let mut seen: HashSet<String> = HashSet::new();
     let mut since = match ecosystem {
@@ -80,6 +93,9 @@ pub async fn run(
         }
         while let Some(joined) = tasks.join_next().await {
             let (target, result) = joined?;
+            if let Some(file) = &mut log {
+                writeln!(file, "{}", log_line(&target, &result))?;
+            }
             let r = match result {
                 Ok(r) => r,
                 Err(e) => {
@@ -116,6 +132,27 @@ pub async fn run(
             }
         }
         tokio::time::sleep(Duration::from_secs(interval)).await;
+    }
+}
+
+/// One line of the `--log` file: when, what, and the score with its strong
+/// findings and the ruleset and detection fingerprint that gave it, or why
+/// there is none.
+fn log_line(target: &str, result: &anyhow::Result<crate::ScanResult>) -> serde_json::Value {
+    match result {
+        Ok(r) => serde_json::json!({
+            "ts": r.timestamp,
+            "target": target,
+            "risk": r.risk_score,
+            "findings": commands::strong_findings(r),
+            "ruleset": crate::scanner::RULESET_VERSION,
+            "detection": crate::scanner::DETECTION_FINGERPRINT,
+        }),
+        Err(e) => serde_json::json!({
+            "ts": crate::now_rfc3339(),
+            "target": target,
+            "error": e.to_string().lines().next().unwrap_or_default(),
+        }),
     }
 }
 
@@ -180,6 +217,14 @@ fn pypi_releases_from(feed: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_failed_scan_is_logged_with_its_reason() {
+        let line = super::log_line("npm:x@1.0.0", &Err(anyhow::anyhow!("gone\nmore")));
+        assert_eq!(line["target"], "npm:x@1.0.0");
+        assert_eq!(line["error"], "gone");
+        assert!(line["ts"].as_str().unwrap().ends_with('Z'));
+    }
+
     #[test]
     fn pypi_feed_titles_become_targets() {
         let feed = "<rss><channel><item>\n      <title>vmware-harden 1.20.1</title>\n      <link>x</link></item><item>   <title>abx-dl 1.13.366</title></item></channel></rss>";

@@ -17,6 +17,7 @@ RUN mkdir -p src templates && \
     cargo build --release --locked && \
     rm -rf src
 
+COPY build.rs ./
 COPY src/ src/
 COPY templates/ templates/
 COPY static/ static/

@@ -76,7 +76,7 @@
   "eco": "npm",
   "category": "string-construction",
   "mutator": "base64-layer",
-  "risk": 81,
+  "risk": 82,
   "caught": true
  },
  {
@@ -92,7 +92,7 @@
   "eco": "npm",
   "category": "string-construction",
   "mutator": "atob-layer",
-  "risk": 81,
+  "risk": 82,
   "caught": true
  },
  {
@@ -244,8 +244,8 @@
   "eco": "npm",
   "category": "string-construction",
   "mutator": "base64-layer",
-  "risk": 27,
-  "caught": false
+  "risk": 89,
+  "caught": true
  },
  {
   "seed": "npm-cred-exfil",
@@ -260,7 +260,7 @@
   "eco": "npm",
   "category": "string-construction",
   "mutator": "atob-layer",
-  "risk": 77,
+  "risk": 89,
   "caught": true
  },
  {
@@ -404,15 +404,15 @@
   "eco": "npm",
   "category": "string-construction",
   "mutator": "base64-layer",
-  "risk": 27,
-  "caught": false
+  "risk": 83,
+  "caught": true
  },
  {
   "seed": "npm-reverse-shell",
   "eco": "npm",
   "category": "string-construction",
   "mutator": "atob-layer",
-  "risk": 77,
+  "risk": 83,
   "caught": true
  },
  {
@@ -596,7 +596,7 @@
   "eco": "pypi",
   "category": "string-construction",
   "mutator": "base64-layer",
-  "risk": 78,
+  "risk": 79,
   "caught": true
  },
  {
@@ -676,7 +676,7 @@
   "eco": "pypi",
   "category": "string-construction",
   "mutator": "base64-layer",
-  "risk": 83,
+  "risk": 90,
   "caught": true
  },
  {
@@ -756,7 +756,7 @@
   "eco": "pypi",
   "category": "string-construction",
   "mutator": "base64-layer",
-  "risk": 78,
+  "risk": 89,
   "caught": true
  },
  {
@@ -836,7 +836,7 @@
   "eco": "pypi",
   "category": "string-construction",
   "mutator": "base64-layer",
-  "risk": 82,
+  "risk": 88,
   "caught": true
  },
  {
@@ -956,8 +956,8 @@
   "eco": "extension",
   "category": "string-construction",
   "mutator": "base64-layer",
-  "risk": 27,
-  "caught": false
+  "risk": 83,
+  "caught": true
  },
  {
   "seed": "vscode-token-steal",
@@ -972,7 +972,7 @@
   "eco": "extension",
   "category": "string-construction",
   "mutator": "atob-layer",
-  "risk": 77,
+  "risk": 83,
   "caught": true
  },
  {
@@ -1124,8 +1124,8 @@
   "eco": "npm",
   "category": "string-construction",
   "mutator": "base64-layer",
-  "risk": 27,
-  "caught": false
+  "risk": 79,
+  "caught": true
  },
  {
   "seed": "npm-discord-stealer",
@@ -1140,7 +1140,7 @@
   "eco": "npm",
   "category": "string-construction",
   "mutator": "atob-layer",
-  "risk": 77,
+  "risk": 79,
   "caught": true
  },
  {

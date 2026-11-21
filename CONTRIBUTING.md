@@ -69,7 +69,7 @@ Use the "False positive" issue template with the rule id (`kalascan rules <id>` 
 A ruleset is what decides a verdict: the rule files in `rules/` (regex, YARA, weights, the popular-extension list) and the detection modules in `src/` (`scanner`, `correlate`, `score`, `obfuscator`, `registry`, `reputation`, `agent`, `dataflow`, `deobfuscate`, `entropy`, `iocs`, `triage`, `cve`, `yara_engine`, `zipslip`). It changes only as a new version, and a version ships with its measurement.
 
 1. A pull request that touches one of those files bumps `RULESET_VERSION` in `src/scanner.rs` (the CI `ruleset` job fails otherwise). A change there that moves no verdict, such as a refactor or a test, gets the `ruleset-unchanged` label instead.
-2. The new version is measured in a throwaway VM (eval/README.md) and recorded with `run_eval.py --summary eval/results/<version>.json`; `cargo test` fails without that file.
+2. The new version is measured in a throwaway VM (eval/README.md) and recorded with `run_eval.py --summary eval/results/<version>.json`; `cargo test` fails without that file. The summary also records the binary's detection fingerprint, a hash of those rule files and modules made at build time (`build.rs`; `kalascan rules` prints it), so a result names the code it came from even if the version was not raised. Nothing checks the two against each other: a comment edit changes the fingerprint.
 3. One ruleset version per minor release. Rule work collects on a branch and is measured once, not after each rule.
 4. Before rules are tuned, a new holdout is drawn, so the next count is on samples nobody has read.
 

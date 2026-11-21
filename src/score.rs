@@ -120,6 +120,10 @@ fn decisive(name: &str) -> bool {
 
 const KNOWN_VULNERABILITY: &str = "Known Vulnerability";
 
+/// A credential written into the package: its author's leak, or a fixture.
+/// Together they are one critical finding, not a second one for each other.
+const LEAKED_CREDENTIALS: &[&str] = &["AWS Access Key", "AWS Secret Key", "GitHub Token"];
+
 /// v1: tiers with caps, weights set by hand.
 fn v1(matches: &[RuleMatch], dynamic_score: u16, ai_score: u16) -> ScoreBreakdown {
     use std::collections::HashSet;
@@ -129,6 +133,9 @@ fn v1(matches: &[RuleMatch], dynamic_score: u16, ai_score: u16) -> ScoreBreakdow
     // full weight, so a legitimate extension with a few hundred benign matches
     // saturated the static cap by itself and every later pass pushed it to 100.
     let mut seen: HashSet<(&str, &str)> = HashSet::new();
+    // A credential written into the package counts once, whichever of the
+    // leak rules found it and in however many files.
+    let mut leak = false;
     let (mut critical, mut high, mut medium, mut cve) = (0u16, 0u16, 0u16, 0u16);
 
     for m in matches {
@@ -146,6 +153,10 @@ fn v1(matches: &[RuleMatch], dynamic_score: u16, ai_score: u16) -> ScoreBreakdow
             continue;
         }
         match m.severity.as_str() {
+            // A key pair in a test fixture is two rules and one leak.
+            "critical" if LEAKED_CREDENTIALS.contains(&m.matched_pattern.as_str()) => {
+                critical += u16::from(!std::mem::replace(&mut leak, true));
+            }
             "critical" => critical += 1,
             "high" => high += 1,
             "medium" => medium += 1,
@@ -341,6 +352,28 @@ mod tests {
 
         let score = calculate(None, &matches, &benign_ai(), None, None, None, None).total();
         assert!(score < 70, "benign extension scored {}", score);
+    }
+
+    #[test]
+    fn leaked_credentials_are_one_critical_finding() {
+        let score = |m: &[RuleMatch]| calculate(None, m, &None, None, None, None, None).total();
+        // A key pair and a token in fixtures: one leak, a lead.
+        let fixture = [
+            hit("test/a.ts", "AWS Access Key", "critical"),
+            hit("test/a.ts", "AWS Secret Key", "critical"),
+            hit("test/b.ts", "GitHub Token", "critical"),
+        ];
+        assert_eq!(score(&fixture), 20);
+        // With any other critical finding it is still two. One rule in two
+        // files stays two as well: tried as one, it cost two holdout samples.
+        let mut with = fixture.to_vec();
+        with.push(hit("a.js", "Crypto Wallet Access", "critical"));
+        assert_eq!(score(&with), 70);
+        let twice = [
+            hit("a.js", "Crypto Wallet Access", "critical"),
+            hit("b.js", "Crypto Wallet Access", "critical"),
+        ];
+        assert_eq!(score(&twice), 70);
     }
 
     #[test]

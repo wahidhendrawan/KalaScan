@@ -357,6 +357,8 @@ def main():
     if args.summary:
         rules = subprocess.run([args.kalascan, "rules"], capture_output=True, text=True, check=True).stdout
         summary = {"date": time.strftime("%Y-%m-%d"), "ruleset": rules.splitlines()[0].split(": ")[-1]}
+        # What the binary was built from: the version is raised by hand, this is not.
+        summary.update({"detection": line.split(": ")[-1] for line in rules.splitlines()[1:2] if line.startswith("Detection fingerprint")})
         words = " ".join(args.flag).replace("=", " ").split()
         if "--score-model" in words[:-1]:
             summary["score_model"] = words[words.index("--score-model") + 1]

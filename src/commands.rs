@@ -951,6 +951,7 @@ pub(crate) fn run_rules_command(name: Option<String>, coverage: bool) -> anyhow:
         }
         None => {
             println!("Ruleset version: {}", scanner::RULESET_VERSION);
+            println!("Detection fingerprint: {}", scanner::DETECTION_FINGERPRINT);
             println!(
                 "{:<11} {:8}  {:<34} {:<14} DESCRIPTION",
                 "ID", "SEVERITY", "RULE", "CATEGORY"
