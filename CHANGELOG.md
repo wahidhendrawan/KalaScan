@@ -7,6 +7,8 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+## [1.24.0] - 2026-11-21
+
 ### Changed
 - Ruleset 2026.11.12: a second round of false positives, from reading the 389 new npm and PyPI releases that ruleset 2026.11.11 still flagged. Of the 618 releases flagged by any build since the watch started, 270 still reach risk 50. Holdout 659 of 984 as before, no sample lost or gained; `dev` 688 of 929 (three lost, read and on record); 0 of 3,823 clean samples flagged; evasion suite 151 of 153.
   - Data flow: a request to a loopback URL is not a sink, and a method is a network sink only on a network client. The environment handed to a child process is not sent, a name reassigned to a clean value is clean, and a field read off a group (`(options.env ?? process.env).NAME`) is one setting. `known_hosts`, `config`, `authorized_keys` and `*.pub` under `.ssh` are not secrets. A response's status is not its body, the options object of `spawn` is not the command, and `npx name@${version}` is a self-update.
@@ -355,7 +357,8 @@ published on GitHub; their features are listed with version markers in `README.m
 ### Fixed
 - `openapi.yaml` is copied into the Docker builder stage.
 
-[Unreleased]: https://github.com/wahidhendrawan/KalaScan/compare/v1.23.0...HEAD
+[Unreleased]: https://github.com/wahidhendrawan/KalaScan/compare/v1.24.0...HEAD
+[1.24.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.23.0...v1.24.0
 [1.23.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.22.0...v1.23.0
 [1.22.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.21.0...v1.22.0
 [1.21.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.20.0...v1.21.0
