@@ -7,6 +7,8 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+## [1.25.0] - 2026-11-22
+
 ### Added
 - `--ai` reads AI agent skills by meaning: when a scan has agent files (`SKILL.md`, `CLAUDE.md`, `.cursorrules`, …), their text (12,000 characters at most, a root `SKILL.md` first) goes to the model with a prompt of its own, and a malicious verdict at risk 70 or more on that text counts as a verdict (70). Measured with DeepSeek: holdout skills 49 of 102 instead of 19, 0 of 478 clean skills flagged (two flagged clean skills were read and moved to `dev`). The text leaves the machine; use a local model for private repositories.
 - A rolling holdout: `sample_malicious.py --ref` draws from the files of a branch that `HEAD` lacks (the DataDog dataset's unmerged sync branch; entries record the commit, which `fetch_malicious.sh` checks out), and `--added-after COMMIT` from what pypi_malregistry added since a commit. The first draw, 294 samples, went half into the holdout (`rolling-2026-11`) and half into `dev` (`tune-rolling-2026-11`).
@@ -370,7 +372,8 @@ published on GitHub; their features are listed with version markers in `README.m
 ### Fixed
 - `openapi.yaml` is copied into the Docker builder stage.
 
-[Unreleased]: https://github.com/wahidhendrawan/KalaScan/compare/v1.24.0...HEAD
+[Unreleased]: https://github.com/wahidhendrawan/KalaScan/compare/v1.25.0...HEAD
+[1.25.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.24.0...v1.25.0
 [1.24.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.23.0...v1.24.0
 [1.23.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.22.0...v1.23.0
 [1.22.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.21.0...v1.22.0
