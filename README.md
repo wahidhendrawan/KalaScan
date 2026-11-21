@@ -479,7 +479,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: wahidhendrawan/KalaScan@v1.24.0
+      - uses: wahidhendrawan/KalaScan@v1.25.0
         with:
           target: .
           fail_on_risk: "60"
