@@ -7,6 +7,8 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+## [1.23.0] - 2026-11-21
+
 ### Added
 - `kalascan watch --log FILE` appends one JSON line per scanned release, flagged or not (time, target, risk, strong findings, ruleset). `eval/watch_outcome.py` compares those releases, after a wait, with OSV's malicious-package records and with what the registries still serve: the first measurement on releases nobody had judged yet. A prospective run started on 2026-11-20; its outcome can be read from 2026-12-20 (eval/README.md).
 - Encoded literals are read as code: what `atob`, `Buffer.from(…, 'base64' | 'hex')`, `b64decode`, `bytes.fromhex` and `echo … | base64 -d` literals decode to is scanned with the same rules, chains and data flow, two layers deep, so `eval(Buffer.from(blob, 'base64'))` is judged by its payload. Character codes handed to a decoder of the package's own (`_d([104,116,…])`) are read as the string they spell. Evasion suite: 151 of 153 variants caught (147).
@@ -344,7 +346,8 @@ published on GitHub; their features are listed with version markers in `README.m
 ### Fixed
 - `openapi.yaml` is copied into the Docker builder stage.
 
-[Unreleased]: https://github.com/wahidhendrawan/KalaScan/compare/v1.22.0...HEAD
+[Unreleased]: https://github.com/wahidhendrawan/KalaScan/compare/v1.23.0...HEAD
+[1.23.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.22.0...v1.23.0
 [1.22.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.21.0...v1.22.0
 [1.21.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.20.0...v1.21.0
 [1.20.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.19.0...v1.20.0
