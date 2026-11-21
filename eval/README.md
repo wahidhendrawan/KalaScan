@@ -24,19 +24,19 @@ The malicious samples are **live malware**. `run_eval.py` scans them statically 
 
 CI (`.github/workflows/eval.yml`) runs only the clean half, as a false-positive gate: `--only clean --max-fpr 0`, on every pull request that touches `src/`, `rules/`, `eval/` or `Cargo.lock` (without the 1,993 packages of `random2-2026-11`, the second Open VSX draw and the AI skills, which the weekly run fetches and scans).
 
-Results at threshold 50 (ruleset 2026.11.10, score model v1, measured 2026-11-20; 95% interval in brackets; the aggregate is in [`results/2026.11.10.json`](results/2026.11.10.json)):
+Results at threshold 50 (ruleset 2026.11.11, score model v1, measured 2026-11-20; 95% interval in brackets; the aggregate is in [`results/2026.11.11.json`](results/2026.11.11.json)):
 
 | split | malicious recall | clean false positives |
 |---|---|---|
-| dev | 688/928 (74%, 71-77) | 0/399 (0%, 0-1) |
-| holdout | 658/985 (67%, 64-70) | 0/3,425 (0%, 0-0.1) |
-| holdout, packages and extensions (the 2026.11.9 holdout) | 639/883 (72%, 69-75) | 0/2,665 (0%, 0-0.1) |
+| dev | 691/929 (74%, 71-77) | 0/399 (0%, 0-1) |
+| holdout | 659/984 (67%, 64-70) | 0/3,424 (0%, 0-0.1) |
+| holdout, packages and extensions (the 2026.11.9 holdout less one sample) | 640/882 (73%, 70-75) | 0/2,664 (0%, 0-0.1) |
 | holdout, AI agent skills | 19/102 (19%, 12-27) | 0/480 (0%, 0-0.8) |
 | holdout, dated 2026-08-01 or later | 89/195 (46%, 39-53) | |
 
-The holdout fell from 72% to 67% because a new ecosystem joined it at 19%, not because a package was lost: the packages and extensions are at 639 of 883 as before ("AI agent skills", below).
+The holdout fell from 72% to 67% with ruleset 2026.11.10 because a new ecosystem joined it at 19%, not because a package was lost ("AI agent skills", below); the packages and extensions were at 639 of 883 then and are at 640 of 882 now: two more caught, and one sample read and moved to `dev` ("Encoded literals and calls in the data flow", below).
 
-**The last row is the one to expect on new malware.** It is every holdout sample whose file name in the DataDog dataset carries a date of August 2026 or later (`run_eval.py --since 2026-08-01`): 194 npm packages and one PyPI package, from four sets. npm in the holdout dated before August is at 148 of 193 (77%). The gap is what tuning on the same months is worth: the batches the rules were written from are mostly January to June, and so is `fresh2-2026-11`.
+**The last row is the one to expect on new malware.** It is every holdout sample whose file name in the DataDog dataset carries a date of August 2026 or later (`run_eval.py --since 2026-08-01`): 194 npm packages and one PyPI package, from four sets. npm in the holdout dated before August is at 147 of 192 (77%). The gap is what tuning on the same months is worth: the batches the rules were written from are mostly January to June, and so is `fresh2-2026-11`.
 
 Five tuning batches of new samples joined `dev` in November (below), which is why its rate moves with each one.
 
@@ -44,16 +44,80 @@ The holdout by sample set:
 
 | holdout set | what it is | malicious recall |
 |---|---|---|
-| original | 147 samples: the 27 first ones and 120 added in November 2026 | 105/147 (71%, 64-78) |
+| original | 147 samples: the 27 first ones and 120 added in November 2026 | 107/147 (73%, 65-79) |
 | `recent-2026-11` | 60 npm packages dated 2026-08-01 or later, the newest in the dataset | 33/60 (55%, 42-67) |
 | `malregistry-2026-11` | 100 PyPI packages from pypi_malregistry whose names the DataDog dataset does not have; 5 archives do not unpack | 83/95 (87%, 79-93) |
 | `fresh-2026-11` | 161 packages drawn on 2026-11-18, after ruleset 2026.11.2: 100 npm and 1 PyPI dated 2026-08-01 or later (DataDog), 60 PyPI from pypi_malregistry; 2 archives do not unpack | 90/159 (57%, 49-64) |
-| `fresh2-2026-11` | 200 packages drawn on 2026-11-18, before ruleset 2026.11.5: 150 npm dated 2026-01-01 or later (DataDog), 50 PyPI from pypi_malregistry; 4 archives do not unpack | 156/196 (80%, 73-85) |
+| `fresh2-2026-11` | 200 packages drawn on 2026-11-18, before ruleset 2026.11.5: 150 npm dated 2026-01-01 or later (DataDog), 50 PyPI from pypi_malregistry; 4 archives do not unpack, and one sample was read for ruleset 2026.11.11 and moved to `dev` | 155/195 (79%, 73-85) |
 | `late-2026-11` | the 26 npm names dated 2026-08-01 or later that were left in the dataset, drawn on 2026-11-18 | 13/26 (50%, 32-68) |
 | `npmstudy-2026-11` | 200 npm packages from [the ASE 2026 npm study](https://doi.org/10.6084/m9.figshare.31869370) whose names the DataDog dataset does not have, drawn on 2026-11-19; mostly published 2021-2024 | 159/200 (80%, 73-85) |
 | `skills-2026-11` | 102 AI agent skills from the DataDog dataset, split by author from the 102 in `dev`, drawn on 2026-11-20 | 19/102 (19%, 12-27) |
 
-**The holdout number is the one to quote, and the `recent` row is the one to worry about**: on the newest npm malware KalaScan catches about half (24 of 60 with ruleset 2026.11.1, before the tuning described below). The second sources say the rules are not fitted to one dataset's taste: PyPI 87% on pypi_malregistry against 37 of 48 (77%) on the original DataDog PyPI holdout samples; npm 80% on the study's samples against 148 of 193 (77%) on DataDog npm dated before August 2026. Both second sources are older malware, so they do not speak to the newest; the `recent` row does. By ecosystem the whole holdout is IDE extensions 32/48 (67%, 53-78), npm 395/587 (67%, 63-71; DataDog 236/387, the study 159/200), PyPI 212/248 (85%, 81-89), AI agent skills 19/102 (19%, 12-27).
+**The holdout number is the one to quote, and the `recent` row is the one to worry about**: on the newest npm malware KalaScan catches about half (24 of 60 with ruleset 2026.11.1, before the tuning described below). The second sources say the rules are not fitted to one dataset's taste: PyPI 87% on pypi_malregistry against 39 of 48 (81%) on the original DataDog PyPI holdout samples; npm 80% on the study's samples against 147 of 192 (77%) on DataDog npm dated before August 2026. Both second sources are older malware, so they do not speak to the newest; the `recent` row does. By ecosystem the whole holdout is IDE extensions 32/48 (67%, 53-78), npm 394/586 (67%, 63-71; DataDog 235/386, the study 159/200), PyPI 214/248 (86%, 81-90), AI agent skills 19/102 (19%, 12-27).
+
+### Encoded literals and calls in the data flow (ruleset 2026.11.11)
+
+Two limits the notes below keep naming: a string no rule can read, and data handed from one function to another.
+
+**Encoded literals.** What `atob('…')`, `Buffer.from('…', 'base64' | 'hex')`, `b64decode('…')`, `bytes.fromhex('…')` and `echo … | base64 -d` decode to, when it is text, is now scanned as code of the file: rules, proximity chains and the data-flow pass, two layers deep, reported on the literal's line (`obfuscator::layers`, `layer_findings`). `eval(Buffer.from(blob, 'base64'))` used to be a lead because a legitimate extension ships the same wrapper; now the payload decides. Character codes handed to a decoder of the package's own, whatever its name (`_d([104,116,116,112,115])`, `String.fromCharCode.apply(null, […])`, decimal or `0x`), are read as the string they spell, next to the `String.fromCharCode(…)` form that already was. The evasion suite went from 147 to 151 of 153: all four `base64-layer` pairs (docs/evasion.md).
+
+**Calls in the data flow.** The pass followed variables inside one file and lost data at every call. Before the walk it now makes two summaries per named function: a function that hands a parameter to a network sink is a sink for that argument (`send(tag, data)` around `req.write(data)`; wrappers of wrappers too), and a call of a function that returns a secret carries it. Around that:
+
+- TypeScript's compiled async arrow functions (`f = (a, b) => __awaiter(void 0, void 0, void 0, function* () {`) are functions, `promise.then((v) =>` binds `v` to what the promise holds, and a line that starts with `.` continues the statement above it.
+- `'.ssh'` as a path part of its own (`join(home, '.ssh')`) is a secret source, as `.ssh/` was.
+- A value built from a downloaded URL and a stolen body carries the secret; it used to carry whichever came first.
+- A name that is the environment itself (`env = process.env`, a parameter being summarised) no longer taints through one field (`env.TOKEN`, `env[k]`); a derived value (`JSON.stringify(env)`, a chunk of it) still does.
+- A bug: in a statement that starts with `function` or `async`, a `{` inside the parameter list (`state = {}`) was read as the function's body, which cut the header in two and bound `env = process.env` from a default value.
+
+**Measured against ruleset 2026.11.10 scanned again the same day** (dev 688 of 928, holdout 658 of 985, no clean sample flagged). The first version caught 4 more `dev` samples and 6 more in the holdout, and **flagged 5 of 3,824 clean samples**. All five were read:
+
+- `'.env'` as a secret source, 2: a list of file names to fetch from a GitLab project (`cco`), and a tool that reads its own API key from `.env` and sends it to that API (`mcp-serper-search`). The second is the same data flow as a stealer's. Dropped as a source.
+- Summaries for downloads, 2: setuptools' `download_svn(url)` (vendored in a virtualenv that `Walk-The-Loop` ships) and a `curl` wrapper (`cco`) read as running what was fetched. Summaries are now for secrets only.
+- The environment handed to a function that reads two variables of it, 1 (`opencode-token-usage-extension`): the alias rule above, and the header bug.
+- A return followed two levels made `gethostbyname(get_podman_hostname())` a leak of the environment a helper passes to `podman` (`ansible-core`). What a function returns is followed one level.
+
+The narrowing took the holdout from 6 gains to 2, and at first lost a `dev` sample that was caught before, `@langwatch/server`, which had lost its `Chain: Credential Exfiltration`. Read, the one file of it with an environment read and a request is a bug-report helper that collects secret-looking environment values in order to redact them from the report, so the sample looks caught for the wrong reason. The cause was still a mistake: the alias rule had been applied to derived values too, and with that fixed the sample scores as before.
+
+**After this round: `dev` 691 of 928 (+3), holdout 660 of 985 (+2; packages and extensions 641 of 883), no clean sample flagged, no sample lost** (the final numbers of the ruleset are after the second round, below). The three in `dev`: `@sbxapps/…-fieldservicetools-ui` (every string a `_d([…])` array), `strapi-plugin-hextest` (a `send(tag, data)` wrapper around a raw request) and `env-loader-cli` (secret directories walked and the matches posted to a webhook taken from a downloaded config). The two in the holdout are PyPI samples of the original set, both by `Chain: Credential Exfiltration`. Twelve samples that were caught already score higher. The slice dated August 2026 or later did not move (89 of 195).
+
+**What this says about the pass.** Of the 236 `dev` misses, 13 hold a secret read and a network call in one file, and 7 of those are extension bundles over the 64 KB the pass reads. That is the ceiling, and it is low: most misses are not a flow inside one file. Still through in `dev`: `prettier-logger` (reads `.env` and walks the home directory; caught only while `.env` was a source), an n8n community node that collects the environment, SSH keys and cloud metadata credentials and hands them back as the node's output, with no network call of its own (`n8n-nodes-format-utils`), and an install script that writes the same collection to a file n8n can read (`n8n-nodes-text-helpers`).
+
+**The harness.** `fetch_npmstudy.py` wrote each tarball in place; a run killed half-way (the VM ran out of memory more than once) left a truncated file that the next run took for fetched, and the evaluation stopped on it. It now extracts aside and renames.
+
+### Reading what the watch flagged (ruleset 2026.11.11, second round)
+
+**The data.** One day of `kalascan watch` on both feeds (below): 21,257 new releases scanned, npm 16,061 and PyPI 5,196, and 574 of them at risk 50 or more. Those 574 were scanned again with three binaries. Ruleset 2026.11.10 flags 533. The first version of 2026.11.11 (the section above, which flagged no clean sample of the corpus) flags 569: 41 that 2026.11.10 does not, nearly all through the new data-flow summaries. The clean corpus had not shown that, and would not have.
+
+**Where the findings sit.** In 247 of the 569 every chain or critical finding is in the package's own source, in 219 in build output (`dist/`, bundles), in 33 in tests or fixtures, and in 10 in a bundled dependency (`node_modules`, `vendor`, `site-packages`); the rest are mixed. Fingerprinting known libraries, which was the plan for extension false positives, would reach those 10. It was not built.
+
+**What they are.** About sixty were read, by class, as the source and sink lines of their chains, and as many again as one-line contexts. None read as malware: agent CLIs, installers, SDKs, some of which do risky things by design. The classes, and what changed:
+
+- **One setting read from the environment**, about 120 releases (`Chain: Credential Exfiltration` from the data-flow pass): `const env = options.env ?? process.env; const base = baseUrl(env); fetch(base + …)`, `fetch(\`http://127.0.0.1:${portOf(process.env)}/…\`)`, `env = dict(os.environ); endpoint = env.get(…)`, `process.env?.NAME`. The pass treated anything computed from the environment as the environment. Now the environment mapping (itself, a copy, an object with it inside) counts where it is serialised or handed to a sink; a field read from it, or a call of a helper with it, is one setting. A helper of the same file that returns what it collected from its argument still carries it. A route decorator (`@router.post('/hook/' + slug)`) is not a request.
+- **A process started with downloaded data**, about 50 (`Chain: Download and Execute` from the data-flow pass): an update check that runs `npx pkg@<version from the registry>`, a script for `node -e` kept in a string that itself calls `fetch`. `spawn` and its relatives now count like Python's `subprocess`, only with an inline-code flag or a shell, and a `fetch(` inside a string literal is not a download.
+- **Official installers**, the most common download cradle by far: `curl -fsSL https://claude.ai/install.sh | bash` and its like for eighteen agent CLIs and developer tools, in packages that install or document them. Their domains joined the vendor list. A bug besides: a vendor URL with no path (`https://sh.rustup.rs | sh`) was not recognised, because the host was read up to the next `/`.
+- **Install-time chains across unrelated files**, more than a hundred: a `postinstall` that removes a file, and somewhere else in the package an installer URL in a help text or a `daemon install` command that writes a systemd unit. Three findings (`Remote Executable Download`, the download cradle, `Systemd User Service Installed`) now make an install-time chain only in what the hook runs: the manifest, a file its command names, or a file named for the job. The other channels still pair across the package: measured on the corpus, 12 holdout samples have their install-time chain's second finding in a file the hook does not name, and none of those is one of the three. A `package.json` deeper than one directory (a template the package ships) is not the install hook, and a file called `setup.py` is one only if it calls `setup(` (`pkg/tunnels/setup.py` is a module).
+- **Credentials in fixtures**: an AWS key pair is two critical rules and so a verdict; the three leak rules now count as one critical finding together.
+- **Smaller ones**: a bidi control alone between quotes (`const RLO = '\u{202E}'`) or the isolates localisation libraries put around values; `exec(b64decode('" + payload + "'))` built as a command for another host, like the `{placeholder}` form before; `net localgroup` in a syntax highlighter's keyword list.
+
+**Measured.** Of the 574, **360 still reach 50** (533 with ruleset 2026.11.10, 569 with the first version): about 1.7% of the day's releases instead of 2.7%. What is left is mostly by design or unread: packages that do pipe a script from their own repository into a shell, 114 with `Chain: Download and Execute`, 89 with `Chain: Credential Exfiltration`, 58 with an install-time chain in what the hook runs.
+
+On the corpus, against the first version: no verdict changes except one. Holdout 659 of 984, `dev` 691 of 929, no clean sample flagged (3,823 scanned; `jax-gemini` 0.1.1, a random PyPI package, is gone from PyPI since the day before).
+
+**What the holdout cost.** The first run of this round lost three holdout samples (657 of 985). Two went with a scoring change that was then dropped: a critical rule counted once per package however many files it fires in. On the live data that looked right (the same line in the CommonJS and the ESM build); on the holdout the one rule left on the two samples was `VS Code Session/Token Stealing` and `Buffer Decode + eval`, in two files each, and that is what catches them. The third lost its only chain to the vendor list. To see which host, it was read: `openclaw-droid` 1.0.1, whose install script pipes NodeSource's setup script into bash, which is what the scanner had caught it for. It moved to `dev`, where it is now a miss; the vendor list stayed. Three `dev` samples lost in the same run came back with narrower versions (the `setup(` test instead of a depth limit, the helper that returns its argument).
+
+**A bug the feed found.** npm's `0.0.0-stage` placeholders, about 1% of the feed, have a directory entry whose size field is empty. GNU tar and npm read that as 0; the `tar` crate refused the archive, so KalaScan could not scan any tarball with one. The stream is now patched on the way in.
+
+### What the registries publish today: a prospective run (started 2026-11-20)
+
+Every number above is about malware somebody had already caught (Known limits in docs/methodology.md, 7). The other measurement is to score releases on the day they are published and look later at what became of them.
+
+**How.** `kalascan watch --log FILE` appends one JSON line per release it scans, flagged or not: time, target, risk, strong findings, ruleset. `eval/watch_outcome.py LOG… --min-age 30` takes the releases scanned at least 30 days ago, asks OSV for a malicious-package record of each (`MAL-…`, the OpenSSF malicious-packages feed, which takes in the registries' own removals) and, for the flagged ones without a record, asks the registry whether it still serves them. It prints how many flagged releases were later named malicious, are gone, or are still up; of the releases later named malicious how many had been flagged, with a Wilson interval; and how long before the OSV record the scan ran.
+
+**What the outcome can and cannot say.** A release nobody has named counts as not malicious, so "flagged, still up" is an upper bound on false positives, and the recall is on malware found within the wait. "Gone" is weaker than a record: authors unpublish too. The npm feed is scanned at each package's `latest`, so a malicious version replaced within a poll is not seen.
+
+**First reading, 2026-11-20, ruleset 2026.11.10.** 2 hours 17 minutes of both feeds, in the evaluation VM: 4,242 releases scanned (npm 2,708, PyPI 1,534). **106 scored 50 or more (2.5%, 2.1-3.0)**: npm 51 (1.9%), PyPI 55 (3.6%); 79 of the 106 carry a chain. None was read. Hours later OSV names none of the 4,242 and all 106 are still up, which says nothing yet: takedowns take days. The rate is three to five times the first-contact rate on random packages (0.7%): what is published in a given hour is agent CLIs, installers and large applications, not the long tail the random draws are made of. A day later 574 of 21,257 had reached 50; they were read by class and are the subject of the section above. They are not holdout samples.
+
+**What the feed showed about the scanner.** 110 scans failed. 50 archives were over the size or file-count limits. 33 releases were gone (404) before the scan. 26 were npm's `0.0.0-stage` placeholders, whose tarball has a directory entry with an empty size field: GNU tar and npm read that as 0 and the `tar` crate refuses it, so KalaScan could not unpack any tarball that has one (fixed since; `kalascan guard` fails closed on a package it cannot scan, so it had blocked installs rather than waved them through). One watch was killed by the kernel when the 4 GB VM also ran an evaluation (a watch with two jobs holds 0.7 to 0.9 GB after an hour), so the watches run under a restart loop; a restart starts again from the feed's head, and the gap is not scanned. The watch was also stopped for some hours on 2026-11-21 while the corpus was measured. Each log line names the ruleset and, since that day, the detection fingerprint of the binary that scored it; lines of 2026-11-20 marked 2026.11.11 are from the first version of that ruleset.
 
 ### AI agent skills (ruleset 2026.11.10)
 

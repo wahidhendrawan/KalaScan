@@ -7,6 +7,29 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+### Added
+- `kalascan watch --log FILE` appends one JSON line per scanned release, flagged or not (time, target, risk, strong findings, ruleset). `eval/watch_outcome.py` compares those releases, after a wait, with OSV's malicious-package records and with what the registries still serve: the first measurement on releases nobody had judged yet. A prospective run started on 2026-11-20; its outcome can be read from 2026-12-20 (eval/README.md).
+- Encoded literals are read as code: what `atob`, `Buffer.from(…, 'base64' | 'hex')`, `b64decode`, `bytes.fromhex` and `echo … | base64 -d` literals decode to is scanned with the same rules, chains and data flow, two layers deep, so `eval(Buffer.from(blob, 'base64'))` is judged by its payload. Character codes handed to a decoder of the package's own (`_d([104,116,…])`) are read as the string they spell. Evasion suite: 151 of 153 variants caught (147).
+- The data-flow pass follows calls inside a file: a wrapper around a network call is a sink for its argument, and a call of a function that returns a secret, or what it collected from its argument, carries it; TypeScript's compiled `__awaiter` functions and `.then()` callbacks are followed.
+
+### Changed
+- Ruleset 2026.11.11, in two rounds. The second came from reading what `kalascan watch` flagged in one day of new npm and PyPI releases (574 of 21,257); 360 of those 574 still reach risk 50.
+  - Data flow: `'.ssh'` as a path part is a secret source. The environment counts where the whole of it is serialised or sent; one variable of it, or a helper called with it, is one setting. `spawn` with downloaded data among its arguments is a download-and-execute only with an inline-code flag or a shell, and a `fetch(` inside a string is not a download. A route decorator is not a request.
+  - Official installers: a vendor URL with no path was not recognised; eighteen domains of agent CLIs and developer tools joined the list.
+  - Install-time chains: `Remote Executable Download`, the download cradle and `Systemd User Service Installed` count only in what the install hook runs; a `package.json` of a shipped template and a module that is only named `setup.py` are not install hooks.
+  - Score v1: an AWS key pair and a GitHub token written into a package are one critical finding together.
+  - `Trojan Source Bi-Directional Character` skips a control alone between quotes and the isolates of localisation libraries; `b64decode + exec Chain` skips a command template joined from a variable; `Account Enumeration Command` skips a highlighter's keyword list.
+  - Holdout 659 of 984 (packages and extensions 640 of 882, from 639 of 883; one sample was read and moved to `dev`), `dev` 691 of 929, 0 of 3,823 clean samples flagged. A change that counted one critical rule once per package cost two holdout samples and was dropped (eval/README.md).
+- GitHub Action: `all_dependencies: "true"` scans every package the lockfiles pin, for a scheduled job.
+- `kalascan rules` prints a detection fingerprint, a hash of the rule files and detection modules the binary was built from; `run_eval.py --summary` and `kalascan watch --log` record it.
+- `eval/evasion.py --stacked` measures every seed under two rewrites in a row: 792 of 810 caught. A template literal cut by an empty interpolation (`` `id_${''}rsa` ``) is read as the name it spells.
+- `docs/roadmap.md`: what is planned by priority, and what was measured and not built.
+
+### Fixed
+- Data flow: a `{` inside a function's parameter list (`function f(state = {}, env = process.env)`) was read as the function's body, which bound `env` to the environment from a default value.
+- `eval/fetch_npmstudy.py` no longer leaves a truncated tarball that looks fetched when it is interrupted.
+- npm tarballs with an empty size field in an entry header (npm's `0.0.0-stage` placeholders) could not be unpacked; they are read as GNU tar and npm read them.
+
 ## [1.22.0] - 2026-11-20
 
 ### Added

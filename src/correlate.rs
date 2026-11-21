@@ -465,6 +465,17 @@ pub fn correlate_package_with(matches: &[RuleMatch], install_hooks_run: bool) ->
         .collect()
 }
 
+/// The install hook of a unit. For npm, in the `package.json` at the root of
+/// what was scanned or one directory down: the manifest of a template the
+/// package ships (`templates/app/package.json`) does not run at install.
+fn install_hook<'a>(matches: &[&'a RuleMatch]) -> Option<&'a RuleMatch> {
+    matches.iter().copied().find(|m| {
+        INSTALL_HOOKS.contains(&m.matched_pattern.as_str())
+            && (m.matched_pattern != "Post-Install Script"
+                || m.file_path.matches(['/', '\\']).count() <= 1)
+    })
+}
+
 /// `hooks_run`: this unit is the scanned package and its install hooks run.
 fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
     let first = |names: &[&str]| {
@@ -478,7 +489,7 @@ fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
     // (sapnwrfc).
     // `api.telegram.org/bot<TOKEN>/…` with the token written as a placeholder
     // documents a bot the user sets up (whatnext-ai's optional alert URL).
-    let shipped = |names: &[&str]| {
+    let shipped_where = |names: &[&str], also: &dyn Fn(&&RuleMatch) -> bool| {
         matches.iter().copied().find(|m| {
             names.contains(&m.matched_pattern.as_str())
                 && !m.file_path.ends_with(".yml")
@@ -486,6 +497,7 @@ fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
                 && !(m.matched_pattern == EXFIL_SERVICE
                     && m.context.contains("api.telegram.org")
                     && m.context.contains("/bot<"))
+                && also(m)
         })
     };
     let mut out = remote_file_write(matches);
@@ -494,7 +506,7 @@ fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
     // outrank a private package of the same name. With code that runs at
     // install, the package is the dependency-confusion probe itself.
     // Nines only: chromedriver's major is the Chrome version (131).
-    if let Some(hook) = first(INSTALL_HOOKS).filter(|_| hooks_run) {
+    if let Some(hook) = install_hook(matches).filter(|_| hooks_run) {
         let nines = |m: &&RuleMatch| {
             let version = m.context.split(':').next().unwrap_or_default();
             let major = version.rsplit('@').next().unwrap_or_default();
@@ -510,10 +522,30 @@ fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
     // or install-time stealer. Recon + a plain HTTP call also counts here:
     // legitimate install scripts do not need the hostname and username.
     // Root only: a bundled dep's own install script never runs for the user.
-    if let Some(hook) = first(INSTALL_HOOKS).filter(|_| hooks_run) {
+    if let Some(hook) = install_hook(matches).filter(|_| hooks_run) {
+        // An installer URL in a help text, a `curl … | sh` hint or a `daemon
+        // install` command sits somewhere in many CLIs that also have an
+        // install script. Those three count only in what the hook runs: the
+        // manifest, a file its command names, or a file named for the job.
+        let hook_runs = |m: &RuleMatch| {
+            let name = Path::new(&m.file_path)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or_default();
+            let lower = name.to_ascii_lowercase();
+            m.file_path == hook.file_path
+                || hook.context.contains(name)
+                || ["install", "setup", "prepare", "bootstrap"]
+                    .iter()
+                    .any(|w| lower.contains(w))
+        };
+        let reached = |m: &&RuleMatch| {
+            ![REMOTE_BINARY, DOWNLOAD_CRADLE, SYSTEMD_USER].contains(&m.matched_pattern.as_str())
+                || hook_runs(m)
+        };
         // An npm script that runs `curl` / `nslookup` itself, next to the user
         // or host name or a dependency-confusion version, is the probe.
-        let sink = shipped(EXFIL_CHANNELS)
+        let sink = shipped_where(EXFIL_CHANNELS, &reached)
             .or_else(|| first(&[HOST_RECON]).and(first(&["URL Fetch Command"])))
             .or_else(|| {
                 first(&[INSTALL_NET]).filter(|_| {
@@ -523,11 +555,11 @@ fn correlate_unit(matches: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
         if let Some(sink) = sink {
             out.push(chain(&sink.file_path, INSTALL_EXFIL, hook, sink));
         }
-        if let Some(stager) = shipped(STAGERS) {
+        if let Some(stager) = shipped_where(STAGERS, &reached) {
             out.push(chain(&stager.file_path, INSTALL_PAYLOAD, hook, stager));
         }
         // A service the install leaves behind runs long after the install.
-        if let Some(unit) = shipped(&[SYSTEMD_USER]) {
+        if let Some(unit) = shipped_where(&[SYSTEMD_USER], &reached) {
             out.push(chain(&unit.file_path, INSTALL_PERSISTENCE, hook, unit));
         }
     }
@@ -1118,6 +1150,13 @@ mod tests {
         // `curl` alone fetches a prebuilt binary, as plenty of packages do.
         let m = vec![pj("Post-Install Script"), pj(INSTALL_NET)];
         assert!(correlate_package(&m).is_empty());
+        // The manifest of a template the package ships is not its install hook.
+        let m = vec![
+            hit("templates/app/web/package.json", "Post-Install Script", 7),
+            hit("templates/app/web/package.json", INSTALL_NET, 7),
+            hit("templates/app/web/package.json", INSTALL_RECON, 7),
+        ];
+        assert!(correlate_package(&m).is_empty());
         // setup.py calling a webhook at module level needs no cmdclass.
         let m = vec![
             hit("setup.py", SETUP_PY_STAGER, 10),
@@ -1426,11 +1465,24 @@ mod tests {
 
     #[test]
     fn install_hook_service_and_republishing_worm_are_chains() {
-        let hook = hit("package.json", "Post-Install Script", 9);
+        let mut hook = hit("package.json", "Post-Install Script", 9);
+        hook.context = r#""postinstall": "node index.js""#.to_string();
         let unit = hit("index.js", SYSTEMD_USER, 17);
         assert_eq!(
             names(&correlate_package(&[hook.clone(), unit.clone()])),
             vec![INSTALL_PERSISTENCE]
+        );
+        // A `daemon install` command elsewhere in a CLI whose install script
+        // does something else (@claude-flow/cli), and an installer URL in a
+        // help text (@tjcoder/cli's `bin/coder.js`).
+        hook.context = r#""postinstall": "node ./scripts/postinstall.cjs""#.to_string();
+        let daemon = hit("dist/src/commands/daemon.js", SYSTEMD_USER, 1597);
+        let hint = hit("bin/coder.js", REMOTE_BINARY, 34);
+        assert!(correlate_package(&[hook.clone(), daemon, hint]).is_empty());
+        let fetched = hit("scripts/postinstall.cjs", REMOTE_BINARY, 12);
+        assert_eq!(
+            names(&correlate_package(&[hook.clone(), fetched])),
+            vec![INSTALL_EXFIL, INSTALL_PAYLOAD]
         );
         // A CLI that sets up its own user service when the user asks is no chain.
         assert!(correlate_package(&[unit]).is_empty());

@@ -10,7 +10,7 @@ There are two models. **v1 is the default.** v2 is opt-in (`kalascan scan --scor
 
 1. **Dedup.** Each `(file, finding name)` pair counts once; a regex firing 40 times in a minified bundle is one finding. History hits (`<commit>:<path>`) count as the file they belong to.
 2. **Buckets.** `Known Vulnerability:` findings go to a CVE counter. A behaviour chain (`Chain: …`), an invisible-character or look-alike publisher listing, a repackaged popular extension, an AI-vendor repository spoof, npm manifest confusion, a URLhaus hit, text hidden in Unicode tags, code decoded straight into `exec`, an import-obfuscated loader or a remote URL dependency counts as **two** criticals: these have no benign reading. Everything else is counted by its severity.
-3. **Critical findings**: none 0, one 20, two or more `min(n x 35, 70)`. One critical alone is a lead, not a verdict; a chain or a second critical makes it one.
+3. **Critical findings**: none 0, one 20, two or more `min(n x 35, 70)`. One critical alone is a lead, not a verdict; a chain or a second critical makes it one. Credentials written into the package (`AWS Access Key`, `AWS Secret Key`, `GitHub Token`) are one critical finding together, in however many files: a key pair in a fixture is one leak (ruleset 2026.11.11).
 4. **High findings** `min(n x 5, 15)`, **medium findings** `min(n, 5)`.
 5. **Known vulnerabilities** `min(n, 5)`: hygiene, not malware evidence.
 6. **Deep analysis** `min(triage + deobfuscation + emulation + sandbox, 20)`: the deep passes share one budget because they overlap.

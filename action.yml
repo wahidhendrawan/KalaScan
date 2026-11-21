@@ -25,6 +25,10 @@ inputs:
     description: "Also scan every package the lockfiles add or change against base_ref (needs base_ref fetched, e.g. actions/checkout with fetch-depth: 0). Fails at fail_on_risk"
     required: false
     default: "false"
+  all_dependencies:
+    description: "Also scan every package the lockfiles pin, development dependencies included: for a scheduled run, where nothing is new but the ruleset may be. Fails at fail_on_risk"
+    required: false
+    default: "false"
   untrusted:
     description: "Scan the target as someone else's code: no skipped build dirs, no inline kalascan:ignore markers, no .kalascanignore or kalascan.toml from the checkout. Keep \"true\" for pull requests, whose author controls those files"
     required: false
@@ -67,6 +71,15 @@ runs:
         FAIL_ON_RISK: ${{ inputs.fail_on_risk }}
         BASE_REF: ${{ inputs.base_ref }}
       run: kalascan deps . --base-ref "$BASE_REF" --include-dev --fail-on-risk "$FAIL_ON_RISK"
+      shell: bash
+
+    - name: Scan all dependencies
+      # A package that was clean under last month's ruleset may not be under
+      # this one, and a version can be replaced on the registry.
+      if: inputs.all_dependencies == 'true'
+      env:
+        FAIL_ON_RISK: ${{ inputs.fail_on_risk }}
+      run: kalascan deps . --include-dev --fail-on-risk "$FAIL_ON_RISK"
       shell: bash
 
     - name: Upload SARIF

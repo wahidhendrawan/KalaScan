@@ -21,10 +21,15 @@ evading (seed, mutator) pairs.
 
 --baseline FILE exits 1 if any pair caught in the baseline is no longer
 caught, so a rule change cannot silently lose robustness.
+
+--stacked applies two mutators, one after the other, to every seed (each
+pair of mutators once, in list order): what an author does who tests against
+the scanner and keeps rewriting. A measurement, not part of the baseline.
 """
 
 import argparse
 import collections
+import concurrent.futures
 import json
 import math
 import os
@@ -543,6 +548,33 @@ def build_and_scan(args, seed, built):
         return scan(args, src)
 
 
+def stacked(args):
+    """Every seed with two mutators applied in a row. A second mutator that
+    cannot find what the first one moved or rewrote is skipped."""
+    def variant(job):
+        seed, (_, first, f1), (_, second, f2) = job
+        one = f1(seed)
+        if one is None:
+            return None
+        try:
+            two = f2({**seed, "files": one[0]})
+        except KeyError:  # the payload file was renamed by the first mutator
+            return None
+        if two is None:
+            return None
+        return seed["name"], first, second, build_and_scan(args, seed, (two[0], one[1] or two[1]))
+
+    jobs = [(seed, a, b) for seed in SEEDS for i, a in enumerate(MUTATORS) for b in MUTATORS[i + 1:]]
+    with concurrent.futures.ThreadPoolExecutor(args.jobs) as pool:
+        done = [r for r in pool.map(variant, jobs) if r]
+    evading = [r for r in done if r[3] is None or r[3] < args.threshold]
+    print(f"== two mutators stacked, caught at T={args.threshold}: {rate(len(done) - len(evading), len(done))}")
+    single = collections.Counter(m for _, a, b, _ in evading for m in (a, b))
+    print("== mutators in the evading stacks: " + ", ".join(f"{m} {n}" for m, n in single.most_common()))
+    for name, first, second, risk in sorted(evading):
+        print(f"  {str(risk):>4}  {name:24} {first} + {second}")
+
+
 def wilson(num, den, z=1.96):
     """95% Wilson interval: honest at 0/n and n/n."""
     if not den:
@@ -567,7 +599,11 @@ def main():
     ap.add_argument("--timeout", type=int, default=120)
     ap.add_argument("--out", help="write per-variant results JSON")
     ap.add_argument("--baseline", help="fail (exit 1) if a pair caught here is now missed")
+    ap.add_argument("--stacked", action="store_true", help="measure every seed under two mutators in a row instead")
+    ap.add_argument("--jobs", type=int, default=4, help="scans in parallel for --stacked")
     args = ap.parse_args()
+    if args.stacked:
+        return stacked(args)
 
     # Baseline, so every seed really is a seed.
     print("== seeds (unmutated, must score >= %d)" % args.threshold)

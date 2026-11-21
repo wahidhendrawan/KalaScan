@@ -77,8 +77,12 @@ def main():
         return
     want = [s["target"] for s in json.load(open(args.corpus))["samples"] if s["source"] == "npmstudy"]
     for name in want:
-        if not os.path.exists(os.path.join(args.dest, name)):
-            z.extract(name, args.dest)  # zipfile drops `..` and absolute member names
+        out = os.path.join(args.dest, name)
+        if not os.path.exists(out):
+            # Aside first: a run killed half-way must not leave a truncated file that looks fetched.
+            part = z.extract(name, os.path.join(args.dest, ".partial"))  # zipfile drops `..` and absolute member names
+            os.makedirs(os.path.dirname(out), exist_ok=True)
+            os.replace(part, out)
     print(f"{len(want)} samples in {args.dest}")
 
 

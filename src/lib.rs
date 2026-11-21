@@ -383,8 +383,9 @@ pub async fn run() -> anyhow::Result<()> {
             min_risk,
             jobs,
             osv_dir,
+            log,
         }) => {
-            watch::run(&ecosystem, interval, min_risk, jobs, osv_dir).await?;
+            watch::run(&ecosystem, interval, min_risk, jobs, osv_dir, log).await?;
         }
         Some(Commands::Diff {
             old,
