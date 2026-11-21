@@ -795,6 +795,10 @@ const FINDING_TABLE: &[(&str, &[&str])] = &[
     ("String Table Behind Kana Identifiers", &["T1027"]),
     ("System Process Name Assigned", &["T1036.005"]),
     ("Shell Script Encoded in the Manifest", &["T1027", "T1059.004"]),
+    ("WhatsApp Channel Followed by Library Code", &["T1195.001", "T1098"]),
+    ("Install Script Calls a Native Addon", &["T1195.001", "T1129"]),
+    ("Process Started Detached or Without a Window", &["T1059", "T1564"]),
+    ("Cloudflare Access TCP Client", &["T1572"]),
     // Raised by code (taxonomy::CODE_FINDINGS). Instructions aimed at an AI
     // agent have no Enterprise technique (ATLAS AML.T0051 is theirs).
     ("Agent Instruction: Hidden Unicode Tag Text", &["T1027"]),
@@ -838,6 +842,8 @@ const FINDING_TABLE: &[(&str, &[&str])] = &[
     ("Chain: Obfuscated Code Appended to Readable Source", &["T1027", "T1195.001"]),
     ("Chain: Executable Copied Under a System Process Name", &["T1036.005"]),
     ("Chain: Hidden Bundled Binary Started Detached", &["T1564.001", "T1195.001"]),
+    ("Chain: Hidden Python Process", &["T1564", "T1059.006"]),
+    ("Chain: Dropped Binary Behind a Cloudflare Access Tunnel", &["T1572", "T1105"]),
     ("Chain: Web Page Published as a Package", &["T1566", "T1036"]),
     ("Package Entry Point Is a Web Page", &[]),
     ("Chain: Obfuscated Credential Theft", &["T1027", "T1552"]),

@@ -721,7 +721,11 @@ name = "Make File Executable"
 severity = "medium"
 category = "obfuscation"
 description = "Marks a file executable"
-pattern = '''(?:chmodSync\([^)]*0o?7[57]5|chmod\s+(?:\+x|7[57]5)|os\.chmod\([^)]*0o7[57]5)'''
+# Python's stat forms too (`st_mode | stat.S_IEXEC`, `stat.S_IRWXU`); not a
+# key file made private (`S_IRUSR | S_IWUSR`).
+pattern = '''(?:chmodSync\([^)]*0o?7[57]5|chmod\s+(?:\+x|7[57]5)|os\.chmod\([^)]*0o7[57]5|os\.chmod\s*\([^\n;]{0,120}?stat\.S_I(?:EXEC|XUSR|RWXU)(?-u:\b))'''
+matches = ['''fs.chmodSync(bin, 0o755)''', '''os.chmod(p, os.stat(p).st_mode | stat.S_IEXEC)''', '''os.chmod(f, stat.S_IRWXU)''']
+ignores = ['''os.chmod(key_path, stat.S_IRUSR | stat.S_IWUSR)''', '''os.chmod(p, 0o600); mode = stat.S_IEXEC''']
 
 [[rule]]
 id = "KS-EXE-024"
@@ -762,8 +766,10 @@ name = "setup.py Install-time Execution"
 severity = "high"
 category = "install_hook"
 description = "setup.py runs shell commands at pip install"
-pattern = '''(?:subprocess\.|os\.system|os\.popen|from\s+subprocess\s+import|from\s+os\s+import\s+[^\n]*(?-u:\b)(?:system|popen|spawn\w*|exec\w*)(?-u:\b))'''
-matches = ['''from os import system as _ssystem''']
+# Aliased too: `import os as _os, sys as _sys, subprocess as _sp` then `_sp.Popen(…)`.
+pattern = '''(?:subprocess\.|os\.system|os\.popen|from\s+subprocess\s+import|(?-u:\b)import\s+[^\n]*(?-u:\b)subprocess\s+as\s+\w|from\s+os\s+import\s+[^\n]*(?-u:\b)(?:system|popen|spawn\w*|exec\w*)(?-u:\b))'''
+matches = ['''from os import system as _ssystem''', '''import os as _os, sys as _sys, subprocess as _sp''']
+ignores = ['''import subprocess_tee''']
 
 # No `exec(`: `exec(open('pkg/version.py').read())` is the
 # standard version-reading idiom.
@@ -1134,3 +1140,65 @@ description = "A base64 shell script (`#!/bin/…`, `#!/usr/bin/…`) inside pac
 pattern = '''IyEv(?:YmluL|dXNyL2Jpbi9)'''
 matches = ['''"description": "IyEvYmluL3NoCl9kKCl7IHByaW50ZiAnJXMnICIkMSJ8YmFzZTY0IC1kIDI+L2Rldi9udWxsOyB9"''']
 ignores = ['''"bin": {"tool": "bin/tool.sh"}''']
+
+# Baileys forks that make the user's WhatsApp account follow the author's
+# channel (OSV MAL-2026-17354): a hard-coded `…@newsletter` JID handed to a
+# follow call, or a FOLLOW query and a MUTE query in one block. Upstream
+# Baileys keeps follow and mute in separate methods and hard-codes no JID.
+[[rule]]
+id = "KS-SUP-016"
+name = "WhatsApp Channel Followed by Library Code"
+severity = "critical"
+category = "supply_chain"
+description = "A WhatsApp library that makes the user's account follow (and mute) a channel it names itself: subscribers bought with other people's accounts"
+pattern = '''[0-9]{15,20}@newsletter['"`][\s\S]{0,800}?(?:newsletterFollow\s*\(|QueryIds\.FOLLOW(?-u:\b))|QueryIds\.FOLLOW\s*\)[^{}]{0,300}?QueryIds\.MUTE(?-u:\b)'''
+matches = ['''const CH = "120363000000000001@newsletter";
+sock.ev.on("connection.update", async (u) => { if (u.connection === "open") await sock.newsletterFollow(CH) })''', '''const JID = '120363000000000002@newsletter'; async function autoFollowChannel(sock, tries = 3) { await sock.newsletterWMexQuery(JID, QueryIds.FOLLOW) }''', '''for (const id of ids) { await sock.newsletterWMexQuery(id, QueryIds.FOLLOW); await delay(500); await sock.newsletterWMexQuery(id, QueryIds.MUTE) }''']
+ignores = ['''newsletterFollow: async (jid) => {
+	await newsletterWMexQuery(jid, QueryIds.FOLLOW)
+},
+newsletterMute: async (jid) => {
+	await newsletterWMexQuery(jid, QueryIds.MUTE)
+},''', '''newsletterJid: process.env.NEWSLETTER_JID || "120363000000000003@newsletter",''']
+
+# `node -e "require('./addon.node').init()"` as the install script: compiled
+# code from the package runs at install, where nobody can read it. Build
+# checks load the addon and call nothing (`require('./build/Release/x.node')
+# || node-gyp rebuild`); prebuild-install and node-gyp-build require nothing.
+[[rule]]
+id = "KS-SUP-017"
+name = "Install Script Calls a Native Addon"
+severity = "high"
+category = "npm_hook"
+description = "An npm install script loads a compiled `.node` addon and calls a function it exports: native code from the package runs at install"
+pattern = '''(?i)"(?:pre|post)?install"\s*:\s*"(?:[^"\\\n]|\\.)*?(?-u:\b)require\s*\((?:[^"()\\\n]|\\.){0,200}?\.node\\?["'`]\s*\)\s*\.\s*[\w$]+\s*\('''
+matches = ['''"postinstall": "node -e \"try{require(process.platform==='win32'?'./addon_win.node':'./addon.node').init()}catch(e){}\""''', '''"install": "node -e \"require('./lib/core.node').start()\""''']
+ignores = ['''"install": "prebuild-install || node-gyp rebuild"''', '''"install": "node-gyp-build"''', '''"install": "node -e \"require('./build/Release/x.node')\" || node-gyp rebuild"''', '''"test": "node -e \"require('./addon.node').run()\""''']
+
+# Python's ways to start a process with no console window or outside the
+# parent's session. Servers do it at run time (Jupyter, Ray and Dask start
+# theirs with `start_new_session`), so it is a lead; at `pip install` it is
+# a payload that outlives the install (correlate.rs, setup.py only). The flag
+# where it is passed, not a constant table (`CREATE_NO_WINDOW = 0x08000000`).
+[[rule]]
+id = "KS-EXE-046"
+name = "Process Started Detached or Without a Window"
+severity = "medium"
+category = "obfuscation"
+description = "Starts a process with no console window (CREATE_NO_WINDOW, DETACHED_PROCESS) or in a session of its own (start_new_session, setsid): it keeps running unseen after its parent exits"
+pattern = '''(?:(?-u:\b)creationflags\s*=\s*[^\n,)]{0,80}?(?:CREATE_NO_WINDOW|DETACHED_PROCESS|0x0*8000000|0x0*8)(?-u:\b)|(?-u:\b)start_new_session\s*=\s*True(?-u:\b)|(?-u:\b)os\.setsid(?-u:\b))'''
+matches = ['''_sp.Popen([pythonw, script], creationflags=0x08000000)''', '''subprocess.Popen([path], start_new_session=True)''', '''Popen(cmd, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS)''', '''subprocess.Popen(cmd, preexec_fn=os.setsid)''', '''Popen(cmd, creationflags=0x00000008)''']
+ignores = ['''CREATE_NO_WINDOW = 0x08000000''', '''Popen(cmd, creationflags=subprocess.CREATE_NEW_CONSOLE)''', '''Popen(cmd, start_new_session=False)''', '''Popen(cmd, creationflags=0x08000001)''']
+
+# The client side of a Cloudflare Access TCP tunnel: a local port forwarded
+# to a host behind Cloudflare (a miner's pool, in one PyPI campaign). The
+# cloudflared wrappers on PyPI run the server side, `tunnel --url`.
+[[rule]]
+id = "KS-NET-005"
+name = "Cloudflare Access TCP Client"
+severity = "medium"
+category = "network"
+description = "Runs `cloudflared access tcp`: a local port forwarded through Cloudflare to a host the code names"
+pattern = '''(?:(?-u:\b)access\s+tcp\s+--(?:hostname|url)(?-u:\b)|["']access["']\s*,\s*["']tcp["']\s*,\s*["']--(?:hostname|url)["'])'''
+matches = ['''os.system(f"{cf} access tcp --hostname {host} --url 127.0.0.1:3333 &")''', '''subprocess.Popen([cf, "access", "tcp", "--hostname", host, "--url", "127.0.0.1:3333"])''']
+ignores = ['''subprocess.Popen([cf, "tunnel", "--url", "http://localhost:8080"])''', '''cloudflared tunnel --url http://localhost:8000''']

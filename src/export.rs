@@ -1082,6 +1082,7 @@ mod tests {
                     "discord.com/api/webhooks/...".into(),
                 ],
                 recommendation: "Do Not Execute".into(),
+                on_agent_text: false,
             }),
             triage: Some(sample_triage()),
             deobfuscation: Some(sample_deobfuscation()),

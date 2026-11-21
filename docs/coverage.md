@@ -185,6 +185,10 @@ ATT&CK technique ids follow Enterprise ATT&CK v20.1. The MBC objective (Malware 
 | String Table Behind Kana Identifiers | KS-EXE-044 | T1027 | OB0002 Anti-Static Analysis | - |
 | System Process Name Assigned | KS-EXE-045 | T1036.005 | OB0006 Defense Evasion | - |
 | Shell Script Encoded in the Manifest | KS-SUP-015 | T1027, T1059.004 | OB0002 Anti-Static Analysis, OB0009 Execution | - |
+| WhatsApp Channel Followed by Library Code | KS-SUP-016 | T1195.001, T1098 | OB0012 Persistence | - |
+| Install Script Calls a Native Addon | KS-SUP-017 | T1195.001, T1129 | OB0009 Execution | - |
+| Process Started Detached or Without a Window | KS-EXE-046 | T1059, T1564 | OB0009 Execution, OB0006 Defense Evasion | - |
+| Cloudflare Access TCP Client | KS-NET-005 | T1572 | OB0004 Command and Control | - |
 | Agent Instruction: Hidden Unicode Tag Text | code | T1027 | OB0002 Anti-Static Analysis | - |
 | Agent Instruction: Invisible Characters | code | T1027 | OB0002 Anti-Static Analysis | - |
 | Agent Instruction: Directive in HTML Comment | code | T1564 | OB0006 Defense Evasion | - |
@@ -230,6 +234,8 @@ ATT&CK technique ids follow Enterprise ATT&CK v20.1. The MBC objective (Malware 
 | Chain: Obfuscated Code Appended to Readable Source | code | T1027, T1195.001 | OB0002 Anti-Static Analysis | - |
 | Chain: Executable Copied Under a System Process Name | code | T1036.005 | OB0006 Defense Evasion | - |
 | Chain: Hidden Bundled Binary Started Detached | code | T1564.001, T1195.001 | OB0006 Defense Evasion | - |
+| Chain: Hidden Python Process | code | T1564, T1059.006 | OB0006 Defense Evasion, OB0009 Execution | - |
+| Chain: Dropped Binary Behind a Cloudflare Access Tunnel | code | T1572, T1105 | OB0004 Command and Control | - |
 | Remote URL Dependency | code | T1195.001, T1105 | OB0004 Command and Control | AV-501 |
 | Dependency on a Node Built-in Name | code | T1195.001 | - | AV-205, AV-209 |
 | Dependency Name Unclaimed on the Registry | code | T1195.001 | - | AV-209 |

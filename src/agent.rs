@@ -165,6 +165,54 @@ pub fn is_agent_file(rel_path: &str) -> bool {
         || (under(".gemini/") && name == "settings.json")
 }
 
+/// Agent files under `dir` as (relative path, text) for the LLM to read: the
+/// root first, SKILL.md first at each depth. Stops reading at `max_chars`.
+pub fn agent_texts(
+    dir: &std::path::Path,
+    tree: scanner::Tree,
+    max_chars: usize,
+) -> Vec<(String, String)> {
+    use std::io::Read;
+    let mut paths: Vec<(String, std::path::PathBuf)> = walkdir::WalkDir::new(dir)
+        .into_iter()
+        .filter_entry(|e| !scanner::skip_dir(e, tree))
+        .filter_map(Result::ok)
+        // Not symlinks: `SKILL.md -> ~/.ssh/id_rsa` would go to the LLM.
+        .filter(|e| e.file_type().is_file())
+        .filter_map(|e| {
+            let rel = e.path().strip_prefix(dir).ok()?.to_string_lossy();
+            let rel = rel.replace('\\', "/");
+            is_agent_file(&rel).then(|| (rel, e.into_path()))
+        })
+        .collect();
+    paths.sort_by_cached_key(|(rel, _)| {
+        let name = rel.rsplit('/').next().unwrap_or_default();
+        (
+            rel.matches('/').count(),
+            !name.eq_ignore_ascii_case("skill.md"),
+            rel.clone(),
+        )
+    });
+    let mut left = max_chars;
+    let mut out = Vec::new();
+    for (rel, path) in paths {
+        if left == 0 {
+            break;
+        }
+        // A char is at most 4 bytes; one more char shows the text went on.
+        let mut bytes = Vec::new();
+        let read = std::fs::File::open(&path)
+            .and_then(|f| f.take(left as u64 * 4 + 4).read_to_end(&mut bytes));
+        if read.is_err() {
+            continue;
+        }
+        let text = String::from_utf8_lossy(&bytes).into_owned();
+        left = left.saturating_sub(text.chars().count());
+        out.push((rel, text));
+    }
+    out
+}
+
 /// MCP server code: its tool descriptions are prompts the client's model
 /// reads (tool poisoning).
 fn is_mcp_server(content: &str) -> bool {
@@ -479,6 +527,33 @@ mod tests {
         ] {
             assert!(!is_agent_file(p), "{p}");
         }
+    }
+
+    #[test]
+    fn agent_texts_root_skill_first_no_symlinks_capped() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path();
+        std::fs::create_dir(p.join("sub")).unwrap();
+        std::fs::write(p.join("sub/SKILL.md"), "deep").unwrap();
+        std::fs::write(p.join("AGENTS.md"), "agents").unwrap();
+        std::fs::write(p.join("SKILL.md"), "root skill").unwrap();
+        std::fs::write(p.join("README.md"), "not an agent file").unwrap();
+        std::fs::write(p.join("secret"), "id_rsa").unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(p.join("secret"), p.join("sub/CLAUDE.md")).unwrap();
+
+        let got = agent_texts(p, scanner::Tree::Package, 100);
+        let got: Vec<_> = got.iter().map(|(r, t)| (r.as_str(), t.as_str())).collect();
+        assert_eq!(
+            got,
+            [
+                ("SKILL.md", "root skill"),
+                ("AGENTS.md", "agents"),
+                ("sub/SKILL.md", "deep")
+            ]
+        );
+        // Reading stops once the cap is reached.
+        assert_eq!(agent_texts(p, scanner::Tree::Package, 5).len(), 1);
     }
 
     #[test]

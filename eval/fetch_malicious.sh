@@ -21,9 +21,21 @@ fi
 python3 -I -c '
 import json, sys
 for s in json.load(open(sys.argv[1]))["samples"]:
-    if s["source"] == "dataset":
+    if s["source"] == "dataset" and "commit" not in s:
         print(s["target"])
 ' "$here/corpus.json" | tr '\n' '\0' | xargs -0 git -C "$dest" checkout HEAD --
+
+# Samples drawn from a sync branch the dataset had not merged: from that commit.
+python3 -I -c '
+import json, sys
+for s in json.load(open(sys.argv[1]))["samples"]:
+    if s["source"] == "dataset" and "commit" in s:
+        print(s["commit"], s["target"])
+' "$here/corpus.json" | sort | while read -r commit target; do
+  git -C "$dest" cat-file -e "$commit^{commit}" 2>/dev/null ||
+    git -C "$dest" fetch -q --depth 1 --filter=blob:none origin "$commit"
+  git -C "$dest" checkout "$commit" -- "$target"
+done
 
 echo "fetched into $dest/samples"
 

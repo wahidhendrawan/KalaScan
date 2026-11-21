@@ -14,7 +14,7 @@ There are two models. **v1 is the default.** v2 is opt-in (`kalascan scan --scor
 4. **High findings** `min(n x 5, 15)`, **medium findings** `min(n, 5)`.
 5. **Known vulnerabilities** `min(n, 5)`: hygiene, not malware evidence.
 6. **Deep analysis** `min(triage + deobfuscation + emulation + sandbox, 20)`: the deep passes share one budget because they overlap.
-7. **AI verdict** `min(ai.risk_score / 2, 25)` only when the model says malicious; a benign verdict adds 0.
+7. **AI verdict** `min(ai.risk_score / 2, 25)` only when the model says malicious; a benign verdict adds 0. On the text of an agent file (a skill's `SKILL.md`, read with `--ai`), a malicious verdict at risk 70 or more gives 70: the model is the one reader there of what the words ask the agent to do (ruleset 2026.11.13; eval/README.md, "AI agent skills by meaning").
 8. **Total** = the parts added up, capped at 100.
 
 The result is nearly two-valued: a package has a chain or two criticals and scores 70 or more, or it does not and stays under 30. On the holdout 639 of 883 malicious samples score 70 or more, two score 30-49, none 50-69.

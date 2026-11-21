@@ -110,7 +110,10 @@ def outcome(rows, named, is_gone, threshold):
     counts, still_up, missed, lead = collections.Counter(), [], [], []
     for r in rows:
         flagged, target = r["risk"] >= threshold, r["target"]
-        if target in named:
+        if target.startswith("npm:") and target.endswith("-security"):
+            # npm's placeholder for a removed package: the release itself was never seen.
+            counts["taken down before the scan"] += 1
+        elif target in named:
             counts["flagged, named malicious" if flagged else "not flagged, named malicious"] += 1
             if flagged:
                 lead.append((named[target] - when(r["ts"])).total_seconds() / 86400)
@@ -129,10 +132,11 @@ def outcome(rows, named, is_gone, threshold):
 def self_test():
     t0 = "2026-01-01T00:00:00Z"
     rows = [{"ts": t0, "target": f"npm:{n}@1.0.0", "risk": risk} for n, risk in (("a", 90), ("b", 90), ("c", 90), ("d", 0), ("e", 5))]
-    named = {"npm:a@1.0.0": when("2026-01-03T00:00:00Z"), "npm:d@1.0.0": when(t0)}
+    rows.append({"ts": t0, "target": "npm:f@0.0.1-security", "risk": 0})
+    named = {"npm:a@1.0.0": when("2026-01-03T00:00:00Z"), "npm:d@1.0.0": when(t0), "npm:f@0.0.1-security": when(t0)}
     counts, still_up, missed, lead = outcome(rows, named, lambda t: t == "npm:b@1.0.0", 50)
     assert counts == {"flagged, named malicious": 1, "flagged, gone from the registry": 1, "flagged, still up": 1,
-                      "not flagged, named malicious": 1, "not flagged": 1}, counts
+                      "not flagged, named malicious": 1, "not flagged": 1, "taken down before the scan": 1}, counts
     assert [t for _, t, _ in still_up] == ["npm:c@1.0.0"] and missed == ["npm:d@1.0.0"] and lead == [2.0]
     assert parse("npm:@scope/x@1.2.3") == ("npm", "@scope/x", "1.2.3") and parse("pypi:x==1!2.0") == ("PyPI", "x", "1!2.0")
     print("ok")
@@ -152,7 +156,7 @@ def main():
         sys.exit(f"no release scanned {args.min_age} or more days ago in {len(args.logs)} log(s)")
     counts, still_up, missed, lead = outcome(rows, osv_records(rows), gone, args.threshold)
     print(f"{len(rows)} releases scanned {args.min_age} or more days ago ({errors} scans in the logs failed), threshold {args.threshold}")
-    for fate in ("flagged, named malicious", "flagged, gone from the registry", "flagged, still up", "not flagged, named malicious", "not flagged"):
+    for fate in ("flagged, named malicious", "flagged, gone from the registry", "flagged, still up", "not flagged, named malicious", "not flagged", "taken down before the scan"):
         print(f"  {counts[fate]:>7}  {fate}")
     caught, known = counts["flagged, named malicious"], counts["flagged, named malicious"] + counts["not flagged, named malicious"]
     if known:

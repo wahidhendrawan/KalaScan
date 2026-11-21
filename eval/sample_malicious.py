@@ -7,12 +7,19 @@ nothing is checked out (eval/fetch_malicious.sh does that later).
   # DataDog dataset, samples dated on or after a day (the date is in the file name)
   python3 eval/sample_malicious.py --dataset ~/kalascan-corpus --since 2026-08-01 --ecosystem npm --set recent-2026-11
 
+  # samples the dataset has not merged yet: files of a bot branch that HEAD lacks
+  # (fetch it first: git -C ~/kalascan-corpus fetch --depth 1 --filter=blob:none origin <branch>)
+  python3 eval/sample_malicious.py --dataset ~/kalascan-corpus --ref FETCH_HEAD --ecosystem npm --set rolling-2026-11
+
   # IDE extensions and AI agent skills have no date in the file name, so --since does not apply
   python3 eval/sample_malicious.py --dataset ~/kalascan-corpus --ecosystem ide_extensions --set tune-ext-2026-11
   python3 eval/sample_malicious.py --dataset ~/kalascan-corpus --ecosystem ai-skills --set skills-2026-11
 
   # pypi_malregistry, only package names the DataDog dataset does not have
   python3 eval/sample_malicious.py --dataset ~/kalascan-corpus --malregistry ~/kalascan-malregistry --set malregistry-2026-11
+
+  # pypi_malregistry, only what it added after a commit (the newest batch)
+  python3 eval/sample_malicious.py --dataset ~/kalascan-corpus --malregistry ~/kalascan-malregistry --added-after 76e8530cce~1 --set rolling-pypi-2026-11
 
   # the ASE 2026 npm study (eval/fetch_npmstudy.py), same rule
   python3 eval/fetch_npmstudy.py --list npmstudy.txt
@@ -33,9 +40,9 @@ import subprocess
 import sys
 
 
-def tree(repo, prefix=""):
+def tree(repo, prefix="", ref="HEAD"):
     out = subprocess.run(
-        ["git", "-C", repo, "ls-tree", "-r", "--name-only", "HEAD", *([prefix] if prefix else [])],
+        ["git", "-C", repo, "ls-tree", "-r", "--name-only", ref, *([prefix] if prefix else [])],
         capture_output=True, text=True, check=True,
     ).stdout
     return [line for line in out.splitlines() if line]
@@ -58,6 +65,8 @@ def main():
     ap.add_argument("--malregistry", help="blobless clone of pypi_malregistry; draw from it instead")
     ap.add_argument("--npmstudy", metavar="LIST", help="tarball list from eval/fetch_npmstudy.py --list; draw npm from it instead")
     ap.add_argument("--ecosystem", choices=("npm", "pypi", "ide_extensions", "ai-skills"), default="npm", help="DataDog ecosystem to draw from")
+    ap.add_argument("--ref", help="DataDog only: draw from the files of this commit that HEAD does not have (an unmerged sync branch); entries record its hash")
+    ap.add_argument("--added-after", metavar="COMMIT", help="pypi_malregistry only: files this older commit does not have")
     ap.add_argument("--since", default="0000-00-00", help="DataDog only: samples dated on or after YYYY-MM-DD")
     ap.add_argument("--before", default="9999-99-99", help="DataDog only: samples dated before YYYY-MM-DD (a tuning batch stays behind the newest holdout)")
     ap.add_argument("--size", type=int, default=100)
@@ -81,20 +90,28 @@ def main():
     elif args.malregistry:
         source = "malregistry"
         known = {norm(p.split("/")[3]) for p in tree(args.dataset, "samples/pypi") if p.count("/") >= 5}
+        old = set(tree(args.malregistry, ref=args.added_after)) if args.added_after else set()
         for path in tree(args.malregistry):
+            if path in old:
+                continue
             parts = path.split("/")
             if len(parts) == 3 and path.endswith((".tar.gz", ".whl", ".zip")) and norm(parts[0]) not in known | used:
                 by_name.setdefault(norm(parts[0]), []).append(path)
     else:
         source = "dataset"
-        for path in tree(args.dataset, f"samples/{args.ecosystem}"):
+        paths = tree(args.dataset, f"samples/{args.ecosystem}")
+        if args.ref:
+            merged = set(paths)
+            paths = [p for p in tree(args.dataset, f"samples/{args.ecosystem}", args.ref) if p not in merged]
+        for path in paths:
             parts = path.split("/")
             dated = re.match(r"\d{4}-\d{2}-\d{2}", parts[-1])
             if args.ecosystem in ("ide_extensions", "ai-skills"):
                 # samples/ide_extensions/<kind>/<id>/<version>.vsix, samples/ai-skills/<kind>/<id>/<id>.zip: no date in the name.
                 wanted = len(parts) == 5 and path.endswith(".vsix" if args.ecosystem == "ide_extensions" else ".zip")
             else:
-                wanted = len(parts) >= 6 and dated and args.since <= dated.group() < args.before
+                # npm's `0.0.0-stage` placeholders hold a stub manifest and no code (tune-rolling-2026-11).
+                wanted = len(parts) >= 6 and dated and args.since <= dated.group() < args.before and parts[4] != "0.0.0-stage"
             if wanted and norm(parts[3]) not in used:
                 by_name.setdefault(norm(parts[3]), []).append(path)
 
@@ -104,6 +121,10 @@ def main():
         {"target": rng.choice(sorted(by_name[n])), "label": "malicious", "source": source, "split": "holdout", "set": args.set}
         for n in names
     ]
+    if args.ref:
+        commit = subprocess.run(["git", "-C", args.dataset, "rev-parse", args.ref], capture_output=True, text=True, check=True).stdout.strip()
+        for e in entries:
+            e["commit"] = commit
     print(f"{len(by_name)} unseen package names, picked {len(entries)}", file=sys.stderr)
     json.dump(entries, sys.stdout, indent=1)
 
