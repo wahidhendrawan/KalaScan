@@ -2,13 +2,13 @@
 
 What is planned, in order of priority, and where each item stands. An item is built when a measurement says it helps; several were measured and not built, and those stay on the list with the number that decided it. The evidence is in the [evaluation notes](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md).
 
-Last updated 2026-11-21, ruleset 2026.11.11.
+Last updated 2026-11-21, ruleset 2026.11.12.
 
 ## P0: what everything else depends on
 
 | # | Item | Status |
 |---|---|---|
-| 1 | **Prospective evaluation.** Score new npm and PyPI releases the day they are published (`kalascan watch --log`) and compare with takedowns later (`eval/watch_outcome.py`). | Running since 2026-11-20. The first outcome can be read from 2026-12-20. What the flagged releases are was read once and drove the changes of ruleset 2026.11.11. |
+| 1 | **Prospective evaluation.** Score new npm and PyPI releases the day they are published (`kalascan watch --log`) and compare with takedowns later (`eval/watch_outcome.py`). | Running since 2026-11-20. The first outcome can be read from 2026-12-20. What the flagged releases are was read twice and drove the changes of rulesets 2026.11.11 and 2026.11.12: of 618 releases flagged since the start, 270 still reach 50. |
 | 2 | **Encoded literals read as code**, and character-code arrays through a decoder of any name. | Done, ruleset 2026.11.11. Evasion suite 151 of 153 (147). |
 | 3 | **Calls in the data-flow pass**: wrappers around a network call, functions that return a secret, compiled TypeScript, `.then()`. | Done, ruleset 2026.11.11. Small on the corpus: of 236 `dev` misses, 13 hold a secret read and a network call in one file. |
 
@@ -19,6 +19,7 @@ Last updated 2026-11-21, ruleset 2026.11.11.
 | 4 | **Fingerprints of known libraries**, so that findings in an unmodified bundled dependency weigh less. | Measured, not built. Of 569 new releases flagged on 2026-11-20, 10 had their verdict findings only in bundled dependencies. The false positives were elsewhere (one setting read from the environment, official installers, install scripts next to unrelated code), and those were fixed instead. |
 | 5 | **Dependencies as a tree.** | Measured, not built. A second hop reaches no more missed samples than the first, and exact-pinned siblings none that can be measured. The young-dependency check and `kalascan guard` (which scans the tree an install would add) stay as they are. |
 | 6 | **Independent malware sources**, above all for IDE extensions and the newest npm malware. | Blocked on access. VSMEx (extensions) and MalwareBench (npm, PyPI) are both given out on request to their maintainers. |
+| 16 | **Install-time chains only where the install hook reaches**: follow the hook's script through what it requires and imports. | Built and measured, not shipped (ruleset 2026.11.12). It would clear about 24 of the 270 new releases still flagged and loses 6 holdout and 4 `dev` samples, whose install-time chain is a hook and a network call that share a package and nothing else. It needs a finding that names what those samples do, or a score in which an unreached pair counts for less than a verdict (item 11). |
 | 7 | **A rolling holdout**: at each release, a draw of samples newer than the rules, counted once. | Waiting for data. `sample_malicious.py --since DATE` makes the draw; the DataDog dataset was last updated on 2026-11-05 and holds nothing newer than the corpus. |
 
 ## P2: foundations

