@@ -15,6 +15,7 @@ published on GitHub; their features are listed with version markers in `README.m
   - A download cradle, remote executable or systemd unit inside a `long_description` string still open on its line (`long_description = '…'`, or Poetry's `'long_description': '…'`) is the package's README, not code.
   - Built, measured and not shipped, again: install-time chains only where the install hook reaches (roadmap item 16). On ruleset 2026.11.13 it lost 4 holdout and 6 `dev` samples and cleared 23 live releases, all by `Chain: Install-time Exfiltration`.
 - `docx-form` and `psutil`, clean holdout samples whose findings had been read, moved to `dev`.
+- `docs/roadmap.md` lists what was built and what was measured and not built; the open items were removed.
 
 ## [1.25.0] - 2026-11-22
 
