@@ -2,7 +2,7 @@
 
 What is planned, in order of priority, and where each item stands. An item is built when a measurement says it helps; several were measured and not built, and those stay on the list with the number that decided it. The evidence is in the [evaluation notes](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md).
 
-Last updated 2026-11-21, ruleset 2026.11.13.
+Last updated 2026-11-22, ruleset 2026.11.14.
 
 ## P0: what everything else depends on
 
@@ -19,9 +19,9 @@ Last updated 2026-11-21, ruleset 2026.11.13.
 | 4 | **Fingerprints of known libraries**, so that findings in an unmodified bundled dependency weigh less. | Measured, not built. Of 569 new releases flagged on 2026-11-20, 10 had their verdict findings only in bundled dependencies. The false positives were elsewhere (one setting read from the environment, official installers, install scripts next to unrelated code), and those were fixed instead. |
 | 5 | **Dependencies as a tree.** | Measured, not built. A second hop reaches no more missed samples than the first, and exact-pinned siblings none that can be measured. The young-dependency check and `kalascan guard` (which scans the tree an install would add) stay as they are. |
 | 6 | **Independent malware sources**, above all for IDE extensions and the newest npm malware. | Blocked on access. VSMEx (extensions) and MalwareBench (npm, PyPI) are both given out on request to their maintainers. |
-| 16 | **Install-time chains only where the install hook reaches**: follow the hook's script through what it requires and imports. | Built and measured, not shipped (ruleset 2026.11.12). It would clear about 24 of the 270 new releases still flagged and loses 6 holdout and 4 `dev` samples, whose install-time chain is a hook and a network call that share a package and nothing else. It needs a finding that names what those samples do, or a score in which an unreached pair counts for less than a verdict (item 11). |
+| 16 | **Install-time chains only where the install hook reaches**: follow the hook's script through what it requires and imports. | Built and measured, not shipped (ruleset 2026.11.12). It would clear about 24 of the 270 new releases still flagged and loses 6 holdout and 4 `dev` samples, whose install-time chain is a hook and a network call that share a package and nothing else. It needs a finding that names what those samples do, or a score in which an unreached pair counts for less than a verdict (item 11). Measured again on ruleset 2026.11.13: 4 holdout and 6 `dev` samples lost, 23 of the 272 live releases cleared, every one of them by `Chain: Install-time Exfiltration`, so no narrowing by chain separates them. |
 | 7 | **A rolling holdout**: at each release, a draw of samples newer than the rules, counted once. | Done, ruleset 2026.11.13. `sample_malicious.py --ref` draws from the DataDog sync bot's unmerged branch, `--added-after` from pypi_malregistry's newest batch. First draw: 38 of 131 before the tuning round on its `dev` half, 62 after. The next draw is due at the next release. |
-| 17 | **The sdist beside the wheel**: scan a PyPI release's sdist as well, whose `setup.py` runs wherever the wheel does not fit. | Built and measured, not shipped (ruleset 2026.11.13). Flagged 3 of 3,821 clean samples (tests, Makefiles and READMEs the wheel leaves out) and 6 of 1,493 new releases, and can gain no malicious sample of the corpus, which holds archives, not releases. It needs a scan of the sdist's `setup.py` alone, measured on releases. |
+| 17 | **The sdist beside the wheel**: scan a PyPI release's sdist as well, whose `setup.py` runs wherever the wheel does not fit. | Done, ruleset 2026.11.14, as the sdist's `setup.py` alone, scanned as a unit of its own (`.sdist/setup.py`). Same counts as ruleset 2026.11.13: 0 of 3,823 clean, 0 of 1,496 new releases the watch never flagged; 68 clean PyPI samples score higher, none above 20. The whole sdist had flagged 3 clean samples and 6 new releases (ruleset 2026.11.13). What it gains is not measured: the corpus holds archives, not releases. |
 
 ## P2: foundations
 

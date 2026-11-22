@@ -2,7 +2,7 @@
 
 What KalaScan claims, how the claims are measured, and where they stop. Written for someone auditing the tool: every statement points at a file in the repository that holds the evidence.
 
-Numbers on this page are for ruleset `2026.11.13`, score model v1, measured 2026-11-21, unless a line says otherwise. They are copies. The record is [`eval/results/2026.11.13.json`](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/results/2026.11.13.json) and the [evaluation notes](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md); where this page and they disagree, they are right.
+Numbers on this page are for ruleset `2026.11.14`, score model v1, measured 2026-11-22, unless a line says otherwise; every count is the one ruleset 2026.11.13 gave, and the `--ai` numbers were measured with it. They are copies. The record is [`eval/results/2026.11.14.json`](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/results/2026.11.14.json) and the [evaluation notes](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md); where this page and they disagree, they are right.
 
 ## What KalaScan claims and what it does not
 
@@ -86,7 +86,7 @@ The evaluation runs `kalascan scan <target> --untrusted --format json` and no ot
 - The numbers describe the default scan: the static pass, manifest and registry context, chains, binary triage, the score. `--cve`, `--secrets` and `--git-history` have no measured rate, `--ai` one on AI agent skills only; `--sandbox`, `--deobfuscate`, `--emulate` and `--deep-triage` have one run each, outside the published numbers.
 - No lookup against a list of known-bad packages takes part. OSV `MAL-*` advisories need `--cve`. Recall is what the rules find in the code.
 - URLhaus lookups run only when `URLHAUS_AUTH_KEY` is set in the environment, and `run_eval.py` passes its environment on. The published run does not record whether the key was set. Unset it to measure the rules alone.
-- Malicious samples are scanned as extracted archives, so they get no registry or marketplace check. Clean samples are fetched by name and get all of them. Those checks are tested for false positives. What they would add to recall was measured by replay, twice: the history checks add one holdout sample at most (Known limits, 15); scanning the dependencies that were days old adds 12, which would have made 490 of the 683 holdout samples of the time (72%) and is not in the published rate (Known limits, 17).
+- Malicious samples are scanned as extracted archives, so they get no registry or marketplace check. Clean samples are fetched by name and get all of them. Those checks are tested for false positives. A PyPI release fetched by name is scanned from its wheel with its sdist's `setup.py` beside it; the malicious samples are archives, so what that file adds to recall is not measured, only what it costs on clean packages and new releases. What they would add to recall was measured by replay, twice: the history checks add one holdout sample at most (Known limits, 15); scanning the dependencies that were days old adds 12, which would have made 490 of the 683 holdout samples of the time (72%) and is not in the published rate (Known limits, 17).
 
 ## How detection quality is measured
 
@@ -109,13 +109,13 @@ The evaluation runs `kalascan scan <target> --untrusted --format json` and no ot
 | malicious | holdout | `fresh2-2026-11` | 200 | drawn 2026-11-18, before ruleset 2026.11.5: DataDog 150 npm dated 2026-01-01 or later; pypi_malregistry 50 PyPI |
 | malicious | holdout | `late-2026-11` | 26 | drawn 2026-11-18: every npm name dated 2026-08-01 or later that the corpus did not have |
 | malicious | holdout | `npmstudy-2026-11` | 200 | drawn 2026-11-19 from the ASE 2026 npm study: names the DataDog dataset does not have |
-| clean | dev | - | 68 | picked: popular npm / PyPI packages and IDE extensions |
+| clean | dev | - | 69 | picked: popular npm / PyPI packages and IDE extensions |
 | clean | dev | `fit-2026-11` | 298 | random draw from npm and PyPI |
 | clean | dev | `random-2026-11` | 5 | random draw; in dev (the evaluation notes name three, `tavallio-agent`, `responsive-embed` and `liangzimixin`, moved after they were read) |
-| clean | holdout | - | 159 | picked, as above |
+| clean | holdout | - | 158 | picked, as above |
 | clean | holdout | `random-2026-11` | 294 | random draw from npm and PyPI |
-| clean | dev | `random2-2026-11` | 16 | larger random draw; the packages that scored 30 or more, moved after they were read |
-| clean | holdout | `random2-2026-11` | 1,977 | larger random draw from npm and PyPI |
+| clean | dev | `random2-2026-11` | 17 | larger random draw; the packages that scored 30 or more, moved after they were read |
+| clean | holdout | `random2-2026-11` | 1,976 | larger random draw from npm and PyPI |
 | clean | dev | `openvsx-random-2026-11` | 3 | random draw from Open VSX; extensions that scored 50 or more and were fixed, moved after they were read |
 | clean | holdout | `openvsx-random-2026-11` | 242 | random draw of IDE extensions from Open VSX |
 
@@ -139,6 +139,7 @@ Where the rule was bent, on record in the evaluation notes:
 - Ruleset 2026.11.11: the holdout was counted six times, in two rounds. Round one (data flow across calls, encoded literals): a first version gave 6 more and flagged 5 clean samples; narrowed for those five, 2 more (660 of 985). Round two (false positives read off new releases, below): the first version lost 3 of the 660. Two were lost to a scoring change, one critical rule in two files counted once, which was dropped because of them; which rule was left on each was counted, the samples were not read. The third had lost its only chain to the list of official installers; to see which host, it was read and moved to `dev` (`openclaw-droid` 1.0.1: NodeSource's installer in an install script), and the list was kept. The last count is 659 of 984: no holdout sample caught before is missed. A count that drops is the holdout steering a change, and here it did twice; both are on record (evaluation notes, "Encoded literals and calls in the data flow" and "Reading what the watch flagged").
 - Ruleset 2026.11.12 (35 narrowings from a second reading of new releases): the whole holdout was counted twice. The first count was 645 of 984, 14 fewer. To find the change behind each loss, the 14 samples were scanned with 30 builds that held the changes one after another, and then with three candidates; they were counted by the finding they had lost and not read. Three changes were dropped and four narrowed for them; for an eighth, a narrower version was tried first, did not bring the sample back, and the change was dropped. The second count is 659 of 984, with no sample lost or gained. This is the holdout steering changes again, eight times in one round; what it protects is on record too: six of the 14 were caught by an install hook and a network call that share a package and nothing else (evaluation notes, "What was still flagged, read by class").
 - Ruleset 2026.11.13: the rolling holdout (`rolling-2026-11`) was counted before any change, 38 of 131, and the whole holdout four times: before the changes, then with three builds (725 of 1,109 each time). Seven npm `0.0.0-stage` placeholders were taken out of the corpus first, six of them holdout samples, all missed: they hold no code. That the seven were all missed was seen from the count, and their names were read to find them. With `--ai`, the AI skills holdout was counted at four cuts of the model's risk (49 of 102 at 60 and 70, 45 at 80 and 85) and the cut set at 70: the holdout chose between two values. Two clean skills the model flagged were read and moved to `dev` (evaluation notes, "A rolling holdout" and "AI agent skills by meaning").
+- Ruleset 2026.11.14 (the sdist's `setup.py` beside the wheel): the whole holdout was counted three times, 725 of 1,109 each time except with the install-hook change, which lost 4 and was dropped. Two clean holdout samples whose findings had been read, `docx-form` and `psutil`, moved to `dev`.
 - Clean holdout samples that were flagged and then read were moved to `dev` and the rules fixed. The clean holdout is therefore what was never flagged. See "The clean side".
 
 ### The sample sets
@@ -186,7 +187,7 @@ A second draw of 297 extensions with ruleset 2026.11.9 flagged **15 of 295 (5.1%
 
 Of the 14 in the third draw, 12 were fixed and 2 were left as they are and taken out of the corpus: a tool that installs `.deb` files it downloads from a personal host, and one obfuscated file run through `eval`. Both are behaviours KalaScan flags by design (evaluation notes, "Packages nobody picked, a larger draw").
 
-**0 of 3,424 is not the false-positive rate.** It is the clean holdout after every flagged sample was read, fixed and moved to `dev`. It shows that the fixes hold and that nothing regressed. The evaluation notes say the same: expect the real rate on unseen packages between the first-contact number and zero.
+**0 of 3,420 is not the false-positive rate.** It is the clean holdout after every flagged sample was read, fixed and moved to `dev`. It shows that the fixes hold and that nothing regressed. The evaluation notes say the same: expect the real rate on unseen packages between the first-contact number and zero.
 
 What the clean side does not cover:
 
@@ -196,7 +197,7 @@ What the clean side does not cover:
 
 ### Intervals
 
-Every rate is printed with its 95% Wilson score interval (`wilson` in `eval/run_eval.py`, z = 1.96). The Wilson interval stays honest at 0 of n: 0 of 3,424 has an upper bound of 0.1%, not zero.
+Every rate is printed with its 95% Wilson score interval (`wilson` in `eval/run_eval.py`, z = 1.96). The Wilson interval stays honest at 0 of n: 0 of 3,420 has an upper bound of 0.1%, not zero.
 
 The interval answers one question: how far could the rate on this kind of sample be from the rate measured on these samples. It assumes independent draws. Malware comes in campaigns (five samples of one `setup.py` template in the tuning batch), so the true uncertainty is wider than printed. It says nothing about samples of another kind: malware no dataset has collected, or packages newer than the clean cutoff.
 

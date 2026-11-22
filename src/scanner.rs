@@ -4,7 +4,7 @@ use std::path::Path;
 use walkdir::WalkDir;
 
 /// Human-readable ruleset version (also surfaced by `kalascan rules`).
-pub const RULESET_VERSION: &str = "2026.11.13";
+pub const RULESET_VERSION: &str = "2026.11.14";
 /// A hash of the rule files and detection modules this binary was built
 /// from (build.rs): what a result is tied to when the version is not enough.
 pub const DETECTION_FINGERPRINT: &str = env!("KALASCAN_DETECTION");
@@ -308,7 +308,8 @@ fn rule_hits<'r>(
                 || (rule.name == "Crypto Wallet Access"
                     && (links_to_store_page(before) || in_a_glob_list(before, rest)))
                 || ([SYSTEMD_USER, DOWNLOAD_CRADLE, REMOTE_BINARY].contains(&rule.name.as_str())
-                    && printed_for_the_user(before))
+                    && (printed_for_the_user(before)
+                        || (ext == ".py" && in_long_description(before))))
                 || (rule.name == DOWNLOAD_CRADLE && pipes_into_a_parser(text, &content[end..]))
                 // `…|net group|net localgroup|net print|…`: a syntax
                 // highlighter's list of batch commands.
@@ -1369,6 +1370,26 @@ fn printed_for_the_user(before: &str) -> bool {
     })
 }
 
+/// `long_description = 'A tool…\n1. Run `curl … | sh`'`: the README that a
+/// generated setup.py (Poetry's, as `'long_description': '…'` in its
+/// `setup_kwargs`) carries in one string for PyPI's page.
+/// `before`: the line up to the match, where the string is still open.
+fn in_long_description(before: &str) -> bool {
+    static OPEN: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+        Regex::new(r#"^\s*(?:long_description\s*=|(['"])long_description['"]\s*:)\s*[rRuU]?(['"])"#)
+            .unwrap()
+    });
+    OPEN.captures(before).is_some_and(|c| {
+        let quote = c[2].chars().next();
+        let mut escaped = false;
+        !before[c[0].len()..].chars().any(|ch| {
+            let closes = Some(ch) == quote && !escaped;
+            escaped = ch == '\\' && !escaped;
+            closes
+        })
+    })
+}
+
 /// `curl -s URL | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag"])'`:
 /// the interpreter has its program on the command line and the download is
 /// its input, unless that program runs what it reads or pipes it on to a
@@ -1962,6 +1983,16 @@ mod tests {
         assert!(!links_to_store_page(
             "path.join(home, 'Local Extension Settings/"
         ));
+        assert!(in_long_description(
+            r"long_description = 'Setup\n1. Run >>> `"
+        ));
+        assert!(!in_long_description(
+            r"long_description = 'x\'s'; os.system('"
+        ));
+        assert!(in_long_description(
+            r"    'long_description': '# Tool\n1. Run >>> `"
+        ));
+        assert!(!in_long_description("os.system('"));
         assert!(printed_for_the_user("  console.log('  "));
         assert!(!printed_for_the_user("execSync(`"));
         assert!(!printed_for_the_user("console.log(execSync(`"));

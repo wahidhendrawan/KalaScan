@@ -25,7 +25,7 @@
   - **Open VSX**: Open-source registry URLs (`open-vsx.org/extension/<namespace>/<name>`)
   - **JetBrains**: IntelliJ / PyCharm / WebStorm plugin archives (`.jar`, `.zip`)
   - **Chrome / Browser**: Extension packages (`.crx`, `.zip`) with `manifest.json` permission checks
-  - **npm / PyPI / crates.io**: registry packages by name — `npm:express`, `npm:@scope/name@1.2.3`, `pypi:requests==2.31.0` (wheel preferred, sdist fallback), `crates:serde@1.0.203`
+  - **npm / PyPI / crates.io**: registry packages by name — `npm:express`, `npm:@scope/name@1.2.3`, `pypi:requests==2.31.0` (the wheel with the sdist's `setup.py` beside it, or the sdist when there is no wheel), `crates:serde@1.0.203`
 - **Safe Unpacking** — automated extraction with zip-slip path traversal guards, targeting runtime payloads (`extension/`, `META-INF/`); `.tgz` / `.tar.gz` drop symlinks and `../` entries under the same size limits
 - **Bundled `node_modules/` is scanned** — in a VSIX/CRX it is shipped, executed code
 - **IDE Malware Rules**:
