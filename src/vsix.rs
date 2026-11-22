@@ -223,7 +223,9 @@ pub(crate) async fn read_capped(
     Ok(body)
 }
 
-async fn resolve_package_download(pkg: &PackageTarget) -> anyhow::Result<String> {
+/// The archive to scan, and for a PyPI release scanned from its wheel, the
+/// sdist beside it.
+async fn resolve_package_download(pkg: &PackageTarget) -> anyhow::Result<(String, Option<String>)> {
     let client = http_client()?;
     if pkg.ecosystem == "npm" {
         let url = format!(
@@ -238,7 +240,7 @@ async fn resolve_package_download(pkg: &PackageTarget) -> anyhow::Result<String>
             .error_for_status()?
             .json()
             .await?;
-        return Ok(meta.dist.tarball);
+        return Ok((meta.dist.tarball, None));
     }
     if pkg.ecosystem == "crates" {
         let version = match &pkg.version {
@@ -258,9 +260,12 @@ async fn resolve_package_download(pkg: &PackageTarget) -> anyhow::Result<String>
                     .to_string()
             }
         };
-        return Ok(format!(
-            "https://static.crates.io/crates/{0}/{0}-{1}.crate",
-            pkg.name, version
+        return Ok((
+            format!(
+                "https://static.crates.io/crates/{0}/{0}-{1}.crate",
+                pkg.name, version
+            ),
+            None,
         ));
     }
     let url = match &pkg.version {
@@ -275,11 +280,47 @@ async fn resolve_package_download(pkg: &PackageTarget) -> anyhow::Result<String>
         .json()
         .await?;
     // Wheels are what pip installs when one exists; the sdist is the fallback.
-    ["bdist_wheel", "sdist"]
-        .iter()
-        .find_map(|kind| meta.urls.iter().find(|f| f.packagetype == *kind))
-        .map(|f| f.url.clone())
-        .ok_or_else(|| anyhow::anyhow!("PyPI has no downloadable files for {}", pkg.name))
+    let file = |kind: &str| {
+        meta.urls
+            .iter()
+            .find(|f| f.packagetype == kind)
+            .map(|f| f.url.clone())
+    };
+    match (file("bdist_wheel"), file("sdist")) {
+        (Some(wheel), sdist) => Ok((wheel, sdist)),
+        (None, Some(sdist)) => Ok((sdist, None)),
+        (None, None) => Err(anyhow::anyhow!(
+            "PyPI has no downloadable files for {}",
+            pkg.name
+        )),
+    }
+}
+
+/// The sdist's `setup.py` beside the wheel, at `correlate::SDIST_SETUP`: it
+/// still runs wherever no wheel fits, with `--no-binary`, or in a tool that
+/// builds from source. Only that file: the rest of an sdist (tests, Makefiles,
+/// release scripts) never runs at install and flagged clean packages.
+/// Best effort: a release whose sdist cannot be read is scanned as before.
+async fn add_sdist_setup(url: &str, root: &Path) {
+    let dest = root.join(crate::correlate::SDIST_SETUP);
+    if !url.ends_with(".tar.gz") || dest.exists() {
+        return;
+    }
+    let got = async {
+        let resp = http_client()?.get(url).send().await?.error_for_status()?;
+        let bytes = read_capped(resp, MAX_ARCHIVE_BYTES).await?;
+        let tmp = tempfile::tempdir()?;
+        let top = extract_tar_gz(&bytes, tmp.path())?;
+        let setup = top.join("setup.py");
+        if setup.is_file() {
+            std::fs::create_dir_all(dest.parent().unwrap_or(root))?;
+            std::fs::copy(setup, &dest)?;
+        }
+        anyhow::Ok(())
+    };
+    if let Err(e) = got.await {
+        tracing::warn!("sdist beside the wheel not read: {e}");
+    }
 }
 
 /// Detect if an input string is targeting a VS Code, Open VSX, JetBrains, or Chrome extension package
@@ -340,8 +381,11 @@ pub async fn unpack_extension(
     }
 
     // Resolve download URL based on target type
+    let mut sdist = None;
     let download_url = if let Some(pkg) = parse_package_target(t) {
-        resolve_package_download(&pkg).await?
+        let (url, beside) = resolve_package_download(&pkg).await?;
+        sdist = beside;
+        url
     } else if t.contains("marketplace.visualstudio.com") {
         parse_marketplace_url(t)?
     } else if t.contains("open-vsx.org") {
@@ -391,7 +435,11 @@ pub async fn unpack_extension(
             .read_to_end(&mut vsix)?;
         return extract_zip(&vsix, dest_dir);
     }
-    extract_zip(&bytes, dest_dir)
+    let root = extract_zip(&bytes, dest_dir)?;
+    if let Some(url) = sdist {
+        add_sdist_setup(&url, &root).await;
+    }
+    Ok(root)
 }
 
 /// A tar stream with empty size fields filled in. GNU tar and npm read a

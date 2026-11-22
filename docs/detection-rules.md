@@ -4,7 +4,7 @@ KalaScan has three rule families. All are data, embedded at compile time. `kalas
 
 | Family | Where | Count | When |
 |---|---|---|---|
-| Regex rules | `rules/builtin.toml` (ruleset version `2026.11.13`) | 116 | always; `--rules FILE` adds yours |
+| Regex rules | `rules/builtin.toml` (ruleset version `2026.11.14`) | 116 | always; `--rules FILE` adds yours |
 | Secret patterns | `rules/secrets.toml` (generated from gitleaks v8.30.1, MIT) | 208 | opt-in with `--secrets` |
 | YARA rules | `src/yara_engine.rs` (3 built-in), `rules/yara/guarddog/` (2), `--yara-dir DIR` | | every file except prose |
 

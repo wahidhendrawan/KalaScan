@@ -332,7 +332,11 @@ mod tests {
         let constant =
             regex::Regex::new(r#"pub(?:\(crate\))? const [A-Z0-9_]+: &str =\s*"([^"]+)";"#)
                 .unwrap();
-        let skip = [correlate::CHAIN_PREFIX, scanner::RULESET_VERSION];
+        let skip = [
+            correlate::CHAIN_PREFIX,
+            correlate::SDIST_SETUP,
+            scanner::RULESET_VERSION,
+        ];
         let rules = scanner::build_rules();
         for module in [
             "agent",

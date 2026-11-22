@@ -567,6 +567,11 @@ fn is_test_file(path: &str) -> bool {
 /// Directories that hold somebody else's package, one per entry.
 const VENDOR_DIRS: &[&str] = &["node_modules/", "site-packages/", "_vendor/", "vendor/"];
 
+/// Where a PyPI scan puts the sdist's `setup.py` beside the wheel. A unit of
+/// its own whose install hooks run: what it does at install pairs inside
+/// it, not with the wheel's application code, which the build does not run.
+pub const SDIST_SETUP: &str = ".sdist/setup.py";
+
 /// The package a file belongs to: `""` for the scanned package itself, or
 /// the `…/node_modules/<name>` (or `@scope/name`) prefix of a bundled dep.
 /// Vendored Python counts the same way (`site-packages/<name>`,
@@ -574,6 +579,9 @@ const VENDOR_DIRS: &[&str] = &["node_modules/", "site-packages/", "_vendor/", "v
 /// is not the application listing accounts.
 fn package_unit(path: &str) -> &str {
     let p = path.trim_start_matches("./");
+    if p == SDIST_SETUP {
+        return p;
+    }
     // The innermost directory wins, as with nested node_modules.
     let innermost = VENDOR_DIRS
         .iter()
@@ -621,7 +629,10 @@ pub fn correlate_package_with(matches: &[RuleMatch], install_hooks_run: bool) ->
     let mut units: BTreeMap<&str, Vec<&RuleMatch>> = BTreeMap::new();
     for m in matches {
         let unit = package_unit(&m.file_path);
-        let run = !unit.contains("node_modules/") && !unit.is_empty() && hook.contains(unit);
+        let run = !unit.contains("node_modules/")
+            && !unit.is_empty()
+            && unit != SDIST_SETUP
+            && hook.contains(unit);
         units
             .entry(if run { "" } else { unit })
             .or_default()
@@ -629,7 +640,10 @@ pub fn correlate_package_with(matches: &[RuleMatch], install_hooks_run: bool) ->
     }
     units
         .into_iter()
-        .flat_map(|(unit, ms)| correlate_unit(&ms, unit.is_empty() && install_hooks_run))
+        .flat_map(|(unit, ms)| {
+            let hooks_run = (unit.is_empty() || unit == SDIST_SETUP) && install_hooks_run;
+            correlate_unit(&ms, hooks_run)
+        })
         .collect()
 }
 
@@ -1584,6 +1598,22 @@ mod tests {
             hit("pkg/util.py", HOST_RECON, 10),
         ];
         assert!(correlate_package(&m).is_empty());
+    }
+
+    #[test]
+    fn sdist_setup_py_beside_a_wheel_pairs_only_inside_itself() {
+        // HOS-ME: a cmdclass hook and the application's own network client.
+        let app = || hit("pkg/app.py", EXFIL_SERVICE, 40);
+        let m = vec![hit("setup.py", INSTALL_HOOK_OVERRIDE, 30), app()];
+        assert_eq!(names(&correlate_package(&m)), vec![INSTALL_EXFIL]);
+        let m = vec![hit(SDIST_SETUP, INSTALL_HOOK_OVERRIDE, 30), app()];
+        assert!(correlate_package(&m).is_empty());
+        let m = vec![
+            hit(SDIST_SETUP, INSTALL_HOOK_OVERRIDE, 30),
+            hit(SDIST_SETUP, HOST_RECON, 10),
+            app(),
+        ];
+        assert_eq!(names(&correlate_package(&m)), vec![INSTALL_RECON_CHAIN]);
     }
 
     #[test]

@@ -24,12 +24,12 @@ The malicious samples are **live malware**. `run_eval.py` scans them statically 
 
 CI (`.github/workflows/eval.yml`) runs only the clean half, as a false-positive gate: `--only clean --max-fpr 0`, on every pull request that touches `src/`, `rules/`, `eval/` or `Cargo.lock` (without the 1,993 packages of `random2-2026-11`, the second Open VSX draw and the AI skills, which the weekly run fetches and scans).
 
-Results at threshold 50 (ruleset 2026.11.13, score model v1, measured 2026-11-21; 95% interval in brackets; the aggregate is in [`results/2026.11.13.json`](results/2026.11.13.json)):
+Results at threshold 50 (ruleset 2026.11.14, score model v1, measured 2026-11-22; 95% interval in brackets; the aggregate is in [`results/2026.11.14.json`](results/2026.11.14.json), every count the same as ruleset 2026.11.13; the `--ai` row was measured with ruleset 2026.11.13):
 
 | split | malicious recall | clean false positives |
 |---|---|---|
-| dev | 771/1,061 (73%, 70-75) | 0/401 (0%, 0-1) |
-| holdout | 725/1,109 (65%, 63-68) | 0/3,422 (0%, 0-0.1) |
+| dev | 771/1,061 (73%, 70-75) | 0/403 (0%, 0-1) |
+| holdout | 725/1,109 (65%, 63-68) | 0/3,420 (0%, 0-0.1) |
 | holdout as it stood before the rolling draw | 663/978 (68%, 65-71) | |
 | holdout, packages and extensions of it | 644/876 (74%, 70-76) | |
 | holdout, AI agent skills (default scan) | 19/102 (19%, 12-27) | 0/478 (0%, 0-0.8) |
@@ -58,6 +58,17 @@ The holdout by sample set:
 | `rolling-2026-11` | 131 samples newer than ruleset 2026.11.12, drawn on 2026-11-21: 21 npm from the DataDog dataset's unmerged sync branch, 110 PyPI from pypi_malregistry's newest batch | 62/131 (47%, 39-56) |
 
 **The holdout number is the one to quote, and the `rolling` row is the one to worry about.** The second sources say the rules are not fitted to one dataset's taste: PyPI 88% on pypi_malregistry against 39 of 48 (81%) on the original DataDog PyPI holdout samples; npm 80% on the study's samples against 147 of 192 (77%) on DataDog npm dated before August 2026. Both second sources are older malware, so they do not speak to the newest; the `recent` and `rolling` rows do. By ecosystem the holdout before the rolling draw is IDE extensions 32/48 (67%, 53-78), npm 397/580 (68%, 65-72), PyPI 215/248 (87%, 82-90), AI agent skills 19/102 (19%, 12-27); with the rolling draw npm is 408/601 (68%, 64-71) and PyPI 266/358 (74%, 70-79).
+
+### The sdist's `setup.py` beside the wheel, and the install hook followed again (ruleset 2026.11.14)
+
+**The sdist's `setup.py`: shipped.** Ruleset 2026.11.13 measured scanning a PyPI release's whole sdist beside its wheel and dropped it: three clean samples were flagged through files that never run at install (below). Ruleset 2026.11.14 takes one file from the sdist, its `setup.py`, and scans it as a unit of its own at `.sdist/setup.py`. What it does at install pairs inside it and never with the wheel's application code, which is how `HOS-ME`'s `cmdclass` hook had met a socket in its app. The first build still flagged `docx-form`, whose Poetry-generated `setup.py` carries the README, with a `curl … | sh` among its setup steps, in `'long_description': '…'`. A download cradle, remote executable or systemd unit inside a `long_description` string still open on its line is now text.
+
+- **Every count is the same as with ruleset 2026.11.13**: holdout 725 of 1,109, `dev` 771 of 1,061, 0 of 3,823 clean samples, 272 of the 618 live releases at 50, 0 of 1,496 releases the watch never flagged.
+- **What it costs under the threshold.** 68 of 1,357 clean PyPI samples score higher, none above 20; `requests` goes from 5 to 20, for the `os.system` its `setup.py` runs on `python setup.py publish`. In the draw of releases the watch never flagged, 6 of 360 PyPI releases score higher, none reaching 30.
+- **What it gains cannot be measured on the corpus**, which holds archives on disk, not releases on PyPI. It ships on its measured cost because it closes a known gap: pip runs that `setup.py` wherever no wheel fits, with `--no-binary`, and in tools that build from source, and KalaScan read only the wheel.
+- The holdout was counted three times, each time over the whole corpus: with the change below, without it, and with the `long_description` narrowing.
+
+**Install-time chains only where the install hook reaches: measured again, dropped again** (roadmap item 16). The change built for ruleset 2026.11.12, applied to ruleset 2026.11.13, cost 4 holdout and 6 `dev` samples and cleared 23 of the 272 live releases still flagged. All 23 and all 4 holdout samples lost the same finding, `Chain: Install-time Exfiltration`, so no narrowing by chain separates them. Four of the six `dev` samples are forks of the Baileys WhatsApp library, as before: a `preinstall` that runs the library's own engine check, and a media upload to catbox.moe in `lib/`; the rule `WhatsApp Channel Followed by Library Code` of ruleset 2026.11.13 does not reach them. The other two are `@microsoft/wiqd` and `@pixui-dev/pxw`.
 
 ### A rolling holdout, a tuning round on it, and agent skills by meaning (ruleset 2026.11.13)
 
@@ -91,7 +102,7 @@ The holdout by sample set:
 
 ### The prospective run: a first early reading (2026-11-21)
 
-`watch_outcome.py --min-age 0` on the logs of the run (below), one day in: 26,721 releases scanned. OSV names 12 of them malicious so far, and KalaScan had flagged **1 of the 12 (8%, 1-35)**, scanned before the record. 55 more releases named malicious were npm's `0.0.1-security` takedown placeholders, which replace a package after npm removes it: they were taken down before the scan, and the script counts them apart now (the first reading had counted them as misses). 714 releases flagged by one ruleset or another are still up. One day is far too early for an outcome; the reading the run was started for is at 30 days. The watch was stopped on 2026-11-21 and its logs are kept.
+`watch_outcome.py --min-age 0` on the logs of the run (below), one day in: 26,721 releases scanned. OSV names 12 of them malicious so far, and KalaScan had flagged **1 of the 12 (8%, 1-35)**, scanned before the record. 55 more releases named malicious were npm's `0.0.1-security` takedown placeholders, which replace a package after npm removes it: they were taken down before the scan, and the script counts them apart now (the first reading had counted them as misses). 714 releases flagged by one ruleset or another are still up. One day is far too early for an outcome, and the 30-day reading the run was started for was dropped on 2026-11-22. The watch was stopped on 2026-11-21 and its logs are kept.
 
 ### Encoded literals and calls in the data flow (ruleset 2026.11.11)
 

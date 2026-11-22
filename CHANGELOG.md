@@ -7,6 +7,16 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+### Added
+- A PyPI release scanned by name (`pypi:name==version`) is read from its wheel with its sdist's `setup.py` beside it, at `.sdist/setup.py`: pip runs that file wherever no wheel fits, with `--no-binary`, and in tools that build from source. It is a unit of its own, so what it does at install pairs inside it and never with the wheel's application code. Only that file: the whole sdist had flagged clean packages through tests, Makefiles and release scripts (ruleset 2026.11.13).
+
+### Changed
+- Ruleset 2026.11.14. Every count is the same as with ruleset 2026.11.13: holdout 725 of 1,109, `dev` 771 of 1,061, 0 of 3,823 clean samples, 272 of the 618 live releases, 0 of 1,496 releases the watch never flagged. Under the threshold, 68 of 1,357 clean PyPI samples score higher, none above 20.
+  - A download cradle, remote executable or systemd unit inside a `long_description` string still open on its line (`long_description = '…'`, or Poetry's `'long_description': '…'`) is the package's README, not code.
+  - Built, measured and not shipped, again: install-time chains only where the install hook reaches (roadmap item 16). On ruleset 2026.11.13 it lost 4 holdout and 6 `dev` samples and cleared 23 live releases, all by `Chain: Install-time Exfiltration`.
+- `docx-form` and `psutil`, clean holdout samples whose findings had been read, moved to `dev`.
+- `docs/roadmap.md` lists what was built and what was measured and not built; the open items were removed.
+
 ## [1.25.0] - 2026-11-22
 
 ### Added
