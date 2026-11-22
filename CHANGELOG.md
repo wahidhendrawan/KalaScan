@@ -7,6 +7,8 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+## [1.26.0] - 2026-11-22
+
 ### Added
 - A PyPI release scanned by name (`pypi:name==version`) is read from its wheel with its sdist's `setup.py` beside it, at `.sdist/setup.py`: pip runs that file wherever no wheel fits, with `--no-binary`, and in tools that build from source. It is a unit of its own, so what it does at install pairs inside it and never with the wheel's application code. Only that file: the whole sdist had flagged clean packages through tests, Makefiles and release scripts (ruleset 2026.11.13).
 
@@ -382,7 +384,8 @@ published on GitHub; their features are listed with version markers in `README.m
 ### Fixed
 - `openapi.yaml` is copied into the Docker builder stage.
 
-[Unreleased]: https://github.com/wahidhendrawan/KalaScan/compare/v1.25.0...HEAD
+[Unreleased]: https://github.com/wahidhendrawan/KalaScan/compare/v1.26.0...HEAD
+[1.26.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.25.0...v1.26.0
 [1.25.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.24.0...v1.25.0
 [1.24.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.23.0...v1.24.0
 [1.23.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.22.0...v1.23.0
