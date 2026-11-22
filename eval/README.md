@@ -102,7 +102,7 @@ The holdout by sample set:
 
 ### The prospective run: a first early reading (2026-11-21)
 
-`watch_outcome.py --min-age 0` on the logs of the run (below), one day in: 26,721 releases scanned. OSV names 12 of them malicious so far, and KalaScan had flagged **1 of the 12 (8%, 1-35)**, scanned before the record. 55 more releases named malicious were npm's `0.0.1-security` takedown placeholders, which replace a package after npm removes it: they were taken down before the scan, and the script counts them apart now (the first reading had counted them as misses). 714 releases flagged by one ruleset or another are still up. One day is far too early for an outcome; the reading the run was started for is at 30 days. The watch was stopped on 2026-11-21 and its logs are kept.
+`watch_outcome.py --min-age 0` on the logs of the run (below), one day in: 26,721 releases scanned. OSV names 12 of them malicious so far, and KalaScan had flagged **1 of the 12 (8%, 1-35)**, scanned before the record. 55 more releases named malicious were npm's `0.0.1-security` takedown placeholders, which replace a package after npm removes it: they were taken down before the scan, and the script counts them apart now (the first reading had counted them as misses). 714 releases flagged by one ruleset or another are still up. One day is far too early for an outcome, and the 30-day reading the run was started for was dropped on 2026-11-22. The watch was stopped on 2026-11-21 and its logs are kept.
 
 ### Encoded literals and calls in the data flow (ruleset 2026.11.11)
 
