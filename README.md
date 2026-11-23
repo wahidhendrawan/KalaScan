@@ -498,7 +498,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: wahidhendrawan/KalaScan@v1.26.0
+      - uses: wahidhendrawan/KalaScan@v1.27.0
         with:
           target: .
           fail_on_risk: "60"
@@ -508,7 +508,7 @@ jobs:
 
 With `all_dependencies: "true"` it scans every package the lockfiles pin (`kalascan deps`, dev dependencies included). That is for a scheduled job (`on: schedule`): nothing in the lockfile is new, but the ruleset of a newer pin is, and a package that was clean under the old one may not be under this one. `kalascan deps` keeps its results per KalaScan and ruleset version in `~/.cache/kalascan`; cache that directory between runs and an unchanged ruleset only scans what the lockfile added.
 
-Pinned to a release tag (`@v1.26.0`), the action downloads that release's binary for the runner (Linux x64 and arm64, macOS, Windows x64) and checks it against the release's sha256. At any other ref (a branch, a commit SHA, a major tag), or when the download, the checksum or the binary fails, it builds KalaScan from the same ref with `cargo install` (a few minutes). Both are skipped when `kalascan` is already on `PATH`. It scans the checked-out PR code, writes `kalascan.sarif`, and uploads it to GitHub Code Scanning, also when `fail_on_risk` fails the job. The job summary gets the risk score with the critical findings and chains, and the table of each dependency step. With `new_dependencies: "true"` it also scans every package the PR's lockfiles add or change against `base_ref` (`kalascan deps --base-ref`, dev dependencies included), which is where a malicious package comes in; that needs the base fetched (`fetch-depth: 0`). Both dependency steps also fail when a lockfile has entries that cannot be scanned (a registry mirror, a git or URL dependency; with `new_dependencies` only the ones the PR adds); `allow_skipped: "true"` lets them pass.
+Pinned to a release tag (`@v1.27.0`), the action downloads that release's binary for the runner (Linux x64 and arm64, macOS, Windows x64) and checks it against the release's sha256. At any other ref (a branch, a commit SHA, a major tag), or when the download, the checksum or the binary fails, it builds KalaScan from the same ref with `cargo install` (a few minutes). Both are skipped when `kalascan` is already on `PATH`. It scans the checked-out PR code, writes `kalascan.sarif`, and uploads it to GitHub Code Scanning, also when `fail_on_risk` fails the job. The job summary gets the risk score with the critical findings and chains, and the table of each dependency step. With `new_dependencies: "true"` it also scans every package the PR's lockfiles add or change against `base_ref` (`kalascan deps --base-ref`, dev dependencies included), which is where a malicious package comes in; that needs the base fetched (`fetch-depth: 0`). Both dependency steps also fail when a lockfile has entries that cannot be scanned (a registry mirror, a git or URL dependency; with `new_dependencies` only the ones the PR adds); `allow_skipped: "true"` lets them pass.
 
 ### Securing the Web UI
 

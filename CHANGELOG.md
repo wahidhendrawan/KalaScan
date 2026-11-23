@@ -7,6 +7,8 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+## [1.27.0] - 2026-11-23
+
 ### Added
 - A result carries `warnings` when a pass that was asked for failed or was cut short: the OSV lookup, the AI call, a registry lookup, agent text past the AI budget. They show in the text, Markdown and HTML reports and as a banner in the web UI, and are stored with the scan (database schema 6). The list is absent when nothing failed.
 - `kalascan deps` lists a lockfile entry it cannot scan (a registry mirror, git, a URL or a file, an unpinned `requirements.txt` line) as not scanned, and such an entry fails `--fail-on-risk` unless `--allow-skipped`; in the JSON it is an element with `"skipped": "<reason>"` and a null `risk_score`. The GitHub Action has the matching `allow_skipped` input. `npm-shrinkwrap.json` is read like `package-lock.json`.
@@ -426,7 +428,8 @@ published on GitHub; their features are listed with version markers in `README.m
 ### Fixed
 - `openapi.yaml` is copied into the Docker builder stage.
 
-[Unreleased]: https://github.com/wahidhendrawan/KalaScan/compare/v1.26.0...HEAD
+[Unreleased]: https://github.com/wahidhendrawan/KalaScan/compare/v1.27.0...HEAD
+[1.27.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.26.0...v1.27.0
 [1.26.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.25.0...v1.26.0
 [1.25.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.24.0...v1.25.0
 [1.24.0]: https://github.com/wahidhendrawan/KalaScan/compare/v1.23.0...v1.24.0
