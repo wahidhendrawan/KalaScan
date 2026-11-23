@@ -1142,7 +1142,9 @@ mod tests {
     }
 
     /// A checkout holding a file named like a registry target or a
-    /// marketplace id does not stand in for the release.
+    /// marketplace id does not stand in for the release. Unix only: a
+    /// Windows file name cannot hold the `:` of `npm:`.
+    #[cfg(unix)]
     #[test]
     fn a_registry_target_or_marketplace_id_is_never_a_local_file() {
         let tmp = tempfile::tempdir().unwrap();

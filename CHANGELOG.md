@@ -44,6 +44,9 @@ published on GitHub; their features are listed with version markers in `README.m
 - Manifests (`package.json`, `requirements.txt`, `Cargo.lock`, `PKG-INFO`) are read only as regular files inside the scanned tree, 8 MiB at most: a symlink out of the tree is not followed.
 - Scans that did not finish: chain pairing and the wallet-glob check were quadratic in the hits of one file (a one-line 2 MiB file took minutes), and a `Cargo.lock` entry, an AI response and an npm target with multi-byte characters could panic. In the web UI a scan that panics ends as `failed: scan panicked: …` and is not requeued.
 - On Windows, paths in findings use `/`, so a finding under `node_modules\` is not taken for the package's own code.
+- On Windows, a file an install script or a `require` names was looked up with `\` against paths spelled with `/`, so it was never read as code.
+- `url` 2.5.9 (RUSTSEC-2026-0592, a stack overflow in `Url::origin()`; KalaScan does not call it).
+- The repository checks out with LF line ends on every platform (`.gitattributes`).
 - The Dependabot auto-merge workflow acts only on a run from this repository and merges only the commit CI tested.
 
 ## [1.26.0] - 2026-11-22

@@ -1297,9 +1297,10 @@ mod git_injection_tests {
             &["remote", "set-url", "origin", &private_remote().await],
         );
         // Stands in for the server user's stored token.
+        // `/` in the path: git runs the helper with sh, also on Windows.
         let helper = format!(
-            "!f() {{ touch {}; echo username=dummy; echo password=dummy; }}; f",
-            marker.display()
+            "!f() {{ touch '{}'; echo username=dummy; echo password=dummy; }}; f",
+            marker.display().to_string().replace('\\', "/")
         );
         git(&clone, &["config", "credential.helper", &helper]);
 
