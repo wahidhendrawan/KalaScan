@@ -259,12 +259,21 @@ def mut_pth_file(seed):
 
 # -- comment and whitespace tricks --
 def mut_hash_prefix_js(seed):
-    """A `#`-prefixed line in JS: a private class member, executed code."""
+    """A `#`-prefixed line in JS: a private class field, whose initializer
+    runs when the class is constructed."""
     if not _is_js(seed["payload"]):
         return None
-    return _rewrite_payload(seed, lambda t, js: "\n".join(
-        "#" + ln if ("fetch" in ln or "spawn" in ln or "readFileSync" in ln) else ln
-        for ln in t.splitlines()) + "\n")
+    def fn(t, js):
+        out = []
+        for ln in t.splitlines():
+            call = ln.strip()
+            if call.startswith("fetch(") and call.endswith(";"):
+                k = "_K%d" % len(out)
+                out += ["class %s {" % k, "#x = " + call, "}", "new %s();" % k]
+            else:
+                out.append(ln)
+        return "\n".join(out) + "\n"
+    return _rewrite_payload(seed, fn)
 
 
 def mut_block_comment_earlier(seed):
@@ -274,8 +283,12 @@ def mut_block_comment_earlier(seed):
 
 
 def mut_thousand_spaces(seed):
+    """A thousand spaces before the call; in Python, where a line cannot
+    start with them, after its first `(`."""
+    py = seed["payload"].endswith(".py")
     return _rewrite_payload(seed, lambda t, js: "\n".join(
-        (" " * 1000 + ln if any(k in ln for k in ("fetch", "exec", "curl", "requests")) else ln)
+        ((ln.replace("(", "(" + " " * 1000, 1) if py else " " * 1000 + ln)
+         if any(k in ln for k in ("fetch", "exec", "curl", "requests")) else ln)
         for ln in t.splitlines()) + "\n")
 
 
@@ -285,37 +298,82 @@ def mut_line_continuation(seed):
     return None
 
 
-# -- string construction --
-def _split_tokens(text):
-    for tok in API_TOKENS:
-        if tok in text and "." not in tok:
-            mid = len(tok) // 2
-            text = text.replace(tok, "%s'+'%s" % (tok[:mid], tok[mid:]))
-    return text
-
-
-def mut_split_concat(seed):
-    return _rewrite_payload(seed, lambda t, js: _split_tokens(t))
-
-
-def mut_hex_escape(seed):
+def mut_comment_between(seed):
+    """Six kilobytes of comment on one line, just before the line that sends."""
     def fn(t, js):
-        for tok in ("fetch", "require", "eval", "exec"):
-            if tok in t:
-                esc = "".join("\\x%02x" % b for b in tok.encode())
-                t = t.replace(tok, esc, 1)
-        return t
+        lines = t.splitlines()
+        send = next((i for i, ln in enumerate(lines)
+                     if any(k in ln for k in ("fetch(", "requests.", "curl ", ".connect(", "os.system(", "exec("))), 0)
+        if not send:
+            return t
+        lines.insert(send, ("// " if js else "# ") + "x" * 6000)
+        return "\n".join(lines) + "\n"
     return _rewrite_payload(seed, fn)
 
 
+# -- string construction --
+def _hide_names(text, js, tokens, enc):
+    """Write each of `tokens` as `enc(token)`, an expression that evaluates
+    to the name, wherever the name can be looked up by a string: inside a
+    string literal, a global called through `globalThis[…]`, a member
+    through `[…]`, a Python module through `__import__(…)`. The result must
+    still parse (`--check-syntax`); import lines are left as they are."""
+    tokens = [t for t in tokens if "." not in t]
+
+    def literal(m):
+        body, parts = m.group(1), []
+        while body:
+            at, tok = min(((body.find(t), t) for t in tokens if t in body), default=(-1, None))
+            if tok is None:
+                break
+            parts += (["'%s'" % body[:at]] if at else []) + [enc(tok)]
+            body = body[at + len(tok):]
+        if not parts:
+            return m.group(0)
+        return "+".join(parts + (["'%s'" % body] if body else []))
+
+    text = re.sub(r"'([^'\\\n]*)'", literal, text)
+    for tok in tokens:
+        if js:
+            text = re.sub(r"(?<![\w.'])%s\(" % tok,
+                          lambda m: ("module[%s](" if tok == "require" else "globalThis[%s](") % enc(tok), text)
+            text = re.sub(r"\.%s\(" % tok, lambda m: "[%s](" % enc(tok), text)
+        else:
+            text = re.sub(r"(?m)^(?!import |from )(.*?)(?<![\w.'])%s\." % tok,
+                          lambda m: "%s__import__(%s)." % (m.group(1), enc(tok)), text)
+            text = re.sub(r"(?<![\w.'])%s\(" % tok,
+                          lambda m: "getattr(__import__('builtins'), %s)(" % enc(tok), text)
+            text = re.sub(r"(\w+(?:\('\w+'\))?)\.%s\(" % tok,
+                          lambda m: "getattr(%s, %s)(" % (m.group(1), enc(tok)), text)
+    return text
+
+
+def _split(tok):
+    mid = len(tok) // 2
+    return "'%s'+'%s'" % (tok[:mid], tok[mid:])
+
+
+def mut_split_concat(seed):
+    if seed["payload"].endswith(".sh"):  # `who''ami`: two quoted halves, one word
+        return _rewrite_payload(seed, lambda t, js: re.sub(
+            "hostname|whoami", lambda m: m.group(0)[:3] + "''" + m.group(0)[3:], t))
+    return _rewrite_payload(seed, lambda t, js: _hide_names(t, js, API_TOKENS, _split))
+
+
+def mut_hex_escape(seed):
+    if seed["payload"].endswith(".sh"):
+        return None
+    esc = lambda tok: "'%s'" % "".join("\\x%02x" % b for b in tok.encode())
+    return _rewrite_payload(seed, lambda t, js: _hide_names(t, js, ("fetch", "require", "eval", "exec"), esc))
+
+
 def mut_charcodes(seed):
+    if seed["payload"].endswith(".sh"):
+        return None
     def fn(t, js):
-        for tok in ("fetch", "require", "exec", "child_process"):
-            if tok in t:
-                arr = ",".join(str(b) for b in tok.encode())
-                repl = ("String.fromCharCode(%s)" % arr) if js else ("bytes([%s]).decode()" % arr)
-                return t.replace(tok, repl, 1)
-        return t
+        codes = lambda tok: ("String.fromCharCode(%s)" if js else "bytes([%s]).decode()") % ",".join(
+            str(b) for b in tok.encode())
+        return _hide_names(t, js, ("fetch", "require", "exec", "child_process"), codes)
     return _rewrite_payload(seed, fn)
 
 
@@ -351,6 +409,77 @@ def mut_atob_layer(seed):
     files = _copy(seed["files"])
     files[pay] = "eval(atob('%s'));\n" % base64.b64encode(files[pay].encode()).decode()
     return files, False
+
+
+def _layer(seed, js, py):
+    """Replace the payload with a loader that `js`/`py` build from its bytes."""
+    pay = seed["payload"]
+    files = _copy(seed["files"])
+    build = js if _is_js(pay) else py if pay.endswith(".py") else None
+    if build is None:
+        return None
+    files[pay] = build(files[pay].encode())
+    return files, False
+
+
+def _b64(raw):
+    import base64
+    return base64.b64encode(raw).decode()
+
+
+def mut_base64_variable(seed):
+    """The blob in a variable, decoded by name: no literal at the decoder."""
+    return _layer(seed,
+                  lambda raw: "const p = '%s';\neval(Buffer.from(p, 'base64').toString());\n" % _b64(raw),
+                  lambda raw: "import base64\np = '%s'\nexec(base64.b64decode(p))\n" % _b64(raw))
+
+
+def mut_base64_split(seed):
+    """The blob in three pieces joined with `+` at the decoder."""
+    def pieces(raw):
+        blob = _b64(raw)
+        cut = len(blob) // 3
+        return "'%s' + '%s' + '%s'" % (blob[:cut], blob[cut:2 * cut], blob[2 * cut:])
+    return _layer(seed,
+                  lambda raw: "eval(Buffer.from(%s, 'base64').toString());\n" % pieces(raw),
+                  lambda raw: "import base64\nexec(base64.b64decode(%s))\n" % pieces(raw))
+
+
+def mut_zlib_layer(seed):
+    """Compressed, then base64: the decoded bytes are not text."""
+    import zlib
+    return _layer(seed,
+                  lambda raw: "eval(require('zlib').inflateSync(Buffer.from('%s', 'base64')).toString());\n"
+                  % _b64(zlib.compress(raw)),
+                  lambda raw: "import base64, zlib\nexec(zlib.decompress(base64.b64decode('%s')))\n"
+                  % _b64(zlib.compress(raw)))
+
+
+def mut_hex_layer(seed):
+    return _layer(seed,
+                  lambda raw: "eval(Buffer.from('%s', 'hex').toString());\n" % raw.hex(),
+                  lambda raw: "exec(bytes.fromhex('%s'))\n" % raw.hex())
+
+
+def mut_xor_layer(seed):
+    """Each byte XORed with a key, undone in a loop: no standard decoder to recognise."""
+    nums = lambda raw: ",".join(str(b ^ 23) for b in raw)
+    return _layer(seed,
+                  lambda raw: "eval(String.fromCharCode(...[%s].map(c => c ^ 23)));\n" % nums(raw),
+                  lambda raw: "exec(bytes(c ^ 23 for c in [%s]).decode())\n" % nums(raw))
+
+
+def mut_string_table(seed):
+    """Every string literal moved into one array and read through an accessor,
+    under the names a minifier gives (`a`, `b`), not an obfuscator's `_0x…`."""
+    def fn(t, js):
+        table = []
+        def move(m):
+            table.append(m.group(0))
+            return "b(%d)" % (len(table) - 1)
+        body = re.sub(r"'[^'\\\n]*'", move, t) if js else t
+        return "const a = [%s];\nfunction b(i) { return a[i]; }\n%s" % (", ".join(table), body) if table else t
+    return _rewrite_payload(seed, fn)
 
 
 def mut_template_literal(seed):
@@ -464,6 +593,37 @@ def mut_second_file(seed):
     return files, False
 
 
+def mut_source_other_file(seed):
+    """The secret is read by a function of another module; the payload calls
+    it and sends what it returns."""
+    pay = seed["payload"]
+    files = _copy(seed["files"])
+    if _is_js(pay):
+        m = re.search(r"(?m)^const (\w+) = (.*readFileSync.*);$", files[pay])
+        if not m:
+            return None
+        files["collect.js"] = ("const fs = require('fs'), os = require('os'), path = require('path');\n"
+                               "exports.%s = () => %s;\n" % m.groups())
+        files[pay] = files[pay].replace(m.group(0), "const %s = require('./collect').%s();" % (m.group(1), m.group(1)))
+    else:
+        m = re.search(r"(?m)^(\w+) = (open\(.*)$", files[pay])
+        if not m:
+            return None
+        files["_collect.py"] = "import os\ndef %s():\n    return %s\n" % m.groups()
+        files[pay] = files[pay].replace(m.group(0), "import _collect\n%s = _collect.%s()" % (m.group(1), m.group(1)))
+    return files, False
+
+
+def mut_npm_run_hook(seed):
+    """The install hook runs another script of the manifest (`npm run x`),
+    which holds the command."""
+    pkg = seed["files"].get("package.json", "")
+    hooked = re.sub(r'"((?:pre|post)?install)": "(.*)"', r'"\1": "npm run x", "x": "\2"', pkg)
+    if hooked == pkg:
+        return None
+    return {**seed["files"], "package.json": hooked}, False
+
+
 # -- packaging --
 def mut_node_modules(seed):
     """Payload hidden inside a bundled dependency directory."""
@@ -474,7 +634,9 @@ def mut_node_modules(seed):
 
 
 def mut_minify(seed):
-    return _rewrite_payload(seed, lambda t, js: " ".join(t.split()) + "\n")
+    """JS on one line. A `//` line would comment out what follows it."""
+    return _rewrite_payload(seed, lambda t, js: " ".join(
+        " ".join(ln for ln in t.splitlines() if not ln.lstrip().startswith("//")).split()) + "\n" if js else t)
 
 
 def mut_pad_dataflow(seed):
@@ -492,6 +654,7 @@ MUTATORS = [
     ("comment-whitespace", "block-comment-earlier", mut_block_comment_earlier),
     ("comment-whitespace", "thousand-spaces", mut_thousand_spaces),
     ("comment-whitespace", "line-continuation", mut_line_continuation),
+    ("comment-whitespace", "comment-between", mut_comment_between),
     ("string-construction", "split-concat", mut_split_concat),
     ("string-construction", "hex-escape", mut_hex_escape),
     ("string-construction", "char-codes", mut_charcodes),
@@ -500,6 +663,12 @@ MUTATORS = [
     ("string-construction", "atob-layer", mut_atob_layer),
     ("string-construction", "template-literal", mut_template_literal),
     ("string-construction", "unicode-escape", mut_unicode_escape),
+    ("string-construction", "base64-variable", mut_base64_variable),
+    ("string-construction", "base64-split", mut_base64_split),
+    ("string-construction", "zlib-layer", mut_zlib_layer),
+    ("string-construction", "hex-layer", mut_hex_layer),
+    ("string-construction", "xor-layer", mut_xor_layer),
+    ("string-construction", "string-table", mut_string_table),
     ("indirection", "bracket-member", mut_bracket_member),
     ("indirection", "dynamic-import", mut_dynamic_import),
     ("indirection", "importlib", mut_importlib),
@@ -509,6 +678,8 @@ MUTATORS = [
     ("indirection", "globalthis", mut_globalthis),
     ("indirection", "getattr-import", mut_getattr_import),
     ("indirection", "second-file", mut_second_file),
+    ("indirection", "source-other-file", mut_source_other_file),
+    ("file-placement", "npm-run-hook", mut_npm_run_hook),
     ("packaging", "node-modules-dir", mut_node_modules),
     ("packaging", "minify-one-line", mut_minify),
     ("packaging", "pad-past-dataflow", mut_pad_dataflow),
@@ -546,6 +717,45 @@ def build_and_scan(args, seed, built):
                         z.write(full, os.path.relpath(full, src))
             return scan(args, zip_path)
         return scan(args, src)
+
+
+def check_syntax():
+    """Every variant still parses: a mutator that writes broken code measures
+    nothing (three did: `#fetch(`, `fe'+'tch(`, `\\x66etch(`). Parses only,
+    runs nothing. JS needs `node` on PATH."""
+    import ast
+    import shutil
+    node = shutil.which("node")
+    if not node:
+        print("node not found: JavaScript variants not checked", file=sys.stderr)
+    bad, seen = 0, set()
+    with tempfile.TemporaryDirectory(prefix="kalascan-syntax-") as tmp:
+        for seed in SEEDS:
+            for _, mname, fn in MUTATORS:
+                built = fn(seed)
+                for rel, content in (built[0] if built else {}).items():
+                    err = None
+                    if (rel, content) in seen:
+                        continue
+                    seen.add((rel, content))
+                    if rel.endswith(".py"):
+                        try:
+                            ast.parse(content)
+                        except SyntaxError as e:
+                            err = str(e)
+                    elif node and seed["eco"] != "pypi" and not rel.endswith((".json", ".sh")):
+                        path = os.path.join(tmp, "x.js")  # `.txt` and extensionless payloads are JS too
+                        open(path, "w").write(content)
+                        proc = subprocess.run([node, "--check", path], capture_output=True, text=True)
+                        err = proc.stderr.strip().splitlines()[-1] if proc.returncode else None
+                    elif rel.endswith(".sh"):
+                        proc = subprocess.run(["sh", "-n"], input=content, capture_output=True, text=True)
+                        err = proc.stderr.strip() if proc.returncode else None
+                    if err:
+                        bad += 1
+                        print(f"  {seed['name']:24} {mname:22} {rel}: {err}")
+    print(f"{bad} variant file(s) do not parse")
+    return 1 if bad else 0
 
 
 def stacked(args):
@@ -601,7 +811,10 @@ def main():
     ap.add_argument("--baseline", help="fail (exit 1) if a pair caught here is now missed")
     ap.add_argument("--stacked", action="store_true", help="measure every seed under two mutators in a row instead")
     ap.add_argument("--jobs", type=int, default=4, help="scans in parallel for --stacked")
+    ap.add_argument("--check-syntax", action="store_true", help="parse every variant (node --check, ast, sh -n) and exit")
     args = ap.parse_args()
+    if args.check_syntax:
+        sys.exit(check_syntax())
     if args.stacked:
         return stacked(args)
 

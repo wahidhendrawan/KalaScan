@@ -28,17 +28,6 @@ const MAX_STRINGS: usize = 40;
 const MAX_CAPABILITIES: usize = 200;
 const TOOL_TIMEOUT: Duration = Duration::from_secs(180);
 
-const SKIP_DIRS: &[&str] = &[
-    ".git",
-    "node_modules",
-    "__pycache__",
-    ".tox",
-    ".eggs",
-    "target",
-    "venv",
-    ".venv",
-];
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TriageReport {
     pub engine: String,
@@ -110,12 +99,20 @@ pub struct ToolStatus {
     pub version: Option<String>,
 }
 
-pub async fn analyze_directory(dir: &Path, rule_matches: &[RuleMatch], deep: bool) -> TriageReport {
+/// `tree`: same directory skipping as the scanner (`scanner::skip_dir`). A
+/// list of its own here left a binary under a package's `venv/` or `target/`
+/// untriaged.
+pub async fn analyze_directory(
+    dir: &Path,
+    tree: crate::scanner::Tree,
+    rule_matches: &[RuleMatch],
+    deep: bool,
+) -> TriageReport {
     // Walking the tree and parsing binaries is CPU-bound: inline it held an
     // async worker, and with one worker every request waited for the pass.
     let (walk_dir, walk_matches) = (dir.to_path_buf(), rule_matches.to_vec());
     let mut report =
-        tokio::task::spawn_blocking(move || analyze_files(&walk_dir, &walk_matches, deep))
+        tokio::task::spawn_blocking(move || analyze_files(&walk_dir, tree, &walk_matches, deep))
             .await
             .expect("triage pass panicked");
 
@@ -138,7 +135,12 @@ pub async fn analyze_directory(dir: &Path, rule_matches: &[RuleMatch], deep: boo
     report
 }
 
-fn analyze_files(dir: &Path, rule_matches: &[RuleMatch], deep: bool) -> TriageReport {
+fn analyze_files(
+    dir: &Path,
+    tree: crate::scanner::Tree,
+    rule_matches: &[RuleMatch],
+    deep: bool,
+) -> TriageReport {
     let mut report = TriageReport {
         engine: ENGINE.to_string(),
         deep,
@@ -150,11 +152,11 @@ fn analyze_files(dir: &Path, rule_matches: &[RuleMatch], deep: bool) -> TriageRe
 
     for entry in WalkDir::new(dir)
         .follow_links(false)
+        // The package's own files first: the walk stops at a file and a
+        // binary count, which a large `node_modules` would use up.
+        .sort_by_key(|entry| entry.file_name() == "node_modules")
         .into_iter()
-        .filter_entry(|entry| {
-            let name = entry.file_name().to_string_lossy();
-            !entry.path().is_dir() || !SKIP_DIRS.contains(&name.as_ref())
-        })
+        .filter_entry(|entry| !crate::scanner::skip_dir(entry, tree))
     {
         let entry = match entry {
             Ok(entry) => entry,
@@ -620,9 +622,9 @@ fn text_kind(path: &Path) -> String {
         .to_ascii_lowercase();
     match extension.as_str() {
         "rs" => "Rust source",
-        "py" => "Python source",
+        "py" | "pyw" => "Python source",
         "js" | "mjs" | "cjs" => "JavaScript source",
-        "ts" | "tsx" => "TypeScript source",
+        "ts" | "tsx" | "mts" | "cts" => "TypeScript source",
         "jsx" => "JavaScript source",
         "sh" | "bash" | "zsh" => "Shell script",
         "ps1" => "PowerShell script",
@@ -1202,6 +1204,7 @@ fn capability_severity(name: &str, namespace: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::scanner::Tree;
 
     #[test]
     fn detects_common_file_types() {
@@ -1275,7 +1278,7 @@ mod tests {
         std::fs::write(temp.path().join("main.py"), "print('hello')\n").unwrap();
         std::fs::write(temp.path().join("evil.exe"), b"MZ\x90\x00\x00\x00").unwrap();
 
-        let report = analyze_directory(temp.path(), &[], false).await;
+        let report = analyze_directory(temp.path(), Tree::Own, &[], false).await;
         assert_eq!(report.files_scanned, 2);
         assert!(report
             .file_types
@@ -1285,5 +1288,18 @@ mod tests {
         assert_eq!(report.binaries.len(), 1);
         assert_eq!(report.binaries[0].file_type, "PE");
         assert_eq!(report.binaries[0].sha256.len(), 64);
+    }
+
+    #[tokio::test]
+    async fn a_package_is_triaged_in_the_directories_an_own_tree_skips() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(temp.path().join("venv")).unwrap();
+        std::fs::write(temp.path().join("venv/tool.exe"), b"MZ\x90\x00\x00\x00").unwrap();
+
+        let package = analyze_directory(temp.path(), Tree::Package, &[], false).await;
+        assert_eq!(package.binaries.len(), 1);
+        assert_eq!(package.binaries[0].file_type, "PE");
+        let own = analyze_directory(temp.path(), Tree::Own, &[], false).await;
+        assert!(own.binaries.is_empty(), "{:?}", own.binaries);
     }
 }

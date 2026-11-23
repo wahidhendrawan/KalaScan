@@ -284,8 +284,7 @@ pub fn risk_contribution(report: &SandboxReport) -> u8 {
 /// label, shell steps); `None` when nothing runs at install.
 fn install_plan(dir: &Path) -> Option<(String, String, String)> {
     let quote = |s: &str| format!("'{}'", s.replace('\'', r"'\''"));
-    if let Some(pkg) = std::fs::read_to_string(dir.join("package.json"))
-        .ok()
+    if let Some(pkg) = crate::cve::read_manifest(dir, "package.json")
         .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
     {
         let steps: Vec<(&str, &str)> = ["preinstall", "install", "postinstall"]

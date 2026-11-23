@@ -2,7 +2,7 @@
 
 What was built, and what was measured and not built, with the number that decided it. Nothing else is planned: the open items were removed on 2026-11-22. The evidence is in the [evaluation notes](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md).
 
-Last updated 2026-11-22, ruleset 2026.11.14.
+Last updated 2026-11-23, ruleset 2026.11.16.
 
 ## Done
 

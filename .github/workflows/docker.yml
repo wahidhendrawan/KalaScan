@@ -2,6 +2,9 @@ name: Docker build
 on:
   push:
     branches: [main]
+    # A release tag publishes the image under its version. `paths` is not
+    # applied to a tag push.
+    tags: ['v*']
     paths:
       - 'src/**'
       - 'templates/**'
@@ -79,12 +82,17 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Merge multi-arch manifest
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
         run: |
+          # main is :latest, the tag v1.26.0 is :1.26.0; both keep the commit tag.
+          name=latest
+          if [ "$GITHUB_REF_TYPE" = tag ]; then name="${GITHUB_REF_NAME#v}"; fi
           docker buildx imagetools create \
-            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
-            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${GITHUB_SHA::7} \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:amd64-${{ github.sha }} \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:arm64-${{ github.sha }}
+            --tag "$IMAGE:$name" \
+            --tag "$IMAGE:sha-${GITHUB_SHA::7}" \
+            "$IMAGE:amd64-$GITHUB_SHA" \
+            "$IMAGE:arm64-$GITHUB_SHA"
 
       - name: Make package public
         continue-on-error: true

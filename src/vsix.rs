@@ -302,26 +302,37 @@ async fn resolve_package_download(pkg: &PackageTarget) -> anyhow::Result<(String
 /// release scripts) never runs at install and flagged clean packages.
 /// Best effort: a release whose sdist cannot be read is scanned as before.
 async fn add_sdist_setup(url: &str, root: &Path) {
-    let dest = root.join(crate::correlate::SDIST_SETUP);
-    if !url.ends_with(".tar.gz") || dest.exists() {
+    if !url.ends_with(".tar.gz") {
         return;
     }
     let got = async {
         let resp = http_client()?.get(url).send().await?.error_for_status()?;
         let bytes = read_capped(resp, MAX_ARCHIVE_BYTES).await?;
-        let tmp = tempfile::tempdir()?;
-        let top = extract_tar_gz(&bytes, tmp.path())?;
-        let setup = top.join("setup.py");
-        if setup.is_file() {
-            std::fs::create_dir_all(dest.parent().unwrap_or(root))?;
-            std::fs::copy(setup, &dest)?;
-        }
-        anyhow::Ok(())
+        place_sdist_setup(&bytes, root)
     };
     if let Err(e) = got.await {
         tracing::warn!("sdist beside the wheel not read: {e}");
     }
 }
+
+/// The downloaded sdist's `setup.py`, written to `correlate::SDIST_SETUP`
+/// under the wheel's `root`. Nothing of the wheel's is there to be kept or
+/// mistaken for it: `extract_zip` moved it aside.
+fn place_sdist_setup(sdist: &[u8], root: &Path) -> anyhow::Result<()> {
+    let tmp = tempfile::tempdir()?;
+    let setup = extract_tar_gz(sdist, tmp.path())?.join("setup.py");
+    if setup.is_file() {
+        let dest = root.join(crate::correlate::SDIST_SETUP);
+        std::fs::create_dir_all(dest.parent().unwrap_or(root))?;
+        std::fs::copy(setup, dest)?;
+    }
+    Ok(())
+}
+
+/// A target that ends in one of these is a package file, on disk or at a
+/// URL, not a repository to clone.
+const PACKAGE_FILE_SUFFIXES: [&str; 7] =
+    [".vsix", ".zip", ".jar", ".crx", ".tgz", ".tar.gz", ".whl"];
 
 /// Detect if an input string is targeting a VS Code, Open VSX, JetBrains, or Chrome extension package
 pub fn is_vsix_target(target: &str) -> bool {
@@ -329,7 +340,7 @@ pub fn is_vsix_target(target: &str) -> bool {
     if parse_package_target(t).is_some() {
         return true;
     }
-    if t.ends_with(".vsix") || t.ends_with(".zip") || t.ends_with(".jar") || t.ends_with(".crx") {
+    if PACKAGE_FILE_SUFFIXES.iter().any(|ext| t.ends_with(ext)) {
         return true;
     }
     if t.contains("marketplace.visualstudio.com")
@@ -353,10 +364,23 @@ pub fn parse_marketplace_id(target: &str) -> Option<(&str, &str, Option<&str>)> 
             && s.chars()
                 .all(|c| c.is_ascii_alphanumeric() || extra.contains(c))
     };
-    let archive =
-        ["vsix", "zip", "jar", "crx", "git"].contains(&name.to_ascii_lowercase().as_str());
+    let archive = ["vsix", "zip", "jar", "crx", "tgz", "whl", "git"]
+        .contains(&name.to_ascii_lowercase().as_str());
     (ok(publisher, "-_") && ok(name, "-_") && !archive && version.is_none_or(|v| ok(v, ".-")))
         .then_some((publisher, name, version))
+}
+
+/// The file a CLI target names, relative to `base` (the working directory).
+/// A registry target or marketplace id never names one: a pull request that
+/// ships a file called `npm:left-pad@1.3.0` had it scanned, and its verdict
+/// cached, in place of the registry release. An archive is reached by its
+/// path (`ext.vsix`, `./ext.vsix`), which is neither.
+fn local_archive(target: &str, base: &Path) -> Option<PathBuf> {
+    if parse_package_target(target).is_some() || parse_marketplace_id(target).is_some() {
+        return None;
+    }
+    let path = base.join(target);
+    path.is_file().then_some(path)
 }
 
 /// Download or extract a VSIX, Open VSX, JetBrains, CRX, or ZIP extension into destination directory.
@@ -371,13 +395,18 @@ pub async fn unpack_extension(
     let t = target.trim();
 
     // Check if it is an existing local file
-    let path = Path::new(t);
-    if local && path.is_file() {
+    if let Some(path) = local.then(|| local_archive(t, Path::new(""))).flatten() {
         let mut bytes = Vec::new();
         File::open(path)?
             .take(MAX_ARCHIVE_BYTES + 1)
             .read_to_end(&mut bytes)?;
-        return extract_zip(&bytes, dest_dir);
+        // By content, not by name: what `npm pack` writes and an sdist are
+        // gzipped tarballs, a wheel is a zip like the rest.
+        return if bytes.starts_with(&[0x1f, 0x8b]) {
+            extract_tar_gz(&bytes, dest_dir)
+        } else {
+            extract_zip(&bytes, dest_dir)
+        };
     }
 
     // Resolve download URL based on target type
@@ -496,6 +525,13 @@ impl<R: std::io::Read> std::io::Read for EmptySizes<R> {
                     .and_then(|s| u64::from_str_radix(s, 8).ok());
                 // A size this cannot read (base-256): hand the rest through as it is.
                 self.data_left = size.map_or(u64::MAX, |s| s.div_ceil(512) * 512);
+                // So too after a PAX header: its `size=` record gives the next
+                // entry a length the header does not have, and file data read
+                // as a header had its "empty size field" filled in. What was
+                // scanned then differed from what npm and pip write.
+                if matches!(block[156], b'x' | b'g') {
+                    self.data_left = u64::MAX;
+                }
             }
             self.pending = block[..got].to_vec();
         }
@@ -504,50 +540,99 @@ impl<R: std::io::Read> std::io::Read for EmptySizes<R> {
 
 /// npm tarballs and PyPI sdists, under the same zip-bomb limits as `extract_zip`.
 pub fn extract_tar_gz(bytes: &[u8], dest_dir: &Path) -> anyhow::Result<PathBuf> {
+    extract_tar_gz_capped(bytes, dest_dir, MAX_TOTAL_UNCOMPRESSED)
+}
+
+fn extract_tar_gz_capped(bytes: &[u8], dest_dir: &Path, max_total: u64) -> anyhow::Result<PathBuf> {
     if bytes.len() as u64 > MAX_ARCHIVE_BYTES {
         anyhow::bail!("Archive too large ({} bytes)", bytes.len());
     }
+    let too_big = || {
+        anyhow::anyhow!(
+            "Archive expands beyond {} MiB limit",
+            max_total / (1024 * 1024)
+        )
+    };
+    // The stream is bounded as a whole: tar buffers a GNU long-name or PAX
+    // record of any size in memory before an entry is seen here. The eighth
+    // on top of the cap is room for headers, padding and such records.
     let mut archive = tar::Archive::new(EmptySizes {
-        inner: flate2::read::GzDecoder::new(bytes),
+        inner: flate2::read::GzDecoder::new(bytes).take(max_total + max_total / 8),
         pending: Vec::new(),
         data_left: 0,
     });
-    let mut total_uncompressed: u64 = 0;
-    for (i, entry) in archive.entries()?.enumerate() {
-        let mut entry = entry?;
-        if i >= MAX_ENTRIES {
-            anyhow::bail!("Archive contains too many files (> {} limit)", MAX_ENTRIES);
+    let mut unpack = || {
+        let mut total_uncompressed: u64 = 0;
+        for (i, entry) in archive.entries()?.enumerate() {
+            let mut entry = entry?;
+            if i >= MAX_ENTRIES {
+                anyhow::bail!("Archive contains too many files (> {} limit)", MAX_ENTRIES);
+            }
+            // The size tar reads, not the header's: a PAX `size` record
+            // overrides a header that declares 0 bytes.
+            let size = entry.size();
+            if size > MAX_SINGLE_UNCOMPRESSED {
+                anyhow::bail!("Archive entry is too large ({} bytes)", size);
+            }
+            total_uncompressed = total_uncompressed.saturating_add(size);
+            if total_uncompressed > max_total {
+                return Err(too_big());
+            }
+            // Links could point outside dest_dir; scanning needs regular files only.
+            if !matches!(
+                entry.header().entry_type(),
+                tar::EntryType::Regular | tar::EntryType::Directory
+            ) {
+                continue;
+            }
+            // unpack_in refuses `..` and absolute paths (returns false).
+            entry.unpack_in(dest_dir)?;
         }
-        // tar reads exactly the header size, so header sizes bound the output.
-        let size = entry.header().size()?;
-        if size > MAX_SINGLE_UNCOMPRESSED {
-            anyhow::bail!("Archive entry is too large ({} bytes)", size);
-        }
-        total_uncompressed = total_uncompressed.saturating_add(size);
-        if total_uncompressed > MAX_TOTAL_UNCOMPRESSED {
-            anyhow::bail!(
-                "Archive expands beyond {} MiB limit",
-                MAX_TOTAL_UNCOMPRESSED / (1024 * 1024)
-            );
-        }
-        // Links could point outside dest_dir; scanning needs regular files only.
-        if !matches!(
-            entry.header().entry_type(),
-            tar::EntryType::Regular | tar::EntryType::Directory
-        ) {
-            continue;
-        }
-        // unpack_in refuses `..` and absolute paths (returns false).
-        entry.unpack_in(dest_dir)?;
+        Ok(())
+    };
+    let unpacked = unpack();
+    // Also when unpacking failed: the caller's temp dir has to be removable.
+    #[cfg(unix)]
+    make_readable(dest_dir)?;
+    // A stream that ran into its bound ends for tar wherever it was cut: at
+    // a header that reads as the end of the archive, with the rest unscanned.
+    if archive.into_inner().inner.limit() == 0 {
+        return Err(too_big());
     }
+    unpacked?;
 
     // npm packs into `package/`, sdists into `name-version/`: scan from there
     // so the manifest sits at the root for the dependency checks.
     let mut top = std::fs::read_dir(dest_dir)?.flatten();
-    match (top.next(), top.next()) {
-        (Some(only), None) if only.path().is_dir() => Ok(only.path()),
-        _ => Ok(dest_dir.to_path_buf()),
+    let root = match (top.next(), top.next()) {
+        (Some(only), None) if only.path().is_dir() => only.path(),
+        _ => dest_dir.to_path_buf(),
+    };
+    set_aside_shipped_sdist(&root)?;
+    Ok(root)
+}
+
+/// Owner access to everything unpacked under `root`. tar applies the
+/// archive's modes, and a directory or file of mode 000 was content the
+/// scanner could not read as a non-root user, with no finding to say so.
+#[cfg(unix)]
+fn make_readable(root: &Path) -> std::io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    let mut dirs = vec![root.to_path_buf()];
+    while let Some(dir) = dirs.pop() {
+        for entry in std::fs::read_dir(dir)? {
+            let entry = entry?;
+            let kind = entry.file_type()?;
+            let mode = if kind.is_dir() { 0o755 } else { 0o644 };
+            if kind.is_dir() || kind.is_file() {
+                std::fs::set_permissions(entry.path(), std::fs::Permissions::from_mode(mode))?;
+            }
+            if kind.is_dir() {
+                dirs.push(entry.path());
+            }
+        }
     }
+    Ok(())
 }
 
 pub fn parse_marketplace_url(url_str: &str) -> anyhow::Result<String> {
@@ -747,13 +832,46 @@ fn extract_zip_capped(bytes: &[u8], dest_dir: &Path, max_total: u64) -> anyhow::
         }
     }
 
-    // In VSIX packages, the extension source code is placed inside `extension/`
+    // In VSIX packages, the extension source code is placed inside `extension/`.
+    // Only there: a wheel or JAR with an `extension/` directory of its own
+    // used to have everything outside it left unscanned.
+    // Nor with a manifest alone: beside an empty `extension.vsixmanifest` the
+    // rest of that wheel was still left out, so the root may hold nothing
+    // but what a VSIX has there.
     let extension_subfolder = dest_dir.join("extension");
-    if extension_subfolder.is_dir() {
-        Ok(extension_subfolder)
+    let only_vsix_entries = std::fs::read_dir(dest_dir)?.flatten().all(|e| {
+        ["extension", "extension.vsixmanifest", "[Content_Types].xml"]
+            .iter()
+            .any(|name| e.file_name() == *name)
+    });
+    let root = if dest_dir.join("extension.vsixmanifest").is_file()
+        && extension_subfolder.is_dir()
+        && only_vsix_entries
+    {
+        extension_subfolder
     } else {
-        Ok(dest_dir.to_path_buf())
+        dest_dir.to_path_buf()
+    };
+    set_aside_shipped_sdist(&root)?;
+    Ok(root)
+}
+
+/// `.sdist/` is the scan's own name (`correlate::SDIST_SETUP`), so whatever an
+/// archive ships there moves to a name it cannot pre-occupy and is
+/// scanned as ordinary package code. A wheel with its own `.sdist/setup.py`
+/// used to stop the real sdist's from being fetched, and stood in for it.
+fn set_aside_shipped_sdist(root: &Path) -> std::io::Result<()> {
+    let dest = root.join(crate::correlate::SDIST_SETUP);
+    let shipped = dest.parent().unwrap_or(root);
+    if shipped.symlink_metadata().is_ok() {
+        // The first free number: the same path at every scan of the archive
+        // (baselines and the dependency cache key on paths).
+        let aside = (0u32..)
+            .map(|n| root.join(format!("shipped-sdist-{n}")))
+            .find(|p| p.symlink_metadata().is_err());
+        std::fs::rename(shipped, aside.unwrap_or_else(|| root.join("shipped-sdist")))?;
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -837,20 +955,111 @@ mod tests {
         assert!(parse_jetbrains_plugin_id("https://plugins.jetbrains.com/").is_err());
     }
 
-    fn build_test_zip() -> Vec<u8> {
+    fn zip_of(entries: &[(&str, &[u8])]) -> Vec<u8> {
         use std::io::Write;
         use zip::write::SimpleFileOptions;
 
         let mut buffer = Cursor::new(Vec::new());
         {
             let mut writer = zip::ZipWriter::new(&mut buffer);
-            writer
-                .start_file("extension/extension.js", SimpleFileOptions::default())
-                .unwrap();
-            writer.write_all(b"console.log('hello');").unwrap();
+            for (name, data) in entries {
+                writer
+                    .start_file(*name, SimpleFileOptions::default())
+                    .unwrap();
+                writer.write_all(data).unwrap();
+            }
             writer.finish().unwrap();
         }
         buffer.into_inner()
+    }
+
+    fn build_test_zip() -> Vec<u8> {
+        zip_of(&[
+            ("extension.vsixmanifest", b"<PackageManifest/>"),
+            ("extension/extension.js", b"console.log('hello');"),
+        ])
+    }
+
+    /// `extension/` is the scan root of a VSIX only: in any other zip it is
+    /// one directory among the package's own.
+    #[test]
+    fn extension_dir_is_the_scan_root_only_with_a_vsix_manifest() {
+        let tmp = tempfile::tempdir().unwrap();
+        let wheel = zip_of(&[
+            ("extension/decoy.py", b"pass"),
+            ("pkg/__init__.py", b"import os"),
+        ]);
+        let root = extract_zip(&wheel, tmp.path()).unwrap();
+        assert_eq!(root, tmp.path());
+        assert!(root.join("pkg/__init__.py").is_file());
+        assert!(root.join("extension/decoy.py").is_file());
+        // A manifest does not make it a VSIX while something else sits beside it.
+        let tmp = tempfile::tempdir().unwrap();
+        let wheel = zip_of(&[
+            ("extension.vsixmanifest", b""),
+            ("extension/decoy.py", b"pass"),
+            ("pkg/__init__.py", b"import os"),
+        ]);
+        assert_eq!(extract_zip(&wheel, tmp.path()).unwrap(), tmp.path());
+    }
+
+    #[test]
+    fn file_data_after_a_pax_header_is_not_rewritten() {
+        let header = |kind: u8, size: &[u8; 12]| {
+            let mut block = [0u8; 512];
+            block[0] = b'a';
+            block[124..136].copy_from_slice(size);
+            block[156] = kind;
+            block
+        };
+        // The file's header says 0 bytes and the PAX record before it 512:
+        // the block after it is data, with blanks where a header has its size.
+        let mut data = [b'A'; 512];
+        data[124..136].fill(b' ');
+        let mut tar = Vec::new();
+        tar.extend_from_slice(&header(b'x', b"00000000014\0"));
+        tar.extend_from_slice(&{
+            let mut record = [0u8; 512];
+            record[..12].copy_from_slice(b"12 size=512\n");
+            record
+        });
+        tar.extend_from_slice(&header(b'0', b"00000000000\0"));
+        tar.extend_from_slice(&data);
+        let mut read = Vec::new();
+        EmptySizes {
+            inner: &tar[..],
+            pending: Vec::new(),
+            data_left: 0,
+        }
+        .read_to_end(&mut read)
+        .unwrap();
+        assert_eq!(read, tar);
+    }
+
+    /// What a wheel ships at `.sdist` (a `setup.py`, or a file to block the
+    /// directory) neither stops the sdist's `setup.py` from being placed nor
+    /// passes for it, and is still in the scan.
+    #[test]
+    fn a_wheel_cannot_occupy_the_sdist_setup_path() {
+        let sdist = tar_gz(&[("x-1.0/setup.py", tar::EntryType::Regular, b"real")]);
+        for shipped in [".sdist/setup.py", ".sdist"] {
+            let tmp = tempfile::tempdir().unwrap();
+            let wheel = zip_of(&[(shipped, b"shipped"), ("x/__init__.py", b"")]);
+            let root = extract_zip(&wheel, tmp.path()).unwrap();
+            let placed = root.join(crate::correlate::SDIST_SETUP);
+            assert!(!root.join(".sdist").exists(), "{}", shipped);
+
+            place_sdist_setup(&sdist, &root).unwrap();
+            assert_eq!(std::fs::read(&placed).unwrap(), b"real", "{}", shipped);
+            let aside: Vec<PathBuf> = walkdir::WalkDir::new(&root)
+                .into_iter()
+                .flatten()
+                .map(walkdir::DirEntry::into_path)
+                .filter(|p| p.is_file() && std::fs::read(p).unwrap() == b"shipped")
+                .collect();
+            assert_eq!(aside.len(), 1, "{}: {:?}", shipped, aside);
+            assert_ne!(aside[0], placed);
+        }
     }
 
     #[test]
@@ -886,6 +1095,85 @@ mod tests {
 
         let out = unpack_extension(target, &dest, true).await.unwrap();
         assert!(out.join("extension.js").is_file());
+    }
+
+    /// What `npm pack` writes, an sdist and a wheel on disk unpack like the
+    /// registry's download of them, and the content decides which they are.
+    #[tokio::test]
+    async fn a_local_tarball_or_wheel_unpacks_like_a_registry_download() {
+        let tarball = tar_gz(&[
+            ("package/package.json", tar::EntryType::Regular, b"{}"),
+            ("package/link", tar::EntryType::Symlink, b""),
+        ]);
+        let wheel = zip_of(&[
+            ("pkg/__init__.py", b""),
+            ("pkg-1.0.dist-info/METADATA", b"Name: pkg\n"),
+        ]);
+        let tmp = tempfile::tempdir().unwrap();
+        let cases: [(&str, &[u8], &str); 5] = [
+            ("pkg-1.0.0.tgz", &tarball, "package.json"),
+            ("pkg-1.0.0.tar.gz", &tarball, "package.json"),
+            (
+                "pkg-1.0-py3-none-any.whl",
+                &wheel,
+                "pkg-1.0.dist-info/METADATA",
+            ),
+            // The name says one thing and the bytes another.
+            ("renamed.zip", &tarball, "package.json"),
+            ("renamed.tgz", &wheel, "pkg/__init__.py"),
+        ];
+        for (name, bytes, expected) in cases {
+            let file = tmp.path().join(name);
+            std::fs::write(&file, bytes).unwrap();
+            let target = file.to_str().unwrap();
+            assert!(is_vsix_target(target), "{}", name);
+            let dest = tempfile::tempdir().unwrap();
+            // npm's `package/` is the scan root, as for `npm:` targets.
+            let root = unpack_extension(target, dest.path(), true).await.unwrap();
+            assert!(root.join(expected).is_file(), "{}", name);
+            assert!(!root.join("link").exists(), "{}", name);
+        }
+        // Reached by name alone like `ext.vsix`: not a marketplace id.
+        std::fs::write(tmp.path().join("pkg.tgz"), &tarball).unwrap();
+        assert_eq!(
+            local_archive("pkg.tgz", tmp.path()),
+            Some(tmp.path().join("pkg.tgz"))
+        );
+    }
+
+    /// A checkout holding a file named like a registry target or a
+    /// marketplace id does not stand in for the release.
+    #[test]
+    fn a_registry_target_or_marketplace_id_is_never_a_local_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir(tmp.path().join("npm:@types")).unwrap();
+        let named = [
+            "npm:left-pad@1.3.0",
+            "npm:@types/node@20.1.0",
+            "pypi:x==1.0",
+            "crates:serde@1.0.0",
+            "ms-python.python",
+        ];
+        for decoy in named.iter().chain(&["ext.vsix"]) {
+            std::fs::write(tmp.path().join(decoy), build_test_zip()).unwrap();
+        }
+        for target in named {
+            assert_eq!(local_archive(target, tmp.path()), None, "{}", target);
+        }
+        // The documented forms still open the archive.
+        for target in ["ext.vsix", "./ext.vsix"] {
+            assert_eq!(
+                local_archive(target, tmp.path()),
+                Some(tmp.path().join(target)),
+                "{}",
+                target
+            );
+        }
+        let absolute = tmp.path().join("ext.vsix");
+        assert_eq!(
+            local_archive(absolute.to_str().unwrap(), Path::new("")),
+            Some(absolute)
+        );
     }
 
     #[test]
@@ -969,6 +1257,8 @@ mod tests {
         );
         for bad in [
             "evil.vsix",
+            "pkg.tgz",
+            "pkg.whl",
             "a.b.c",
             "a/b.c",
             "x.y@1.0?x",
@@ -1025,12 +1315,18 @@ mod tests {
     }
 
     fn tar_gz(entries: &[(&str, tar::EntryType, &[u8])]) -> Vec<u8> {
+        tar_gz_mode(entries, 0o644)
+    }
+
+    fn tar_gz_mode(entries: &[(&str, tar::EntryType, &[u8])], mode: u32) -> Vec<u8> {
         let mut out = Vec::new();
         {
             let gz = flate2::write::GzEncoder::new(&mut out, flate2::Compression::fast());
             let mut builder = tar::Builder::new(gz);
             for (name, kind, data) in entries {
-                let mut header = tar::Header::new_old();
+                // GNU: tar honours long-name and PAX records only after a
+                // header with a magic.
+                let mut header = tar::Header::new_gnu();
                 // Raw name bytes: set_path() would refuse the `..` we want to test.
                 header.as_old_mut().name[..name.len()].copy_from_slice(name.as_bytes());
                 header.set_entry_type(*kind);
@@ -1038,7 +1334,7 @@ mod tests {
                 if *kind == tar::EntryType::Symlink {
                     header.set_link_name("/etc/passwd").unwrap();
                 }
-                header.set_mode(0o644);
+                header.set_mode(mode);
                 header.set_cksum();
                 builder.append(&header, *data).unwrap();
             }
@@ -1097,5 +1393,77 @@ mod tests {
         assert!(root.join("index.js").is_file());
         assert!(!root.join("link").exists());
         assert!(!tmp.path().join("escape.txt").exists());
+    }
+
+    /// `big.js` declares 0 bytes in its header and 66 048 in the PAX record
+    /// before it: tar reads the next header and its data as the file.
+    #[test]
+    fn tar_caps_count_the_pax_size_not_the_header_size() {
+        const CAP: u64 = 64 * 1024;
+        let filler = vec![b'a'; CAP as usize];
+        let entries = [
+            ("pax", tar::EntryType::XHeader, &b"14 size=66048\n"[..]),
+            ("package/big.js", tar::EntryType::Regular, b""),
+            ("package/filler", tar::EntryType::Regular, &filler),
+        ];
+        let tmp = tempfile::tempdir().unwrap();
+        let err = extract_tar_gz_capped(&tar_gz(&entries), tmp.path(), CAP).unwrap_err();
+        assert!(err.to_string().contains("expands beyond"), "{}", err);
+        assert!(!tmp.path().join("package").exists());
+
+        // The same bytes fit a cap they are under, as one 66 048-byte file.
+        let root = extract_tar_gz_capped(&tar_gz(&entries), tmp.path(), 2 * CAP).unwrap();
+        assert_eq!(root.join("big.js").metadata().unwrap().len(), 66_048);
+    }
+
+    /// tar buffers these records whole before any entry is seen: a 128 KiB
+    /// one under a 64 KiB cap is refused, where it used to be read into
+    /// memory whatever its size.
+    #[test]
+    fn tar_name_and_pax_records_are_bounded() {
+        const CAP: u64 = 64 * 1024;
+        let record = vec![b'a'; 2 * CAP as usize];
+        for kind in [
+            tar::EntryType::GNULongName,
+            tar::EntryType::GNULongLink,
+            tar::EntryType::XHeader,
+        ] {
+            let archive = tar_gz(&[
+                ("record", kind, &record),
+                ("package/a.js", tar::EntryType::Regular, b"1"),
+            ]);
+            let tmp = tempfile::tempdir().unwrap();
+            let err = extract_tar_gz_capped(&archive, tmp.path(), CAP).unwrap_err();
+            assert!(
+                err.to_string().contains("expands beyond"),
+                "{:?}: {}",
+                kind,
+                err
+            );
+        }
+    }
+
+    /// A directory entry after its file, both mode 000: the tree unpacked
+    /// and nothing in it could be opened.
+    #[cfg(unix)]
+    #[test]
+    fn tar_modes_do_not_hide_content_from_the_scan() {
+        let archive = tar_gz_mode(
+            &[
+                (
+                    "package/locked/payload.js",
+                    tar::EntryType::Regular,
+                    b"eval(x)",
+                ),
+                ("package/locked/", tar::EntryType::Directory, b""),
+            ],
+            0,
+        );
+        let tmp = tempfile::tempdir().unwrap();
+        let root = extract_tar_gz(&archive, tmp.path()).unwrap();
+        assert_eq!(
+            std::fs::read(root.join("locked/payload.js")).unwrap(),
+            b"eval(x)"
+        );
     }
 }

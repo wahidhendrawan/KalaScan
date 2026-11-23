@@ -492,6 +492,7 @@ fn pending_scan(id: &str, target: &str) -> ScanResult {
         duration_ms: None,
         iocs: Vec::new(),
         score_breakdown: None,
+        warnings: Vec::new(),
     }
 }
 
@@ -564,32 +565,8 @@ where
             }
         }
 
-        let started = Instant::now();
-        let outcome = tokio::time::timeout(scan_timeout(), work).await;
+        let result = run_scan(&task_state, &task_id, work).await;
         drop(permit);
-        let duration_ms = started.elapsed().as_millis() as u64;
-
-        let result = match outcome {
-            Ok(Ok(result)) => {
-                metrics::scan_finished(true, false, duration_ms, result.total_matches as u64);
-                result
-            }
-            Ok(Err(e)) => {
-                // Errors can echo the raw target (a package download URL);
-                // history, reports and logs must not show its credentials.
-                let message = redact_credentials(&e.to_string());
-                error!("Scan {} failed: {}", task_id, message);
-                metrics::scan_finished(false, false, duration_ms, 0);
-                failed_result(&task_state, &task_id, message).await
-            }
-            Err(_) => {
-                error!("Scan {} timed out", task_id);
-                metrics::scan_finished(false, true, duration_ms, 0);
-                failed_result(&task_state, &task_id, "scan timed out".to_string()).await
-            }
-        };
-        let mut result = result;
-        result.duration_ms = Some(duration_ms);
         store_result(&task_state, result).await;
         task_state.running.lock().await.remove(&task_id);
     });
@@ -597,6 +574,52 @@ where
     let mut running = state.running.lock().await;
     running.retain(|_, h| !h.is_finished());
     running.insert(id, handle.abort_handle());
+}
+
+/// `work` as the result to store: its own, or a failed one for an error, a
+/// timeout or a panic. A panic used to end the task with nothing recorded:
+/// the scan stayed "running", and every restart requeued it to panic again.
+async fn run_scan<F>(state: &AppState, id: &str, work: F) -> ScanResult
+where
+    F: std::future::Future<Output = anyhow::Result<ScanResult>>,
+{
+    let mut work = std::pin::pin!(work);
+    let work = std::future::poll_fn(|cx| {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| work.as_mut().poll(cx)))
+            .unwrap_or_else(|panic| {
+                let why = panic
+                    .downcast_ref::<String>()
+                    .map(String::as_str)
+                    .or_else(|| panic.downcast_ref::<&str>().copied())
+                    .unwrap_or("panic");
+                std::task::Poll::Ready(Err(anyhow::anyhow!("scan panicked: {}", why)))
+            })
+    });
+    let started = Instant::now();
+    let outcome = tokio::time::timeout(scan_timeout(), work).await;
+    let duration_ms = started.elapsed().as_millis() as u64;
+
+    let mut result = match outcome {
+        Ok(Ok(result)) => {
+            metrics::scan_finished(true, false, duration_ms, result.total_matches as u64);
+            result
+        }
+        Ok(Err(e)) => {
+            // Errors can echo the raw target (a package download URL);
+            // history, reports and logs must not show its credentials.
+            let message = redact_credentials(&e.to_string());
+            error!("Scan {} failed: {}", id, message);
+            metrics::scan_finished(false, false, duration_ms, 0);
+            failed_result(state, id, message).await
+        }
+        Err(_) => {
+            error!("Scan {} timed out", id);
+            metrics::scan_finished(false, true, duration_ms, 0);
+            failed_result(state, id, "scan timed out".to_string()).await
+        }
+    };
+    result.duration_ms = Some(duration_ms);
+    result
 }
 
 async fn failed_result(state: &AppState, id: &str, message: String) -> ScanResult {
@@ -878,7 +901,7 @@ async fn sbom_endpoint(
             .into_response();
     }
 
-    let packages = cve::extract_manifest_packages(&canon_root);
+    let packages = cve::locked_packages(&canon_root, cve::extract_manifest_packages(&canon_root));
     let sbom = export::export_cyclonedx(&packages, &canon_root);
     (
         [(
@@ -1335,6 +1358,32 @@ mod api_validation_tests {
             .unwrap()
             .extend(extra.as_object().unwrap().clone());
         serde_json::from_value(v).unwrap()
+    }
+
+    #[tokio::test]
+    async fn panicking_scan_ends_as_failed() {
+        let state = AppState {
+            scans: Arc::new(Mutex::new(vec![pending_scan("id", "npm:left-pad")])),
+            token: None,
+            open: true,
+            scan_slots: Arc::new(tokio::sync::Semaphore::new(1)),
+            running: Arc::new(Mutex::new(HashMap::new())),
+            submit_budget: Arc::new(Mutex::new(RateBudget::new(1))),
+            denied_budget: Arc::new(Mutex::new(RateBudget::new(1))),
+            loopback_only: true,
+        };
+        let work = async {
+            let reply = format!("{}é", "a".repeat(299));
+            Ok(pending_scan(&reply[..300], ""))
+        };
+        let result = run_scan(&state, "id", work).await;
+        assert!(
+            result.status.starts_with("failed: scan panicked: "),
+            "{}",
+            result.status
+        );
+        assert_eq!(result.repo_url, "npm:left-pad");
+        assert!(result.duration_ms.is_some());
     }
 
     #[test]

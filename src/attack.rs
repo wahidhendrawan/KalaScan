@@ -844,6 +844,7 @@ const FINDING_TABLE: &[(&str, &[&str])] = &[
     ("Chain: Hidden Bundled Binary Started Detached", &["T1564.001", "T1195.001"]),
     ("Chain: Hidden Python Process", &["T1564", "T1059.006"]),
     ("Chain: Dropped Binary Behind a Cloudflare Access Tunnel", &["T1572", "T1105"]),
+    ("Several Kinds of Credential Store Read", &["T1552"]),
     ("Chain: Web Page Published as a Package", &["T1566", "T1036"]),
     ("Package Entry Point Is a Web Page", &[]),
     ("Chain: Obfuscated Credential Theft", &["T1027", "T1552"]),
@@ -882,15 +883,25 @@ const FINDING_TABLE: &[(&str, &[&str])] = &[
 
 /// The table entry for a finding name; names that carry a value
 /// (`Typo-squat Suspect: x`, `… Blob (Entropy: 7.9)`) match on their prefix.
-fn finding_entry(name: &str) -> Option<&'static [&'static str]> {
-    FINDING_TABLE
-        .iter()
-        .find(|(key, _)| {
-            name.strip_prefix(key).is_some_and(|rest| {
-                rest.is_empty() || rest.starts_with(':') || rest.starts_with(" (")
-            })
-        })
-        .map(|(_, ids)| *ids)
+fn finding_entry(name: &str) -> Option<(&'static str, &'static [&'static str])> {
+    FINDING_TABLE.iter().copied().find(|(key, _)| {
+        name.strip_prefix(key)
+            .is_some_and(|rest| rest.is_empty() || rest.starts_with(':') || rest.starts_with(" ("))
+    })
+}
+
+/// A finding's name without the value it carries: `Typo-squat Suspect: x` is
+/// `Typo-squat Suspect`. Any other name (a custom or YARA rule) is itself.
+pub fn base_name(name: &str) -> &str {
+    finding_entry(name).map_or(name, |(key, _)| key)
+}
+
+/// The technique's page: `T1567.004` is `…/techniques/T1567/004/`.
+pub fn url(id: &str) -> String {
+    format!(
+        "https://attack.mitre.org/techniques/{}/",
+        id.replace('.', "/")
+    )
 }
 
 /// True when the finding has a written-out mapping (possibly an empty one).
@@ -903,7 +914,7 @@ pub fn is_mapped(name: &str) -> bool {
 /// findings, keywords for anything else (custom rules, YARA rule names).
 pub fn for_finding(name: &str) -> Vec<AttackTechnique> {
     match finding_entry(name) {
-        Some(ids) => ids.iter().filter_map(|id| lookup(id)).collect(),
+        Some((_, ids)) => ids.iter().filter_map(|id| lookup(id)).collect(),
         None => map_text(name),
     }
 }
@@ -971,6 +982,25 @@ mod tests {
         assert!(id("Local Network Server").is_empty());
         // Unknown names (custom rules, YARA) still go through the keywords.
         assert!(!id("YARA Rule: discord_webhook_stealer").is_empty());
+    }
+
+    #[test]
+    fn base_name_drops_the_value_of_a_known_finding_only() {
+        assert_eq!(
+            base_name("Typo-squat Suspect: expresss (looks like express)"),
+            "Typo-squat Suspect"
+        );
+        assert_eq!(
+            base_name("High-Entropy Suspicious Blob (Entropy: 7.91)"),
+            "High-Entropy Suspicious Blob"
+        );
+        assert_eq!(base_name("Discord Webhook"), "Discord Webhook");
+        assert_eq!(base_name("YARA Rule: a (b)"), "YARA Rule: a (b)");
+        assert_eq!(
+            url("T1567.004"),
+            "https://attack.mitre.org/techniques/T1567/004/"
+        );
+        assert_eq!(url("T1059"), "https://attack.mitre.org/techniques/T1059/");
     }
 
     #[test]

@@ -136,6 +136,24 @@ pub struct RuleMatch {
     pub context: String,
 }
 
+/// The findings of a result as its JSON has them: each with its rule's id
+/// and, where the rules hold them, description, ATT&CK techniques and MBC
+/// objectives (`export::RuleInfo`). Derived from the name on the way out, so
+/// a stored scan gets them too and reading them back ignores them.
+fn with_rule_info<S: serde::Serializer>(matches: &[RuleMatch], out: S) -> Result<S::Ok, S::Error> {
+    #[derive(Serialize)]
+    struct Explained<'a> {
+        #[serde(flatten)]
+        finding: &'a RuleMatch,
+        #[serde(flatten)]
+        rule: export::RuleInfo,
+    }
+    out.collect_seq(matches.iter().map(|finding| Explained {
+        finding,
+        rule: export::rule_info(&finding.matched_pattern),
+    }))
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AiAnalysis {
     pub is_malicious: bool,
@@ -159,6 +177,7 @@ pub struct ScanResult {
     pub total_matches: usize,
     pub risk_score: u8,
     pub ai_analysis: Option<AiAnalysis>,
+    #[serde(serialize_with = "with_rule_info")]
     pub rule_matches: Vec<RuleMatch>,
     #[serde(default)]
     pub triage: Option<triage::TriageReport>,
@@ -180,6 +199,12 @@ pub struct ScanResult {
     /// The parts `risk_score` is the sum of (capped at 100).
     #[serde(default)]
     pub score_breakdown: Option<score::ScoreBreakdown>,
+    /// Passes that were asked for and failed or were cut short, one line each
+    /// ("OSV lookup failed: operation timed out; advisories and
+    /// malicious-package records were not checked for 12 of 12 packages").
+    /// Left out of the JSON when there are none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<String>,
 }
 
 /// Log writer: stderr, with CR and LF inside a record escaped. A repo URL,
@@ -272,8 +297,11 @@ pub async fn run() -> anyhow::Result<()> {
                 cli::Config::load(config.as_deref())?
             };
             let format = format.or(cfg.format).unwrap_or_else(|| "text".to_string());
-            // The flag is checked by clap; a typo in kalascan.toml must not
-            // quietly fall back to v1.
+            // The flags are checked by clap; a typo in kalascan.toml must not
+            // quietly print the text report, or fall back to v1.
+            if !cli::SCAN_FORMATS.contains(&format.to_lowercase().as_str()) {
+                anyhow::bail!("format must be one of: {}", cli::SCAN_FORMATS.join(", "));
+            }
             let score_model = score_model.or(cfg.score_model);
             if score_model
                 .as_deref()
@@ -362,6 +390,7 @@ pub async fn run() -> anyhow::Result<()> {
             include_dev,
             min_risk,
             fail_on_risk,
+            allow_skipped,
             jobs,
             max,
             no_cache,
@@ -373,6 +402,7 @@ pub async fn run() -> anyhow::Result<()> {
                 include_dev,
                 min_risk,
                 fail_on_risk,
+                allow_skipped,
                 jobs,
                 max,
                 no_cache,
@@ -710,8 +740,9 @@ async fn execute_scan_in(
     if let Some((publisher, name, _)) = vsix::parse_marketplace_id(&repo_url) {
         rule_matches.extend(reputation::marketplace_matches(publisher, name).await);
     }
+    let mut warnings = Vec::new();
     if let Some(pkg) = vsix::parse_package_target(&repo_url) {
-        rule_matches.extend(registry::findings(&pkg, &scan_dir).await);
+        rule_matches.extend(registry::findings(&pkg, &scan_dir, &mut warnings).await);
         if DEPENDENCY_SCAN.try_with(|_| ()).is_err() {
             rule_matches.extend(malicious_dependencies(&req, &pkg, &scan_dir).await);
         }
@@ -728,15 +759,32 @@ async fn execute_scan_in(
             rule_matches.extend(iocs::urlhaus_matches(&iocs, key.trim()).await);
         }
     }
-    if req.check_cve.unwrap_or(true) && !pkgs.is_empty() {
-        info!("Auditing {} manifest packages with OSV API...", pkgs.len());
-        let cve_matches = cve::check_vulnerabilities(&pkgs).await;
-        rule_matches.extend(cve_matches);
+    if req.check_cve.unwrap_or(true) {
+        // What a repository's lockfile pins is what gets installed. A
+        // published package's lockfile is its author's: an install resolves
+        // the manifest's ranges again, so there the manifest's entries are
+        // asked about, as before.
+        // shortcut: npm does honour a package's npm-shrinkwrap.json and it is
+        // not read here; read it when --cve on a package has to cover it.
+        let pkgs = if tree == scanner::Tree::Package {
+            pkgs
+        } else {
+            cve::locked_packages(&scan_dir, pkgs)
+        };
+        if !pkgs.is_empty() {
+            info!("Auditing {} packages with OSV API...", pkgs.len());
+            let cve_matches = cve::check_vulnerabilities(&pkgs, &mut warnings).await;
+            rule_matches.extend(cve_matches);
+        }
     }
 
     // Cross-file chains, once every current-tree finding is in (history hits
     // are old snapshots and must not complete a chain).
     let chain_dir = scan_dir.clone();
+    // A scan against a baseline lists everything: the baseline has to hold
+    // every finding, and a new hit past the twentieth of its rule in a file
+    // is still a new finding. Baselines are the CLI's, on the operator's tree.
+    let listed_in_full = req.baseline.is_some();
     let mut rule_matches = tokio::task::spawn_blocking(move || {
         let chains =
             correlate::correlate_package_with(&rule_matches, !cve::is_vscode_extension(&chain_dir));
@@ -746,7 +794,12 @@ async fn execute_scan_in(
         if let Some(hidden) = correlate::hidden_binary(&chain_dir, &rule_matches) {
             rule_matches.push(hidden);
         }
-        rule_matches
+        // Not before: the chains above read hits a report does not list.
+        if listed_in_full {
+            rule_matches
+        } else {
+            scanner::reported(rule_matches)
+        }
     })
     .await
     .map_err(|e| anyhow::anyhow!("Correlation task failed: {}", e))?;
@@ -807,7 +860,8 @@ async fn execute_scan_in(
 
     // Phase 2d: Deep static binary triage
     info!("Running static binary triage...");
-    let triage_report = triage::analyze_directory(&scan_dir, &rule_matches, req.deep_triage).await;
+    let triage_report =
+        triage::analyze_directory(&scan_dir, tree, &rule_matches, req.deep_triage).await;
 
     // CPU-bound like the scanner pass, so off the async workers too: inline,
     // a one-worker server (1-CPU container) answered nothing, /healthz
@@ -816,7 +870,7 @@ async fn execute_scan_in(
         info!("Running recursive deobfuscation...");
         let dir = scan_dir.clone();
         Some(
-            tokio::task::spawn_blocking(move || deobfuscate::analyze_directory(&dir))
+            tokio::task::spawn_blocking(move || deobfuscate::analyze_directory(&dir, tree))
                 .await
                 .map_err(|e| anyhow::anyhow!("Deobfuscation task failed: {}", e))?,
         )
@@ -909,6 +963,7 @@ async fn execute_scan_in(
                 &req.llm_endpoint,
                 &agent_files,
                 &combined_prompt,
+                &mut warnings,
             )
             .await
         };
@@ -917,6 +972,12 @@ async fn execute_scan_in(
             Ok(a) => Some(a),
             Err(e) => {
                 error!("AI analysis error: {}", e);
+                // Cut: a reply that is not JSON comes back whole in the error.
+                let why = redact_credentials(&e.to_string());
+                warnings.push(format!(
+                    "AI analysis failed, no AI verdict: {}",
+                    scanner::truncate_on_char(&why, 200)
+                ));
                 None
             }
         }
@@ -954,6 +1015,7 @@ async fn execute_scan_in(
         duration_ms: None,
         iocs,
         score_breakdown: Some(score_breakdown),
+        warnings,
     };
 
     info!("Scan complete. ID: {}", scan_id);
@@ -1033,6 +1095,103 @@ async fn git_changed_files(
     }
     info!("Restricting scan to {} changed files", changed.len());
     Some(changed)
+}
+
+#[cfg(test)]
+mod warning_tests {
+    use super::*;
+
+    /// Nothing listens at either endpoint (`cve::OSV_QUERY_URL` under test,
+    /// and a port just released): both passes fail, and the result says so.
+    #[tokio::test]
+    async fn failed_osv_and_ai_passes_are_named_in_the_result() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"name": "t", "version": "1.0.0", "dependencies": {"left-pad": "1.3.0"}}"#,
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("a.js"), "eval(atob('YWxlcnQoMSk='));\n").unwrap();
+        let closed = std::net::TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap();
+        let mut req: ScanRequest = serde_json::from_value(serde_json::json!({
+            "repo_url": dir.path(),
+            "check_cve": true,
+            "ai_analysis_enabled": true,
+            "llm_provider": "ollama",
+            "llm_model": "m",
+            "llm_endpoint": format!("http://{}/api/generate", closed),
+        }))
+        .unwrap();
+        // Someone else's tree: no registry lookups of its dependency names.
+        req.third_party = true;
+        let scan = execute_scan_in(req, dir.path().to_path_buf(), "id".to_string(), None, false);
+        let result = OPERATOR_SCAN.scope((), scan).await.unwrap();
+
+        assert!(result.ai_analysis.is_none());
+        let [osv, ai] = &result.warnings[..] else {
+            panic!("{:?}", result.warnings);
+        };
+        assert!(osv.starts_with("OSV lookup failed: "), "{}", osv);
+        assert!(
+            osv.ends_with("malicious-package records were not checked for 1 of 1 packages"),
+            "{}",
+            osv
+        );
+        assert!(
+            ai.starts_with("AI analysis failed, no AI verdict: "),
+            "{}",
+            ai
+        );
+    }
+
+    /// In a repository the OSV pass asks about what the lockfile pins, and
+    /// the offline checks still read the manifest alone: a transitive entry
+    /// named like a typo-squat is no finding. A package's lockfile is not read.
+    #[tokio::test]
+    async fn osv_is_asked_about_the_locked_versions_of_a_repository() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"name": "t", "version": "1.0.0", "dependencies": {"left-pad": "^1.3.0"}}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("package-lock.json"),
+            r#"{"lockfileVersion": 3, "packages": {
+            "node_modules/left-pad": {"version": "1.3.2"},
+            "node_modules/left-pad/node_modules/crossenv": {"version": "1.0.0"}
+        }}"#,
+        )
+        .unwrap();
+        let scan = |package: bool| {
+            let mut req: ScanRequest = serde_json::from_value(serde_json::json!({
+                "repo_url": dir.path(),
+                "check_cve": true,
+            }))
+            .unwrap();
+            req.third_party = true;
+            let scan = execute_scan_in(req, dir.path().to_path_buf(), "id".into(), None, package);
+            OPERATOR_SCAN.scope((), scan)
+        };
+        let repository = scan(false).await.unwrap();
+        let [osv] = &repository.warnings[..] else {
+            panic!("{:?}", repository.warnings);
+        };
+        assert!(osv.ends_with("not checked for 2 of 2 packages"), "{}", osv);
+        assert!(
+            repository.rule_matches.is_empty(),
+            "{:?}",
+            repository.rule_matches
+        );
+        let package = scan(true).await.unwrap();
+        let [osv] = &package.warnings[..] else {
+            panic!("{:?}", package.warnings);
+        };
+        assert!(osv.ends_with("not checked for 1 of 1 packages"), "{}", osv);
+    }
 }
 
 #[cfg(test)]

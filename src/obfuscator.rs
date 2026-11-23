@@ -37,41 +37,129 @@ static CODE_ARRAY_CALL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"[A-Za-z_$][\w$.]*\(\s*(?:(?:null|this|String)\s*,\s*|\.\.\.)?\[\s*((?:0x[0-9a-fA-F]{2}|\d{2,3})(?:\s*,\s*(?:0x[0-9a-fA-F]{2}|\d{2,3})){2,255})\s*\]\s*\)").unwrap()
 });
 
+/// One base64 literal, or pieces of one joined by `JOIN`. Hex is a subset.
+const PIECES: &str = r#"[A-Za-z0-9+/_-]+={0,2}(?:['"`]\s*\+?\s*b?['"`][A-Za-z0-9+/_-]+={0,2})*"#;
+/// What cuts a literal in pieces: `'…' + '…'`, and Python's `'…' '…'`, on one
+/// line or over several.
+static JOIN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"['"`]\s*\+?\s*b?['"`]"#).unwrap());
+
 /// A base64 or hex literal handed to a decoder: `atob('…')`,
 /// `Buffer.from('…', 'base64')`, `b64decode('…')`, `echo … | base64 -d`,
 /// `Buffer.from('…', 'hex')`, `bytes.fromhex('…')`. Groups 1-3 are base64,
 /// 4-5 hex.
 static ENCODED_LITERAL: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?:(?:atob|b64decode|decodebytes|a2b_base64)\s*\(\s*b?['"`]([A-Za-z0-9+/_-]{16,}={0,2})['"`]|Buffer\.from\(\s*['"`]([A-Za-z0-9+/_-]{16,}={0,2})['"`]\s*,\s*['"`]base64(?:url)?['"`]|['"]?([A-Za-z0-9+/]{16,}={0,2})['"]?\s*\|\s*base64\s+(?:-d|-D|--decode)(?-u:\b)|Buffer\.from\(\s*['"`]([0-9a-fA-F]{16,})['"`]\s*,\s*['"`]hex['"`]|(?:fromhex|unhexlify)\s*\(\s*b?['"]([0-9a-fA-F]{16,})['"])"#).unwrap()
+    Regex::new(&format!(r#"(?:(?:atob|b64decode|decodebytes|a2b_base64)\s*\(\s*b?['"`]({PIECES})['"`]|Buffer\.from\(\s*['"`]({PIECES})['"`]\s*,\s*['"`]base64(?:url)?['"`]|['"]?([A-Za-z0-9+/]{{16,}}={{0,2}})['"]?\s*\|\s*base64\s+(?:-d|-D|--decode)(?-u:\b)|Buffer\.from\(\s*['"`]({PIECES})['"`]\s*,\s*['"`]hex['"`]|(?:fromhex|unhexlify)\s*\(\s*b?['"]({PIECES})['"])"#)).unwrap()
 });
+
+/// A name handed to one of those decoders: `b64decode(p)`,
+/// `Buffer.from(blob, 'base64')`. Groups 1-2 are the name; 3 is set, or the
+/// name is in 4, when the decoder is a hex one.
+static DECODED_NAME: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?:(?:atob|b64decode|decodebytes|a2b_base64)\s*\(\s*([A-Za-z_$][\w$.]*)\s*[,)]|Buffer\.from\(\s*([A-Za-z_$][\w$.]*)\s*,\s*['"`](?:base64(?:url)?|(hex))['"`]|(?:fromhex|unhexlify)\s*\(\s*([A-Za-z_$][\w$.]*)\s*\))"#).unwrap()
+});
+/// A literal given a name (group 1): `p = '…'`, `const blob = ('…' + '…')`.
+static NAMED_LITERAL: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(&format!(
+        r#"([A-Za-z_$][\w$.]*)\s*=\s*\(?\s*b?['"`]({PIECES})['"`]"#
+    ))
+    .unwrap()
+});
+
+/// Character codes XORed with one constant, beside the loop that undoes
+/// them: `[94,115,…].map(c => c ^ 23)` (groups 1-2: codes, key) and
+/// `bytes(c ^ 23 for c in [94,115,…])` (groups 3-4: key, codes).
+// shortcut: the key and the array are literals in the one expression, a key in a variable or a key of several bytes is not followed, upgrade when a sample uses one.
+static XORED_CODES: LazyLock<Regex> = LazyLock::new(|| {
+    const CODES: &str = r"\d{1,3}(?:\s*,\s*\d{1,3}){15,}";
+    const KEY: &str = r"0x[0-9a-fA-F]{1,2}|\d{1,3}";
+    Regex::new(&format!(r"\[\s*({CODES})\s*\]\s*\.map\(\s*\(?\s*[A-Za-z_$][\w$]*\s*\)?\s*=>\s*[A-Za-z_$][\w$]*\s*\^\s*({KEY})\s*\)|[A-Za-z_]\w*\s*\^\s*({KEY})\s+for\s+[A-Za-z_]\w*\s+in\s+\[\s*({CODES})\s*\]")).unwrap()
+});
+
+/// `bytes` as text, when they are text.
+fn text(bytes: Vec<u8>) -> Option<String> {
+    let text = String::from_utf8(bytes).ok()?;
+    text.chars()
+        .all(|ch| !ch.is_control() || matches!(ch, '\n' | '\r' | '\t'))
+        .then_some(text)
+}
+
+/// What a base64 or hex literal decodes to when that is text, zlib or gzip
+/// under the encoding inflated (512 KiB at most, more is left alone).
+fn decoded_text(literal: &str, hex: bool) -> Option<String> {
+    use base64::Engine;
+    let joined = JOIN.replace_all(literal, "");
+    let digits = joined.trim_end_matches('=');
+    if digits.len() < 16 {
+        return None;
+    }
+    let bytes = if hex {
+        hex::decode(digits).ok()?
+    } else {
+        base64::engine::general_purpose::STANDARD_NO_PAD
+            .decode(digits)
+            .or_else(|_| base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(digits))
+            .ok()?
+    };
+    // shortcut: raw deflate (`inflateRawSync`, `wbits=-15`), bz2 and lzma have no header to go by and stay unread, upgrade when a sample uses one.
+    text(crate::deobfuscate::try_decompress(&bytes).map_or(bytes, |(_, out)| out))
+}
 
 /// What the base64 and hex literals of `content` decode to, when that is
 /// text, with the byte offset of each literal: the payload of
 /// `eval(Buffer.from('…','base64'))` or `exec(b64decode('…'))`, a URL or a
-/// command kept encoded. Binary (a wasm module, a key) is left out.
+/// command kept encoded. The literal may be cut in pieces, compressed, or
+/// sit in a variable of the file that a decoder is handed by name. An array
+/// of character codes XORed with a constant is read the same way. Binary (a
+/// wasm module, a key, an image) is left out.
+// shortcut: a name is matched by its spelling, not its scope, and a shell `$VAR` is not followed, upgrade with the data-flow pass's bindings if this misreads a file.
 pub fn layers(content: &str) -> Vec<(usize, String)> {
-    use base64::Engine;
     /// The most layers read from one file: a bundle can carry hundreds of
     /// encoded assets.
     const MAX_LAYERS: usize = 32;
-    ENCODED_LITERAL
+    let at_call = ENCODED_LITERAL.captures_iter(content).filter_map(|c| {
+        let (literal, hex) = match c.get(1).or(c.get(2)).or(c.get(3)) {
+            Some(b64) => (b64, false),
+            None => (c.get(4).or(c.get(5))?, true),
+        };
+        Some((c.get(0)?.start(), literal.as_str(), hex))
+    });
+    // Names handed to a decoder, and whether it is a hex one.
+    let names: std::collections::HashMap<&str, bool> = DECODED_NAME
         .captures_iter(content)
         .filter_map(|c| {
-            let bytes = if let Some(b64) = c.get(1).or(c.get(2)).or(c.get(3)) {
-                let text = b64.as_str().trim_end_matches('=');
-                base64::engine::general_purpose::STANDARD_NO_PAD
-                    .decode(text)
-                    .or_else(|_| base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(text))
-                    .ok()?
-            } else {
-                hex::decode(c.get(4).or(c.get(5))?.as_str()).ok()?
-            };
-            let text = String::from_utf8(bytes).ok()?;
-            let is_text = text
-                .chars()
-                .all(|ch| !ch.is_control() || matches!(ch, '\n' | '\r' | '\t'));
-            is_text.then(|| (c.get(0).map_or(0, |m| m.start()), text))
+            let name = c.get(1).or(c.get(2)).or(c.get(4))?;
+            Some((name.as_str(), c.get(3).or(c.get(4)).is_some()))
         })
+        .collect();
+    let by_name = (!names.is_empty())
+        .then(|| NAMED_LITERAL.captures_iter(content))
+        .into_iter()
+        .flatten()
+        .filter_map(|c| {
+            let literal = c.get(2)?;
+            Some((literal.start(), literal.as_str(), *names.get(&c[1])?))
+        });
+    let xored = XORED_CODES.captures_iter(content).filter_map(|c| {
+        let (codes, key) = match (c.get(1), c.get(2)) {
+            (Some(codes), Some(key)) => (codes, key),
+            _ => (c.get(4)?, c.get(3)?),
+        };
+        let key = key.as_str();
+        let key = key.strip_prefix("0x").map_or_else(
+            || key.parse::<u8>().ok(),
+            |h| u8::from_str_radix(h, 16).ok(),
+        )?;
+        let bytes: Option<Vec<u8>> = codes
+            .as_str()
+            .split(',')
+            .map(|n| n.trim().parse::<u8>().ok().map(|b| b ^ key))
+            .collect();
+        Some((codes.start(), text(bytes?)?))
+    });
+    at_call
+        .chain(by_name)
+        .filter_map(|(at, literal, hex)| Some((at, decoded_text(literal, hex)?)))
+        .chain(xored)
         .take(MAX_LAYERS)
         .collect()
 }
@@ -84,10 +172,27 @@ static EMPTY_INTERPOLATION: LazyLock<Regex> =
 static BRACKET_NAME: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"\[\s*['"]([A-Za-z_$][\w$]{1,40})['"]\s*\]"#).unwrap());
 
-/// `content` with seven cheap string disguises undone, so the rules see the
+/// A global called through the global object by its name in a string,
+/// `globalThis['eval'](`: `eval(` to the engine. Not `self`, which Python
+/// indexes too.
+static GLOBAL_CALL: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"\b(?:globalThis|global|window)\s*\[\s*['"]([A-Za-z_$][\w$]{1,40})['"]\s*\]\s*\("#)
+        .unwrap()
+});
+/// Python's `getattr(x, 'name')` with no default: `x.name`.
+static GETATTR: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"\bgetattr\(\s*([A-Za-z_][\w.]*|__import__\(\s*['"]\w+['"]\s*\))\s*,\s*['"]([A-Za-z_]\w{0,40})['"]\s*\)"#).unwrap()
+});
+/// A builtin that runs code, reached through the `builtins` module.
+static BUILTIN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?:__import__\(\s*['"]builtins['"]\s*\)|\b__builtins__|\bbuiltins)\.(exec|eval|compile|__import__)\b"#).unwrap()
+});
+
+/// `content` with ten cheap string disguises undone, so the rules see the
 /// name a line spells: `'fe'+'tch'`, `\x66etch`, `String.fromCharCode(102,
 /// 101,…)`, `_d([102,101,…])`, `'hctef'.split('').reverse().join('')`,
-/// `` `fe${''}tch` `` and `globalThis['fetch']`.
+/// `` `fe${''}tch` ``, `globalThis['eval'](`, `globalThis['fetch']`,
+/// `getattr(os, 'system')` and `__import__('builtins').exec`.
 /// Borrowed when the file uses none of them. No line is added or removed, so a line number in
 /// the result is the line number in the file.
 pub fn plain(content: &str) -> std::borrow::Cow<'_, str> {
@@ -153,7 +258,16 @@ pub fn plain(content: &str) -> std::borrow::Cow<'_, str> {
     if let Cow::Owned(s) = EMPTY_INTERPOLATION.replace_all(&text, "") {
         text = Cow::Owned(s);
     }
+    if let Cow::Owned(s) = GLOBAL_CALL.replace_all(&text, "$1(") {
+        text = Cow::Owned(s);
+    }
     if let Cow::Owned(s) = BRACKET_NAME.replace_all(&text, ".$1") {
+        text = Cow::Owned(s);
+    }
+    if let Cow::Owned(s) = GETATTR.replace_all(&text, "$1.$2") {
+        text = Cow::Owned(s);
+    }
+    if let Cow::Owned(s) = BUILTIN.replace_all(&text, "$1") {
         text = Cow::Owned(s);
     }
     match text {
@@ -165,9 +279,19 @@ pub fn plain(content: &str) -> std::borrow::Cow<'_, str> {
 pub const OBFUSCATED_CREDENTIAL_THEFT: &str = "Chain: Obfuscated Credential Theft";
 pub const OBFUSCATED_DOWNLOAD_EXEC: &str = "Chain: Obfuscated Download and Execute";
 
+/// An array of nothing but string literals (group 2): the string table when
+/// it is called `_0x…`, and under any other name (group 1) when `GETTER`
+/// follows it.
 static STRING_ARRAY: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?:const|var|let)\s+_0x[0-9a-f]{4,6}\s*=\s*\[((?:\s*(?:'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*")\s*,?)+)\]"#)
+    Regex::new(r#"(?:const|var|let)\s+(?:_0x[0-9a-f]{4,6}|([\w$]+))\s*=\s*\[((?:\s*(?:'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*")\s*,?)+)\]"#)
         .unwrap()
+});
+/// What the obfuscator writes after its table, whatever the names
+/// (`identifierNamesGenerator: mangled` calls them `a0` and `b`): the function
+/// around the array replaces itself with one that returns it, and calls that.
+/// `a0=function(){return b;};return a0();` Groups: function, array, function.
+static GETTER: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^\s*;\s*([\w$]+)\s*=\s*function\s*\(\s*\)\s*\{\s*return\s+([\w$]+)\s*;?\s*\}\s*;?\s*return\s+([\w$]+)\s*\(\s*\)").unwrap()
 });
 static LITERAL: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)""#).unwrap());
@@ -295,9 +419,16 @@ fn rc4_table(content: &str, raw: &[String]) -> Vec<String> {
 pub fn string_table(content: &str) -> Vec<String> {
     let raw: Vec<String> = STRING_ARRAY
         .captures_iter(content)
+        .filter(|c| {
+            c.get(1).is_none_or(|array| {
+                GETTER
+                    .captures(&content[c.get(0).map_or(0, |m| m.end())..])
+                    .is_some_and(|g| g[2] == *array.as_str() && g[1] == g[3])
+            })
+        })
         .flat_map(|c| {
             LITERAL
-                .captures_iter(&c[1])
+                .captures_iter(&c[2])
                 .filter_map(|l| l.get(1).or_else(|| l.get(2)).map(|m| unescape(m.as_str())))
                 .collect::<Vec<_>>()
         })
@@ -541,6 +672,93 @@ mod tests {
         assert_eq!(found[0].0, 5);
     }
 
+    #[test]
+    fn layers_undo_a_constant_xor_over_character_codes() {
+        let texts =
+            |src: &str| -> Vec<String> { layers(src).into_iter().map(|(_, t)| t).collect() };
+        let js = "eval(String.fromCharCode(...[116,120,121,100,99,55,113,100,55,42,55,101,114,102,98,126,101,114,63,48,113,100,48,62,44].map(c => c ^ 23)));";
+        assert_eq!(texts(js), ["const fs = require('fs');"]);
+        let py = "exec(bytes(c ^ 0x2a for c in [67,71,90,69,88,94,10,69,89,32,69,89,4,89,83,89,94,79,71,2,13,67,78,13,3]).decode())";
+        assert_eq!(texts(py), ["import os\nos.system('id')"]);
+        for quiet in [
+            // A mask over pixel values is not text, and a short array is not a payload.
+            "const px = [255,0,128,255,3,7,9,200,255,0,128,255,3,7,9,200,1,2].map(v => v ^ 255);",
+            "[104,116,116,112].map(c => c ^ 1)",
+            // No XOR beside the array.
+            "const t = [116,120,121,100,99,55,113,100,55,42,55,101,114,102,98,126,101,114,63,48,113,100,48,62,44].map(c => c + 23);",
+        ] {
+            assert!(layers(quiet).is_empty(), "{quiet}");
+        }
+    }
+
+    #[test]
+    fn plain_names_a_global_or_builtin_reached_by_a_string() {
+        for (src, name) in [
+            ("globalThis['ev'+'al'](code);", "eval(code);"),
+            ("window[\"\\x65val\"](code)", "eval(code)"),
+            (
+                "getattr(__import__('builtins'), 'ex'+'ec')(src)",
+                "exec(src)",
+            ),
+            ("getattr(os, 'sy'+'stem')('id')", "os.system('id')"),
+            ("__builtins__.eval(s)", "eval(s)"),
+        ] {
+            assert_eq!(plain(src), name);
+        }
+        // Python's `self` is an object like any other.
+        assert_eq!(plain("self['eval'](x)"), "self.eval(x)");
+        // A default, and a member that is called `eval`, stay as they are.
+        for same in ["getattr(mod, 'name', None)", "redis.eval(script)"] {
+            assert!(
+                matches!(plain(same), std::borrow::Cow::Borrowed(_)),
+                "{same}"
+            );
+        }
+    }
+
+    #[test]
+    fn layers_follow_a_name_join_pieces_and_inflate() {
+        let texts =
+            |src: &str| -> Vec<String> { layers(src).into_iter().map(|(_, t)| t).collect() };
+        let py = "import os\nos.system('id')";
+        let js = "const fs = require('fs');";
+        for (src, text) in [
+            // The blob in a variable of the file, passed by name.
+            ("p = 'aW1wb3J0IG9zCm9zLnN5c3RlbSgnaWQnKQ=='\nexec(base64.b64decode(p))\n", py),
+            ("const blob = 'Y29uc3QgZnMgPSByZXF1aXJlKCdmcycpOw==';\neval(Buffer.from(blob, 'base64').toString());\n", js),
+            ("self.h = '696d706f7274206f730a6f732e73797374656d2827696427290a'\nexec(bytes.fromhex(self.h))\n", "import os\nos.system('id')\n"),
+            // Cut with `+`, and as adjacent strings over two lines.
+            ("eval(atob('Y29uc3QgZnMgPSBy' + \"ZXF1aXJlKCdmcycpOw==\"));", js),
+            ("exec(b64decode(\n    b'aW1wb3J0IG9zCm9z'\n    b'LnN5c3RlbSgnaWQnKQ=='))", py),
+            ("p = ('aW1wb3J0IG9zCm9z'\n     'LnN5c3RlbSgnaWQnKQ==')\nexec(b64decode(p))", py),
+            // zlib and gzip under the base64 or hex.
+            ("exec(zlib.decompress(base64.b64decode('eJzLzC3ILypRyC/myi/WK64sLknN1VDPTFHXBAB6bgjJ')))", py),
+            ("eval(zlib.inflateSync(Buffer.from('eJxLzs8rLlFIK1awVShKLSzNLErVUE8rVte0BgBzLghO', 'base64')).toString());", js),
+            ("exec(gzip.decompress(b64decode('H4sIAAAAAAAA/8vMLcgvKlHIL+bKL9YrriwuSc3VUM9MUdcEAMgdrHwZAAAA')))", py),
+            ("z = '789ccbcc2dc82f2a51c82fe6ca2fd62bae2c2e49cdd550cf4c51d704007a6e08c9'\nexec(zlib.decompress(unhexlify(z)))", py),
+        ] {
+            assert_eq!(texts(src), [text], "{src}");
+        }
+        // The literal's own line is where a finding goes.
+        assert_eq!(
+            layers("\n\np = 'aW1wb3J0IG9zCm9zLnN5c3RlbSgnaWQnKQ=='\nexec(b64decode(p))")[0].0,
+            7
+        );
+        for quiet in [
+            // An image in a variable, and compressed bytes that are not text.
+            "const icon = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ';\nimg.src = Buffer.from(icon, 'base64');",
+            "t = zlib.decompress(b64decode('eJxjYGRiZmFlY+fg5OLm4eXjFxAUEhYRFROXkJSSlpGVk2cgIA8AaOAD4Q=='))",
+            // A name no decoder is handed, another name, and a comparison.
+            "p = 'aW1wb3J0IG9zCm9zLnN5c3RlbSgnaWQnKQ=='\nsend(p)",
+            "xp = 'aW1wb3J0IG9zCm9zLnN5c3RlbSgnaWQnKQ=='\nexec(b64decode(p))",
+            "if p == 'aW1wb3J0IG9zCm9zLnN5c3RlbSgnaWQnKQ==': exec(b64decode(p))",
+            // Pieces that add up to less than 16 characters.
+            "atob('aW1w' + 'b3J0');",
+        ] {
+            assert!(layers(quiet).is_empty(), "{quiet}");
+        }
+    }
+
     fn names(v: &[RuleMatch]) -> Vec<&str> {
         v.iter().map(|m| m.matched_pattern.as_str()).collect()
     }
@@ -567,6 +785,27 @@ mod tests {
             names(&chains("index.js", &table)),
             vec![OBFUSCATED_CREDENTIAL_THEFT]
         );
+    }
+
+    #[test]
+    fn mangled_names_table_is_read_by_its_shape() {
+        // `identifierNamesGenerator: 'mangled'`: the gleb-js shape, short names.
+        let src = "function a0(){var b=['readdirSync','post','.env','\\x63onfig.toml','join'];a0=function(){return b;};return a0();}";
+        let table = string_table(src);
+        assert!(table.contains(&"config.toml".to_string()), "{table:?}");
+        assert_eq!(
+            names(&chains("index.js", &table)),
+            vec![OBFUSCATED_CREDENTIAL_THEFT]
+        );
+        // An array of strings and a function that indexes it, a getter that
+        // returns another array, and one that replaces another function.
+        for ordinary in [
+            "const verbs=['readFileSync','post','.env'];function verb(i){return verbs[i];}",
+            "function a(){const b=['readFileSync','post','.env'];a=function(){return c;};return a();}",
+            "function a(){const b=['readFileSync','post','.env'];d=function(){return b;};return a();}",
+        ] {
+            assert!(string_table(ordinary).is_empty(), "{ordinary}");
+        }
     }
 
     #[test]

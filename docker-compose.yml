@@ -8,6 +8,10 @@ services:
       # Required: the server refuses to start on 0.0.0.0 without auth.
       # Run e.g. `KALASCAN_TOKEN=$(openssl rand -hex 32) docker compose up -d`.
       - KALASCAN_TOKEN=${KALASCAN_TOKEN:?set KALASCAN_TOKEN (openssl rand -hex 32)}
+    # Scan history is /app/kalascan.db inside the container and goes with it.
+    # To keep it, and to run without root: add KALASCAN_HOME=/data above,
+    # `user: "1000:1000"` and `volumes: ["./kalascan-data:/data"]`, with
+    # ./kalascan-data created first and owned by that user.
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"

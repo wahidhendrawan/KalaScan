@@ -46,43 +46,89 @@ struct OsvVuln {
     details: Option<String>,
 }
 
+/// The text of the manifest `name` (`package.json`, `extension/package.json`)
+/// in the scanned tree `root`, which is someone else's: only a regular file
+/// of at most 8 MiB that is inside the tree. A repository can commit
+/// `package.json` as a link to `/dev/zero` (a read that never ends) or to a
+/// file of the scanning machine, whose lines would be reported as its
+/// dependencies.
+pub fn read_manifest(root: &Path, name: &str) -> Option<String> {
+    const MAX_MANIFEST_BYTES: u64 = 8 * 1024 * 1024;
+    // Where the links lead, not whether there are any: refusing every link
+    // would let a repository hide its manifest from these checks by
+    // committing it as a link to a file of its own.
+    let path = root.join(name).canonicalize().ok()?;
+    if !path.starts_with(root.canonicalize().ok()?) {
+        return None;
+    }
+    let meta = path.metadata().ok()?;
+    (meta.is_file() && meta.len() <= MAX_MANIFEST_BYTES)
+        .then(|| std::fs::read_to_string(&path).ok())?
+}
+
 /// Extract dependency packages from standard manifest files in a directory
 pub fn extract_manifest_packages(root_path: &Path) -> Vec<DependencyPackage> {
     let mut packages = Vec::new();
 
     // 1. package.json (npm)
-    let pkg_json_path = root_path.join("package.json");
-    if pkg_json_path.is_file() {
-        if let Ok(content) = std::fs::read_to_string(&pkg_json_path) {
-            packages.extend(parse_package_json(&content, "package.json"));
-        }
+    if let Some(content) = read_manifest(root_path, "package.json") {
+        packages.extend(parse_package_json(&content, "package.json"));
     }
 
     // Also check extension/package.json for VSIX packages
-    let ext_pkg_json = root_path.join("extension").join("package.json");
-    if ext_pkg_json.is_file() {
-        if let Ok(content) = std::fs::read_to_string(&ext_pkg_json) {
-            packages.extend(parse_package_json(&content, "extension/package.json"));
-        }
+    if let Some(content) = read_manifest(root_path, "extension/package.json") {
+        packages.extend(parse_package_json(&content, "extension/package.json"));
     }
 
     // 2. Cargo.lock (Rust)
-    let cargo_lock_path = root_path.join("Cargo.lock");
-    if cargo_lock_path.is_file() {
-        if let Ok(content) = std::fs::read_to_string(&cargo_lock_path) {
-            packages.extend(parse_cargo_lock(&content, "Cargo.lock"));
-        }
+    if let Some(content) = read_manifest(root_path, "Cargo.lock") {
+        packages.extend(parse_cargo_lock(&content, "Cargo.lock"));
     }
 
     // 3. requirements.txt (Python)
-    let req_path = root_path.join("requirements.txt");
-    if req_path.is_file() {
-        if let Ok(content) = std::fs::read_to_string(&req_path) {
-            packages.extend(parse_requirements_txt(&content, "requirements.txt"));
-        }
+    if let Some(content) = read_manifest(root_path, "requirements.txt") {
+        packages.extend(parse_requirements_txt(&content, "requirements.txt"));
     }
 
     packages
+}
+
+/// What `--cve` and `kalascan sbom` report on. `package.json` gives a range
+/// (`^4.17.0`) and the direct dependencies only; a lockfile gives the versions
+/// that are installed, transitive ones included. So for every ecosystem a
+/// lockfile under `root` pins, the locked packages stand in for the entries
+/// of `manifest` (`extract_manifest_packages`); the other entries stay. An
+/// entry from a mirror or git is installed too and is kept; one without a
+/// registry name and version (`flask>=2`, a URL) is left out.
+pub fn locked_packages(
+    root: &Path,
+    mut manifest: Vec<DependencyPackage>,
+) -> Vec<DependencyPackage> {
+    let (pinned, elsewhere) = crate::lockfile::read_with(true, |name| read_manifest(root, name));
+    let mut seen = std::collections::BTreeSet::new();
+    let locked: Vec<DependencyPackage> = pinned
+        .into_iter()
+        .chain(elsewhere)
+        .filter(|p| crate::vsix::parse_package_target(&p.target()).is_some())
+        .filter(|p| seen.insert((p.ecosystem, p.name.clone(), p.version.clone())))
+        .map(|p| DependencyPackage {
+            name: p.name,
+            version: p.version,
+            // OSV's names for them.
+            ecosystem: match p.ecosystem {
+                "npm" => "npm",
+                "crates" => "crates.io",
+                _ => "PyPI",
+            }
+            .to_string(),
+            manifest_file: p.source.to_string(),
+        })
+        .collect();
+    let ecosystems: std::collections::BTreeSet<&str> =
+        locked.iter().map(|l| l.ecosystem.as_str()).collect();
+    manifest.retain(|m| !ecosystems.contains(m.ecosystem.as_str()));
+    manifest.extend(locked);
+    manifest
 }
 
 pub fn parse_package_json(content: &str, file_name: &str) -> Vec<DependencyPackage> {
@@ -132,11 +178,14 @@ pub fn parse_cargo_lock(content: &str, file_name: &str) -> Vec<DependencyPackage
 
     for line in content.lines() {
         let line = line.trim();
-        if line.starts_with("name = \"") && line.ends_with('"') {
-            current_name = Some(line[8..line.len() - 1].to_string());
-        } else if line.starts_with("version = \"") && line.ends_with('"') {
+        // strip_*, not `line[8..line.len() - 1]`: on a line that is only
+        // `name = "` the one quote is both ends and the slice panicked.
+        let quoted = |key: &str| line.strip_prefix(key)?.strip_suffix('"');
+        if let Some(name) = quoted("name = \"") {
+            current_name = Some(name.to_string());
+        } else if let Some(ver) = quoted("version = \"") {
             if let Some(name) = current_name.take() {
-                let ver = line[11..line.len() - 1].to_string();
+                let ver = ver.to_string();
                 packages.push(DependencyPackage {
                     name,
                     version: ver,
@@ -426,7 +475,7 @@ pub const WEB_PAGE_ENTRY: &str = "Package Entry Point Is a Web Page";
 /// phishing pages, cloned sites and SVG-wrapped pages are hosted
 /// (`"main": "index.svg", "unpkg": "index.svg"`).
 pub fn web_page_entry(root: &Path) -> Vec<RuleMatch> {
-    let Some(text) = std::fs::read_to_string(root.join("package.json")).ok() else {
+    let Some(text) = read_manifest(root, "package.json") else {
         return Vec::new();
     };
     let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else {
@@ -493,7 +542,7 @@ fn remote_url_dependencies(root: &Path) -> Vec<RuleMatch> {
         // `"xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"`.
         "cdn.sheetjs.com",
     ];
-    let Some(text) = std::fs::read_to_string(root.join("package.json")).ok() else {
+    let Some(text) = read_manifest(root, "package.json") else {
         return Vec::new();
     };
     let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else {
@@ -533,14 +582,13 @@ fn remote_url_dependencies(root: &Path) -> Vec<RuleMatch> {
 
 /// A VS Code extension root: package.json with `engines.vscode`.
 pub fn is_vscode_extension(root: &Path) -> bool {
-    std::fs::read_to_string(root.join("package.json"))
-        .ok()
+    read_manifest(root, "package.json")
         .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
         .is_some_and(|v| v["engines"]["vscode"].is_string())
 }
 
 fn own_package(root: &Path) -> Option<DependencyPackage> {
-    let read = |f: &str| std::fs::read_to_string(root.join(f)).ok();
+    let read = |f: &str| read_manifest(root, f);
     let pkg = |name: &str, version: &str, ecosystem: &str, file: &str| DependencyPackage {
         name: name.trim().to_string(),
         version: version.trim().to_string(),
@@ -564,10 +612,7 @@ fn own_package(root: &Path) -> Option<DependencyPackage> {
                 && e.path().join("METADATA").is_file()
         })?;
         let file = format!("{}/METADATA", dir.file_name().to_string_lossy());
-        Some((
-            std::fs::read_to_string(dir.path().join("METADATA")).ok()?,
-            file,
-        ))
+        Some((read(&file)?, file))
     };
     if let Some((info, file)) = read("PKG-INFO")
         .map(|info| (info, "PKG-INFO".to_string()))
@@ -679,8 +724,13 @@ pub async fn own_manifest_matches(packages: &[DependencyPackage], online: bool) 
     out
 }
 
-/// Query OSV (Open Source Vulnerabilities) API for known vulnerabilities
-pub async fn check_vulnerabilities(packages: &[DependencyPackage]) -> Vec<RuleMatch> {
+/// Query OSV (Open Source Vulnerabilities) API for known vulnerabilities.
+/// A query that fails adds a line to `warnings`: without it a scan with OSV
+/// unreachable reads the same as one with no advisories.
+pub async fn check_vulnerabilities(
+    packages: &[DependencyPackage],
+    warnings: &mut Vec<String>,
+) -> Vec<RuleMatch> {
     if packages.is_empty() {
         return Vec::new();
     }
@@ -696,20 +746,41 @@ pub async fn check_vulnerabilities(packages: &[DependencyPackage]) -> Vec<RuleMa
     // OSV accepts up to 1000 queries per batch; the old `take(100)` silently
     // dropped the rest of any real Cargo.lock / package tree.
     let mut matches = Vec::new();
+    let mut failed = None;
+    let mut unchecked = 0;
     for batch in packages.chunks(OSV_BATCH_LIMIT) {
-        if let Some(results) = query_batch(&client, batch).await {
-            matches.extend(osv_matches(batch, results));
+        match query_batch(&client, batch).await {
+            Ok(results) => matches.extend(osv_matches(batch, results)),
+            Err(e) => {
+                warn!("Failed to query OSV vulnerability API: {}", e);
+                unchecked += batch.len();
+                failed = Some(e);
+            }
         }
+    }
+    if let Some(e) = failed {
+        warnings.push(format!(
+            "OSV lookup failed: {}; advisories and malicious-package records were not checked for {} of {} packages",
+            anyhow::Error::new(e.without_url()).root_cause(),
+            unchecked,
+            packages.len()
+        ));
     }
     matches
 }
 
 const OSV_BATCH_LIMIT: usize = 1000;
 
+#[cfg(not(test))]
+const OSV_QUERY_URL: &str = "https://api.osv.dev/v1/querybatch";
+/// Unit tests stay offline: the discard port, where nothing listens.
+#[cfg(test)]
+const OSV_QUERY_URL: &str = "http://127.0.0.1:9/v1/querybatch";
+
 async fn query_batch(
     client: &reqwest::Client,
     batch: &[DependencyPackage],
-) -> Option<Vec<OsvQueryResult>> {
+) -> reqwest::Result<Vec<OsvQueryResult>> {
     let queries: Vec<OsvSingleQuery> = batch
         .iter()
         .map(|p| OsvSingleQuery {
@@ -723,26 +794,9 @@ async fn query_batch(
 
     let payload = OsvBatchQuery { queries };
 
-    let resp = match client
-        .post("https://api.osv.dev/v1/querybatch")
-        .json(&payload)
-        .send()
-        .await
-    {
-        Ok(r) => r,
-        Err(e) => {
-            warn!("Failed to query OSV vulnerability API: {}", e);
-            return None;
-        }
-    };
-
-    match resp.json::<OsvBatchResponse>().await {
-        Ok(res) => res.results,
-        Err(e) => {
-            warn!("Failed to decode OSV API response: {}", e);
-            None
-        }
-    }
+    let resp = client.post(OSV_QUERY_URL).json(&payload).send().await?;
+    let res: OsvBatchResponse = resp.error_for_status()?.json().await?;
+    Ok(res.results.unwrap_or_default())
 }
 
 /// Turn OSV results (index-aligned with `batch`) into findings. `MAL-*`
@@ -789,6 +843,117 @@ fn osv_matches(batch: &[DependencyPackage], results: Vec<OsvQueryResult>) -> Vec
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn manifests_are_read_as_regular_files_only() {
+        use std::os::unix::fs::symlink;
+        let manifest = r#"{"dependencies": {"left-pad": "1.3.0"}}"#;
+        // A file of the scanning machine, outside the scanned tree.
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("package.json"), manifest).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        symlink(
+            outside.path().join("package.json"),
+            dir.path().join("package.json"),
+        )
+        .unwrap();
+        // `extension -> <outside>` reaches the same file through a directory.
+        symlink(outside.path(), dir.path().join("extension")).unwrap();
+        assert_eq!(read_manifest(dir.path(), "package.json"), None);
+        assert_eq!(read_manifest(dir.path(), "extension/package.json"), None);
+        assert!(extract_manifest_packages(dir.path()).is_empty());
+        assert!(own_package(dir.path()).is_none());
+
+        std::fs::remove_file(dir.path().join("package.json")).unwrap();
+        std::fs::write(dir.path().join("package.json"), manifest).unwrap();
+        assert_eq!(
+            read_manifest(dir.path(), "package.json").as_deref(),
+            Some(manifest)
+        );
+        assert_eq!(extract_manifest_packages(dir.path()).len(), 1);
+        // A link to a file of the tree itself is still that tree's manifest.
+        std::fs::create_dir(dir.path().join("inner")).unwrap();
+        symlink(
+            dir.path().join("package.json"),
+            dir.path().join("inner/package.json"),
+        )
+        .unwrap();
+        assert_eq!(
+            read_manifest(dir.path(), "inner/package.json").as_deref(),
+            Some(manifest)
+        );
+        // A manifest is not this large; a sparse file costs no disk.
+        let big = std::fs::File::create(dir.path().join("Cargo.lock")).unwrap();
+        big.set_len(8 * 1024 * 1024 + 1).unwrap();
+        assert_eq!(read_manifest(dir.path(), "Cargo.lock"), None);
+    }
+
+    #[test]
+    fn locked_versions_stand_in_for_the_manifests_ranges() {
+        let dir = tempfile::tempdir().unwrap();
+        let write = |name: &str, text: &str| std::fs::write(dir.path().join(name), text).unwrap();
+        let listed = || {
+            let manifest = extract_manifest_packages(dir.path());
+            let mut all: Vec<String> = locked_packages(dir.path(), manifest)
+                .iter()
+                .map(|p| {
+                    format!(
+                        "{} {}@{} ({})",
+                        p.ecosystem, p.name, p.version, p.manifest_file
+                    )
+                })
+                .collect();
+            all.sort();
+            all
+        };
+        write(
+            "package.json",
+            r#"{"dependencies": {"left-pad": "^1.3.0"}, "devDependencies": {"mocha": "~8.0.0"}}"#,
+        );
+        write("requirements.txt", "requests==2.31.0\nflask>=2\n");
+        // No npm lockfile: the manifest's entries, as before.
+        assert_eq!(
+            listed(),
+            [
+                "PyPI requests@2.31.0 (requirements.txt)",
+                "npm left-pad@1.3.0 (package.json)",
+                "npm mocha@8.0.0 (package.json)",
+            ]
+        );
+        // With one: what it pins, transitive, development and mirrored
+        // packages included. A git dependency has no version to ask about.
+        write(
+            "package-lock.json",
+            r#"{"lockfileVersion": 3, "packages": {
+            "": {"name": "app"},
+            "node_modules/left-pad": {"version": "1.3.2", "resolved": "https://registry.npmjs.org/left-pad/-/left-pad-1.3.2.tgz"},
+            "node_modules/mocha": {"version": "8.0.1", "dev": true},
+            "node_modules/mocha/node_modules/ms": {"version": "2.1.2", "dev": true},
+            "node_modules/internal": {"version": "1.0.0", "resolved": "https://artifactory.example.com/internal/-/internal-1.0.0.tgz"},
+            "node_modules/fromgit": {"version": "github:x/y#abc"}
+        }}"#,
+        );
+        assert_eq!(
+            listed(),
+            [
+                "PyPI requests@2.31.0 (requirements.txt)",
+                "npm internal@1.0.0 (package-lock.json)",
+                "npm left-pad@1.3.2 (package-lock.json)",
+                "npm mocha@8.0.1 (package-lock.json)",
+                "npm ms@2.1.2 (package-lock.json)",
+            ]
+        );
+        // A lockfile that is a link out of the tree is not read, like a manifest.
+        #[cfg(unix)]
+        {
+            let outside = tempfile::tempdir().unwrap();
+            let moved = outside.path().join("package-lock.json");
+            std::fs::rename(dir.path().join("package-lock.json"), &moved).unwrap();
+            std::os::unix::fs::symlink(&moved, dir.path().join("package-lock.json")).unwrap();
+            assert_eq!(listed()[1], "npm left-pad@1.3.0 (package.json)");
+        }
+    }
 
     #[test]
     fn reordered_words_and_dropped_scope_look_alike() {
@@ -1027,6 +1192,14 @@ version = "1.20.0"
         assert_eq!(pkgs[0].version, "1.0.104");
         assert_eq!(pkgs[1].name, "tokio");
         assert_eq!(pkgs[1].version, "1.20.0");
+    }
+
+    #[test]
+    fn cargo_lock_line_with_one_quote_is_skipped() {
+        let lock_str = "name = \"\nversion = \"\nname = \"serde\"\nversion = \"1.0.104\"\n";
+        let pkgs = parse_cargo_lock(lock_str, "Cargo.lock");
+        assert_eq!(pkgs.len(), 1);
+        assert_eq!(pkgs[0].name, "serde");
     }
 
     #[test]

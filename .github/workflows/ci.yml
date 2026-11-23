@@ -14,12 +14,33 @@ jobs:
           toolchain: stable
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - run: cargo check --locked
+      # The fuzz targets are built by the weekly Fuzz workflow only: a change
+      # to an API they call must not wait a week to show. A check needs no
+      # nightly; the lockfile is the release's plus libfuzzer-sys.
+      - run: cp Cargo.lock fuzz/Cargo.lock && cargo check --manifest-path fuzz/Cargo.toml --target-dir target
       - run: cargo clippy --all-targets --locked -- -D warnings
       - run: cargo test --locked
+      - run: python3 eval/run_eval.py --self-test
       - run: cargo build --release --locked
       # Self-scan: workflows, Dockerfile and install.sh; the files that hold
       # detection signatures are listed in .kalascanignore.
       - run: ./target/release/kalascan scan . --fail-on-risk 30
+
+  # The release builds for Windows and macOS on the tag only: a break there
+  # used to show after the release was published (path separators, cfg(unix)).
+  other-platforms:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - run: cargo test --locked
 
   # A change to what decides a verdict is a new ruleset: it needs a new
   # RULESET_VERSION, and `cargo test` then needs the results file that

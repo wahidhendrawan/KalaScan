@@ -5,5 +5,5 @@ use libfuzzer_sys::fuzz_target;
 fuzz_target!(|data: &[u8]| {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(dir.path().join("payload.js"), data).unwrap();
-    let _ = kalascan::deobfuscate::analyze_directory(dir.path());
+    let _ = kalascan::deobfuscate::analyze_directory(dir.path(), kalascan::scanner::Tree::Package);
 });

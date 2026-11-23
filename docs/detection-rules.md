@@ -4,7 +4,7 @@ KalaScan has three rule families. All are data, embedded at compile time. `kalas
 
 | Family | Where | Count | When |
 |---|---|---|---|
-| Regex rules | `rules/builtin.toml` (ruleset version `2026.11.14`) | 116 | always; `--rules FILE` adds yours |
+| Regex rules | `rules/builtin.toml` (ruleset version `2026.11.16`) | 116 | always; `--rules FILE` adds yours |
 | Secret patterns | `rules/secrets.toml` (generated from gitleaks v8.30.1, MIT) | 208 | opt-in with `--secrets` |
 | YARA rules | `src/yara_engine.rs` (3 built-in), `rules/yara/guarddog/` (2), `--yara-dir DIR` | | every file except prose |
 
@@ -54,14 +54,14 @@ A rule whose examples fail aborts the scan with the reason, so a typo in a patte
 | `KS-FSW` | `file_write` | every scanned file | 2 |
 | `GL-*` | `secret` | script extensions, manifests and config files (`.env`, `*.yml`, `*.json`, `.npmrc`, ...) | 208 |
 
-"Script extensions" is `CRITICAL_EXTENSIONS` in `src/scanner.rs`: `.py .js .ts .mjs .cjs .jsx .tsx .sh .bat .ps1 .psm1 .vbs .php .java .kt .rb .go .rs .lua .pl .cs .swift .groovy .gradle .yml .yaml` (`.yml` / `.yaml` get only the exfiltration, network, supply-chain and secret rules). "Manifest files" are `package.json`, `setup.py`, `manifest.json`, `plugin.xml`, `extension.vsixmanifest`, `Dockerfile`, `Makefile`, `Justfile` (case-insensitive). A category name not listed here (for example `custom` in your own rules file) runs on every scanned file. YARA runs on every file except prose (`.md`, `.rst`, `.txt`, `.adoc`), which routinely quotes IOC strings.
+"Script extensions" is `CRITICAL_EXTENSIONS` in `src/scanner.rs`: `.py .pyw .js .ts .mts .cts .mjs .cjs .jsx .tsx .sh .bat .cmd .ps1 .psm1 .vbs .php .java .kt .rb .go .rs .lua .pl .cs .swift .groovy .gradle .yml .yaml` (`.yml` / `.yaml` get only the exfiltration, network, supply-chain and secret rules). "Manifest files" are `package.json`, `setup.py`, `manifest.json`, `plugin.xml`, `extension.vsixmanifest`, `Dockerfile`, `Makefile`, `Justfile` (case-insensitive). A category name not listed here (for example `custom` in your own rules file) runs on every scanned file. YARA runs on every file except prose (`.md`, `.rst`, `.txt`, `.adoc`), which routinely quotes IOC strings.
 
 ### Writing a rule that survives the clean corpus
 
 - Anchor it. `KS-RAN-004` matched the CISA KEV column name `ransomware_use` in a clean application because its pattern had no word boundary.
-- Prefer a chain to a high severity. `src/correlate.rs` combines two hard signals within 4 KB of each other (or anywhere in one package) into one critical chain finding; a single soft signal stays `medium` or `high` and cannot push a clean repository over the CI gate by itself.
+- Prefer a chain to a high severity. `src/correlate.rs` combines two hard signals within 4 KB of each other, comments not counted (or anywhere in one package) into one critical chain finding; a single soft signal stays `medium` or `high` and cannot push a clean repository over the CI gate by itself.
 - Add an `ignores` example for every false positive you fix, then run `python3 eval/run_eval.py --only clean` (see `eval/README.md`). CI fails a PR that pushes any clean sample to risk 50.
-- Severity guide: `critical` = no benign reading (exfiltration endpoint, encoded command, credential theft); `high` = rarely benign inside a package; `medium` = common in legitimate code (`process.env`, loopback IPs, `exec()`); `low` = informational.
+- Severity guide: `critical` = no benign reading (exfiltration endpoint, encoded command, credential theft); `high` = rarely benign inside a package; `medium` = common in legitimate code (`process.env`, loopback IPs, `exec()`); `low` = informational. `info` is the scanner's own notice (`Repeated Finding (further hits not listed)`) and has no weight.
 
 ## Custom rules
 
@@ -84,4 +84,6 @@ Same format; `matches` / `ignores` are checked on load. `--rules` is CLI-only: t
 
 ## Findings that are not rules
 
-Entropy and Unicode checks (`src/entropy.rs`), behaviour chains (`src/correlate.rs`), zip-slip taint tracking, GitHub Actions workflow checks, AI agent file checks (`src/agent.rs`), registry and reputation checks, OSV advisories, IOC lookups and the deep passes produce findings with fixed names (`Oversized File (partially scanned)`, `Scanner Error (file not analysed)`, `Malicious Package`, chain names, ...). They have no `KS-` id and are not listed by `kalascan rules`; their weights are in the risk model.
+Entropy and Unicode checks (`src/entropy.rs`), behaviour chains (`src/correlate.rs`), zip-slip taint tracking, GitHub Actions workflow checks, AI agent file checks (`src/agent.rs`), registry and reputation checks, OSV advisories, IOC lookups and the deep passes produce findings with fixed names (`Oversized File (partially scanned)`, `Repeated Finding (further hits not listed)`, `Scanner Error (file not analysed)`, `Malicious Package`, chain names, ...). They have no `KS-` id and are not listed by `kalascan rules`; their weights are in the risk model.
+
+Reports name the rule of any finding, a rule's or one of these, by an id made from its name: lower case, `-` for anything but a letter or a digit, without the value a name carries (`Typo-squat Suspect: expresss` is `typo-squat-suspect`). It is `rule_id` in the JSON, the last column of the CSV and `ruleId` in SARIF. The `description` of a rule goes out with it; the findings above have none.

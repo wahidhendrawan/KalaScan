@@ -32,6 +32,20 @@ paths:
       responses:
         "200":
           description: The OpenAPI document
+  /scan:
+    post:
+      summary: Alias of POST /api/scan (the dashboard uses it); same body, responses and auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ScanRequest" }
+      responses:
+        "200":
+          description: Accepted; poll the status endpoint
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScanAccepted" }
   /api/scan:
     post:
       summary: Submit a scan
@@ -46,7 +60,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ScanAccepted" }
-        "400": { description: "Local path target, or a CLI-only field (yara_dir, rules_file, ignore, baseline, sandbox_image)" }
+        "400": { description: "Local path target, or a CLI-only field (yara_dir, rules_file, ignore, baseline, sandbox_image, sandbox_runtime)" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "429": { $ref: "#/components/responses/RateLimited" }
@@ -61,12 +75,12 @@ paths:
               type: object
               properties:
                 file: { type: string, format: binary }
-                llm_provider: { type: string }
-                llm_model: { type: string }
+                llm_provider: { type: string, default: ollama }
+                llm_model: { type: string, default: llama3 }
                 llm_api_key: { type: string, description: "Never persisted with queued scans" }
                 llm_endpoint: { type: string }
                 ai_analysis_enabled: { type: boolean }
-                check_cve: { type: boolean }
+                check_cve: { type: boolean, default: true }
                 deep_triage: { type: boolean }
                 deobfuscate: { type: boolean }
                 emulate: { type: boolean }
@@ -77,6 +91,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ScanAccepted" }
+        "400": { description: "No file in the form, or the upload could not be unpacked" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "429": { $ref: "#/components/responses/RateLimited" }
@@ -91,9 +106,10 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ScanStatus" }
+        "404": { description: Not found }
   /api/scan/{id}:
     delete:
-      summary: Cancel a queued or running scan
+      summary: Cancel a queued or running scan, or delete a finished one from the history
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:
@@ -109,7 +125,11 @@ paths:
           description: Result
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/ScanResult" }
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  result: { $ref: "#/components/schemas/ScanResult" }
         "404": { description: Not found }
   /api/history:
     get:
@@ -122,6 +142,7 @@ paths:
               schema:
                 type: object
                 properties:
+                  success: { type: boolean }
                   scans:
                     type: array
                     items: { $ref: "#/components/schemas/ScanSummary" }
@@ -136,6 +157,7 @@ paths:
           schema: { type: string, enum: [md, html, sarif, csv, junit, github, stix, osv] }
       responses:
         "200": { description: Report body }
+        "400": { description: Unknown format }
         "404": { description: Not found }
         "422": { description: "The scan cannot be written as `osv` (not an npm / PyPI package with an exact version, or below the danger level)" }
   /api/sbom:
@@ -167,7 +189,17 @@ paths:
               schema:
                 type: object
                 properties:
-                  entries: { type: array, items: { type: object } }
+                  success: { type: boolean }
+                  entries:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        timestamp: { type: string }
+                        actor: { type: string }
+                        action: { type: string }
+                        target: { type: string, nullable: true }
+                        detail: { type: string, nullable: true }
         "403": { description: Admin role required }
 
 components:
@@ -188,11 +220,11 @@ components:
   schemas:
     ScanRequest:
       type: object
-      required: [repo_url, llm_provider, llm_model]
+      required: [repo_url]
       properties:
         repo_url: { type: string, description: "Git URL (https/ssh), marketplace URL, publisher.extension[@version], npm:name[@version], crates:name[@version] or pypi:name[==version]. Local paths are CLI-only; upload packages via /api/scan/upload" }
-        llm_provider: { type: string, default: ollama }
-        llm_model: { type: string, default: llama3 }
+        llm_provider: { type: string, enum: [ollama, openai, deepseek, 9router, custom], description: "No default here: needed with ai_analysis_enabled" }
+        llm_model: { type: string, description: "Needed with ai_analysis_enabled" }
         llm_api_key: { type: string, description: "Never persisted with queued scans" }
         llm_endpoint: { type: string }
         ai_analysis_enabled: { type: boolean }
@@ -200,11 +232,14 @@ components:
         yara_dir: { type: string, description: "CLI-only; rejected by the API" }
         rules_file: { type: string, description: "CLI-only; rejected by the API" }
         git_history: { type: boolean }
+        history_max_commits: { type: integer, description: "With git_history: the newest commits walked" }
+        history_since: { type: string, description: "With git_history: only commits after this date (any `git log --since` date)" }
         deep_triage: { type: boolean }
         deobfuscate: { type: boolean }
         emulate: { type: boolean }
         sandbox: { type: boolean }
         sandbox_image: { type: string, description: "CLI-only; rejected by the API" }
+        sandbox_runtime: { type: string, description: "CLI-only; rejected by the API" }
         secrets: { type: boolean, description: "Also report hard-coded credentials (gitleaks patterns, medium severity)" }
         new_only: { type: boolean }
         baseline: { type: string, description: "CLI-only; rejected by the API" }
@@ -240,8 +275,23 @@ components:
         file_path: { type: string }
         line_number: { type: integer }
         matched_pattern: { type: string }
-        severity: { type: string }
+        severity: { type: string, description: "critical, high, medium or low; info for the scanner's own notices" }
         context: { type: string }
+        rule_id: { type: string, description: "Id of the finding's rule, made from its name without the value the name carries", example: discord-webhook }
+        description: { type: string, description: "The rule's description. Absent for a finding raised by code (chains, data flow, registry checks) and for a rule of a custom rules file" }
+        attack:
+          type: array
+          description: ATT&CK techniques of the finding. Absent when it has none
+          items:
+            type: object
+            properties:
+              id: { type: string, example: T1567.004 }
+              name: { type: string }
+              tactic: { type: string }
+        mbc:
+          type: array
+          description: MBC objectives of those techniques. Absent when there are none
+          items: { type: string, example: OB0010 Exfiltration }
     ScanResult:
       type: object
       properties:
@@ -250,7 +300,7 @@ components:
         timestamp: { type: string }
         total_files: { type: integer }
         scanned_files: { type: integer }
-        total_matches: { type: integer }
+        total_matches: { type: integer, description: "Findings listed: at most 20 of one rule in one file, then a notice with the count" }
         risk_score: { type: integer }
         ai_analysis: { type: object, nullable: true }
         rule_matches:
@@ -277,13 +327,17 @@ components:
                   name: { type: string }
                   points: { type: integer }
             known_vulnerabilities: { type: integer, description: "v2 only: counted apart from the score" }
+        warnings:
+          type: array
+          description: "Requested passes that failed or were cut short, one line each (OSV lookup, AI analysis, AI agent text over the prompt budget, registry metadata). Absent when there are none: an absent AI verdict or no advisory finding then means the pass ran"
+          items: { type: string, example: "OSV lookup failed: operation timed out; advisories and malicious-package records were not checked for 12 of 12 packages" }
         iocs:
           type: array
-          description: External URLs / public IPs referenced by the scanned code
+          description: External URLs / public IPs referenced by the scanned code, and hosts it contacted in the sandbox
           items:
             type: object
             properties:
-              kind: { type: string, enum: [url, ip] }
+              kind: { type: string, enum: [url, ip, sandbox-host] }
               value: { type: string }
               host: { type: string }
               files: { type: array, items: { type: string } }

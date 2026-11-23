@@ -40,6 +40,10 @@ RUN apt-get update -qq && \
 COPY --from=builder /app/target/release/kalascan /usr/local/bin/kalascan
 
 WORKDIR /app
+# No USER: the server keeps kalascan.db in /app (or KALASCAN_HOME), and a
+# volume the root image has written there could not be opened by another
+# user; --sandbox also needs the mounted Docker socket. Running as a user of
+# your own is `docker run --user`, see README "Run with Docker".
 EXPOSE 3000
 # The binary defaults to loopback; inside a container the port must be
 # reachable. Startup still refuses this without KALASCAN_TOKEN or users.

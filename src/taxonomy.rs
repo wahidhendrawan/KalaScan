@@ -202,7 +202,7 @@ pub const CODE_FINDINGS: &[&str] = &[
     correlate::DNS_TUNNEL_EXEC, correlate::GIT_HOOK_PERSISTENCE, correlate::SSH_KEY_PLANTED,
     correlate::FOREIGN_BINARY, scanner::PADDING, registry::MALICIOUS_DEPENDENCY,
     correlate::APPENDED_OBFUSCATION, correlate::SYSTEM_NAME_COPY, correlate::HIDDEN_BINARY,
-    correlate::HIDDEN_PYTHON, correlate::ACCESS_TUNNEL_DROP,
+    correlate::HIDDEN_PYTHON, correlate::ACCESS_TUNNEL_DROP, correlate::CREDENTIAL_SWEEP,
     cve::REMOTE_URL_DEP, cve::BUILTIN_NAME_DEP, cve::UNCLAIMED_DEP, iocs::URLHAUS_HIT,
     reputation::INVISIBLE_NAME, reputation::PUBLISHER_LOOKALIKE, reputation::BRAND_IMPERSONATION,
     reputation::UNVERIFIED_PUBLISHER, reputation::LOW_INSTALLS, reputation::RECENTLY_PUBLISHED,
@@ -224,10 +224,10 @@ fn cell(items: Vec<String>) -> String {
     }
 }
 
-fn finding_row(name: &str, kind: &str) -> String {
-    let techniques = attack::for_finding(name);
+/// The MBC objectives of a finding's techniques, each once: `OB0010 Exfiltration`.
+pub fn mbc_objectives(techniques: &[AttackTechnique]) -> Vec<String> {
     let mut objectives: Vec<String> = Vec::new();
-    for t in &techniques {
+    for t in techniques {
         if let Some((id, label)) = mbc_objective(t) {
             let entry = format!("{} {}", id, label);
             if !objectives.contains(&entry) {
@@ -235,6 +235,12 @@ fn finding_row(name: &str, kind: &str) -> String {
             }
         }
     }
+    objectives
+}
+
+fn finding_row(name: &str, kind: &str) -> String {
+    let techniques = attack::for_finding(name);
+    let objectives = mbc_objectives(&techniques);
     format!(
         "| {} | {} | {} | {} | {} |\n",
         name.replace('|', "\\|"),
@@ -308,6 +314,7 @@ mod tests {
         scanner::OVERSIZED_FINDING,
         scanner::SCAN_ERROR_FINDING,
         scanner::UNREADABLE_FINDING,
+        scanner::REPEATED_FINDING,
     ];
 
     #[test]
