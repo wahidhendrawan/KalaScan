@@ -7,6 +7,48 @@ published on GitHub; their features are listed with version markers in `README.m
 
 ## [Unreleased]
 
+### Added
+- A result carries `warnings` when a pass that was asked for failed or was cut short: the OSV lookup, the AI call, a registry lookup, agent text past the AI budget. They show in the text, Markdown and HTML reports and as a banner in the web UI, and are stored with the scan (database schema 6). The list is absent when nothing failed.
+- `kalascan deps` lists a lockfile entry it cannot scan (a registry mirror, git, a URL or a file, an unpinned `requirements.txt` line) as not scanned, and such an entry fails `--fail-on-risk` unless `--allow-skipped`; in the JSON it is an element with `"skipped": "<reason>"` and a null `risk_score`. The GitHub Action has the matching `allow_skipped` input. `npm-shrinkwrap.json` is read like `package-lock.json`.
+- CI runs the tests on Windows and macOS, `eval/run_eval.py --self-test`, and compiles the fuzz targets.
+- `kalascan scan` takes a local `.tgz`, `.tar.gz` or `.whl` (`./pkg-1.0.0.tgz`), unpacked by its content through the same capped extractors as a registry download.
+- A finding carries a rule id made from its name (`discord-webhook`): `rule_id` in the JSON, the last column of the CSV, `ruleId` in SARIF. The JSON, SARIF (`fullDescription`, `help`, `helpUri`) and the web UI add the rule's description, ATT&CK techniques and MBC objectives where the rules hold them.
+- The GitHub Action, run at a release tag, downloads that release's binary and checks its sha256 instead of compiling (it falls back to `cargo install`), and writes the risk score and verdict findings to the job summary. `kalascan scan --output` prints one line with the risk score and the critical findings and chains.
+- The Docker image is also published as `:<version>` for each release tag.
+- `eval/evasion.py`: nine new rewrites (`comment-between`, `base64-variable`, `base64-split`, `zlib-layer`, `hex-layer`, `xor-layer`, `string-table`, `source-other-file`, `npm-run-hook`), 59 more variants, and `--check-syntax`, which parses every variant (`node --check`, `ast`, `sh -n`). Five old rewrites wrote code that does not parse and were fixed: `#fetch(` is now a private class field, `fe'+'tch(` and `\x66etch(` reach the name through `globalThis[…]`, `getattr` or a string, the thousand spaces go after a Python call's `(`, and only JavaScript is minified onto one line. Their old counts measured broken files.
+
+### Changed
+- Ruleset 2026.11.16. Holdout 725 of 1,109 and rolling holdout 62 of 131 as before, no sample lost or gained; `dev` 772 of 1,061 (771); 0 of 3,822 clean samples flagged and none changed score; 272 of the 618 live releases, as before; 0 of the 1,491 releases the watch never flagged that could still be fetched. The evasion suite, with the new rewrites, went from 181 to 211 of 212; two rewrites stacked, 1,649 of 1,693.
+  - A chain's two parts are as near as the code between them: comment lines and `/* */` blocks that open a line do not count toward the 4 KB, and a reverse shell's pipe may sit beside the process start rather than the socket.
+  - Encoded payloads: a base64 or hex blob in a variable of the file that a decoder is handed by name, a blob cut in pieces (`'…' + '…'`, Python's adjacent strings), zlib or gzip under the encoding (512 KiB inflated at most), and character codes XORed with one constant (`[…].map(c => c ^ 23)`) are decoded and scanned as code.
+  - Names reached through a string: `globalThis['ev'+'al'](`, `getattr(os, 'system')` and `__import__('builtins').exec` are read as the call they make. An obfuscator string table under mangled names (`a`, `b`) is read by its shape.
+  - Data flow follows one relative import: a function of another file of the package that returns a secret counts as the importing file's own (`require('./x')`, `import … from './x'`, `from .x import f`). The other direction, a secret handed to an imported wrapper around a request, was built and dropped: it flagged four releases of an agent runtime that hands its environment to the session host it starts.
+  - Agent skills: a script the skill's text runs by relative path (`python scripts/setup.py`, `./install.sh`) counts as run by the skill, and an encoded command in the text (`echo … | base64 -d | sh`) is read as what it decodes to.
+  - A new `low` finding, `Several Kinds of Credential Store Read`: three kinds (browser or Discord profile, wallet, SSH keys, password manager, editor session, the whole environment) read within 4 KB in one file. It is in no chain and cannot make a verdict; this ruleset measures how often it fires: 9 holdout and 12 `dev` malicious samples, 1 clean sample (in `dev`).
+- `--cve` and `kalascan sbom` use the versions the lockfile pins, transitive packages included, when the repository has a lockfile `kalascan deps` reads; an unpacked package keeps its manifest. The SBOM of an npm project with a lockfile grows to the whole tree.
+- `--format` and `--llm-provider` reject an unknown value (and `kalascan.toml`'s `format`) instead of falling back to text: `--format JSON` on `installed`, `deps` and `diff` printed text before.
+- The built-in YARA rules are compiled once per process: twenty scans in one process went from about 7 s to 3 s (debug build).
+- SARIF `ruleId` of a finding whose name carries a value is the rule's alone: `Typo-squat Suspect: x` is `typo-squat-suspect`. GitHub Code Scanning reopens such alerts once.
+- The HTML report loads nothing: the stylesheet that came from a CDN is inline.
+- `KALASCAN_HOME` places the database of `serve` and `user` (a scan writes none) and is documented; the Docker image runs as root as before, with `--user` and `KALASCAN_HOME` documented for a volume that allows it.
+- Ruleset 2026.11.15: no rule changed, what a scan reads did. Every count is the same as with ruleset 2026.11.14: holdout 725 of 1,109, `dev` 771 of 1,061, 0 of 3,823 clean samples, 272 of the 618 live releases, evasion suite 151 of 153; of the 1,500 releases the watch never flagged, 1,495 could still be fetched and none reaches 50. Under the threshold 12 clean samples change score, 7 of them down.
+  - In a package, a file an install script hands to an interpreter (`"postinstall": "node install.txt"`) and an extensionless file a relative `require` loads are read as code. `.cmd`, `.mts`, `.cts` and `.pyw` are code files.
+  - A file whose data-flow pass stopped on a multi-byte character (`∫`, `·`) was reported as `Scanner Error (file not analysed)` and not read. It is analysed now; seven clean PyPI samples had such files.
+  - Binary triage and `--deobfuscate` walk the same directories as the rules, `node_modules/` included.
+- A report lists at most 20 findings of one rule in one file, then one `Repeated Finding (further hits not listed)` (severity `info`) with the count, and about 100,000 findings per scan. Chains are computed from every hit first and the score does not change. A scan with `--baseline` lists all of them, so `--new-only` still sees a new hit past the twentieth.
+- `kalascan guard` refuses an install when `package.json` or `pyproject.toml` declares dependencies and no lockfile it reads pins them, when the lockfile has entries it cannot scan, and when the tree npm resolves adds a package that is not from registry.npmjs.org.
+- `eval/run_eval.py` fails a run in which more than 5% of the samples could not be scanned, also with `--allow-errors`: a binary that does not start used to pass `--max-fpr 0 --allow-errors`.
+
+### Fixed
+- Unpacking: a registry target or marketplace id is never read from a local file of the same name; `extension/` is the scan root only for a VSIX, so a wheel or JAR cannot hide code beside such a directory; whatever an archive ships at `.sdist` is scanned as package code and cannot pass for the sdist's `setup.py`; the size limits of a `.tar.gz` count the size a PAX record gives an entry and bound the decompressed stream; file data after a PAX header is no longer rewritten.
+- Manifests (`package.json`, `requirements.txt`, `Cargo.lock`, `PKG-INFO`) are read only as regular files inside the scanned tree, 8 MiB at most: a symlink out of the tree is not followed.
+- Scans that did not finish: chain pairing and the wallet-glob check were quadratic in the hits of one file (a one-line 2 MiB file took minutes), and a `Cargo.lock` entry, an AI response and an npm target with multi-byte characters could panic. In the web UI a scan that panics ends as `failed: scan panicked: …` and is not requeued.
+- On Windows, paths in findings use `/`, so a finding under `node_modules\` is not taken for the package's own code.
+- On Windows, a file an install script or a `require` names was looked up with `\` against paths spelled with `/`, so it was never read as code.
+- `url` 2.5.9 (RUSTSEC-2026-0592, a stack overflow in `Url::origin()`; KalaScan does not call it).
+- The repository checks out with LF line ends on every platform (`.gitattributes`).
+- The Dependabot auto-merge workflow acts only on a run from this repository and merges only the commit CI tested.
+
 ## [1.26.0] - 2026-11-22
 
 ### Added

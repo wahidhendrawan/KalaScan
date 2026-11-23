@@ -19,6 +19,7 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.actor.login == 'dependabot[bot]' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
       startsWith(github.event.workflow_run.head_branch, 'dependabot/') &&
       contains(github.event.workflow_run.head_branch, '/minor-and-patch-')
     runs-on: ubuntu-latest
@@ -30,11 +31,14 @@ jobs:
           BRANCH: ${{ github.event.workflow_run.head_branch }}
           SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          pr=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json number,headRefOid \
-                --jq ".[] | select(.headRefOid == \"$SHA\") | .number")
+          # Not a fork's branch of the same name: a fork runs its own Dependabot.
+          pr=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json number,headRefOid,isCrossRepository \
+                --jq ".[] | select(.headRefOid == \"$SHA\" and (.isCrossRepository | not)) | .number")
           if [ -z "$pr" ]; then
             echo "No open PR for $BRANCH at $SHA (already merged, or Dependabot pushed a newer commit)"
             exit 0
           fi
           # With branch protection, --auto waits for the remaining required checks; without it, merge now.
-          gh pr merge --repo "$REPO" --squash --auto "$pr" || gh pr merge --repo "$REPO" --squash "$pr"
+          # Only the commit CI passed on: a push after this check started is not merged with it.
+          gh pr merge --repo "$REPO" --squash --match-head-commit "$SHA" --auto "$pr" \
+            || gh pr merge --repo "$REPO" --squash --match-head-commit "$SHA" "$pr"

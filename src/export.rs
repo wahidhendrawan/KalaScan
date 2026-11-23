@@ -88,6 +88,13 @@ pub fn export_markdown(result: &ScanResult) -> String {
     if let Some(parts) = score_parts(result) {
         md.push_str(&format!("Score: {}\n\n", md_cell(&parts)));
     }
+    if !result.warnings.is_empty() {
+        md.push_str("## Warnings\n\n");
+        for warning in &result.warnings {
+            md.push_str(&format!("- {}\n", md_cell(warning)));
+        }
+        md.push('\n');
+    }
 
     // AI analysis section
     if let Some(ref ai) = result.ai_analysis {
@@ -521,16 +528,36 @@ pub fn export_sarif(result: &ScanResult) -> String {
     let mut rule_indices: std::collections::HashMap<String, usize> =
         std::collections::HashMap::new();
     for m in &sorted {
-        if !rule_indices.contains_key(&m.matched_pattern) {
-            rule_indices.insert(m.matched_pattern.clone(), rules.len());
-            rules.push(serde_json::json!({
-                "id": rule_id(&m.matched_pattern),
-                "name": m.matched_pattern,
-                "shortDescription": { "text": m.matched_pattern },
+        let info = rule_info(&m.matched_pattern);
+        if !rule_indices.contains_key(&info.rule_id) {
+            rule_indices.insert(info.rule_id.clone(), rules.len());
+            let name = crate::attack::base_name(&m.matched_pattern);
+            let mut rule = serde_json::json!({
+                "id": info.rule_id,
+                "name": name,
+                "shortDescription": { "text": name },
                 "defaultConfiguration": { "level": sarif_level(&m.severity) },
                 // GitHub shows and gates on this (critical / high / medium / low), not on `level`.
                 "properties": { "security-severity": security_severity(&m.severity), "tags": ["security"] },
-            }));
+            });
+            // Only what the rules hold: a finding raised by code has no description.
+            if let Some(description) = info.description {
+                rule["fullDescription"] = serde_json::json!({ "text": description });
+            }
+            if let Some(first) = info.attack.first() {
+                let techniques: Vec<String> = info
+                    .attack
+                    .iter()
+                    .map(|t| format!("{} {} ({})", t.id, t.name, t.tactic))
+                    .collect();
+                let mut help = format!("ATT&CK: {}.", techniques.join(", "));
+                if !info.mbc.is_empty() {
+                    help.push_str(&format!(" MBC: {}.", info.mbc.join(", ")));
+                }
+                rule["help"] = serde_json::json!({ "text": help });
+                rule["helpUri"] = crate::attack::url(&first.id).into();
+            }
+            rules.push(rule);
         }
     }
 
@@ -543,9 +570,10 @@ pub fn export_sarif(result: &ScanResult) -> String {
             .file_path
             .strip_suffix(path)
             .and_then(|c| c.strip_suffix(':'));
+        let rule = rule_id(&m.matched_pattern);
         let mut entry = serde_json::json!({
-            "ruleId": rule_id(&m.matched_pattern),
-            "ruleIndex": rule_indices.get(&m.matched_pattern).copied().unwrap_or(0),
+            "ruleIndex": rule_indices.get(&rule).copied().unwrap_or(0),
+            "ruleId": rule,
             "level": sarif_level(&m.severity),
             "message": { "text": format!("{} detected in {}", m.matched_pattern, m.file_path) },
             "locations": [{
@@ -587,8 +615,12 @@ pub fn sarif_log(rules: Vec<serde_json::Value>, results: Vec<serde_json::Value>)
     .unwrap_or_else(|_| "{}".to_string())
 }
 
+/// The id of a finding's rule, the same in every output: the name without
+/// the value it carries (`Typo-squat Suspect: x`), lower-cased, `-` for
+/// anything but a letter or a digit.
 pub fn rule_id(name: &str) -> String {
-    name.chars()
+    crate::attack::base_name(name)
+        .chars()
         .map(|c| {
             if c.is_ascii_alphanumeric() {
                 c.to_ascii_lowercase()
@@ -597,6 +629,37 @@ pub fn rule_id(name: &str) -> String {
             }
         })
         .collect::<String>()
+}
+
+/// What the rules hold about a finding, looked up by its name; none of it
+/// is stored with the finding.
+#[derive(Debug, serde::Serialize)]
+pub struct RuleInfo {
+    pub rule_id: String,
+    /// `description` of the rule in `rules/builtin.toml` or `rules/secrets.toml`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<&'static str>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub attack: Vec<crate::attack::AttackTechnique>,
+    /// MBC objectives of those techniques: `OB0010 Exfiltration`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub mbc: Vec<String>,
+}
+
+pub fn rule_info(name: &str) -> RuleInfo {
+    // shortcut: the descriptions of a `--rules` file are not known here, hand
+    // the loaded rules in when a custom rule's description has to show.
+    static DESCRIPTIONS: std::sync::LazyLock<std::collections::HashMap<String, String>> =
+        std::sync::LazyLock::new(crate::scanner::rule_descriptions);
+    let attack = crate::attack::for_finding(name);
+    RuleInfo {
+        rule_id: rule_id(name),
+        description: DESCRIPTIONS
+            .get(crate::attack::base_name(name))
+            .map(String::as_str),
+        mbc: crate::taxonomy::mbc_objectives(&attack),
+        attack,
+    }
 }
 
 pub fn sarif_level(severity: &str) -> &'static str {
@@ -632,15 +695,17 @@ pub fn score_parts(result: &ScanResult) -> Option<String> {
 
 /// CSV export: one row per finding, suitable for spreadsheets and CI artifacts.
 pub fn export_csv(result: &ScanResult) -> String {
-    let mut out = String::from("severity,rule,file,line,context\n");
+    // `rule_id` is last, so the first five columns are where they were.
+    let mut out = String::from("severity,rule,file,line,context,rule_id\n");
     for m in &result.rule_matches {
         out.push_str(&format!(
-            "{},{},{},{},{}\n",
+            "{},{},{},{},{},{}\n",
             csv_field(&m.severity),
             csv_field(&m.matched_pattern),
             csv_field(&m.file_path),
             m.line_number,
             csv_field(&m.context),
+            csv_field(&rule_id(&m.matched_pattern)),
         ));
     }
     out
@@ -808,7 +873,7 @@ fn escape_html(s: &str) -> String {
         .replace('\'', "&#39;")
 }
 
-/// Render a CycloneDX 1.5 JSON SBOM from manifest-derived dependency packages.
+/// Render a CycloneDX 1.5 JSON SBOM from lockfile- or manifest-derived dependency packages.
 pub fn export_cyclonedx(
     packages: &[crate::cve::DependencyPackage],
     root: &std::path::Path,
@@ -1116,6 +1181,7 @@ mod tests {
             duration_ms: None,
             iocs: Vec::new(),
             score_breakdown: None,
+            warnings: Vec::new(),
         }
     }
 
@@ -1169,6 +1235,19 @@ mod tests {
     }
 
     #[test]
+    fn warnings_are_shown_in_markdown_and_html() {
+        let mut r = sample_result();
+        assert!(!export_markdown(&r).contains("## Warnings"));
+        assert!(!export_html(&r).contains("Warnings</h2>"));
+        r.warnings = vec!["OSV lookup failed: <timeout> | not checked".into()];
+        assert!(export_markdown(&r)
+            .contains("## Warnings\n\n- OSV lookup failed: <timeout> \\| not checked\n\n"));
+        assert!(export_html(&r).contains(
+            "Warnings</h2>\n      <ul class=\"list-disc list-inside\"><li>OSV lookup failed: &lt;timeout&gt; | not checked</li></ul>"
+        ));
+    }
+
+    #[test]
     fn test_export_markdown_no_triage() {
         let mut r = sample_result();
         r.triage = None;
@@ -1200,7 +1279,6 @@ mod tests {
         assert!(html.contains("KalaScan Report"));
         assert!(html.contains("AI Deep Analysis"));
         assert!(html.contains("Rule Matches"));
-        assert!(html.contains("tailwindcss"));
         assert!(html.contains("Information Stealer"));
         assert!(html.contains("Discord Webhook"));
         assert!(html.contains("bg-red-500"));
@@ -1283,6 +1361,65 @@ mod tests {
         assert!(html.contains("&lt;bad&gt;"));
     }
 
+    /// The report opens offline and fetches nothing: its stylesheet is
+    /// inline, and every class the page uses has a rule in it.
+    #[test]
+    fn html_report_loads_nothing() {
+        let full = sample_result();
+        let mut calm = sample_result();
+        calm.risk_score = 10;
+        calm.warnings = vec!["OSV lookup failed".into()];
+        calm.ai_analysis.as_mut().unwrap().is_malicious = false;
+        calm.rule_matches[0].severity = "medium".into();
+        calm.rule_matches[1].severity = "low".into();
+        calm.sandbox.as_mut().unwrap().available = false;
+        for tool in &mut calm.triage.as_mut().unwrap().tools {
+            tool.available = false;
+        }
+        let mut bare = sample_result();
+        bare.risk_score = 40;
+        bare.rule_matches.clear();
+        (bare.ai_analysis, bare.triage, bare.deobfuscation) = (None, None, None);
+        (bare.emulation, bare.ttp, bare.sandbox) = (None, None, None);
+        let pages = [full, calm, bare].map(|r| export_html(&r));
+
+        let loads =
+            regex::Regex::new(r#"(?i)<script[^>]*\ssrc=|<link[^>]*\shref="http|@import|url\("#)
+                .unwrap();
+        let class = regex::Regex::new(r#"class=\\?"([^"\\]*)"#).unwrap();
+        // The template too, for the classes of a branch no page above took.
+        let sources = pages
+            .iter()
+            .map(String::as_str)
+            .chain([include_str!("export/html.rs")]);
+        for source in sources {
+            assert!(!loads.is_match(source), "{:?}", loads.find(source));
+            let names = class
+                .captures_iter(source)
+                .flat_map(|c| c.get(1).unwrap().as_str().split_whitespace())
+                .filter(|name| !name.contains('{'));
+            for name in names {
+                let selector: String = name
+                    .chars()
+                    .flat_map(|c| {
+                        // `py-0.5` is `.py-0\.5` in the stylesheet.
+                        (!c.is_ascii_alphanumeric() && c != '-' && c != '_')
+                            .then_some('\\')
+                            .into_iter()
+                            .chain([c])
+                    })
+                    .collect();
+                let rule =
+                    regex::Regex::new(&format!(r"\.{}[{{,:>]", regex::escape(&selector))).unwrap();
+                assert!(
+                    rule.is_match(html::REPORT_CSS),
+                    "no CSS rule for class {name}"
+                );
+            }
+        }
+        assert!(pages[0].contains("<style>") && pages[0].contains(".bg-gray-950{"));
+    }
+
     #[test]
     fn test_markdown_pipe_escaped() {
         let mut r = sample_result();
@@ -1354,6 +1491,100 @@ mod tests {
         assert_eq!(discord["properties"]["security-severity"], "9.5");
     }
 
+    fn finding(name: &str) -> RuleMatch {
+        RuleMatch {
+            file_path: "package.json".into(),
+            line_number: 1,
+            matched_pattern: name.into(),
+            severity: "high".into(),
+            context: String::new(),
+        }
+    }
+
+    #[test]
+    fn rule_id_is_the_name_without_its_value() {
+        assert_eq!(rule_id("Discord Webhook"), "discord-webhook");
+        assert_eq!(
+            rule_id("Typo-squat Suspect: expresss (looks like express)"),
+            "typo-squat-suspect"
+        );
+        // Not a finding of KalaScan's own: the whole name is the rule.
+        assert_eq!(rule_id("YARA Rule: x"), "yara-rule--x");
+    }
+
+    #[test]
+    fn sarif_rules_say_what_the_rules_hold_and_no_more() {
+        let mut r = sample_result();
+        r.rule_matches.extend([
+            finding("Known Vulnerability: CVE-2020-0001 in a@1.0.0"),
+            finding("Known Vulnerability: CVE-2020-0002 in b@1.0.0"),
+        ]);
+        let parsed: serde_json::Value = serde_json::from_str(&export_sarif(&r)).unwrap();
+        let run = &parsed["runs"][0];
+        let rules = run["tool"]["driver"]["rules"].as_array().unwrap();
+        let rule = |id: &str| rules.iter().find(|r| r["id"] == id).unwrap();
+
+        let discord = rule("discord-webhook");
+        let builtin = crate::scanner::build_rules();
+        let described = builtin
+            .iter()
+            .find(|r| r.name == "Discord Webhook")
+            .unwrap();
+        assert_eq!(discord["fullDescription"]["text"], described.description);
+        assert_eq!(
+            discord["helpUri"],
+            "https://attack.mitre.org/techniques/T1567/004/"
+        );
+        let help = discord["help"]["text"].as_str().unwrap();
+        assert!(help.contains("T1567.004") && help.contains("OB0010 Exfiltration"));
+
+        // One rule for both advisories; no description and no technique to state.
+        let known: Vec<_> = rules
+            .iter()
+            .filter(|r| r["name"] == "Known Vulnerability")
+            .collect();
+        assert_eq!(known.len(), 1);
+        assert_eq!(known[0]["id"], "known-vulnerability");
+        for absent in ["fullDescription", "help", "helpUri"] {
+            assert!(known[0].get(absent).is_none(), "{absent}");
+        }
+        let results = run["results"].as_array().unwrap();
+        let of_rule: Vec<_> = results
+            .iter()
+            .filter(|r| r["ruleId"] == "known-vulnerability")
+            .collect();
+        assert_eq!(of_rule.len(), 2);
+        assert!(of_rule[1]["message"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("CVE-2020-0002"));
+    }
+
+    #[test]
+    fn json_findings_carry_rule_info_and_read_back_unchanged() {
+        let mut r = sample_result();
+        r.rule_matches
+            .push(finding("Known Vulnerability: CVE-2020-0001 in a@1.0.0"));
+        let json = serde_json::to_value(&r).unwrap();
+        let discord = &json["rule_matches"][0];
+        assert_eq!(discord["matched_pattern"], "Discord Webhook");
+        assert_eq!(discord["line_number"], 42);
+        assert_eq!(discord["rule_id"], "discord-webhook");
+        assert!(discord["description"]
+            .as_str()
+            .is_some_and(|d| !d.is_empty()));
+        assert_eq!(discord["attack"][0]["id"], "T1567.004");
+        assert_eq!(discord["mbc"][0], "OB0010 Exfiltration");
+        // A finding raised by code: the id, and no field for what is not known.
+        let known = json["rule_matches"][3].as_object().unwrap();
+        assert_eq!(known["rule_id"], "known-vulnerability");
+        for absent in ["description", "attack", "mbc"] {
+            assert!(!known.contains_key(absent), "{absent}");
+        }
+        let back: ScanResult = serde_json::from_value(json).unwrap();
+        assert_eq!(back.rule_matches, r.rule_matches);
+    }
+
     #[test]
     fn sarif_severity_maps_to_level() {
         assert_eq!(sarif_level("critical"), "error");
@@ -1366,8 +1597,8 @@ mod tests {
         let mut r = sample_result();
         r.rule_matches[0].context = "a, b \"c\"".into();
         let csv = export_csv(&r);
-        assert!(csv.starts_with("severity,rule,file,line,context\n"));
-        assert!(csv.contains("\"a, b \"\"c\"\"\""));
+        assert!(csv.starts_with("severity,rule,file,line,context,rule_id\n"));
+        assert!(csv.contains("\"a, b \"\"c\"\"\",discord-webhook\n"));
     }
 
     #[test]

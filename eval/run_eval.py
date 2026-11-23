@@ -47,6 +47,10 @@ LOCAL = {
     "skills": ("skills", "eval/fetch_skills.py"),
 }
 MANIFESTS = ("package.json", "setup.py", "pyproject.toml", "PKG-INFO")
+# --allow-errors forgives a registry that is down for a few samples, not a
+# scanner that crashed on all of them: past this share of the samples the
+# gate has measured nothing and fails.
+MAX_ERROR_RATE = 0.05
 
 
 def package_root(path):
@@ -240,6 +244,66 @@ def dated(samples, since):
             and (m := day.search(s["target"])) and m.group(1) >= since]
 
 
+def gate(done, errors, threshold, min_recall, max_fpr, allow_errors):
+    """Exit status of a run. A rate over no sample is not a pass: with every
+    scan failing (a binary that does not start, a registry outage), `fpr` used
+    to be 0 of 0 and `--max-fpr 0 --allow-errors` exited 0."""
+    mal = [s for s in done if s["label"] == "malicious"]
+    cln = [s for s in done if s["label"] == "clean"]
+    recall = sum(s["risk"] >= threshold for s in mal) / len(mal) if mal else 1.0
+    fpr = sum(s["risk"] >= threshold for s in cln) / len(cln) if cln else 0.0
+    failed = (min_recall is not None and recall < min_recall) or (max_fpr is not None and fpr > max_fpr)
+    unmeasured = (min_recall is not None and not mal) or (max_fpr is not None and not cln)
+    too_many = len(errors) > MAX_ERROR_RATE * (len(done) + len(errors))
+    if unmeasured or too_many:
+        print(f"gate: {len(errors)} of {len(done) + len(errors)} samples could not be scanned; nothing was measured", file=sys.stderr)
+    return 1 if failed or unmeasured or too_many or (errors and not allow_errors) else 0
+
+
+def self_test():
+    """--self-test: the arithmetic a published number goes through. A wrong
+    `package_root` once changed a result (docs/methodology.md)."""
+    assert wilson(0, 0) == (0.0, 1.0)
+    lo, hi = wilson(0, 100)
+    assert lo == 0.0 and 0.03 < hi < 0.04, (lo, hi)
+    assert rate(1, 4) == "1/4 (25%, 5-70)", rate(1, 4)
+
+    with tempfile.TemporaryDirectory() as d:
+        assert package_root(d) == d
+        for sub in ("pkg-1.0", "sources/pkg"):
+            os.makedirs(os.path.join(d, sub))
+        open(os.path.join(d, "pkg-1.0", "setup.py"), "w").close()
+        assert package_root(d) == os.path.join(d, "pkg-1.0")
+        # A second manifest at the same depth: their common parent, not one of them.
+        os.makedirs(os.path.join(d, "other"))
+        open(os.path.join(d, "other", "package.json"), "w").close()
+        assert package_root(d) == d
+        os.makedirs(os.path.join(d, "wheel", "x-1.0.dist-info"))
+        assert package_root(os.path.join(d, "wheel")) == os.path.join(d, "wheel")
+
+    def sample(label, risk=None, split="holdout", **more):
+        return {"label": label, "split": split, **({"error": "x"} if risk is None else {"risk": risk}), **more}
+
+    groups = summarize([sample("malicious", 90), sample("malicious", 20), sample("malicious"),
+                        sample("clean", 0, set="random"), sample("clean", 50, split="dev")])
+    mal = groups["holdout"]["malicious"]
+    # The sample that could not be scanned is an error, outside the total.
+    assert (mal["total"], mal["errors"], mal["30"]["flagged"], mal["50"]["flagged"]) == (2, 1, 1, 1), groups
+    assert groups["holdout/random"]["clean"]["total"] == 1 and groups["dev"]["clean"]["50"]["flagged"] == 1, groups
+
+    clean, flagged, broken = sample("clean", 0), sample("clean", 50), sample("clean")
+    assert gate([clean] * 20, [], 50, None, 0, False) == 0
+    assert gate([clean] * 19 + [flagged], [], 50, None, 0, True) == 1
+    assert gate([clean] * 20, [broken], 50, None, 0, False) == 1  # an error, and errors are not allowed
+    assert gate([clean] * 20, [broken], 50, None, 0, True) == 0  # 1 of 21, under the ceiling
+    assert gate([clean] * 10, [broken] * 2, 50, None, 0, True) == 1  # too many to call it measured
+    assert gate([], [broken] * 5, 50, None, 0, True) == 1  # nothing scanned is not 0 false positives
+    assert gate([], [], 50, None, 0, True) == 1
+    assert gate([sample("malicious", 90)], [], 50, 0.5, None, False) == 0
+    assert gate([clean], [], 50, 0.5, None, False) == 1  # a recall gate with no malware scanned
+    print("self-test ok")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--corpus", default=os.path.join(os.path.dirname(__file__), "corpus.json"))
@@ -266,7 +330,10 @@ def main():
     ap.add_argument("--allow-errors", action="store_true", help="don't fail on download/scan errors (flaky registries in CI)")
     ap.add_argument("--show-holdout", action="store_true", help="also list holdout misses and score changes (then move what you read to dev)")
     ap.add_argument("--disposable-vm", action="store_true", help="confirm this runs in a throwaway VM; required by --flag=--sandbox")
+    ap.add_argument("--self-test", action="store_true", help="check the harness's own arithmetic and exit")
     args = ap.parse_args()
+    if args.self_test:
+        return self_test()
     if args.summary and args.scanner != "kalascan":
         ap.error("--summary records a KalaScan ruleset version; not with --scanner guarddog")
     if "--sandbox" in args.flag:
@@ -369,14 +436,7 @@ def main():
             json.dump(summary, f, indent=1)
             f.write("\n")
 
-    mal = [s for s in done if s["label"] == "malicious"]
-    cln = [s for s in done if s["label"] == "clean"]
-    recall = sum(s["risk"] >= args.threshold for s in mal) / len(mal) if mal else 1.0
-    fpr = sum(s["risk"] >= args.threshold for s in cln) / len(cln) if cln else 0.0
-    failed = (args.min_recall is not None and recall < args.min_recall) or (
-        args.max_fpr is not None and fpr > args.max_fpr
-    )
-    sys.exit(1 if failed or (errors and not args.allow_errors) else 0)
+    sys.exit(gate(done, errors, args.threshold, args.min_recall, args.max_fpr, args.allow_errors))
 
 
 if __name__ == "__main__":

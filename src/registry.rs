@@ -275,8 +275,7 @@ pub async fn young_dependencies(pkg: &PackageTarget, root: &Path) -> Vec<YoungDe
     }
     let (Ok(client), Some(tarball)) = (
         crate::vsix::http_client(),
-        std::fs::read_to_string(root.join("package.json"))
-            .ok()
+        crate::cve::read_manifest(root, "package.json")
             .and_then(|t| serde_json::from_str::<Value>(&t).ok()),
     ) else {
         return Vec::new();
@@ -292,7 +291,11 @@ pub async fn young_dependencies(pkg: &PackageTarget, root: &Path) -> Vec<YoungDe
     }
     let registry = |name: &str| format!("https://registry.npmjs.org/{}", name.replace('/', "%2F"));
     let abbreviated = "application/vnd.npm.install-v1+json";
-    let Some(packument) = get_json(&client, &registry(&pkg.name), Some(abbreviated)).await else {
+    // The registry `findings` asked just before: if it is down, the scan has
+    // that warning already.
+    let said = &mut Vec::new();
+    let Some(packument) = get_json(&client, &registry(&pkg.name), Some(abbreviated), said).await
+    else {
         return Vec::new();
     };
     let mut docs = Vec::new();
@@ -316,7 +319,7 @@ pub async fn young_dependencies(pkg: &PackageTarget, root: &Path) -> Vec<YoungDe
         return Vec::new();
     }
     // The publish time of the scanned version is only in the full document.
-    let Some(at) = get_json(&client, &registry(&pkg.name), None)
+    let Some(at) = get_json(&client, &registry(&pkg.name), None, said)
         .await
         .and_then(|full| parse_time(full["time"][version].as_str()?))
     else {
@@ -402,12 +405,31 @@ async fn unregistered(client: &reqwest::Client, domains: BTreeSet<String>) -> Ve
     out
 }
 
-async fn get_json(client: &reqwest::Client, url: &str, accept: Option<&str>) -> Option<Value> {
+/// The document at `url`. A registry that cannot be reached or answers with
+/// an error adds a line to `warnings`; 404 is an answer (a version removed
+/// since, a name that is not public) and adds none.
+async fn get_json(
+    client: &reqwest::Client,
+    url: &str,
+    accept: Option<&str>,
+    warnings: &mut Vec<String>,
+) -> Option<Value> {
     let mut req = client.get(url);
     if let Some(a) = accept {
         req = req.header("Accept", a);
     }
-    let resp = req.send().await.ok()?.error_for_status().ok()?;
+    let resp = match req.send().await.and_then(|r| r.error_for_status()) {
+        Ok(resp) => resp,
+        Err(e) => {
+            if e.status() != Some(reqwest::StatusCode::NOT_FOUND) {
+                warnings.push(format!(
+                    "Registry lookup failed: {}; registry metadata checks (manifest confusion, provenance, maintainer domain) are incomplete",
+                    anyhow::Error::new(e.without_url()).root_cause()
+                ));
+            }
+            return None;
+        }
+    };
     if resp
         .content_length()
         .is_some_and(|n| n as usize > MAX_METADATA_BYTES)
@@ -421,22 +443,31 @@ async fn get_json(client: &reqwest::Client, url: &str, accept: Option<&str>) -> 
 }
 
 /// Registry checks for an `npm:` / `pypi:` target unpacked at `root`.
-/// Network failures yield nothing: these findings corroborate, never gate.
-pub async fn findings(pkg: &PackageTarget, root: &Path) -> Vec<RuleMatch> {
+/// Network failures yield no finding: these corroborate, never gate. A
+/// registry lookup that failed is a line in `warnings`.
+pub async fn findings(
+    pkg: &PackageTarget,
+    root: &Path,
+    warnings: &mut Vec<String>,
+) -> Vec<RuleMatch> {
     let Ok(client) = crate::vsix::http_client() else {
         return Vec::new();
     };
     match pkg.ecosystem {
-        "npm" => npm_findings(&client, &pkg.name, root).await,
-        "pypi" => pypi_findings(&client, pkg).await,
+        "npm" => npm_findings(&client, &pkg.name, root, warnings).await,
+        "pypi" => pypi_findings(&client, pkg, warnings).await,
         _ => Vec::new(),
     }
 }
 
-async fn npm_findings(client: &reqwest::Client, name: &str, root: &Path) -> Vec<RuleMatch> {
+async fn npm_findings(
+    client: &reqwest::Client,
+    name: &str,
+    root: &Path,
+    warnings: &mut Vec<String>,
+) -> Vec<RuleMatch> {
     // The version actually unpacked, not whatever `latest` points at now.
-    let Some(tarball) = std::fs::read_to_string(root.join("package.json"))
-        .ok()
+    let Some(tarball) = crate::cve::read_manifest(root, "package.json")
         .and_then(|t| serde_json::from_str::<Value>(&t).ok())
     else {
         return Vec::new();
@@ -445,19 +476,21 @@ async fn npm_findings(client: &reqwest::Client, name: &str, root: &Path) -> Vec<
         return Vec::new();
     };
     let base = format!("https://registry.npmjs.org/{}", name.replace('/', "%2F"));
-    let Some(registry) = get_json(client, &format!("{}/{}", base, version), None).await else {
+    let Some(registry) = get_json(client, &format!("{}/{}", base, version), None, warnings).await
+    else {
         return Vec::new();
     };
     let mut out = manifest_confusion(&registry, &tarball);
 
     let abbreviated = "application/vnd.npm.install-v1+json";
-    if let Some(packument) = get_json(client, &base, Some(abbreviated)).await {
+    if let Some(packument) = get_json(client, &base, Some(abbreviated), warnings).await {
         out.extend(version_diff(&packument, version, &tarball));
         let prev = packument["versions"]
             .as_object()
             .and_then(|v| previous_version(v.keys().map(String::as_str), version));
         if let Some(prev) = prev {
-            if let Some(prev_doc) = get_json(client, &format!("{}/{}", base, prev), None).await {
+            let prev_url = format!("{}/{}", base, prev);
+            if let Some(prev_doc) = get_json(client, &prev_url, None, warnings).await {
                 out.extend(provenance_dropped(&prev_doc, &registry));
             }
         }
@@ -473,12 +506,16 @@ async fn npm_findings(client: &reqwest::Client, name: &str, root: &Path) -> Vec<
     out
 }
 
-async fn pypi_findings(client: &reqwest::Client, pkg: &PackageTarget) -> Vec<RuleMatch> {
+async fn pypi_findings(
+    client: &reqwest::Client,
+    pkg: &PackageTarget,
+    warnings: &mut Vec<String>,
+) -> Vec<RuleMatch> {
     let url = match &pkg.version {
         Some(v) => format!("https://pypi.org/pypi/{}/{}/json", pkg.name, v),
         None => format!("https://pypi.org/pypi/{}/json", pkg.name),
     };
-    let Some(doc) = get_json(client, &url, None).await else {
+    let Some(doc) = get_json(client, &url, None, warnings).await else {
         return Vec::new();
     };
     // `author_email` may hold several comma-separated addresses.
@@ -497,6 +534,37 @@ mod tests {
 
     fn names(v: &[RuleMatch]) -> Vec<&str> {
         v.iter().map(|m| m.matched_pattern.as_str()).collect()
+    }
+
+    #[tokio::test]
+    async fn unreachable_registry_is_a_warning_and_not_found_is_not() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/x/1.0.0", listener.local_addr().unwrap());
+        let client = reqwest::Client::new();
+        let mut warnings = Vec::new();
+
+        let not_found = tokio::spawn(async move {
+            let (mut sock, _) = listener.accept().await.unwrap();
+            let _ = sock.read(&mut [0u8; 4096]).await;
+            let _ = sock
+                .write_all(
+                    b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                )
+                .await;
+            // Dropped with the listener: the port is closed from here on.
+        });
+        assert!(get_json(&client, &url, None, &mut warnings).await.is_none());
+        assert!(warnings.is_empty(), "{:?}", warnings);
+
+        not_found.await.unwrap();
+        assert!(get_json(&client, &url, None, &mut warnings).await.is_none());
+        assert_eq!(warnings.len(), 1);
+        assert!(
+            warnings[0].starts_with("Registry lookup failed: "),
+            "{}",
+            warnings[0]
+        );
     }
 
     #[test]

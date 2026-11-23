@@ -70,7 +70,7 @@ pub(crate) fn run_sbom_command(
     if !path.is_dir() {
         anyhow::bail!("{} is not a directory", path.display());
     }
-    let packages = cve::extract_manifest_packages(path);
+    let packages = cve::locked_packages(path, cve::extract_manifest_packages(path));
     let sbom = export::export_cyclonedx(&packages, path);
     match output {
         Some(out) => {
@@ -172,6 +172,22 @@ fn deps_cache_path() -> Option<std::path::PathBuf> {
     )))
 }
 
+/// The lockfile entries that are not scanned, counted per lockfile and
+/// reason: `2 package-lock.json: not from the public registry; 1
+/// requirements.txt: no pinned version`.
+fn skipped_summary(skipped: &[lockfile::Locked]) -> String {
+    let mut counts = std::collections::BTreeMap::new();
+    for p in skipped {
+        *counts
+            .entry((p.source, p.skipped.unwrap_or_default()))
+            .or_insert(0usize) += 1;
+    }
+    let counts = counts
+        .iter()
+        .map(|((source, reason), n)| format!("{n} {source}: {reason}"));
+    counts.collect::<Vec<_>>().join("; ")
+}
+
 /// `kalascan deps`: download and scan every package a lockfile pins.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn run_deps_command(
@@ -180,33 +196,54 @@ pub(crate) async fn run_deps_command(
     include_dev: bool,
     min_risk: u8,
     fail_on_risk: Option<u8>,
+    allow_skipped: bool,
     jobs: usize,
     max: usize,
     no_cache: bool,
     base_ref: Option<&str>,
 ) -> anyhow::Result<()> {
-    let mut locked = lockfile::read(path, include_dev);
+    let (mut locked, mut skipped) = lockfile::read(path, include_dev);
+    if locked.is_empty() && !skipped.is_empty() {
+        anyhow::bail!(
+            "none of the {} lockfile entries in {} can be scanned ({})",
+            skipped.len(),
+            path.display(),
+            skipped_summary(&skipped)
+        );
+    }
     if locked.is_empty() {
         anyhow::bail!(
-            "no package-lock.json, yarn.lock, pnpm-lock.yaml, poetry.lock, Pipfile.lock, uv.lock, \
-             pinned requirements.txt or Cargo.lock in {}",
+            "no package-lock.json, npm-shrinkwrap.json, yarn.lock, pnpm-lock.yaml, poetry.lock, \
+             Pipfile.lock, uv.lock, pinned requirements.txt or Cargo.lock in {}",
             path.display()
         );
     }
     if let Some(git_ref) = base_ref {
         let before = lockfile::pinned_at(path, git_ref)?;
         let all = locked.len();
-        locked.retain(|p| !before.contains(&(p.ecosystem, p.name.clone(), p.version.clone())));
+        let new = |p: &lockfile::Locked| {
+            !before.contains(&(p.ecosystem, p.name.clone(), p.version.clone()))
+        };
+        locked.retain(new);
+        // An entry the base could not scan either is not this change's.
+        skipped.retain(new);
         eprintln!(
             "{} of {all} locked packages are new since {git_ref}",
             locked.len()
         );
-        if locked.is_empty() {
+        if locked.is_empty() && skipped.is_empty() {
             return Ok(());
         }
     }
-    let skipped = locked.len().saturating_sub(max);
-    if skipped > 0 {
+    if !skipped.is_empty() {
+        eprintln!(
+            "{} lockfile entries not scanned ({})",
+            skipped.len(),
+            skipped_summary(&skipped)
+        );
+    }
+    let past_max = locked.len().saturating_sub(max);
+    if past_max > 0 {
         eprintln!(
             "{} packages locked; scanning the first {} (--max)",
             locked.len(),
@@ -282,6 +319,20 @@ pub(crate) async fn run_deps_command(
         .filter(|(_, r)| r.risk_score >= min_risk)
         .collect();
     if format == "json" {
+        // A skipped entry has the keys of a scanned one, so a consumer that
+        // lists `.package` keeps working; its `risk_score` is null (there is
+        // none, and 0 would read as clean) and `skipped` gives the reason.
+        // An entry without a version (`flask>=2`) is `pypi:flask`.
+        let not_scanned = skipped.iter().map(|p| {
+            serde_json::json!({
+                "package": p.target().trim_end_matches(['@', '=']),
+                "source": p.source,
+                "dev": p.dev,
+                "risk_score": null,
+                "critical": [],
+                "skipped": p.skipped,
+            })
+        });
         let out: Vec<_> = shown
             .iter()
             .map(|(p, r)| {
@@ -293,6 +344,7 @@ pub(crate) async fn run_deps_command(
                     "critical": r.critical,
                 })
             })
+            .chain(not_scanned)
             .collect();
         println!("{}", serde_json::to_string_pretty(&out)?);
     } else {
@@ -305,14 +357,21 @@ pub(crate) async fn run_deps_command(
                 r.critical.join(", ")
             );
         }
-        eprintln!("{} scanned, {} failed", rows.len(), failed);
+        eprintln!(
+            "{} scanned, {} failed, {} skipped",
+            rows.len(),
+            failed,
+            skipped.len()
+        );
     }
     if let Some(threshold) = fail_on_risk {
         // Fail closed: a package that was not scanned is not a pass.
-        if failed > 0 || skipped > 0 {
+        let skipped = if allow_skipped { 0 } else { skipped.len() };
+        if failed > 0 || past_max > 0 || skipped > 0 {
             eprintln!(
-                "{} package(s) failed to scan and {} were past --max; failing the gate",
-                failed, skipped
+                "{} package(s) failed to scan, {} were past --max and {} lockfile entries were \
+                 skipped (--allow-skipped accepts those); failing the gate",
+                failed, past_max, skipped
             );
             std::process::exit(1);
         }
@@ -640,18 +699,41 @@ async fn npm_tree(command: &[String]) -> anyhow::Result<Option<Vec<String>>> {
         );
     }
     let resolved = std::fs::read_to_string(scratch.path().join("package-lock.json"))?;
-    let pinned: std::collections::BTreeSet<_> = lockfile::read(std::path::Path::new("."), true)
+    tree_additions(&resolved, std::path::Path::new(".")).map(Some)
+}
+
+/// The scan targets of the entries in a resolved `package-lock.json` that
+/// the lockfiles in `dir` do not pin yet. An addition that cannot be scanned
+/// is an error: with a mirror in `.npmrc` every entry resolves there, and
+/// "scanning 0" would let the install through.
+fn tree_additions(resolved: &str, dir: &std::path::Path) -> anyhow::Result<Vec<String>> {
+    let (pinned, skipped) = lockfile::read(dir, true);
+    let pinned: std::collections::BTreeSet<_> = pinned
         .into_iter()
+        .chain(skipped)
         .map(|p| (p.name, p.version))
         .collect();
-    let mut new: Vec<String> = lockfile::parse("package-lock.json", &resolved)
+    let added: Vec<_> = lockfile::parse("package-lock.json", resolved)
         .into_iter()
         .filter(|p| !pinned.contains(&(p.name.clone(), p.version.clone())))
-        .map(|p| p.target())
         .collect();
+    let skipped: Vec<_> = added
+        .iter()
+        .filter(|p| p.skipped.is_some())
+        .cloned()
+        .collect();
+    if !skipped.is_empty() {
+        anyhow::bail!(
+            "kalascan guard cannot scan {} of the packages this install adds ({}); \
+             run the command without `kalascan guard --` to install anyway",
+            skipped.len(),
+            skipped_summary(&skipped)
+        );
+    }
+    let mut new: Vec<String> = added.iter().map(|p| p.target()).collect();
     new.sort();
     new.dedup();
-    Ok(Some(new))
+    Ok(new)
 }
 
 /// For `pip install <specs>`: every distribution the install would add, at
@@ -730,8 +812,9 @@ fn npm_target(spec: &str) -> Option<String> {
     {
         return None;
     }
-    let (name, version) = match spec[1..].find('@') {
-        Some(i) => (&spec[..i + 1], &spec[i + 2..]),
+    // From the second character on: a leading `@` is the scope's.
+    let (name, version) = match spec.char_indices().skip(1).find(|&(_, c)| c == '@') {
+        Some((i, _)) => (&spec[..i], &spec[i + 1..]),
         None => (spec, ""),
     };
     // A dist-tag (`latest`, `next`) or a range is resolved by npm, not here.
@@ -764,6 +847,88 @@ fn pypi_target(spec: &str) -> Option<String> {
     }
 }
 
+/// For an install from the lockfile (`npm ci`, a bare `yarn`, `uv sync`):
+/// whether the lockfiles in `dir` pin packages to audit first. An entry of
+/// the package manager's own ecosystem that cannot be scanned (a mirror, a
+/// git dependency) is an error, so the guard refuses; a `requirements.txt`
+/// range does not stop `npm ci`. So is a manifest with dependencies that no
+/// lockfile pins (`bun install` with only `bun.lock`): the package manager
+/// would resolve and install them unscanned. `Ok(false)` is a directory
+/// with nothing to install.
+fn locked_install(command: &[String], dir: &std::path::Path) -> anyhow::Result<bool> {
+    let prog = std::path::Path::new(command.first().map_or("", String::as_str))
+        .file_stem()
+        .map(|n| n.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    let (ecosystem, manifest, lock) = match prog.as_str() {
+        "npm" | "pnpm" | "yarn" | "bun" => (
+            "npm",
+            "package.json",
+            "`npm install --package-lock-only --ignore-scripts` writes package-lock.json",
+        ),
+        _ => ("pypi", "pyproject.toml", "`uv lock` writes uv.lock"),
+    };
+    let (locked, mut skipped) = lockfile::read(dir, true);
+    skipped.retain(|p| p.ecosystem == ecosystem);
+    if !skipped.is_empty() {
+        anyhow::bail!(
+            "kalascan guard is not installing: {} lockfile entries cannot be scanned ({}); \
+             run the command without `kalascan guard --` to install anyway",
+            skipped.len(),
+            skipped_summary(&skipped)
+        );
+    }
+    // A Cargo.lock beside a package.json pins nothing npm installs.
+    if !locked.iter().any(|p| p.ecosystem == ecosystem) && declares_dependencies(dir, manifest) {
+        anyhow::bail!(
+            "kalascan guard is not running `{}`: {manifest} declares dependencies and no \
+             lockfile here that kalascan reads pins them (bun.lock and pdm.lock are not read), \
+             so they would install unscanned. Create one first ({lock}) and run the guard \
+             again, or run the command without `kalascan guard --` to install anyway",
+            command.join(" ")
+        );
+    }
+    Ok(!locked.is_empty())
+}
+
+/// Whether a `package.json` or `pyproject.toml` in `dir` asks for packages:
+/// `"dependencies": {"left-pad": "^1.3.0"}`, workspaces (their members may),
+/// `dependencies = ["requests"]`, a dependency group. A manifest that does
+/// not parse counts: bun reads a `package.json` with comments.
+fn declares_dependencies(dir: &std::path::Path, manifest: &str) -> bool {
+    let Ok(text) = std::fs::read_to_string(dir.join(manifest)) else {
+        return false;
+    };
+    if manifest == "package.json" {
+        let Ok(doc) = serde_json::from_str::<serde_json::Value>(&text) else {
+            return true;
+        };
+        return !doc["workspaces"].is_null()
+            || [
+                "dependencies",
+                "devDependencies",
+                "optionalDependencies",
+                "peerDependencies",
+            ]
+            .iter()
+            .any(|kind| doc[*kind].as_object().is_some_and(|deps| !deps.is_empty()));
+    }
+    let Ok(doc) = toml::from_str::<toml::Value>(&text) else {
+        return true;
+    };
+    let listed =
+        |v: Option<&toml::Value>| v.and_then(|v| v.as_array()).is_some_and(|a| !a.is_empty());
+    listed(doc.get("project").and_then(|p| p.get("dependencies")))
+        || listed(
+            doc.get("tool")
+                .and_then(|t| t.get("uv")?.get("dev-dependencies")),
+        )
+        || doc
+            .get("dependency-groups")
+            .and_then(|g| g.as_table())
+            .is_some_and(|g| !g.is_empty())
+}
+
 /// `kalascan guard -- npm install x`: scan first, install only if nothing
 /// reaches `fail_on_risk`. A package that cannot be scanned blocks the
 /// install too: the guard fails closed.
@@ -775,7 +940,7 @@ pub(crate) async fn run_guard_command(
     match install_targets(command)? {
         None => {}
         Some(targets) if targets.is_empty() => {
-            if lockfile::read(std::path::Path::new("."), true).is_empty() {
+            if !locked_install(command, std::path::Path::new("."))? {
                 eprintln!(
                     "kalascan guard: nothing named and no lockfile here, so nothing to check"
                 );
@@ -787,6 +952,7 @@ pub(crate) async fn run_guard_command(
                     true,
                     fail_on_risk,
                     Some(fail_on_risk),
+                    true, // `locked_install` refused the skipped entries that count here
                     jobs,
                     usize::MAX, // every locked package: one past a cap would install unscanned
                     false,
@@ -1009,6 +1175,9 @@ pub(crate) async fn run_cli_scan(
     if let Some(out_path) = output {
         std::fs::write(&out_path, &output_content)?;
         println!("Report successfully saved to: {:?}", out_path);
+        // The report went to the file: the outcome is said here, for a CI
+        // log and the job summary the GitHub Action writes.
+        println!("{}", outcome_line(&result));
     } else {
         println!("{}", output_content);
     }
@@ -1024,6 +1193,21 @@ pub(crate) async fn run_cli_scan(
     }
 
     Ok(())
+}
+
+/// `Risk score: 75 / 100 (danger). Critical findings and chains: Discord Webhook`
+fn outcome_line(result: &ScanResult) -> String {
+    let strong = strong_findings(result);
+    format!(
+        "Risk score: {} / 100 ({}). Critical findings and chains: {}",
+        result.risk_score,
+        export::risk_score_to_level(result.risk_score),
+        if strong.is_empty() {
+            "none".to_string()
+        } else {
+            export::inert(&strong.join(", "))
+        }
+    )
 }
 
 fn format_cli_text(result: &ScanResult) -> String {
@@ -1052,6 +1236,9 @@ fn format_cli_text(result: &ScanResult) -> String {
     ));
     if let Some(parts) = export::score_parts(result) {
         out.push_str(&format!("Score Parts:   {}\n", parts));
+    }
+    for warning in &result.warnings {
+        out.push_str(&format!("Warning:       {}\n", inert(warning)));
     }
     out.push_str("------------------------------------------------------------\n");
 
@@ -1352,6 +1539,33 @@ mod text_report_tests {
             text
         );
     }
+
+    #[test]
+    fn outcome_line_gives_the_score_and_the_strong_findings() {
+        let mut result: ScanResult = serde_json::from_value(serde_json::json!({
+            "id": "x", "repo_url": "fx", "timestamp": "t", "status": "completed",
+            "total_files": 1, "scanned_files": 1, "total_matches": 2, "risk_score": 75,
+            "ai_analysis": null,
+            "rule_matches": [
+                { "file_path": "a.js", "line_number": 1, "severity": "critical",
+                  "matched_pattern": "Typo-squat Suspect: a\r::error::b", "context": "" },
+                { "file_path": "a.js", "line_number": 2, "severity": "high",
+                  "matched_pattern": "eval() Usage", "context": "" }
+            ]
+        }))
+        .unwrap();
+        assert_eq!(
+            outcome_line(&result),
+            "Risk score: 75 / 100 (danger). Critical findings and chains: \
+             Typo-squat Suspect: a\\r::error::b"
+        );
+        result.rule_matches.clear();
+        result.risk_score = 0;
+        assert_eq!(
+            outcome_line(&result),
+            "Risk score: 0 / 100 (safe). Critical findings and chains: none"
+        );
+    }
 }
 
 #[cfg(test)]
@@ -1465,6 +1679,85 @@ mod guard_tests {
             targets("pip install wheel"),
             Some(vec!["pypi:wheel".to_string()])
         );
+    }
+
+    #[test]
+    fn lockfile_entries_that_cannot_be_scanned_refuse_the_install() {
+        let argv =
+            |cmd: &str| -> Vec<String> { cmd.split_whitespace().map(String::from).collect() };
+        let lodash = r#""node_modules/lodash": {"version": "4.17.21", "resolved": "https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz"}"#;
+        let internal = r#""node_modules/internal": {"version": "1.0.0", "resolved": "https://artifactory.example.com/api/npm/npm/internal/-/internal-1.0.0.tgz"}"#;
+        let lock = |entries: &[&str]| format!(r#"{{"packages": {{{}}}}}"#, entries.join(", "));
+        let dir = tempfile::tempdir().unwrap();
+        assert!(!locked_install(&argv("npm ci"), dir.path()).unwrap());
+        std::fs::write(dir.path().join("package-lock.json"), lock(&[lodash])).unwrap();
+        // A range in requirements.txt is not what npm installs.
+        std::fs::write(dir.path().join("requirements.txt"), "flask>=2\n").unwrap();
+        assert!(locked_install(&argv("npm ci"), dir.path()).unwrap());
+        assert!(locked_install(&argv("uv sync"), dir.path()).is_err());
+        // `npm install express` here adds a package from npmjs and one from a mirror.
+        let express = r#""node_modules/express": {"version": "5.1.0"}"#;
+        assert_eq!(
+            tree_additions(&lock(&[lodash, express]), dir.path()).unwrap(),
+            ["npm:express@5.1.0"]
+        );
+        let refused = tree_additions(&lock(&[lodash, express, internal]), dir.path());
+        let refused = refused.unwrap_err().to_string();
+        assert!(
+            refused.contains("not from the public registry"),
+            "{refused}"
+        );
+        // Pinned from the mirror already: the lockfile install is what refuses.
+        std::fs::write(
+            dir.path().join("package-lock.json"),
+            lock(&[lodash, internal]),
+        )
+        .unwrap();
+        assert!(tree_additions(&lock(&[lodash, internal]), dir.path())
+            .unwrap()
+            .is_empty());
+        assert!(locked_install(&argv("npm ci"), dir.path()).is_err());
+    }
+
+    #[test]
+    fn dependencies_without_a_lockfile_refuse_the_install() {
+        let argv =
+            |cmd: &str| -> Vec<String> { cmd.split_whitespace().map(String::from).collect() };
+        let dir = tempfile::tempdir().unwrap();
+        let write = |name: &str, text: &str| std::fs::write(dir.path().join(name), text).unwrap();
+        // Nothing to install: the guard lets the command run.
+        write("package.json", r#"{"name": "app", "dependencies": {}}"#);
+        assert!(!locked_install(&argv("npm install"), dir.path()).unwrap());
+        write(
+            "package.json",
+            r#"{"dependencies": {"left-pad": "^1.3.0"}}"#,
+        );
+        let refused = locked_install(&argv("npm install"), dir.path()).unwrap_err();
+        let refused = refused.to_string();
+        assert!(
+            refused.contains("package.json declares dependencies")
+                && refused.contains("--package-lock-only")
+                && refused.contains("without `kalascan guard --`"),
+            "{refused}"
+        );
+        // A lockfile that is not read, and one of another ecosystem, pin nothing here.
+        write("bun.lock", r#"{"lockfileVersion": 1}"#);
+        write(
+            "Cargo.lock",
+            "[[package]]\nname = \"serde\"\nversion = \"1.0.203\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\n",
+        );
+        assert!(locked_install(&argv("bun install"), dir.path()).is_err());
+        write(
+            "npm-shrinkwrap.json",
+            r#"{"packages": {"node_modules/left-pad": {"version": "1.3.0"}}}"#,
+        );
+        assert!(locked_install(&argv("npm ci"), dir.path()).unwrap());
+        // Without uv.lock, `uv sync` resolves and installs in one step.
+        write(
+            "pyproject.toml",
+            "[project]\nname = \"app\"\ndependencies = [\"requests\"]\n",
+        );
+        assert!(locked_install(&argv("uv sync"), dir.path()).is_err());
     }
 
     #[test]

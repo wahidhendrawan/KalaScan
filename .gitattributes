@@ -1,0 +1,3 @@
+# One spelling of a line end on every platform: tests compare fixture
+# files and docs/coverage.md byte for byte, and Windows checkouts used CRLF.
+* text=auto eol=lf

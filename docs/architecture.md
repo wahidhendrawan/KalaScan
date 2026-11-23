@@ -1,6 +1,6 @@
 # Architecture
 
-KalaScan is one Rust binary (`src/main.rs`, a thin entry point over the library in `src/lib.rs`) that runs as a CLI scanner, a GitHub Action and an Axum web server, with the same scan pipeline behind all three. This page maps the modules, walks through a scan, and documents the risk score exactly as `calculate_risk_score` in `src/lib.rs` computes it.
+KalaScan is one Rust binary (`src/main.rs`, a thin entry point over the library in `src/lib.rs`) that runs as a CLI scanner, a GitHub Action and an Axum web server, with the same scan pipeline behind all three. This page maps the modules, walks through a scan, and documents the risk score exactly as `score::calculate` in `src/score.rs` computes it.
 
 ## Module map (`src/`)
 
@@ -8,22 +8,23 @@ KalaScan is one Rust binary (`src/main.rs`, a thin entry point over the library 
 |---|---|---|
 | Entry points | `lib.rs` | Scan orchestrator (`execute_scan_in`), CLI dispatch; `main.rs` only calls `kalascan::run()` |
 | | `server.rs` | Axum routes, auth and security-header middleware, scan queue, upload endpoint |
-| | `commands.rs` | The CLI subcommands (`scan`, `user`, `sbom`, `import`, `deps`, `installed`, `diff`, `rules`) and the text formatter |
-| | `cli.rs` | clap definitions: `serve`, `scan`, `user`, `rules`, `sbom`, `installed`, `deps`, `diff`, `import` |
-| Target acquisition | `vsix.rs` | Downloads and safely extracts VSIX / Open VSX / JetBrains / CRX / npm / PyPI packages (zip-slip, symlink and size guards); Git URLs are cloned with `git` |
+| | `commands.rs` | The CLI subcommands (`scan`, `user`, `sbom`, `import`, `deps`, `guard`, `installed`, `diff`, `rules`) and the text formatter |
+| | `watch.rs` | `kalascan watch`: scans what npm or PyPI publishes as it is published (npm's changes feed, PyPI's recent-updates feed) |
+| | `cli.rs` | clap definitions: `serve`, `scan`, `user`, `rules`, `sbom`, `installed`, `guard`, `deps`, `watch`, `diff`, `import` |
+| Target acquisition | `vsix.rs` | Downloads and safely extracts VSIX / Open VSX / JetBrains / CRX / npm / PyPI packages (zip-slip, symlink and size guards; a registry target is never read from a local file); Git URLs are cloned with `git` |
 | | `registry.rs` | npm / PyPI registry metadata: manifest confusion, install-script and provenance regressions, lapsed maintainer e-mail domains, AI-vendor repository impersonation |
-| | `lockfile.rs` | `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `poetry.lock`, `Pipfile.lock`, `uv.lock`, `requirements.txt`, `Cargo.lock` parsing for `kalascan deps` |
+| | `lockfile.rs` | `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock`, `pnpm-lock.yaml`, `poetry.lock`, `Pipfile.lock`, `uv.lock`, `requirements.txt`, `Cargo.lock` parsing for `kalascan deps`, with the entries it cannot scan and why |
 | Static analysis | `scanner.rs` | Rule loader (`rules/builtin.toml`, `--rules`, `rules/secrets.toml`), file walker and extension filter, regex pass, per-file `catch_unwind`, 4 MiB read cap (padding collapsed, then head and tail of a larger file) |
-| | `yara_engine.rs` | yara-x compiler and scanner; three built-in rules; GuardDog `path_include` / `ecosystem` meta; `--yara-dir` |
+| | `yara_engine.rs` | yara-x compiler and scanner; three built-in rules, compiled with the bundled ones once per process; GuardDog `path_include` / `ecosystem` meta; `--yara-dir` |
 | | `entropy.rs` | Shannon high-entropy blobs, zero-width characters, Trojan Source bidi controls, Cyrillic homoglyphs |
 | | `obfuscator.rs` | Decodes javascript-obfuscator style string tables so the rules see the real strings |
-| | `correlate.rs` | Behaviour chains: proximity (4 KB) and per-package correlation of hard signals |
+| | `correlate.rs` | Behaviour chains: proximity (4 KB of code, comments left out) and per-package correlation of hard signals |
 | | `zipslip.rs` | Variable-level taint tracking from archive entry names to filesystem writes |
 | | `workflow.rs` | GitHub Actions checks: pwn request, script injection, unpinned actions |
 | | `agent.rs` | AI agent files and MCP server code: hidden text, steering phrases, tool poisoning, hooks that run downloaded code |
-| | `dataflow.rs` | Variable-level data flow in Python and JS: the whole environment, an SSH key, a `.env` file or a browser store reaching a network call; a download reaching exec. Calls inside a file are followed through per-function summaries |
+| | `dataflow.rs` | Variable-level data flow in Python and JS: the whole environment, an SSH key, a `.env` file or a browser store reaching a network call; a download reaching exec. Calls inside a file are followed through per-function summaries, and into a file it imports by a relative path, one import deep |
 | | `git_history.rs` | Runs the static pass over earlier revisions of every file (`--git-history`) |
-| Context and intel | `cve.rs` | Manifest / lockfile package extraction, OSV batch client (`--cve`), offline typo-squat and dependency-confusion checks |
+| Context and intel | `cve.rs` | Manifest / lockfile package extraction (`read_manifest`: regular files inside the tree, 8 MiB at most), OSV batch client (`--cve`), offline typo-squat and dependency-confusion checks |
 | | `reputation.rs` | Listing spoofing, look-alike publishers, repackaged popular extensions, marketplace statistics |
 | | `iocs.rs` | URL / IP extraction and URLhaus lookups (`URLHAUS_AUTH_KEY`) |
 | | `attack.rs`, `ttp.rs` | ATT&CK technique tables, the written-out technique list of every finding, and the unified technique / tactic / kill-chain aggregation |
@@ -39,26 +40,26 @@ KalaScan is one Rust binary (`src/main.rs`, a thin entry point over the library 
 | | `installed.rs` | Discovers IDE and browser extensions on this machine (`kalascan installed`) |
 | | `import.rs` | Nessus, Nmap, Burp, ZAP, Nuclei, Qualys and CSV report normalization (`kalascan import`) |
 | Server | `auth.rs` | Users, salted token hashes, roles, audit helpers |
-| | `db.rs` | SQLite history, migrations (schema v5), bounded retention |
+| | `db.rs` | SQLite history, migrations (schema v6), bounded retention |
 | | `metrics.rs` | Prometheus counters and gauges (atomics) |
-| Output | `export.rs`, `export/html.rs` | Markdown, HTML, SARIF, CSV, JUnit and GitHub-annotation exporters; risk levels |
+| Output | `export.rs`, `export/html.rs` | Markdown, HTML, SARIF, CSV, JUnit and GitHub-annotation exporters; the CycloneDX SBOM; risk levels |
 | | `export/stix.rs`, `export/osv.rs` | STIX 2.1 bundle and OSV malicious-package record, for threat-intel tooling |
 
-Rules are data: `rules/builtin.toml` (112 regex rules), `rules/secrets.toml` (208 gitleaks patterns, opt-in), `rules/yara/` (GuardDog rules) and `rules/popular_extensions.tsv` are embedded at compile time. See [detection-rules.md](detection-rules.md).
+Rules are data: `rules/builtin.toml` (116 regex rules), `rules/secrets.toml` (208 gitleaks patterns, opt-in), `rules/yara/` (GuardDog rules), `rules/popular_extensions.tsv`, `rules/popular_packages.tsv` and `rules/weights.toml` (score model v2) are embedded at compile time. See [detection-rules.md](detection-rules.md).
 
 ## Scan pipeline
 
 `execute_scan_in` runs the same phases for the CLI, the API and the Action:
 
-1. **Acquire the target.** A Git URL is cloned, a marketplace id or `npm:` / `pypi:` / `crates:` name is downloaded and extracted, a local path is scanned in place. Anything cloned, downloaded or uploaded is treated as someone else's code: build directories are scanned and inline `kalascan:ignore` markers are not honoured (`--untrusted` forces this for a local path).
+1. **Acquire the target.** A Git URL is cloned, a marketplace id or `npm:` / `pypi:` / `crates:` name is downloaded and extracted, a local directory is scanned in place, a local package file (`.vsix`, `.zip`, `.jar`, `.crx`, `.tgz`, `.tar.gz`, `.whl`) is extracted like a download. Anything cloned, downloaded or uploaded is treated as someone else's code: build directories are scanned and inline `kalascan:ignore` markers are not honoured (`--untrusted` forces this for a local path).
 2. **Changed-only filter** (`--changed-only --base-ref`): restrict the file set to the diff.
 3. **Static pass** (`scanner.rs`): regex rules by category scope, YARA on every file, entropy and Unicode checks, `--secrets` patterns on scripts and config files. Files are scanned on a work-stealing pool with one YARA scanner per worker; each file runs inside `catch_unwind`, so a panic becomes a `Scanner Error` finding and a file over 4 MiB becomes an `Oversized File` finding instead of being skipped.
-4. **Manifest and registry context**: offline typo-squat and dependency-confusion checks, listing identity, marketplace statistics, npm / PyPI registry metadata, IOC extraction (URLhaus when `URLHAUS_AUTH_KEY` is set), OSV advisories (`--cve`; `MAL-*` advisories become critical `Malicious Package` findings).
-5. **Correlation** (`correlate.rs`): current-tree findings are combined into behaviour chains; history hits never complete a chain.
-6. **Git history** (`--git-history`): the static pass over earlier revisions.
+4. **Manifest and registry context**: offline typo-squat and dependency-confusion checks, listing identity, marketplace statistics, npm / PyPI registry metadata, IOC extraction (URLhaus when `URLHAUS_AUTH_KEY` is set), OSV advisories (`--cve`; `MAL-*` advisories become critical `Malicious Package` findings). A lookup that fails is named in the result's `warnings`.
+5. **Correlation** (`correlate.rs`): current-tree findings are combined into behaviour chains; history hits never complete a chain. After the chains the list is cut to what a report shows: 20 findings of one rule in one file and a `Repeated Finding` notice with the count (not in a scan against a baseline).
+6. **Git history** (`--git-history`): the static pass over earlier revisions. Its hits are added after the cut.
 7. **Baseline and ignore filtering**: `.kalascanignore` globs, `--baseline --new-only`.
 8. **Deep passes**: binary triage (`--deep-triage`), deobfuscation (`--deobfuscate`), emulation (`--emulate`), Docker sandbox (`--sandbox`); then TTP aggregation over everything found so far.
-9. **AI analysis** (`--ai`): an LLM verdict that can only corroborate, never lower, the score.
+9. **AI analysis** (`--ai`): an LLM verdict that can only corroborate, never lower, the score. A failed call, or agent text cut at the prompt budget, is a warning in the result.
 10. **Risk score and export.**
 
 ## Risk model
@@ -84,10 +85,10 @@ Findings are placed in ATT&CK (written out per finding in `src/attack.rs`), in M
 | `--format` | Use | Notes |
 |---|---|---|
 | `text` | terminal | default |
-| `json` | automation | full result: `rule_matches`, `iocs`, `triage`, `ttp`, `risk_score`, ... |
+| `json` | automation | full result: `rule_matches` (each with its `rule_id` and what the rules say of it), `iocs`, `triage`, `ttp`, `risk_score`, ... |
 | `sarif` | GitHub Code Scanning | SARIF 2.1.0 with `partialFingerprints` (`kalascan/v2`) that survive line moves |
-| `md`, `html` | reports | the HTML report is self-contained |
-| `csv`, `junit`, `github` | CI systems | CSV cells are formula-safe; `github` prints workflow annotations |
+| `md`, `html` | reports | the HTML report is self-contained: its stylesheet is inline, it has no script and fetches nothing |
+| `csv`, `junit`, `github` | CI systems | CSV cells are formula-safe, the rule id is the last column; `github` prints workflow annotations |
 | `stix` | threat-intel platforms | STIX 2.1 bundle: an `indicator` per IOC, an `attack-pattern` per ATT&CK technique, `indicates` only where a finding's own line holds the URL; ids are stable per scan |
 | `osv` | malicious-package reports | one OSV record (`x_KALASCAN-<scan id>`, not an assigned `MAL-` id) for an `npm:name@version` / `pypi:name==version` target; refused below the danger level or without an exact version |
 
@@ -95,6 +96,6 @@ The web API returns the same JSON (`GET /api/scan/{id}/status`) and serves every
 
 ## Where things run
 
-- **CLI** and **GitHub Action** (`action.yml`): `kalascan scan`, SARIF upload, `fail_on_risk` gate.
+- **CLI** and **GitHub Action** (`action.yml`): the release binary at a release tag, a `cargo install` build at any other ref; `kalascan scan`, SARIF upload, `fail_on_risk` gate, job summary.
 - **Web server** (`kalascan serve`): async scan queue, SQLite history, RBAC, Prometheus metrics, OpenAPI at `/openapi.yaml`. See [web-ui-security.md](web-ui-security.md).
 - **Docker**: `ghcr.io/wahidhendrawan/kalascan` (linux/amd64, linux/arm64) and the optional `sandbox/Dockerfile` strace image.

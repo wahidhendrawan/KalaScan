@@ -41,8 +41,8 @@ A loopback server without a token or users also answers only requests addressed 
 - Remote targets only: Git URLs, `publisher.extension`, marketplace URLs, `npm:` / `pypi:` / `crates:` names. Local paths are refused; upload a package through `POST /api/scan/upload` instead. A target is never read from the server's disk: `budget.xlsx` is looked up on the marketplace even when a file of that name sits in the server's working directory.
 - Hosts that resolve to loopback, private, link-local or CGNAT addresses (cloud metadata, admin ports) are refused, for the target and for download redirects, unless `KALASCAN_ALLOW_PRIVATE_TARGETS=1` (an internal Git server). An `llm_endpoint` sent with an API scan gets the same check, except the built-in local Ollama and 9Router defaults, and LLM requests do not follow redirects. Registry, marketplace and LLM requests made for an API scan check the address when the connection is opened, so a hostname that resolves to an internal address only later (DNS rebinding) is refused too. An HTTP(S) Git clone is pinned to the address checked when it starts (`http.curloptResolve`, git 2.37 or later) and follows no redirects; an ssh remote is checked once, when the scan is submitted.
 - API, upload and resumed scans clone without the server user's git credentials (credential helpers, `~/.netrc`, ssh keys and agent): a private repository needs its credentials in the URL.
-- Scans still queued or running when the server stops are resumed at the next start, under the two rules above as they stand then: one that no longer passes is marked `failed: not resumed`. So is a queued upload, because its extracted package is not kept across a stop.
-- Server-side file options (`yara_dir`, `ignore`, `baseline`, `sandbox_image`, `rules`) are CLI-only and rejected by the API.
+- Scans still queued or running when the server stops are resumed at the next start, under the two rules above as they stand then: one that no longer passes is marked `failed: not resumed`. So is a queued upload, because its extracted package is not kept across a stop. A scan that panics ends as `failed: scan panicked: …` and is not requeued.
+- Server-side options (`yara_dir`, `rules_file`, `ignore`, `baseline`, `sandbox_image`, `sandbox_runtime`) are CLI-only and rejected by the API.
 - Credentials in a repository or package URL (`https://user:token@host/...`) reach `git` or the download only; logs, the audit log, history, scan status and reports show the URL without them, also inside the error text of a failed scan. LLM API keys are stripped before a queued request is persisted. The dashboard keeps an AI provider key only when "Remember key in this browser" is switched on: it then sits in that browser's `localStorage`, readable by any script running on the dashboard's origin, and is deleted when the option is switched off.
 - `GET /api/sbom?path=...` serves only directories under the server's working directory (canonicalized; 403 outside).
 
@@ -55,13 +55,14 @@ A loopback server without a token or users also answers only requests addressed 
 | `KALASCAN_SCAN_RATE_LIMIT` | `30` | submissions per minute (HTTP 429 beyond) |
 | `KALASCAN_MAX_UPLOAD_MB` | `1024` | upload body cap; `0` disables the limit |
 | `KALASCAN_HISTORY_LIMIT` | `500` | scans kept in SQLite; older finished scans are pruned |
+| `KALASCAN_HOME` | the working directory | existing directory that holds `kalascan.db` (history, users, audit log) |
 | `KALASCAN_MEMORY_SCANS` | `100` | scans kept in the in-memory cache |
 
 At most 64 scans are queued or running at once; further submissions get HTTP 429 until one finishes. A queued upload keeps its extracted package on disk (up to 512 MiB) while it waits.
 
 On Ctrl-C or SIGTERM (`docker stop`) the server stops taking requests and removes the temp dirs of its queued and running scans. A `kill -9` or a crash leaves them in the temp directory.
 
-Downloads are time- and size-capped; archive extraction counts bytes written (zip bombs) and refuses zip-slip paths and symlinks.
+Downloads are time- and size-capped; archive extraction counts bytes written for a zip (zip bombs), and for a tarball the size tar reads for each entry (a PAX record can override the header) with the decompressed stream bounded as a whole; it refuses zip-slip paths and symlinks and does not keep the archive's file modes.
 
 ## Response headers
 
@@ -79,7 +80,7 @@ The server log on stderr holds one record per line: a line break inside a logged
 KALASCAN_TOKEN=change-me docker compose up -d
 ```
 
-The image runs the same server with the same rules. The opt-in `--sandbox` pass needs Docker and the `kalascan-sandbox` image (`sandbox/Dockerfile`); its `sandbox_image` option is CLI-only.
+The image runs the same server with the same rules, as root: the database is `/app/kalascan.db` (or `KALASCAN_HOME`), and a volume the image has written there would not be writable for another user. To run as a user of your own, give `docker run --user` a database directory that user can write (README, "Run with Docker"). The opt-in `--sandbox` pass needs Docker and the `kalascan-sandbox` image (`sandbox/Dockerfile`); its `sandbox_image` option is CLI-only.
 
 ## Reporting
 

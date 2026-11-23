@@ -155,8 +155,7 @@ fn skeleton(s: &str) -> String {
 
 /// Offline identity checks on a VS Code extension root.
 pub fn identity_matches(root: &Path) -> Vec<RuleMatch> {
-    let Some(pkg) = std::fs::read_to_string(root.join("package.json"))
-        .ok()
+    let Some(pkg) = crate::cve::read_manifest(root, "package.json")
         .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
         .filter(|v| v["engines"]["vscode"].is_string())
     else {

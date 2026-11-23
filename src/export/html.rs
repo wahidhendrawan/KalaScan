@@ -2,6 +2,12 @@
 
 use super::*;
 
+/// The report's whole stylesheet: a rule for each utility class the page
+/// uses, values as in Tailwind 3. The page loads nothing, so it opens
+/// offline and behind the server's Content-Security-Policy. A class used
+/// below without a rule here fails `html_report_loads_nothing`.
+pub(super) const REPORT_CSS: &str = include_str!("report.css");
+
 pub fn export_html(result: &ScanResult) -> String {
     let level = risk_score_to_level(result.risk_score);
     let (badge_class, badge_label) = render_risk_badge(result.risk_score);
@@ -111,6 +117,23 @@ pub fn export_html(result: &ScanResult) -> String {
     let emulation_section = html_emulation(result);
     let sandbox_section = html_sandbox(result);
     let ttp_section = html_ttp(result);
+
+    let warnings_section = if result.warnings.is_empty() {
+        String::new()
+    } else {
+        let items: Vec<String> = result
+            .warnings
+            .iter()
+            .map(|w| format!("<li>{}</li>", escape_html(w)))
+            .collect();
+        format!(
+            r#"<div class="mb-6 rounded border border-yellow-600 bg-yellow-900/40 p-3 text-sm text-yellow-200" role="alert">
+      <h2 class="font-semibold mb-1">Warnings</h2>
+      <ul class="list-disc list-inside">{}</ul>
+    </div>"#,
+            items.join("")
+        )
+    };
 
     let triage_section = match &result.triage {
         None => concat!(
@@ -298,7 +321,7 @@ pub fn export_html(result: &ScanResult) -> String {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>KalaScan Report — {repo_url}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <style>{css}</style>
 </head>
 <body class="bg-gray-950 text-gray-200 min-h-screen">
   <div class="max-w-5xl mx-auto px-4 py-8">
@@ -323,6 +346,9 @@ pub fn export_html(result: &ScanResult) -> String {
       <span class="inline-block px-4 py-2 rounded-lg text-lg font-bold {badge_class}">{badge_label}</span>
       <span class="ml-2 text-sm text-gray-400 uppercase">{level}</span>
     </div>
+
+    <!-- Warnings -->
+    {warnings_section}
 
     <!-- Summary Table -->
     <div class="mb-6">
@@ -379,6 +405,7 @@ pub fn export_html(result: &ScanResult) -> String {
   </div>
 </body>
 </html>"#,
+        css = REPORT_CSS.trim_end(),
         repo_url = escape_html(&result.repo_url),
         id = escape_html(&result.id),
         version = env!("CARGO_PKG_VERSION"),
@@ -401,6 +428,7 @@ pub fn export_html(result: &ScanResult) -> String {
             "warning" => "text-yellow-400",
             _ => "text-red-400",
         },
+        warnings_section = warnings_section,
         ai_section = ai_section,
         triage_section = triage_section,
         deobfuscation_section = deobfuscation_section,

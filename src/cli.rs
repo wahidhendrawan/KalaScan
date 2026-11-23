@@ -27,15 +27,15 @@ pub enum Commands {
     },
     /// Scan a Git repository, IDE extension, or local package in headless CLI mode
     Scan {
-        /// Target URL (Git repo, VS Code / Open VSX / JetBrains marketplace), registry package (npm:name[@ver], pypi:name[==ver]) or local file path (.vsix, .zip, .jar, .crx)
+        /// Target URL (Git repo, VS Code / Open VSX / JetBrains marketplace), registry package (npm:name[@ver], pypi:name[==ver]) or local file path (.vsix, .zip, .jar, .crx, .tgz, .tar.gz, .whl)
         target: String,
 
         /// Scan settings file (TOML; keys are these flags' names). Default: ./kalascan.toml when present. A flag given here wins
         #[arg(long)]
         config: Option<PathBuf>,
 
-        /// Output format: text, json, md, html, sarif, csv, junit, github, stix, osv [default: text]
-        #[arg(short, long)]
+        /// Output format [default: text]
+        #[arg(short, long, value_parser = SCAN_FORMATS, ignore_case = true)]
         format: Option<String>,
 
         /// Exit with code 1 if risk score is equal to or greater than threshold (ideal for CI/CD gates)
@@ -84,8 +84,13 @@ pub enum Commands {
         #[arg(long)]
         ai: bool,
 
-        /// AI LLM provider: ollama, openai, deepseek, 9router, custom
-        #[arg(long, default_value = "ollama")]
+        /// AI LLM provider
+        #[arg(
+            long,
+            default_value = "ollama",
+            value_parser = ["ollama", "openai", "deepseek", "9router", "custom"],
+            ignore_case = true
+        )]
         llm_provider: String,
 
         /// AI LLM model name
@@ -168,9 +173,9 @@ pub enum Commands {
         #[arg(long, conflicts_with = "name")]
         coverage: bool,
     },
-    /// Emit a CycloneDX SBOM of the dependencies declared in a directory
+    /// Emit a CycloneDX SBOM of the packages a directory's lockfiles pin, or its manifests declare
     Sbom {
-        /// Directory to inspect (package.json, Cargo.lock, requirements.txt, ...)
+        /// Directory to inspect (package-lock.json, yarn.lock, Cargo.lock, requirements.txt, package.json, ...)
         path: PathBuf,
 
         /// Write the SBOM here instead of stdout
@@ -179,8 +184,8 @@ pub enum Commands {
     },
     /// Audit the IDE (VS Code, Cursor, Windsurf, VSCodium) and browser (Chrome, Edge, Brave) extensions installed on this machine
     Installed {
-        /// Output format: text or json
-        #[arg(short, long, default_value = "text")]
+        /// Output format
+        #[arg(short, long, default_value = "text", value_parser = ["text", "json"])]
         format: String,
 
         /// Only list extensions at or above this risk score
@@ -209,14 +214,14 @@ pub enum Commands {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true, required = true)]
         command: Vec<String>,
     },
-    /// Scan every dependency a lockfile pins (package-lock.json, yarn.lock, pnpm-lock.yaml, poetry.lock, Pipfile.lock, uv.lock, requirements.txt, Cargo.lock)
+    /// Scan every dependency a lockfile pins (package-lock.json, npm-shrinkwrap.json, yarn.lock, pnpm-lock.yaml, poetry.lock, Pipfile.lock, uv.lock, requirements.txt, Cargo.lock)
     Deps {
         /// Directory holding the lockfile(s)
         #[arg(default_value = ".")]
         path: PathBuf,
 
-        /// Output format: text or json
-        #[arg(short, long, default_value = "text")]
+        /// Output format
+        #[arg(short, long, default_value = "text", value_parser = ["text", "json"])]
         format: String,
 
         /// Also scan development dependencies
@@ -227,9 +232,13 @@ pub enum Commands {
         #[arg(long, default_value_t = 0)]
         min_risk: u8,
 
-        /// Exit 1 if any package scores at or above this risk
+        /// Exit 1 if any package scores at or above this risk, or was not scanned
         #[arg(long)]
         fail_on_risk: Option<u8>,
+
+        /// With --fail-on-risk: do not fail on lockfile entries that are not scanned (a registry mirror, git or file dependencies, unpinned requirements)
+        #[arg(long)]
+        allow_skipped: bool,
 
         /// Packages scanned in parallel
         #[arg(long, default_value_t = 4)]
@@ -281,8 +290,8 @@ pub enum Commands {
         /// New version
         new: String,
 
-        /// Output format: text or json
-        #[arg(short, long, default_value = "text")]
+        /// Output format
+        #[arg(short, long, default_value = "text", value_parser = ["text", "json"])]
         format: String,
 
         /// Exit 1 if a new capability is at or above this severity (critical, high, medium, low)
@@ -298,9 +307,9 @@ pub enum Commands {
         /// Report file; its format is detected from the content, not the extension
         file: PathBuf,
 
-        /// Output format: text, json, sarif. SARIF results point at host:port, not
+        /// Output format. SARIF results point at host:port, not
         /// files, so they suit SARIF viewers; GitHub Code Scanning needs file locations
-        #[arg(short, long, default_value = "text")]
+        #[arg(short, long, default_value = "text", value_parser = ["text", "json", "sarif"])]
         format: String,
 
         /// Path to save the output
@@ -327,6 +336,24 @@ pub enum UserAction {
     /// Delete a user (its token stops working immediately)
     Remove { name: String },
 }
+
+/// What `scan --format` and `format` in kalascan.toml accept, in any case.
+/// Anything else used to print the text report: `--format jsn` handed a CI
+/// step text where it expected JSON, and exited 0.
+pub const SCAN_FORMATS: [&str; 12] = [
+    "text",
+    "json",
+    "md",
+    "markdown",
+    "html",
+    "sarif",
+    "csv",
+    "junit",
+    "junit.xml",
+    "github",
+    "stix",
+    "osv",
+];
 
 /// Read by `scan` when present in the working directory (or `--config <path>`).
 pub const CONFIG_PATH: &str = "kalascan.toml";
@@ -373,6 +400,44 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_mistyped_format_or_provider_is_refused_by_clap() {
+        let parse = |args: &[&str]| Cli::try_parse_from([&["kalascan"], args].concat());
+        let refused: [&[&str]; 6] = [
+            &["scan", "x", "--format", "jsn"],
+            &["scan", "x", "--llm-provider", "olama"],
+            &["installed", "--format", "jsn"],
+            &["deps", "--format", "sarif"],
+            &["diff", "a", "b", "--format", "yaml"],
+            &["import", "f", "--format", "html"],
+        ];
+        for args in refused {
+            let err = parse(args).unwrap_err();
+            assert_eq!(
+                err.kind(),
+                clap::error::ErrorKind::InvalidValue,
+                "{:?}",
+                args
+            );
+        }
+        // Every spelling `scan` took before, in any case.
+        for format in SCAN_FORMATS.iter().chain(&["JSON", "Markdown"]) {
+            let parsed = parse(&["scan", "x", "--format", format]);
+            assert!(parsed.is_ok(), "{}", format);
+        }
+        let accepted: [&[&str]; 6] = [
+            &["scan", "x"],
+            &["scan", "x", "--llm-provider", "9Router"],
+            &["installed", "--format", "json"],
+            &["deps", "--format", "text"],
+            &["diff", "a", "b", "--format", "json"],
+            &["import", "f", "--format", "sarif"],
+        ];
+        for args in accepted {
+            assert!(parse(args).is_ok(), "{:?}", args);
+        }
+    }
 
     #[test]
     fn config_parses_flag_names_and_rejects_typos() {

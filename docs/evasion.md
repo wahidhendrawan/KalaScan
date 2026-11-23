@@ -4,13 +4,14 @@ When a payload KalaScan catches is rewritten the way attackers rewrite package
 malware, how often is it still caught? `eval/evasion.py` measures it: 10 inert
 seed packages (npm, PyPI, VS Code), each the shape a rule looks for but pointing
 only at reserved names (`evil.example`, `webhook.site` with an all-zero id,
-placeholder tokens), crossed with 28 mutators drawn from public write-ups. No
+placeholder tokens), crossed with 37 mutators drawn from public write-ups. No
 fixture is ever executed; the scanner only reads files.
 
 ```bash
 cargo build                                   # CARGO_TARGET_DIR per eval/README.md
 python3 eval/evasion.py --kalascan target/debug/kalascan
 python3 eval/evasion.py --baseline eval/evasion-baseline.json   # gate a change
+python3 eval/evasion.py --check-syntax        # every variant parses (node, ast, sh -n)
 ```
 
 Each seed scores >= 50 unmutated, or the runner refuses it. `--baseline` exits 1
@@ -29,6 +30,14 @@ for it and never run against the scanner before (`atob-layer`,
 `importlib`, `compile-exec`, `node-e-hook`) gave 31 variants, and the first run
 caught all 31. No rule was changed for them.
 
+A fourth round (ruleset 2026.11.16) did it again, after first checking that
+every variant parses: five rewrites had been writing code that does not
+(`#fetch(`, `fe'+'tch(`, `\x66etch(`, a Python line opened with spaces,
+Python joined onto one line), and were rewritten to valid code. Nine new
+rewrites brought the suite to 212 variants, and **ruleset 2026.11.15 caught
+181 of them (85%)** on the first run. Ruleset 2026.11.16 was changed for
+those misses and catches 211.
+
 ## Seeds
 
 | seed | eco | detects |
@@ -44,7 +53,7 @@ caught all 31. No rule was changed for them.
 | `vscode-token-steal` | extension | `vscode.authentication.getSession` then POST to a webhook |
 | `npm-discord-stealer` | npm | Discord leveldb read + Discord webhook exfil |
 
-## Result (ruleset 2026.11.8, score model v1, T=50)
+## Result (score model v1, T=50)
 
 | mutation category | first run (2026.11.1) | after the fixes (2026.11.2) | with the eight new mutators (2026.11.8) | mutators |
 |---|---|---|---|---|
@@ -58,6 +67,19 @@ caught all 31. No rule was changed for them.
 With ruleset 2026.11.11 (encoded literals read as code, below): string
 construction 48/49 (98%, 89-100), **all 151/153 (99%, 95-100)**; the other
 categories as in the last column.
+
+The suite as it stands, 37 mutators (the five broken ones rewritten, nine
+added: `comment-between`, `base64-variable`, `base64-split`, `zlib-layer`,
+`hex-layer`, `xor-layer`, `string-table`, `source-other-file`, `npm-run-hook`):
+
+| mutation category | first run (2026.11.15) | ruleset 2026.11.16 |
+|---|---|---|
+| file placement and naming | 27/27 | 27/27 (100%, 88-100) |
+| comment and whitespace | 23/27 | 27/27 (100%, 88-100) |
+| indirection | 33/34 | 34/34 (100%, 90-100) |
+| packaging | 24/25 | 24/25 (96%, 80-99) |
+| string construction | 74/99 | 99/99 (100%, 96-100) |
+| **all** | **181/212 (85%, 80-90)** | **211/212 (100%, 97-100)** |
 
 95% Wilson intervals in brackets. A mutator that cannot touch a seed (e.g.
 `.pth` on an npm seed, `getattr-import` on JS) is skipped, not counted as caught,
@@ -83,7 +105,10 @@ so the denominators are real cross products minus skips.
   `.git/` directory of an archive, or into a `.pth` file does not hide it. The
   scanner decides what is code by what runs, not by extension
   (`runs_as` / `package_entry_points`, src/scanner.rs), and scans a
-  package's `.git` (`skip_dir`, src/scanner.rs). These are the four evasions
+  package's `.git` (`skip_dir`, src/scanner.rs). Since ruleset 2026.11.15 that
+  includes a file an install script hands to an interpreter
+  (`"postinstall": "node install.txt"`, `script_files`) and an extensionless
+  file a relative `require` loads; neither is a mutator of the suite yet. These are the four evasions
   fixed earlier; all stay caught (git-dir 10/10, hash-prefixed 5/5, doc/no-ext
   10/10, pth 4/4).
 
@@ -108,7 +133,20 @@ so the denominators are real cross products minus skips.
 
 ## Evading pairs, grouped by the limit each hits
 
-Two pairs evade with ruleset 2026.11.11; six did before it.
+One pair evades with ruleset 2026.11.16, the third below. Of the 31 the first
+run of the larger suite missed, 9 were a payload XORed with one constant, 13
+a blob in a variable, in pieces or under zlib, 4 a long comment before the
+send, 3 a name reached through `globalThis[…]` or `getattr`, 1 a secret read
+by a function of another module. What closed them: `obfuscator::layers`
+follows a blob handed to a decoder by name, joins pieces, inflates zlib or
+gzip and undoes a one-constant XOR over character codes; `obfuscator::plain`
+reads `globalThis['eval'](`, `getattr(x, 'name')` and
+`__import__('builtins').exec` as the call they make; a chain's distance
+leaves out comment lines; the data-flow pass follows one relative import to
+a function that returns a secret. These are known to the scanner now: the
+next new rewrite is the honest test.
+
+Two pairs evaded with ruleset 2026.11.11; six did before it.
 
 **1. The whole payload in a base64 blob that is evaluated, JS only: closed.**
 4 pairs under `base64-layer` scored 27 until ruleset 2026.11.10 (`npm-cred-exfil`,
@@ -122,14 +160,13 @@ pass run on the decoded text, two layers deep, and report on the literal's
 line. The four seeds are caught by their payloads; a blob whose content shows
 nothing stays a lead.
 
-**2. A call through a character-code string, still evading.** 1 pair: `npm-install-dl-exec`
-under `char-codes` (10). The mutator turns `fetch(…)` into
-`String.fromCharCode(102,…)(…)`, which is not valid JavaScript (a string is
-not callable), so the undone text reads `'fetch'(…)` and the download-cradle
-rule does not match it. The valid spelling, `globalThis[String.fromCharCode(…)](…)`,
-is undone to `globalThis.fetch(…)` and caught.
+**2. A call through a character-code string: a broken mutator, fixed.** 1 pair:
+`npm-install-dl-exec` under `char-codes` (10) until ruleset 2026.11.15. The
+mutator turned `fetch(…)` into `String.fromCharCode(102,…)(…)`, which is not
+valid JavaScript (a string is not callable). It now writes
+`globalThis[String.fromCharCode(…)](…)`, which runs, and is caught.
 
-**3. Install hook in a nested package unit, still evading.** 1 pair: `pypi-setup-hook` under
+**3. Install hook in a nested package unit, still evading by design.** 1 pair: `pypi-setup-hook` under
 `node-modules-dir` (17). Correlation runs install-time chains only for the root
 unit (`correlate_unit`, src/correlate.rs), because a bundled dependency's own
 `setup.py` does not run at the top package's `pip install`. This is close to
@@ -140,11 +177,15 @@ way to push a caught seed under the threshold.
 
 An author who tests against the scanner does not stop at one rewrite.
 `eval/evasion.py --stacked` applies two mutators in a row to every seed, each
-pair of mutators once: 810 variants where both apply. **792 of 810 are caught
-(98%, 97-99)** with ruleset 2026.11.11, and the same with 2026.11.12 and 2026.11.13. It is a measurement, not part of the
-baseline gate.
+pair of mutators once. With the 37 mutators that is 1,693 variants where both
+apply, and **1,649 are caught (97%, 97-98)** with ruleset 2026.11.16. Most of
+the 44 that evade stack `string-table` (24), which moves every string into
+one array, with a second rewrite of what is left; next come
+`source-other-file` (10) and `node-modules-dir` (9). With the 28 mutators
+before it was 792 of 810 (98%, 97-99) from ruleset 2026.11.11 to 2026.11.15.
+It is a measurement, not part of the baseline gate.
 
-The 18 that evade are the two single evaders above carried into their stacks
+Of the 810, the 18 that evaded were the two single evaders above carried into their stacks
 (12 with `char-codes`, whose output is not valid JavaScript; 7 with
 `node-modules-dir`, one of them both). The first run, before this ruleset's
 last change, had 26: eight more were `template-literal` stacked with a second
@@ -157,6 +198,6 @@ drops an interpolation of nothing.
 Placement, comment and whitespace, indirection and packaging tricks do not hide
 a payload from KalaScan. Split and encoded names no longer do either, and a
 payload inside a base64 or hex literal is read. What the suite does not have is
-a layer the scanner cannot undo without running code: a custom cipher, a blob
-assembled at run time, a payload fetched later. The baseline
-(`eval/evasion-baseline.json`) pins the 151 caught pairs.
+a layer the scanner cannot undo without running code: a cipher with a real
+key, a blob assembled at run time, a payload fetched later. The baseline
+(`eval/evasion-baseline.json`) pins the 211 caught pairs.

@@ -236,6 +236,7 @@ ATT&CK technique ids follow Enterprise ATT&CK v20.1. The MBC objective (Malware 
 | Chain: Hidden Bundled Binary Started Detached | code | T1564.001, T1195.001 | OB0006 Defense Evasion | - |
 | Chain: Hidden Python Process | code | T1564, T1059.006 | OB0006 Defense Evasion, OB0009 Execution | - |
 | Chain: Dropped Binary Behind a Cloudflare Access Tunnel | code | T1572, T1105 | OB0004 Command and Control | - |
+| Several Kinds of Credential Store Read | code | T1552 | OB0005 Credential Access | - |
 | Remote URL Dependency | code | T1195.001, T1105 | OB0004 Command and Control | AV-501 |
 | Dependency on a Node Built-in Name | code | T1195.001 | - | AV-205, AV-209 |
 | Dependency Name Unclaimed on the Registry | code | T1195.001 | - | AV-209 |

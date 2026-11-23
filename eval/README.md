@@ -24,12 +24,12 @@ The malicious samples are **live malware**. `run_eval.py` scans them statically 
 
 CI (`.github/workflows/eval.yml`) runs only the clean half, as a false-positive gate: `--only clean --max-fpr 0`, on every pull request that touches `src/`, `rules/`, `eval/` or `Cargo.lock` (without the 1,993 packages of `random2-2026-11`, the second Open VSX draw and the AI skills, which the weekly run fetches and scans).
 
-Results at threshold 50 (ruleset 2026.11.14, score model v1, measured 2026-11-22; 95% interval in brackets; the aggregate is in [`results/2026.11.14.json`](results/2026.11.14.json), every count the same as ruleset 2026.11.13; the `--ai` row was measured with ruleset 2026.11.13):
+Results at threshold 50 (ruleset 2026.11.16, score model v1, measured 2026-11-23; 95% interval in brackets; the aggregate is in [`results/2026.11.16.json`](results/2026.11.16.json), every holdout count the same as rulesets 2026.11.13 to 2026.11.15; the `--ai` row was measured with ruleset 2026.11.13):
 
 | split | malicious recall | clean false positives |
 |---|---|---|
-| dev | 771/1,061 (73%, 70-75) | 0/403 (0%, 0-1) |
-| holdout | 725/1,109 (65%, 63-68) | 0/3,420 (0%, 0-0.1) |
+| dev | 772/1,061 (73%, 70-75) | 0/403 (0%, 0-1) |
+| holdout | 725/1,109 (65%, 63-68) | 0/3,419 (0%, 0-0.1) |
 | holdout as it stood before the rolling draw | 663/978 (68%, 65-71) | |
 | holdout, packages and extensions of it | 644/876 (74%, 70-76) | |
 | holdout, AI agent skills (default scan) | 19/102 (19%, 12-27) | 0/478 (0%, 0-0.8) |
@@ -58,6 +58,40 @@ The holdout by sample set:
 | `rolling-2026-11` | 131 samples newer than ruleset 2026.11.12, drawn on 2026-11-21: 21 npm from the DataDog dataset's unmerged sync branch, 110 PyPI from pypi_malregistry's newest batch | 62/131 (47%, 39-56) |
 
 **The holdout number is the one to quote, and the `rolling` row is the one to worry about.** The second sources say the rules are not fitted to one dataset's taste: PyPI 88% on pypi_malregistry against 39 of 48 (81%) on the original DataDog PyPI holdout samples; npm 80% on the study's samples against 147 of 192 (77%) on DataDog npm dated before August 2026. Both second sources are older malware, so they do not speak to the newest; the `recent` and `rolling` rows do. By ecosystem the holdout before the rolling draw is IDE extensions 32/48 (67%, 53-78), npm 397/580 (68%, 65-72), PyPI 215/248 (87%, 82-90), AI agent skills 19/102 (19%, 12-27); with the rolling draw npm is 408/601 (68%, 64-71) and PyPI 266/358 (74%, 70-79).
+
+### Decoding, chains past comments, one import, and a harder evasion suite (ruleset 2026.11.16)
+
+**The evasion suite first, so it could say something new.** Five of its rewrites wrote code that does not parse (`#fetch(`, `fe'+'tch(`, `\x66etch(`, a Python line opened with spaces, Python joined onto one line), so they measured broken files; `--check-syntax` now parses every variant, and the five were rewritten to valid code. Nine rewrites were added: a comment of 6 KB before the line that sends, a base64 blob in a variable, in three pieces, under zlib, as hex, XORed with a constant, every string in one table read through an accessor, the secret read by a function of another module, and an install hook that runs `npm run x`. **Ruleset 2026.11.15 caught 181 of the 212 variants (85%)** on that first run. The misses: the XOR layer (9), zlib (5), a blob in a variable or in pieces (8), the comment before the send (4), names reached through `globalThis[…]` or `getattr` (3), the other module (1) and the bundled `setup.py` (1, by design).
+
+**What changed for them**, each with a unit test that failed before and a look-alike that stays quiet:
+- A chain's two parts are as near as the code between them: comment lines and `/* */` blocks that open a line are not counted toward the 4 KB, and a reverse shell's pipe may sit beside the process start instead of the socket.
+- `obfuscator::layers` follows a blob handed to a decoder by name, joins pieces, inflates zlib or gzip (512 KiB at most), and undoes a one-constant XOR over character codes. `obfuscator::plain` reads `globalThis['eval'](`, `getattr(x, 'name')` and `__import__('builtins').exec` as the call they make, and an obfuscator string table under mangled names is read by its shape.
+- Data flow follows one relative import: a function of another file that returns a secret counts as the importing file's own.
+- Agent skills: a script the skill runs by relative path counts as run by it, and an encoded command in its text is decoded.
+- `Several Kinds of Credential Store Read`, a `low` finding in no chain: three kinds of credential store read within 4 KB in one file.
+
+**Measured.**
+- **The holdout did not move**: 725 of 1,109, rolling holdout 62 of 131, no sample lost or gained. `dev` 772 of 1,061 (771): one sample gained a download-and-execute chain.
+- **Clean: 0 of 3,822 flagged, and no clean sample changed score at all**; the highest is still 40. One clean skill could no longer be fetched (3,823 before).
+- **272 of the 618 live releases at 50**, as before, and none of 1,491 releases the watch never flagged (1,500 drawn, nine no longer fetchable).
+- **Evasion suite 211 of 212 (100%, 97-100)**; the one left is the `setup.py` under `node_modules/`. Two rewrites stacked: 1,649 of 1,693 (97%, 97-98).
+- The new `low` finding fired on 9 holdout and 12 `dev` malicious samples and on 1 clean sample, in `dev`. It moves no score at the threshold; whether it may count for more is for a later ruleset to measure.
+- What the decoding and the import gain on the corpus is one `dev` sample. The suite is where they show; the corpus holds little that hides this way, or holds it behind something else the rules do not read.
+
+**Built, measured and dropped: a secret handed to an imported wrapper around a request.** The first full count with it lost no holdout sample but flagged four releases of `local-operator`, an agent runtime that hands its environment to the session host it starts through a function of another file. The direction that remains, an imported function that returns a secret, is what the `source-other-file` rewrite uses.
+
+**A scan held 630 MB, four times what it did.** Reports now carry each rule's description; they were read by compiling the 208 secret rules, which a scan without `--secrets` never loads. Eight scans at a time in the 4 GB measuring VM were killed, and 9 to 12 samples a round came out as errors that looked like scanner failures. The descriptions are now read from the rules' TOML: 176 MB on the same sample (157 MB with ruleset 2026.11.13).
+
+- The holdout was counted three times. The first count missed 200 npm samples, whose fetch had been killed, and is not used. The second lost no sample; the change dropped after it was dropped for the live releases above. The third is the one reported. No change was made for a holdout count.
+
+### The hardening round (ruleset 2026.11.15)
+
+No rule changed. What changed is what a scan reads, what it lists and how it unpacks: install scripts named in `package.json` and the extensionless files they require are scanned as code, as are `.cmd`, `.mts`, `.cts` and `.pyw`; a report lists at most 20 findings of one rule in one file and counts the rest, the score unchanged; a file whose data-flow pass used to stop on a multi-byte character is analysed.
+
+- **Every count is the same as with ruleset 2026.11.14**: holdout 725 of 1,109, `dev` 771 of 1,061, rolling holdout 62 of 131, 0 of 3,823 clean samples, 272 of the 618 live releases at 50 (no release changed side or score), evasion suite 151 of 153, two mutators stacked 792 of 810. Of the 1,500 releases the watch never flagged, 1,495 could still be fetched and none reaches 50.
+- **Under the threshold, 12 of 3,823 clean samples change score.** Seven PyPI samples lose a `Scanner Error (file not analysed)`: their files hold `∫` or `·` where the data-flow pass cut a string inside a character, and are now read (`neuropia-engine` 15 to 0). Five score 1 to 6 points higher. The highest clean score is still 40. One holdout malicious sample scores higher; it was at 50 already.
+- **What it gains is not on the corpus**: no sample changed side, so none hides in an install script without an extension or behind a character the data-flow pass stopped on. The unit tests hold each case.
+- The holdout was counted once, after the changes.
 
 ### The sdist's `setup.py` beside the wheel, and the install hook followed again (ruleset 2026.11.14)
 

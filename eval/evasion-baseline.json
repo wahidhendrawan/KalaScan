@@ -50,6 +50,14 @@
  {
   "seed": "npm-install-dl-exec",
   "eco": "npm",
+  "category": "comment-whitespace",
+  "mutator": "comment-between",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
   "category": "string-construction",
   "mutator": "split-concat",
   "risk": 81,
@@ -68,8 +76,8 @@
   "eco": "npm",
   "category": "string-construction",
   "mutator": "char-codes",
-  "risk": 10,
-  "caught": false
+  "risk": 86,
+  "caught": true
  },
  {
   "seed": "npm-install-dl-exec",
@@ -114,6 +122,54 @@
  {
   "seed": "npm-install-dl-exec",
   "eco": "npm",
+  "category": "string-construction",
+  "mutator": "base64-variable",
+  "risk": 82,
+  "caught": true
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "base64-split",
+  "risk": 86,
+  "caught": true
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "zlib-layer",
+  "risk": 82,
+  "caught": true
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "hex-layer",
+  "risk": 87,
+  "caught": true
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "xor-layer",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "string-table",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
   "category": "indirection",
   "mutator": "dynamic-import",
   "risk": 81,
@@ -140,6 +196,14 @@
   "eco": "npm",
   "category": "indirection",
   "mutator": "second-file",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "npm-install-dl-exec",
+  "eco": "npm",
+  "category": "file-placement",
+  "mutator": "npm-run-hook",
   "risk": 81,
   "caught": true
  },
@@ -218,6 +282,14 @@
  {
   "seed": "npm-cred-exfil",
   "eco": "npm",
+  "category": "comment-whitespace",
+  "mutator": "comment-between",
+  "risk": 82,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
   "category": "string-construction",
   "mutator": "split-concat",
   "risk": 82,
@@ -236,7 +308,7 @@
   "eco": "npm",
   "category": "string-construction",
   "mutator": "char-codes",
-  "risk": 81,
+  "risk": 87,
   "caught": true
  },
  {
@@ -268,7 +340,7 @@
   "eco": "npm",
   "category": "string-construction",
   "mutator": "template-literal",
-  "risk": 72,
+  "risk": 82,
   "caught": true
  },
  {
@@ -276,6 +348,54 @@
   "eco": "npm",
   "category": "string-construction",
   "mutator": "unicode-escape",
+  "risk": 82,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "base64-variable",
+  "risk": 89,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "base64-split",
+  "risk": 89,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "zlib-layer",
+  "risk": 89,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "hex-layer",
+  "risk": 88,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "xor-layer",
+  "risk": 87,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "string-table",
   "risk": 82,
   "caught": true
  },
@@ -316,6 +436,14 @@
   "eco": "npm",
   "category": "indirection",
   "mutator": "second-file",
+  "risk": 82,
+  "caught": true
+ },
+ {
+  "seed": "npm-cred-exfil",
+  "eco": "npm",
+  "category": "indirection",
+  "mutator": "source-other-file",
   "risk": 82,
   "caught": true
  },
@@ -371,7 +499,7 @@
   "seed": "npm-reverse-shell",
   "eco": "npm",
   "category": "comment-whitespace",
-  "mutator": "hash-prefixed-js",
+  "mutator": "comment-between",
   "risk": 76,
   "caught": true
  },
@@ -428,6 +556,54 @@
   "eco": "npm",
   "category": "string-construction",
   "mutator": "unicode-escape",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "npm-reverse-shell",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "base64-variable",
+  "risk": 83,
+  "caught": true
+ },
+ {
+  "seed": "npm-reverse-shell",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "base64-split",
+  "risk": 83,
+  "caught": true
+ },
+ {
+  "seed": "npm-reverse-shell",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "zlib-layer",
+  "risk": 83,
+  "caught": true
+ },
+ {
+  "seed": "npm-reverse-shell",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "hex-layer",
+  "risk": 87,
+  "caught": true
+ },
+ {
+  "seed": "npm-reverse-shell",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "xor-layer",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "npm-reverse-shell",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "string-table",
   "risk": 76,
   "caught": true
  },
@@ -514,6 +690,14 @@
  {
   "seed": "npm-dep-confusion",
   "eco": "npm",
+  "category": "comment-whitespace",
+  "mutator": "comment-between",
+  "risk": 84,
+  "caught": true
+ },
+ {
+  "seed": "npm-dep-confusion",
+  "eco": "npm",
   "category": "string-construction",
   "mutator": "split-concat",
   "risk": 84,
@@ -522,17 +706,17 @@
  {
   "seed": "npm-dep-confusion",
   "eco": "npm",
-  "category": "packaging",
-  "mutator": "node-modules-dir",
-  "risk": 84,
+  "category": "file-placement",
+  "mutator": "npm-run-hook",
+  "risk": 78,
   "caught": true
  },
  {
   "seed": "npm-dep-confusion",
   "eco": "npm",
   "category": "packaging",
-  "mutator": "minify-one-line",
-  "risk": 83,
+  "mutator": "node-modules-dir",
+  "risk": 84,
   "caught": true
  },
  {
@@ -570,6 +754,14 @@
  {
   "seed": "pypi-import-loader",
   "eco": "pypi",
+  "category": "comment-whitespace",
+  "mutator": "comment-between",
+  "risk": 77,
+  "caught": true
+ },
+ {
+  "seed": "pypi-import-loader",
+  "eco": "pypi",
   "category": "string-construction",
   "mutator": "split-concat",
   "risk": 77,
@@ -588,7 +780,7 @@
   "eco": "pypi",
   "category": "string-construction",
   "mutator": "char-codes",
-  "risk": 72,
+  "risk": 77,
   "caught": true
  },
  {
@@ -597,6 +789,46 @@
   "category": "string-construction",
   "mutator": "base64-layer",
   "risk": 79,
+  "caught": true
+ },
+ {
+  "seed": "pypi-import-loader",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "base64-variable",
+  "risk": 79,
+  "caught": true
+ },
+ {
+  "seed": "pypi-import-loader",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "base64-split",
+  "risk": 78,
+  "caught": true
+ },
+ {
+  "seed": "pypi-import-loader",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "zlib-layer",
+  "risk": 78,
+  "caught": true
+ },
+ {
+  "seed": "pypi-import-loader",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "hex-layer",
+  "risk": 78,
+  "caught": true
+ },
+ {
+  "seed": "pypi-import-loader",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "xor-layer",
+  "risk": 77,
   "caught": true
  },
  {
@@ -635,14 +867,6 @@
   "seed": "pypi-import-loader",
   "eco": "pypi",
   "category": "packaging",
-  "mutator": "minify-one-line",
-  "risk": 77,
-  "caught": true
- },
- {
-  "seed": "pypi-import-loader",
-  "eco": "pypi",
-  "category": "packaging",
   "mutator": "pad-past-dataflow",
   "risk": 77,
   "caught": true
@@ -666,9 +890,17 @@
  {
   "seed": "pypi-setup-hook",
   "eco": "pypi",
+  "category": "comment-whitespace",
+  "mutator": "comment-between",
+  "risk": 87,
+  "caught": true
+ },
+ {
+  "seed": "pypi-setup-hook",
+  "eco": "pypi",
   "category": "string-construction",
   "mutator": "split-concat",
-  "risk": 87,
+  "risk": 83,
   "caught": true
  },
  {
@@ -677,6 +909,46 @@
   "category": "string-construction",
   "mutator": "base64-layer",
   "risk": 90,
+  "caught": true
+ },
+ {
+  "seed": "pypi-setup-hook",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "base64-variable",
+  "risk": 90,
+  "caught": true
+ },
+ {
+  "seed": "pypi-setup-hook",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "base64-split",
+  "risk": 90,
+  "caught": true
+ },
+ {
+  "seed": "pypi-setup-hook",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "zlib-layer",
+  "risk": 90,
+  "caught": true
+ },
+ {
+  "seed": "pypi-setup-hook",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "hex-layer",
+  "risk": 88,
+  "caught": true
+ },
+ {
+  "seed": "pypi-setup-hook",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "xor-layer",
+  "risk": 87,
   "caught": true
  },
  {
@@ -707,14 +979,6 @@
   "seed": "pypi-setup-hook",
   "eco": "pypi",
   "category": "packaging",
-  "mutator": "minify-one-line",
-  "risk": 87,
-  "caught": true
- },
- {
-  "seed": "pypi-setup-hook",
-  "eco": "pypi",
-  "category": "packaging",
   "mutator": "pad-past-dataflow",
   "risk": 87,
   "caught": true
@@ -746,6 +1010,14 @@
  {
   "seed": "pypi-cred-exfil",
   "eco": "pypi",
+  "category": "comment-whitespace",
+  "mutator": "comment-between",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "pypi-cred-exfil",
+  "eco": "pypi",
   "category": "string-construction",
   "mutator": "split-concat",
   "risk": 81,
@@ -757,6 +1029,46 @@
   "category": "string-construction",
   "mutator": "base64-layer",
   "risk": 89,
+  "caught": true
+ },
+ {
+  "seed": "pypi-cred-exfil",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "base64-variable",
+  "risk": 89,
+  "caught": true
+ },
+ {
+  "seed": "pypi-cred-exfil",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "base64-split",
+  "risk": 89,
+  "caught": true
+ },
+ {
+  "seed": "pypi-cred-exfil",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "zlib-layer",
+  "risk": 88,
+  "caught": true
+ },
+ {
+  "seed": "pypi-cred-exfil",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "hex-layer",
+  "risk": 87,
+  "caught": true
+ },
+ {
+  "seed": "pypi-cred-exfil",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "xor-layer",
+  "risk": 86,
   "caught": true
  },
  {
@@ -786,8 +1098,8 @@
  {
   "seed": "pypi-cred-exfil",
   "eco": "pypi",
-  "category": "packaging",
-  "mutator": "node-modules-dir",
+  "category": "indirection",
+  "mutator": "source-other-file",
   "risk": 81,
   "caught": true
  },
@@ -795,7 +1107,7 @@
   "seed": "pypi-cred-exfil",
   "eco": "pypi",
   "category": "packaging",
-  "mutator": "minify-one-line",
+  "mutator": "node-modules-dir",
   "risk": 81,
   "caught": true
  },
@@ -834,9 +1146,57 @@
  {
   "seed": "pypi-download-cradle",
   "eco": "pypi",
+  "category": "comment-whitespace",
+  "mutator": "comment-between",
+  "risk": 86,
+  "caught": true
+ },
+ {
+  "seed": "pypi-download-cradle",
+  "eco": "pypi",
   "category": "string-construction",
   "mutator": "base64-layer",
   "risk": 88,
+  "caught": true
+ },
+ {
+  "seed": "pypi-download-cradle",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "base64-variable",
+  "risk": 88,
+  "caught": true
+ },
+ {
+  "seed": "pypi-download-cradle",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "base64-split",
+  "risk": 87,
+  "caught": true
+ },
+ {
+  "seed": "pypi-download-cradle",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "zlib-layer",
+  "risk": 88,
+  "caught": true
+ },
+ {
+  "seed": "pypi-download-cradle",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "hex-layer",
+  "risk": 87,
+  "caught": true
+ },
+ {
+  "seed": "pypi-download-cradle",
+  "eco": "pypi",
+  "category": "string-construction",
+  "mutator": "xor-layer",
+  "risk": 86,
   "caught": true
  },
  {
@@ -860,14 +1220,6 @@
   "eco": "pypi",
   "category": "packaging",
   "mutator": "node-modules-dir",
-  "risk": 86,
-  "caught": true
- },
- {
-  "seed": "pypi-download-cradle",
-  "eco": "pypi",
-  "category": "packaging",
-  "mutator": "minify-one-line",
   "risk": 86,
   "caught": true
  },
@@ -930,6 +1282,14 @@
  {
   "seed": "vscode-token-steal",
   "eco": "extension",
+  "category": "comment-whitespace",
+  "mutator": "comment-between",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
   "category": "string-construction",
   "mutator": "split-concat",
   "risk": 76,
@@ -948,7 +1308,7 @@
   "eco": "extension",
   "category": "string-construction",
   "mutator": "char-codes",
-  "risk": 75,
+  "risk": 81,
   "caught": true
  },
  {
@@ -980,7 +1340,7 @@
   "eco": "extension",
   "category": "string-construction",
   "mutator": "template-literal",
-  "risk": 71,
+  "risk": 76,
   "caught": true
  },
  {
@@ -988,6 +1348,54 @@
   "eco": "extension",
   "category": "string-construction",
   "mutator": "unicode-escape",
+  "risk": 76,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "string-construction",
+  "mutator": "base64-variable",
+  "risk": 83,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "string-construction",
+  "mutator": "base64-split",
+  "risk": 83,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "string-construction",
+  "mutator": "zlib-layer",
+  "risk": 83,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "string-construction",
+  "mutator": "hex-layer",
+  "risk": 87,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "string-construction",
+  "mutator": "xor-layer",
+  "risk": 81,
+  "caught": true
+ },
+ {
+  "seed": "vscode-token-steal",
+  "eco": "extension",
+  "category": "string-construction",
+  "mutator": "string-table",
   "risk": 76,
   "caught": true
  },
@@ -1098,6 +1506,14 @@
  {
   "seed": "npm-discord-stealer",
   "eco": "npm",
+  "category": "comment-whitespace",
+  "mutator": "comment-between",
+  "risk": 72,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
   "category": "string-construction",
   "mutator": "split-concat",
   "risk": 72,
@@ -1116,7 +1532,7 @@
   "eco": "npm",
   "category": "string-construction",
   "mutator": "char-codes",
-  "risk": 71,
+  "risk": 77,
   "caught": true
  },
  {
@@ -1156,6 +1572,54 @@
   "eco": "npm",
   "category": "string-construction",
   "mutator": "unicode-escape",
+  "risk": 72,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "base64-variable",
+  "risk": 79,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "base64-split",
+  "risk": 79,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "zlib-layer",
+  "risk": 79,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "hex-layer",
+  "risk": 83,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "xor-layer",
+  "risk": 77,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "string-construction",
+  "mutator": "string-table",
   "risk": 72,
   "caught": true
  },
@@ -1196,6 +1660,14 @@
   "eco": "npm",
   "category": "indirection",
   "mutator": "second-file",
+  "risk": 72,
+  "caught": true
+ },
+ {
+  "seed": "npm-discord-stealer",
+  "eco": "npm",
+  "category": "indirection",
+  "mutator": "source-other-file",
   "risk": 72,
   "caught": true
  },

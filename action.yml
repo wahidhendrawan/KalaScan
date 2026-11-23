@@ -29,6 +29,10 @@ inputs:
     description: "Also scan every package the lockfiles pin, development dependencies included: for a scheduled run, where nothing is new but the ruleset may be. Fails at fail_on_risk"
     required: false
     default: "false"
+  allow_skipped:
+    description: "Let the dependency steps pass when a lockfile has entries that cannot be scanned (a registry mirror, a git or URL dependency). They are listed either way"
+    required: false
+    default: "false"
   untrusted:
     description: "Scan the target as someone else's code: no skipped build dirs, no inline kalascan:ignore markers, no .kalascanignore or kalascan.toml from the checkout. Keep \"true\" for pull requests, whose author controls those files"
     required: false
@@ -38,10 +42,69 @@ runs:
   using: composite
   steps:
     - name: Install KalaScan
-      # Build the same revision as the action ref, not a hard-coded tag.
+      # At a release tag (`uses: ...@v1.26.0`): that release's binary for this
+      # runner, checked against the release's .sha256. At any other ref (a
+      # branch, a commit, a major tag), on a runner the releases have no build
+      # for, or when the download, the checksum or the binary itself fails:
+      # build the revision the action runs at with cargo.
+      env:
+        # In a composite action these two are right only when read through `env`.
+        ACTION_REF: ${{ github.action_ref }}
+        ACTION_REPOSITORY: ${{ github.action_repository }}
       run: |
         set -euo pipefail
-        if ! command -v kalascan >/dev/null 2>&1; then
+        if command -v kalascan >/dev/null 2>&1; then exit 0; fi
+
+        # Called as the condition of an `if`, where `set -e` does not apply:
+        # every step that can fail returns by hand.
+        prebuilt() {
+          [[ "$ACTION_REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
+          [[ "$ACTION_REPOSITORY" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || return 1
+          # Asset names as .github/workflows/release.yml uploads them.
+          local target archive
+          case "$RUNNER_OS-$RUNNER_ARCH" in
+            Linux-X64) target=x86_64-unknown-linux-gnu ;;
+            Linux-ARM64) target=aarch64-unknown-linux-gnu ;;
+            macOS-*) target=universal-apple-darwin ;;
+            Windows-X64) target=x86_64-pc-windows-msvc ;;
+            *) return 1 ;;
+          esac
+          archive="kalascan-$target.tar.gz"
+          if [ "$RUNNER_OS" = Windows ]; then archive="kalascan-$target.zip"; fi
+          local base="https://github.com/$ACTION_REPOSITORY/releases/download/$ACTION_REF"
+          local dir="$RUNNER_TEMP/kalascan-$ACTION_REF"
+          mkdir -p "$dir" || return 1
+          cd "$dir" || return 1
+          curl -fsSL --retry 3 -o "$archive" "$base/$archive" || return 1
+          curl -fsSL --retry 3 -o sha256 "$base/kalascan-$target.sha256" || return 1
+          # The hash is the first field of the .sha256. It is compared here,
+          # not left to `sha256sum -c`, which checks whatever file it names.
+          local want got
+          want="$(awk 'NR == 1 { print $1 }' sha256)"
+          if command -v sha256sum >/dev/null 2>&1; then
+            got="$(sha256sum "$archive" | awk '{ print $1 }')"
+          else
+            got="$(shasum -a 256 "$archive" | awk '{ print $1 }')"
+          fi
+          if [ -z "$want" ] || [ "$want" != "$got" ]; then
+            echo "::warning::KalaScan $ACTION_REF: $archive does not have the sha256 its release gives"
+            return 1
+          fi
+          if [ "$RUNNER_OS" = Windows ]; then
+            unzip -q -o "$archive" || return 1
+          else
+            tar -xzf "$archive" || return 1
+          fi
+          # A binary that does not start here (an older libc) is no use.
+          ./kalascan --version >/dev/null || return 1
+          echo "$dir" >> "$GITHUB_PATH"
+        }
+
+        # In a subshell: the function changes directory.
+        if (prebuilt); then
+          echo "Using the KalaScan $ACTION_REF release binary"
+        else
+          echo "No usable release binary for ref '$ACTION_REF' on $RUNNER_OS/$RUNNER_ARCH: building from source"
           cargo install --locked --path "$GITHUB_ACTION_PATH"
         fi
       shell: bash
@@ -60,7 +123,9 @@ runs:
         if [ -n "$YARA_DIR" ]; then args+=(--yara-dir "$YARA_DIR"); fi
         if [ "$UNTRUSTED" != "false" ]; then args+=(--untrusted); fi
         if [ "$CHANGED_ONLY" = "true" ]; then args+=(--changed-only --base-ref "$BASE_REF"); fi
-        kalascan "${args[@]}"
+        # What the scan prints is kept for the job summary; with pipefail the
+        # step still fails when kalascan does.
+        kalascan "${args[@]}" | tee "$RUNNER_TEMP/kalascan-scan.txt"
       shell: bash
 
     - name: Scan new dependencies
@@ -70,7 +135,12 @@ runs:
       env:
         FAIL_ON_RISK: ${{ inputs.fail_on_risk }}
         BASE_REF: ${{ inputs.base_ref }}
-      run: kalascan deps . --base-ref "$BASE_REF" --include-dev --fail-on-risk "$FAIL_ON_RISK"
+        ALLOW_SKIPPED: ${{ inputs.allow_skipped == 'true' && '--allow-skipped' || '' }}
+      run: |
+        set -euo pipefail
+        # shellcheck disable=SC2086  # ALLOW_SKIPPED is one flag or nothing
+        kalascan deps . --base-ref "$BASE_REF" --include-dev --fail-on-risk "$FAIL_ON_RISK" $ALLOW_SKIPPED |
+          tee "$RUNNER_TEMP/kalascan-new-dependencies.txt"
       shell: bash
 
     - name: Scan all dependencies
@@ -79,7 +149,34 @@ runs:
       if: inputs.all_dependencies == 'true'
       env:
         FAIL_ON_RISK: ${{ inputs.fail_on_risk }}
-      run: kalascan deps . --include-dev --fail-on-risk "$FAIL_ON_RISK"
+        ALLOW_SKIPPED: ${{ inputs.allow_skipped == 'true' && '--allow-skipped' || '' }}
+      run: |
+        set -euo pipefail
+        # shellcheck disable=SC2086  # ALLOW_SKIPPED is one flag or nothing
+        kalascan deps . --include-dev --fail-on-risk "$FAIL_ON_RISK" $ALLOW_SKIPPED |
+          tee "$RUNNER_TEMP/kalascan-all-dependencies.txt"
+      shell: bash
+
+    - name: Job summary
+      # The scan's risk score with its critical findings and chains, and the
+      # dependency tables (highest risk first), also when a gate failed.
+      if: always()
+      run: |
+        set -euo pipefail
+        {
+          echo "### KalaScan"
+          for part in scan new-dependencies all-dependencies; do
+            file="$RUNNER_TEMP/kalascan-$part.txt"
+            [ -s "$file" ] || continue
+            printf '\n**%s**\n\n' "$part"
+            # A package or file name in these lines is someone else's text:
+            # every line is indented into a code block, and a CR, which
+            # Markdown reads as a line end, is dropped.
+            tr -d '\r' < "$file" |
+              awk 'NR <= 31 { print "    " $0 } END { if (NR > 31) print "    ... " NR - 31 " more lines in the step log" }'
+            rm -f "$file"
+          done
+        } >> "$GITHUB_STEP_SUMMARY"
       shell: bash
 
     - name: Upload SARIF

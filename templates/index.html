@@ -349,6 +349,9 @@
                         </div>
                     </div>
 
+                    <!-- Requested passes that failed or were cut short -->
+                    <ul id="scan-warnings" role="alert" class="mt-4 hidden list-inside list-disc space-y-0.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300"></ul>
+
                     <div class="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[170px_1fr]">
                         <!-- Risk ring -->
                         <div class="flex flex-col items-center justify-center rounded-2xl border border-white/[.06] bg-ink-950/60 p-4">
@@ -931,6 +934,18 @@
             low: 'border-slate-500/30 bg-slate-500/10 text-slate-300',
         };
 
+        /* What the rules hold about a finding: description, ATT&CK techniques,
+           MBC objectives, then the rule id. Only the classes app.css already has. */
+        function ruleNote(m) {
+            const parts = [
+                m.description,
+                (m.attack || []).map(t => t.id + ' ' + t.name).join(', '),
+                (m.mbc || []).join(', '),
+                m.rule_id,
+            ].filter(Boolean);
+            return parts.length ? `<div class="mt-0.5 max-w-[320px] text-[10px] text-slate-500">${escHtml(parts.join(' · '))}</div>` : '';
+        }
+
         function renderMatchesTable() {
             const tbody = document.getElementById('match-body');
             if (!currentResult) return;
@@ -940,7 +955,7 @@
             const rows = all.filter(m => {
                 if (sev && m.severity !== sev) return false;
                 if (!q) return true;
-                return (m.file_path + ' ' + m.matched_pattern + ' ' + (m.context || '')).toLowerCase().includes(q);
+                return (m.file_path + ' ' + m.matched_pattern + ' ' + (m.context || '') + ' ' + (m.rule_id || '') + ' ' + (m.description || '')).toLowerCase().includes(q);
             });
             if (!rows.length) {
                 tbody.innerHTML = '<tr><td colspan="5" class="px-5 py-12 text-center text-xs text-slate-500">No findings match this filter.</td></tr>';
@@ -951,7 +966,7 @@
                 const ctx = (m.context || '').replace(/\s+/g, ' ').trim().slice(0, 110);
                 return `<tr class="transition hover:bg-white/[.025]">
                     <td class="px-5 py-2.5"><span class="inline-flex rounded-md border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${style}">${escHtml(m.severity)}</span></td>
-                    <td class="px-3 py-2.5 text-[11px] text-slate-300">${escHtml(m.matched_pattern)}</td>
+                    <td class="px-3 py-2.5 text-[11px] text-slate-300">${escHtml(m.matched_pattern)}${ruleNote(m)}</td>
                     <td class="px-3 py-2.5 font-mono text-[11px] text-aqua-400" title="${escAttr(m.file_path)}"><span class="block max-w-[260px] truncate">${escHtml(m.file_path)}</span></td>
                     <td class="px-3 py-2.5 text-right font-mono text-[11px] text-slate-500">${m.line_number}</td>
                     <td class="px-5 py-2.5 font-mono text-[10px] text-slate-500" title="${escAttr(m.context || '')}"><span class="block max-w-[320px] truncate">${escHtml(ctx)}</span></td>
@@ -1004,6 +1019,11 @@
                                  'border-emerald-500/30 bg-emerald-500/10 text-emerald-300');
                 badge.textContent = label;
 
+                const warnings = r.warnings || [];
+                const warnBox = document.getElementById('scan-warnings');
+                warnBox.innerHTML = warnings.map(w => `<li>${escHtml(w)}</li>`).join('');
+                warnBox.classList.toggle('hidden', !warnings.length);
+
                 // AI
                 const aiSec = document.getElementById('ai-section');
                 if (r.ai_analysis && r.ai_analysis.threat_summary) {
@@ -1051,6 +1071,7 @@
                         <div class="min-w-0">
                             <div class="text-[11px] font-medium text-slate-200">${escHtml(m.matched_pattern)}</div>
                             <div class="mt-0.5 truncate font-mono text-[10px] text-slate-500">${escHtml(m.file_path)}:${m.line_number}</div>
+                            ${ruleNote(m)}
                         </div>
                         <span class="shrink-0 rounded-md border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${style}">${escHtml(m.severity)}</span>
                     </div>`;

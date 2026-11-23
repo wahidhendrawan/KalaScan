@@ -2,7 +2,7 @@
 
 What KalaScan claims, how the claims are measured, and where they stop. Written for someone auditing the tool: every statement points at a file in the repository that holds the evidence.
 
-Numbers on this page are for ruleset `2026.11.14`, score model v1, measured 2026-11-22, unless a line says otherwise; every count is the one ruleset 2026.11.13 gave, and the `--ai` numbers were measured with it. They are copies. The record is [`eval/results/2026.11.14.json`](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/results/2026.11.14.json) and the [evaluation notes](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md); where this page and they disagree, they are right.
+Numbers on this page are for ruleset `2026.11.16`, score model v1, measured 2026-11-23, unless a line says otherwise; every holdout count is the one rulesets 2026.11.13 to 2026.11.15 gave, and the `--ai` numbers were measured with ruleset 2026.11.13. They are copies. The record is [`eval/results/2026.11.16.json`](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/results/2026.11.16.json) and the [evaluation notes](https://github.com/wahidhendrawan/KalaScan/blob/main/eval/README.md); where this page and they disagree, they are right.
 
 ## What KalaScan claims and what it does not
 
@@ -33,7 +33,7 @@ Numbers on this page are for ruleset `2026.11.14`, score model v1, measured 2026
 
 - Without a second critical finding the findings add up to 45 at most: one critical 20, high findings 15, medium findings 5, known vulnerabilities 5 (`v1` in `src/score.rs`).
 - Two critical findings, or one finding from the list with no benign reading (`decisive` in `src/score.rs`: every behaviour chain and ten named findings), give 70.
-- Binary triage runs on every scan and can add up to 20 when a package ships a binary that is packed, has a section both writable and executable, or shows a suspicious capability (`risk_contribution` in `src/triage.rs`). 2 of the 1,297 scanned corpus packages carry such a part ([scoring.md](scoring.md)).
+- Binary triage runs on every scan and can add up to 20 when a package ships a binary that is packed, has a section both writable and executable, or shows a suspicious capability (`risk_contribution` in `src/triage.rs`). 2 of the 1,297 scanned corpus packages carried such a part when that was counted, before ruleset 2026.11.15 let triage read `node_modules/`, `venv/` and `target/` inside a package ([scoring.md](scoring.md)).
 
 So a default v1 scan that reaches 50 has a chain, a decisive finding, or two critical findings (two rules, or one rule in two files; credentials written into the package count as one finding together); or, rarely, one critical finding next to a suspicious binary. On the holdout no package, malicious or clean, scores from 50 to 69. `--deobfuscate`, `--emulate`, `--sandbox` and `--ai` add parts that can fill that gap. `--sandbox`, `--deobfuscate`, `--emulate` and `--deep-triage` were measured once each and changed no count at 50 (Known limits, 12); `--ai` was measured once, on AI agent skills only.
 
@@ -57,13 +57,14 @@ A local path scanned without `--untrusted` is treated as the operator's own tree
 
 - The files of the artefact as published, as text and bytes. Regex rules run on the file types their category names, YARA on every file except prose ([detection-rules.md](detection-rules.md)).
 - For a registry name (`npm:`, `pypi:`), the registry's metadata and what changed against the previous version. For a marketplace id, the listing. A local directory or archive gets neither (`parse_package_target` and `parse_marketplace_id` in `src/lib.rs` look at the target string).
-- Relations inside one package: two signals within 4 KB or in the same package (`src/correlate.rs`), and variables followed inside one file (`src/dataflow.rs`: one namespace per file, no control flow).
+- Relations inside one package: two signals within 4 KB or in the same package (`src/correlate.rs`), and variables followed inside one file (`src/dataflow.rs`: one namespace per file, no control flow), plus one relative import into another file of the package: a function there that returns a secret.
 
 **What it reads only in part:**
 
 - A file over 4 MiB is read with whitespace runs longer than 64 bytes collapsed; of what remains the first 3 MiB and the last 1 MiB are scanned, and it is reported as `Oversized File (partially scanned)` (`read_capped` in `src/scanner.rs`). The middle of a large file that is not padding is not read.
 - The data-flow pass skips files over 64 KB and files with minified lines (`src/dataflow.rs`).
-- Compiled binaries get YARA and binary triage: file format, packer, section flags, imports (`src/triage.rs`). capa, FLOSS and DIE run only with `--deep-triage`.
+- A report lists at most 20 findings of one rule in one file and then a `Repeated Finding (further hits not listed)` notice with the count, and about 100,000 findings per scan (`reported` in `src/scanner.rs`). Chains are computed from every hit before the cut, and the score counts a rule once per file, so neither changes.
+- Compiled binaries get YARA and binary triage: file format, packer, section flags, imports (`src/triage.rs`). Triage walks the directories the rules walk, the package's own files before `node_modules/`, and stops at 10,000 files or 64 binaries. capa, FLOSS and DIE run only with `--deep-triage`.
 
 **What it cannot see:**
 
@@ -140,6 +141,8 @@ Where the rule was bent, on record in the evaluation notes:
 - Ruleset 2026.11.12 (35 narrowings from a second reading of new releases): the whole holdout was counted twice. The first count was 645 of 984, 14 fewer. To find the change behind each loss, the 14 samples were scanned with 30 builds that held the changes one after another, and then with three candidates; they were counted by the finding they had lost and not read. Three changes were dropped and four narrowed for them; for an eighth, a narrower version was tried first, did not bring the sample back, and the change was dropped. The second count is 659 of 984, with no sample lost or gained. This is the holdout steering changes again, eight times in one round; what it protects is on record too: six of the 14 were caught by an install hook and a network call that share a package and nothing else (evaluation notes, "What was still flagged, read by class").
 - Ruleset 2026.11.13: the rolling holdout (`rolling-2026-11`) was counted before any change, 38 of 131, and the whole holdout four times: before the changes, then with three builds (725 of 1,109 each time). Seven npm `0.0.0-stage` placeholders were taken out of the corpus first, six of them holdout samples, all missed: they hold no code. That the seven were all missed was seen from the count, and their names were read to find them. With `--ai`, the AI skills holdout was counted at four cuts of the model's risk (49 of 102 at 60 and 70, 45 at 80 and 85) and the cut set at 70: the holdout chose between two values. Two clean skills the model flagged were read and moved to `dev` (evaluation notes, "A rolling holdout" and "AI agent skills by meaning").
 - Ruleset 2026.11.14 (the sdist's `setup.py` beside the wheel): the whole holdout was counted three times, 725 of 1,109 each time except with the install-hook change, which lost 4 and was dropped. Two clean holdout samples whose findings had been read, `docx-form` and `psutil`, moved to `dev`.
+- Ruleset 2026.11.15 (the hardening round: what is scanned, what is listed, how an archive is unpacked): the whole holdout was counted once, after the changes, and did not move (725 of 1,109). Nothing was changed after the count.
+- Ruleset 2026.11.16 (decoding, chains past comments, one import): the whole holdout was counted three times. The first count missed 200 npm samples whose fetch had been killed and is not used; the second lost and gained no sample; one change was dropped after it because it flagged four live releases, not for the holdout; the third count is the one reported, 725 of 1,109.
 - Clean holdout samples that were flagged and then read were moved to `dev` and the rules fixed. The clean holdout is therefore what was never flagged. See "The clean side".
 
 ### The sample sets
@@ -187,7 +190,7 @@ A second draw of 297 extensions with ruleset 2026.11.9 flagged **15 of 295 (5.1%
 
 Of the 14 in the third draw, 12 were fixed and 2 were left as they are and taken out of the corpus: a tool that installs `.deb` files it downloads from a personal host, and one obfuscated file run through `eval`. Both are behaviours KalaScan flags by design (evaluation notes, "Packages nobody picked, a larger draw").
 
-**0 of 3,420 is not the false-positive rate.** It is the clean holdout after every flagged sample was read, fixed and moved to `dev`. It shows that the fixes hold and that nothing regressed. The evaluation notes say the same: expect the real rate on unseen packages between the first-contact number and zero.
+**0 of 3,419 is not the false-positive rate.** It is the clean holdout after every flagged sample was read, fixed and moved to `dev`. It shows that the fixes hold and that nothing regressed. The evaluation notes say the same: expect the real rate on unseen packages between the first-contact number and zero.
 
 What the clean side does not cover:
 
@@ -197,7 +200,7 @@ What the clean side does not cover:
 
 ### Intervals
 
-Every rate is printed with its 95% Wilson score interval (`wilson` in `eval/run_eval.py`, z = 1.96). The Wilson interval stays honest at 0 of n: 0 of 3,420 has an upper bound of 0.1%, not zero.
+Every rate is printed with its 95% Wilson score interval (`wilson` in `eval/run_eval.py`, z = 1.96). The Wilson interval stays honest at 0 of n: 0 of 3,419 has an upper bound of 0.1%, not zero.
 
 The interval answers one question: how far could the rate on this kind of sample be from the rate measured on these samples. It assumes independent draws. Malware comes in campaigns (five samples of one `setup.py` template in the tuning batch), so the true uncertainty is wider than printed. It says nothing about samples of another kind: malware no dataset has collected, or packages newer than the clean cutoff.
 
@@ -289,8 +292,8 @@ From the measured results, not from principle.
    - themes and hello-world extensions whose only offence is the listing;
    - an install script that patches a sibling package in `node_modules`;
    - a C2 host built at run time; DNS exfiltration with every API name spelled as character codes;
-   - a javascript-obfuscator variant with mangled names instead of `_0x…`;
-   - a secret kept in a global by one function and sent by another, or handed to a function in another file (the data-flow pass follows calls inside one file only);
+   - a javascript-obfuscator variant with mangled names whose string table is not encoded (the `Obfuscator.io Output` rule does not fire on it, so the table is not read);
+   - a secret kept in a global by one function and sent by another, or passed on through more than one import, a re-export or a default export (the data-flow pass follows calls inside one file and one relative import into another);
    - a credential stealer that reads cloud metadata endpoints.
 5. **What is not looked for**, from [coverage.md](coverage.md): 5 gaps, 6 payload-only vectors and 16 out-of-scope vectors of 50. 17 more are partial; several of those cover IDE extensions only (AV-206, AV-207) or GitHub Actions only (AV-400, AV-701).
 6. **One malicious dataset dominates.** 1,061 of 1,521 malicious entries, 576 of the 626 the rules were tuned on, every extension sample and every npm sample dated 2025 or later come from the DataDog dataset. The second sources: PyPI 83 of 95 on pypi_malregistry (87%, 79-93) against 37 of 48 (77%) on the original DataDog PyPI holdout; npm 159 of 200 on the ASE 2026 study (80%, 73-85), mostly 2021-2024 malware. Recall on extensions and on the newest npm malware has no independent check.

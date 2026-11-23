@@ -83,6 +83,28 @@ fn json_report_has_the_documented_shape_and_a_duration() {
     ] {
         assert!(!v[key].is_null(), "missing {}", key);
     }
+    // Every requested pass ran: no `warnings` key at all.
+    assert!(v.get("warnings").is_none(), "{}", v["warnings"]);
+    // The AI pass asked for, with nothing listening at its endpoint.
+    let closed = std::net::TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap();
+    let endpoint = format!("http://{}/api/generate", closed);
+    let ai = [&fixture("suspicious"), "--ai", "--llm-endpoint", &endpoint];
+    let v = scan_json(cwd.path(), &[&ai[..], &["--format", "json"]].concat());
+    assert!(v["ai_analysis"].is_null());
+    let warnings = v["warnings"].as_array().expect("warnings");
+    assert_eq!(warnings.len(), 1, "{:?}", warnings);
+    let warning = warnings[0].as_str().unwrap();
+    assert!(warning.starts_with("AI analysis failed"), "{}", warning);
+    let text = scan(cwd.path(), &ai).success();
+    let text = String::from_utf8_lossy(&text.get_output().stdout).to_string();
+    assert!(
+        text.contains(&format!("Warning:       {}\n", warning)),
+        "{}",
+        text
+    );
     // The score is the sum of its listed parts, under either model.
     for (model, flags) in [("v1", &[][..]), ("v2", &["--score-model", "v2"][..])] {
         let mut args = vec![fixture("suspicious"), "--format".into(), "json".into()];
@@ -97,6 +119,49 @@ fn json_report_has_the_documented_shape_and_a_duration() {
             .map(|p| p["points"].as_u64().unwrap())
             .sum();
         assert_eq!(parts.min(100), v["risk_score"].as_u64().unwrap(), "{model}");
+    }
+}
+
+/// `npm pack` output and a wheel, named by path: unpacked and scanned as the
+/// package they are, with npm's `package/` as the root.
+#[test]
+fn a_local_tarball_and_wheel_are_scanned_as_packages() {
+    use std::io::Write;
+    let cwd = tempfile::tempdir().unwrap();
+    let code = b"eval(payload);\n";
+
+    let gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+    let mut tarball = tar::Builder::new(gz);
+    let mut header = tar::Header::new_gnu();
+    header.set_size(code.len() as u64);
+    header.set_mode(0o644);
+    header.set_cksum();
+    tarball
+        .append_data(&mut header, "package/index.js", &code[..])
+        .unwrap();
+    let tarball = tarball.into_inner().unwrap().finish().unwrap();
+    std::fs::write(cwd.path().join("pkg-1.0.0.tgz"), tarball).unwrap();
+
+    let mut wheel = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    wheel
+        .start_file("pkg/index.js", zip::write::SimpleFileOptions::default())
+        .unwrap();
+    wheel.write_all(code).unwrap();
+    let wheel = wheel.finish().unwrap().into_inner();
+    std::fs::write(cwd.path().join("pkg-1.0-py3-none-any.whl"), wheel).unwrap();
+
+    for (target, file) in [
+        ("./pkg-1.0.0.tgz", "index.js"),
+        ("./pkg-1.0-py3-none-any.whl", "pkg/index.js"),
+    ] {
+        let v = scan_json(cwd.path(), &[target, "--format", "json"]);
+        let hit = v["rule_matches"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|m| m["matched_pattern"] == "eval() Usage")
+            .unwrap_or_else(|| panic!("{}: {:?}", target, rule_names(&v)));
+        assert_eq!(hit["file_path"], file, "{}", target);
     }
 }
 
@@ -150,6 +215,29 @@ fn fail_on_risk_sets_the_exit_code() {
     scan(cwd.path(), &[&fixture("clean"), "--fail-on-risk", "1"]).success();
 }
 
+/// The database is the server's and `kalascan user`'s: a scan leaves nothing
+/// in the directory it runs in, and `KALASCAN_HOME` says where the file goes.
+#[test]
+fn a_scan_creates_no_database_and_kalascan_home_places_it() {
+    let cwd = tempfile::tempdir().unwrap();
+    let files = || std::fs::read_dir(cwd.path()).unwrap().count();
+    scan(cwd.path(), &[&fixture("suspicious")]).success();
+    assert_eq!(files(), 0);
+
+    let user = || {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_kalascan"));
+        cmd.current_dir(cwd.path()).args(["user", "list"]);
+        cmd
+    };
+    let home = tempfile::tempdir().unwrap();
+    user().env("KALASCAN_HOME", home.path()).assert().success();
+    assert!(home.path().join("kalascan.db").is_file());
+    assert_eq!(files(), 0);
+    // Without it, the working directory, as before.
+    user().env_remove("KALASCAN_HOME").assert().success();
+    assert!(cwd.path().join("kalascan.db").is_file());
+}
+
 #[test]
 fn config_file_is_read_and_flags_win() {
     let cwd = tempfile::tempdir().unwrap();
@@ -171,6 +259,16 @@ fn config_file_is_read_and_flags_win() {
     let run = scan(cwd.path(), &[&target, "--config", other.to_str().unwrap()]).failure();
     let stderr = String::from_utf8_lossy(&run.get_output().stderr);
     assert!(stderr.contains("fail_on_rsk"), "{}", stderr);
+
+    // Nor may a mistyped format print the text report: in the file or as a flag.
+    std::fs::write(&other, "format = \"jsn\"\n").unwrap();
+    let run = scan(cwd.path(), &[&target, "--config", other.to_str().unwrap()]).failure();
+    let stderr = String::from_utf8_lossy(&run.get_output().stderr);
+    assert!(stderr.contains("format must be one of"), "{}", stderr);
+    let run = scan(cwd.path(), &[&target, "--format", "jsn"]).code(2);
+    let stderr = String::from_utf8_lossy(&run.get_output().stderr);
+    assert!(stderr.contains("possible values"), "{}", stderr);
+    assert!(run.get_output().stdout.is_empty());
 }
 
 #[test]
@@ -229,6 +327,91 @@ fn default_ignore_file_covers_the_own_checkout_only() {
     assert_eq!(explicit["total_matches"], 0);
 }
 
+#[test]
+fn a_new_hit_past_what_a_report_lists_is_still_new_against_a_baseline() {
+    let dir = tempfile::tempdir().unwrap();
+    let cwd = tempfile::tempdir().unwrap();
+    let code = |n: usize| (0..n).map(|i| format!("eval(a{i});\n")).collect::<String>();
+    let target = dir.path().to_str().unwrap();
+    std::fs::write(dir.path().join("a.js"), code(30)).unwrap();
+    scan(
+        cwd.path(),
+        &[target, "--baseline", "b.json", "--update-baseline"],
+    )
+    .success();
+    std::fs::write(dir.path().join("a.js"), code(31)).unwrap();
+    let v = scan_json(
+        cwd.path(),
+        &[
+            target,
+            "--baseline",
+            "b.json",
+            "--new-only",
+            "--format",
+            "json",
+        ],
+    );
+    assert_eq!(rule_names(&v), ["eval() Usage"]);
+    assert_eq!(v["rule_matches"][0]["line_number"], 31);
+}
+
+#[test]
+fn a_file_of_one_repeated_line_is_listed_short_and_keeps_its_chain() {
+    // 4 MiB of one matching line (a few KB zipped) is 466,000 hits. The hit
+    // that completes a chain is the last one, next to hits far past what a
+    // report lists, and spelled so that only the rules' second pass sees it.
+    let dir = tempfile::tempdir().unwrap();
+    let line = "eval(a);\n";
+    let lines = (4 * 1024 * 1024 - 64) / line.len();
+    let mut code = line.repeat(lines);
+    code.push_str("dns['resolveTxt'](h, cb);\n");
+    std::fs::write(dir.path().join("a.js"), code).unwrap();
+    let cwd = tempfile::tempdir().unwrap();
+    // Half a minute in a debug build. With every hit compared with every
+    // other, the same build had not finished after nine.
+    let run = Command::new(env!("CARGO_BIN_EXE_kalascan"))
+        .current_dir(cwd.path())
+        .timeout(std::time::Duration::from_secs(300))
+        .args(["scan", dir.path().to_str().unwrap(), "--untrusted"])
+        .args(["--format", "json"])
+        .assert()
+        .success();
+    let v = stdout_json(&run);
+    let found = v["rule_matches"].as_array().unwrap();
+    let of = |rule: &str| -> Vec<&serde_json::Value> {
+        found
+            .iter()
+            .filter(|m| m["matched_pattern"] == rule)
+            .collect()
+    };
+    let evals = of("eval() Usage");
+    assert_eq!(evals.len(), 20, "{}", found.len());
+    assert_eq!(evals[19]["line_number"], 20);
+    let rest = of("Repeated Finding (further hits not listed)");
+    assert_eq!(rest.len(), 1, "{:?}", rest);
+    assert_eq!(
+        rest[0]["context"],
+        format!("eval() Usage: {} more in this file not listed", lines - 20)
+    );
+    // The chain pairs the last line with the first `eval(` within 4096
+    // bytes of it: some 455 lines up, 465,000 past the last one listed.
+    let chain = of("Chain: DNS Tunnel Command Execution");
+    assert_eq!(chain.len(), 1, "{:?}", rule_names(&v));
+    let partner = (lines * line.len() - 4096).div_ceil(line.len()) + 1;
+    assert_eq!(
+        chain[0]["context"],
+        format!(
+            "DNS TXT Query (line {}) + eval() Usage (line {partner})",
+            lines + 1
+        )
+    );
+    assert!(
+        v["risk_score"].as_u64().unwrap() >= 70,
+        "{}",
+        v["risk_score"]
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn closed_stdout_ends_the_run_without_a_panic() {
@@ -283,11 +466,17 @@ fn deps_needs_a_lockfile_with_registry_packages() {
         "\"x@https://github.com/x/y.git\":\n  version \"1.0.0\"\n  resolved \"https://github.com/x/y.git#abc\"\n",
     )
     .unwrap();
-    kalascan(&["deps", path]).failure();
+    let run = kalascan(&["deps", path]).failure();
+    let said = stderr(&run);
+    assert!(
+        said.contains("none of the 1 lockfile entries") && said.contains("yarn.lock: not from"),
+        "{said}"
+    );
 }
 
-#[test]
-fn deps_reuses_cached_results() {
+/// A `KALASCAN_CACHE_DIR` that already holds these `kalascan deps` results,
+/// so a test scans the packages without downloading them.
+fn deps_cache(results: &str) -> tempfile::TempDir {
     // The cache file is named after the KalaScan and ruleset versions.
     let run = kalascan(&["rules"]).success();
     let listing = String::from_utf8_lossy(&run.get_output().stdout).to_string();
@@ -303,9 +492,92 @@ fn deps_reuses_cached_results() {
             env!("CARGO_PKG_VERSION"),
             ruleset
         )),
-        r#"{"npm:left-pad@1.3.0": {"risk_score": 77, "critical": ["Chain: Seeded"]}}"#,
+        results,
     )
     .unwrap();
+    cache
+}
+
+#[test]
+fn deps_gate_fails_on_entries_it_did_not_scan() {
+    let cache = deps_cache(r#"{"npm:lodash@4.17.21": {"risk_score": 0, "critical": []}}"#);
+    let project = tempfile::tempdir().unwrap();
+    std::fs::write(
+        project.path().join("package-lock.json"),
+        r#"{"lockfileVersion": 3, "packages": {
+            "node_modules/lodash": {"version": "4.17.21", "resolved": "https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz"},
+            "node_modules/internal": {"version": "1.0.0", "resolved": "https://artifactory.example.com/api/npm/npm/internal/-/internal-1.0.0.tgz"}
+        }}"#,
+    )
+    .unwrap();
+    let deps = |args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_kalascan"))
+            .current_dir(project.path())
+            .env("KALASCAN_CACHE_DIR", cache.path())
+            .args(["deps", "."])
+            .args(args)
+            .assert()
+    };
+    // Without a gate the run reports the entry and succeeds.
+    let run = deps(&["--format", "json"]).success();
+    let v = stdout_json(&run);
+    assert_eq!(v.as_array().unwrap().len(), 2);
+    assert_eq!(v[0]["package"], "npm:lodash@4.17.21");
+    assert_eq!(v[0]["risk_score"], 0);
+    assert!(v[0].get("skipped").is_none());
+    assert_eq!(v[1]["package"], "npm:internal@1.0.0");
+    assert_eq!(v[1]["source"], "package-lock.json");
+    assert_eq!(v[1]["skipped"], "not from the public registry");
+    assert!(v[1]["risk_score"].is_null());
+    let said = stderr(&run);
+    assert!(
+        said.contains("1 lockfile entries not scanned (1 package-lock.json: not from"),
+        "{said}"
+    );
+    // lodash scores 0: only the entry that was not scanned fails the gate.
+    let run = deps(&["--fail-on-risk", "50"]).code(1);
+    assert!(stderr(&run).contains("--allow-skipped"), "{}", stderr(&run));
+    deps(&["--fail-on-risk", "50", "--allow-skipped"]).success();
+}
+
+#[cfg(unix)]
+#[test]
+fn guard_refuses_dependencies_no_lockfile_pins() {
+    use std::os::unix::fs::PermissionsExt;
+    let project = tempfile::tempdir().unwrap();
+    // A stand-in for npm that leaves a mark when it runs.
+    let bin = tempfile::tempdir().unwrap();
+    let npm = bin.path().join("npm");
+    std::fs::write(&npm, "#!/bin/sh\ntouch installed\n").unwrap();
+    std::fs::set_permissions(&npm, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let guard = || {
+        Command::new(env!("CARGO_BIN_EXE_kalascan"))
+            .current_dir(project.path())
+            .args(["guard", "--", npm.to_str().unwrap(), "install"])
+            .assert()
+    };
+    std::fs::write(
+        project.path().join("package.json"),
+        r#"{"dependencies": {"left-pad": "^1.3.0"}}"#,
+    )
+    .unwrap();
+    let run = guard().code(1);
+    assert!(
+        stderr(&run).contains("package.json declares dependencies"),
+        "{}",
+        stderr(&run)
+    );
+    assert!(!project.path().join("installed").exists());
+    // Nothing to install: the command runs.
+    std::fs::write(project.path().join("package.json"), r#"{"name": "app"}"#).unwrap();
+    guard().success();
+    assert!(project.path().join("installed").exists());
+}
+
+#[test]
+fn deps_reuses_cached_results() {
+    let cache =
+        deps_cache(r#"{"npm:left-pad@1.3.0": {"risk_score": 77, "critical": ["Chain: Seeded"]}}"#);
     let project = tempfile::tempdir().unwrap();
     std::fs::write(
         project.path().join("yarn.lock"),
@@ -464,31 +736,104 @@ impl Drop for Server {
 
 /// A one-file .vsix as the body of a `multipart/form-data; boundary=kalascan-test` upload.
 fn upload_body() -> Vec<u8> {
+    upload_body_with(b"console.log(1);\n", &[])
+}
+
+/// The same with `js` as the file and `fields` as the form's other fields.
+fn upload_body_with(js: &[u8], fields: &[(&str, &str)]) -> Vec<u8> {
     use std::io::Write;
     let mut zip_bytes = std::io::Cursor::new(Vec::new());
     let mut w = zip::ZipWriter::new(&mut zip_bytes);
     w.start_file("extension/a.js", zip::write::SimpleFileOptions::default())
         .unwrap();
-    w.write_all(b"console.log(1);\n").unwrap();
+    w.write_all(js).unwrap();
     w.finish().unwrap();
-    let mut body = b"--kalascan-test\r\nContent-Disposition: form-data; name=\"file\"; \
-        filename=\"a.vsix\"\r\nContent-Type: application/zip\r\n\r\n"
-        .to_vec();
+    let mut body = Vec::new();
+    for (name, value) in fields {
+        body.extend_from_slice(
+            format!(
+                "--kalascan-test\r\nContent-Disposition: form-data; name=\"{}\"\r\n\r\n{}\r\n",
+                name, value
+            )
+            .as_bytes(),
+        );
+    }
+    body.extend_from_slice(
+        b"--kalascan-test\r\nContent-Disposition: form-data; name=\"file\"; \
+        filename=\"a.vsix\"\r\nContent-Type: application/zip\r\n\r\n",
+    );
     body.extend_from_slice(zip_bytes.get_ref());
     body.extend_from_slice(b"\r\n--kalascan-test--\r\n");
     body
 }
 
 async fn upload(http: &reqwest::Client, base: &str) -> reqwest::Response {
+    upload_of(http, base, upload_body()).await
+}
+
+async fn upload_of(http: &reqwest::Client, base: &str, body: Vec<u8>) -> reqwest::Response {
     http.post(format!("{}/api/scan/upload", base))
         .header(
             "content-type",
             "multipart/form-data; boundary=kalascan-test",
         )
-        .body(upload_body())
+        .body(body)
         .send()
         .await
         .unwrap()
+}
+
+/// The server's reports are made from the stored scan, not the one in memory.
+#[tokio::test]
+async fn warnings_are_stored_with_the_scan() {
+    let server = Server::start().await;
+    let http = reqwest::Client::new();
+    // The AI pass, at an endpoint an API caller may not name: it fails before
+    // any connection, whatever listens on this machine.
+    let body = upload_body_with(
+        b"eval(atob('YWxlcnQoMSk='));\n",
+        &[
+            ("ai_analysis_enabled", "true"),
+            ("llm_endpoint", "http://127.0.0.1:9/api/generate"),
+        ],
+    );
+    let queued: serde_json::Value = upload_of(&http, &server.base, body)
+        .await
+        .json()
+        .await
+        .unwrap();
+    let id = queued["result_id"].as_str().expect("result_id");
+    let mut status = serde_json::Value::Null;
+    for _ in 0..100 {
+        status = http
+            .get(format!("{}/api/scan/{}/status", server.base, id))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        if status["done"] == true {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    assert_eq!(status["status"], "completed", "{}", status);
+    let warning = status["result"]["warnings"][0].as_str().expect("warnings");
+    assert!(warning.starts_with("AI analysis failed"), "{}", warning);
+    let report = http
+        .get(format!("{}/api/report/{}/md", server.base, id))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(
+        report.contains(&format!("## Warnings\n\n- {}\n", warning)),
+        "{}",
+        report
+    );
 }
 
 fn entries(dir: &Path) -> usize {
